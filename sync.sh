@@ -62,6 +62,7 @@ PERSONAL=(
 EXCLUDES=(
     '--exclude=__pycache__/'
     '--exclude=*.pyc'
+    '--exclude=.uuid'                   # fontconfig's per-machine folder ids
     '--exclude=/generated/'
     '--exclude=aero-*.png'
     '--exclude=win95-clouds-*.png'

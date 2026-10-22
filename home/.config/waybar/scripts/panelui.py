@@ -170,6 +170,24 @@ class Panel(Gtk.Window):
     def quit(self):
         Gtk.main_quit()
 
+    def step_aside(self):
+        """Before something that asks for a password (pkexec): the prompt is an
+        ordinary window, so it opens beneath this layer -- the keyboard stays
+        the card's and a click on the prompt lands on a click catcher. Give
+        both up until step_back()."""
+        for catcher in self.catchers:
+            catcher.hide()
+        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.NONE)
+
+    def step_back(self):
+        """After the prompt: the catchers again, then the card mapped once more
+        so it stacks above them (the last mapped is on top of a layer)."""
+        for catcher in self.catchers:
+            catcher.show_all()
+        GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.ON_DEMAND)
+        self.hide()
+        self.show()
+
     def on_key(self, _widget, event):
         if event.keyval == Gdk.KEY_Escape:
             self.quit()

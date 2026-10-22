@@ -321,3 +321,46 @@ class Saving(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HeroTest(unittest.TestCase):
+    """The card at the top of Settings > About (settings_pages/about.py)."""
+
+    def setUp(self):
+        try:
+            from settings_pages import about
+        except Exception as exc:    # no GTK here
+            raise unittest.SkipTest(f"settings_pages.about not importable: {exc}")
+        self.about = about
+
+    def test_empty_keeps_its_shape(self):
+        facts = self.about.hero_facts({})
+        self.assertEqual(len(facts["tiles"]), 8)
+        self.assertTrue(all(t[3] == "…" for t in facts["tiles"]))
+
+    def test_from_sections(self):
+        I = self.about.si.ICON
+        sec = lambda *rows: {"rows": [dict(r) for r in rows]}
+        data = {
+            "computer": sec({"name": "Acme Board X", "value": "Desktop"},
+                            {"name": "Uptime", "value": "2 days", "lines": ["on since Mon"]}),
+            "os": sec({"name": "Fedora Linux 44"}, {"name": "Kernel", "value": "7.2.11-200.fc44.x86_64"},
+                      {"name": "Hyprland", "value": "0.56.2"}),
+            "cpu": sec({"name": "Zen 9 Processor", "value": "12 cores"}),
+            "memory": sec({"name": "RAM", "value": "31.2 GiB"}, {"name": "Swap zram0", "value": "8 GiB"}),
+            "storage": sec({"name": "a", "value": "8.00 TB", "icon": I["disk"]},
+                           {"name": "b", "value": "480 GB", "icon": I["disk"]},
+                           {"name": "btrfs", "value": "6 subvolumes", "icon": I["btrfs"]}),
+            "displays": sec({"name": "DP-1", "value": "3440×1440 @ 60 Hz", "icon": I["display"]},
+                            {"name": "DP-2", "value": "1600×900 @ 60 Hz", "icon": I["display"]}),
+        }
+        facts = self.about.hero_facts(data)
+        tiles = {t[0]: (t[3], t[4]) for t in facts["tiles"]}
+        self.assertEqual(facts["system"], "Fedora Linux 44")
+        self.assertEqual(facts["logo"], self.about.FEDORA)
+        self.assertEqual(tiles["cpu"], ("Zen 9", "12 cores"))
+        self.assertEqual(tiles["storage"], ("8.5 TB", "2 drives"))
+        self.assertEqual(tiles["displays"], ("2 screens", "largest 3440×1440"))
+        self.assertEqual(tiles["kernel"][0], "7.2.11")
+        self.assertEqual(tiles["memory"], ("31.2 GiB", "swap 8 GiB"))
+        self.assertEqual(tiles["desktop"][0], "Hyprland 0.56.2")

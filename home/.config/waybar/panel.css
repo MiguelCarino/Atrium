@@ -994,6 +994,61 @@ button.sn-link {
     border-bottom: 2px solid alpha(@magenta, 0.45);
 }
 
+/* Settings > About's card: the computer at a glance (settings_pages/about.py).
+   Theme tokens only, so every theme colours it: an accent wash and edge, a
+   big logo in the accent, then tiles like small cards of their own. */
+.about-hero {
+    background-image: linear-gradient(135deg, alpha(@cyan, 0.16), alpha(@magenta, 0.08) 60%, alpha(@text, 0.03));
+    border: 1px solid alpha(@cyan, 0.35);
+    border-radius: 14px;
+    padding: 18px 18px 16px 18px;
+    margin: 4px 0px 6px 0px;
+}
+.about-hero label.about-logo {
+    font-family: "Font Awesome 6 Brands";
+    font-size: 54px;
+    color: @cyan;
+    min-width: 72px;
+}
+.about-hero label.about-name {
+    font-size: 24px;
+    font-weight: bold;
+    color: @text;
+}
+.about-hero label.about-system {
+    font-size: 14px;
+    color: @cyan;
+}
+.about-hero label.about-model {
+    font-size: 12px;
+    color: alpha(@text, 0.65);
+}
+.about-hero .about-tile {
+    background-color: alpha(@text, 0.06);
+    border: 1px solid alpha(@text, 0.12);
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+.about-hero label.about-tile-icon {
+    font-family: "Font Awesome 6 Free Solid", "Font Awesome 6 Free";
+    font-size: 11px;
+    color: @cyan;
+}
+.about-hero label.about-cap {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: alpha(@text, 0.6);
+}
+.about-hero label.about-value {
+    font-size: 14px;
+    font-weight: bold;
+    color: @text;
+}
+.about-hero label.about-sub {
+    font-size: 11px;
+    color: alpha(@text, 0.6);
+}
+
 /* Choice chips (themes, frames, filters, presets): every option looks like a
    button you can press, the chosen one filled and bold. */
 button.dev-pick.chip {

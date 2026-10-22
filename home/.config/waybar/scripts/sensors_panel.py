@@ -441,6 +441,10 @@ class MemorySection:
         self.swap_clearing = True
         self.swap_result = ""
         self.update()
+        panel = self.widget.get_toplevel()
+        aside = hasattr(panel, "step_aside")
+        if aside:
+            panel.step_aside()          # or the password prompt cannot be typed in
 
         def work():
             try:
@@ -455,6 +459,8 @@ class MemorySection:
             GLib.idle_add(done, msg)
 
         def done(msg):
+            if aside:
+                panel.step_back()
             self.swap_clearing = False
             self.swap_result = msg
             self.update()

@@ -1,6 +1,7 @@
 # User units install.sh enables (sync.sh writes this from the maintainer's
 # install). Features that ship OFF are not here; Settings turns them on.
 activity-log.service
+ambient.service
 auto-dnd.service
 automations.service
 automount.service

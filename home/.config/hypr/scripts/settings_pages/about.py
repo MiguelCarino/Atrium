@@ -1,6 +1,14 @@
 """Settings page: About this computer -- what the machine is, from the
 firmware up to the desktop theme (system-info.py).
 
+First a card that says it at a glance, in the theme's colours (.about-hero
+in waybar/panel.css): the system's logo and the computer's name, the system
+and desktop on one line, the machine's model, and a tile each for the
+processor, graphics, memory, storage, screens, desktop and uptime
+(hero_facts(), from the same sections the details use). Under it "More
+details" opens everything else -- the report buttons, the section index and
+every section -- and closes it again; it opens closed each time.
+
 Every section is gathered in its own thread when the page is shown and
 fills in as soon as its own commands answer: the processor and memory in a
 few milliseconds, the graphics card (nvidia-smi, vulkaninfo) and the
@@ -36,6 +44,92 @@ PAGE = {"id": "about", "title": "About this computer", "icon": "\uf05a", "group"
 SYSINFO = os.path.join(HYPR, "system-info.py")
 SETTINGS = os.path.join(HYPR, "settings.py")
 INDEX_PER_LINE = 6      # jump buttons per line of the section index
+TILES_PER_LINE = 4
+FEDORA = "\uf798"       # Font Awesome 6 Brands: fedora (the logo when the system is Fedora)
+LINUX = "\uf17c"        # ... linux, for any other
+
+
+def first(section, name=None):
+    """A section's first row, or its first row called `name`."""
+    for r in (section or {}).get("rows", []):
+        if name is None or r["name"] == name or r["name"].startswith(name + " "):
+            return r
+    return None
+
+
+def size_bytes(text):
+    """"8.00 TB" / "480 GB" -> bytes (0 when it is not a size)."""
+    parts = (text or "").split()
+    units = {"KB": 1e3, "MB": 1e6, "GB": 1e9, "TB": 1e12, "PB": 1e15}
+    try:
+        return float(parts[0]) * units[parts[1]] if len(parts) == 2 and parts[1] in units else 0
+    except ValueError:
+        return 0
+
+
+def total_size(n):
+    for unit, k in (("TB", 1e12), ("GB", 1e9)):
+        if n >= k:
+            return f"{n / k:.1f} {unit}".replace(".0 ", " ")
+    return f"{n / 1e6:.0f} MB"
+
+
+def hero_facts(data):
+    """What the card shows, from the sections gathered so far ({id: section}):
+    {"name", "system", "model", "logo", "tiles": [(key, icon, caption, value, sub)]}.
+    A tile whose section has not answered yet is ("…") so the card keeps its shape."""
+    comp, os_, cpu = data.get("computer"), data.get("os"), data.get("cpu")
+    tiles = []
+    r = first(cpu)
+    tiles.append(("cpu", si.ICON["cpu"], "Processor",
+                  (r["name"].replace(" Processor", "") if r else "…"), (r or {}).get("value", "")))
+    r = first(data.get("gpu"))
+    tiles.append(("gpu", si.ICON["gpu"], "Graphics", r["name"] if r else "…", (r or {}).get("value", "")))
+    r = first(data.get("memory"), "RAM")
+    swap = first(data.get("memory"), "Swap")
+    tiles.append(("memory", si.ICON["memory"], "Memory", r.get("value", "") if r else "…",
+                  f"swap {swap['value']}" if swap and swap.get("value") else ""))
+    drives = [d for d in (data.get("storage") or {}).get("rows", []) if d.get("icon") == si.ICON["disk"]]
+    total = sum(size_bytes(d.get("value")) for d in drives)
+    tiles.append(("storage", si.ICON["disk"], "Storage", total_size(total) if total else
+                  ("…" if "storage" not in data else "—"),
+                  f"{len(drives)} drive{'s' if len(drives) != 1 else ''}" if drives else ""))
+    screens = (data.get("displays") or {}).get("rows", [])
+    screens = [d for d in screens if d.get("icon") == si.ICON["display"]]
+    biggest = max(screens, key=lambda d: _pixels(d.get("value")), default=None)
+    tiles.append(("displays", si.ICON["display"], "Screens",
+                  f"{len(screens)} screen{'s' if len(screens) != 1 else ''}" if screens else
+                  ("…" if "displays" not in data else "—"),
+                  f"largest {biggest['value'].split(' @')[0]}" if biggest else ""))
+    hypr = first(os_, "Hyprland")
+    look = first(data.get("look"))
+    tiles.append(("desktop", si.ICON["desktop"], "Desktop",
+                  f"Hyprland {hypr['value']}" if hypr and hypr.get("value") else "…",
+                  f"theme {look['name']}" if look else ""))
+    kernel = first(os_, "Kernel")
+    tiles.append(("kernel", si.ICON["kernel"], "Kernel",
+                  (kernel.get("value", "").split("-")[0] if kernel else "…"),
+                  kernel.get("value", "") if kernel else ""))
+    up = first(comp, "Uptime")
+    tiles.append(("uptime", si.ICON["clock"], "Up for", up.get("value", "") if up else "…",
+                  (up.get("lines") or [""])[0] if up else ""))
+    system = first(os_)
+    model = first(comp)
+    sysname = system["name"] if system else ""
+    return {"name": si.socket.gethostname(),
+            "system": sysname or "…",
+            "model": model["name"] if model else "",
+            "logo": FEDORA if "fedora" in sysname.lower() else LINUX,
+            "tiles": tiles}
+
+
+def _pixels(value):
+    """"3440×1440 @ 60 Hz" -> 4953600."""
+    try:
+        w, h = (value or "").split(" @")[0].split("×")
+        return int(w) * int(h)
+    except ValueError:
+        return 0
 
 
 def load_sysinfo():
@@ -70,7 +164,17 @@ class Page:
         self.pending = set()    # section ids being gathered right now
         self.reveal = False
         self.widget = page_box()
-        w = self.widget
+        outer = self.widget
+        outer.pack_start(self.build_hero(), False, False, 0)
+        self.more = link("More details  ▾", self.toggle_more)
+        more_row = Gtk.Box()
+        more_row.set_halign(Gtk.Align.CENTER)
+        more_row.pack_start(self.more, False, False, 0)
+        outer.pack_start(more_row, False, False, 0)
+        self.details = page_box()
+        self.details.set_no_show_all(True)
+        outer.pack_start(self.details, False, False, 0)
+        w = self.details
         # The computer's name is renamed on the Network page, so its row links there.
         self.head, self.head_sub = row("\uf390", si.socket.gethostname(), "checking…",
                                        link("Open Network", lambda: spawn(SETTINGS, "network")))
@@ -102,6 +206,67 @@ class Page:
         w.pack_start(sep(), False, False, 0)
         w.pack_start(note, False, False, 0)
 
+    # -- the card ----------------------------------------------------------------------------
+    def build_hero(self):
+        hero = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        hero.get_style_context().add_class("about-hero")
+        top = Gtk.Box(spacing=18)
+        self.logo = dp.label(FEDORA, "about-logo", 0.5)
+        self.logo.set_valign(Gtk.Align.CENTER)
+        top.pack_start(self.logo, False, False, 0)
+        names = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        names.set_valign(Gtk.Align.CENTER)
+        self.hero_name = dp.label(si.socket.gethostname(), "about-name")
+        self.hero_system = dp.label("…", "about-system")
+        self.hero_model = dp.label("", "about-model")
+        for lab in (self.hero_name, self.hero_system, self.hero_model):
+            lab.set_line_wrap(True)
+            names.pack_start(lab, False, False, 0)
+        top.pack_start(names, True, True, 0)
+        hero.pack_start(top, False, False, 0)
+        self.tiles = Gtk.Grid()             # two even rows of four
+        self.tiles.set_column_homogeneous(True)
+        self.tiles.set_column_spacing(8)
+        self.tiles.set_row_spacing(8)
+        self.tile_labels = {}
+        for i, (key, icon, caption, _value, _sub) in enumerate(hero_facts({})["tiles"]):
+            tile = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            tile.get_style_context().add_class("about-tile")
+            head = Gtk.Box(spacing=6)
+            head.pack_start(dp.label(icon, "about-tile-icon"), False, False, 0)
+            head.pack_start(dp.label(caption.upper(), "about-cap"), False, False, 0)
+            tile.pack_start(head, False, False, 0)
+            value, sub = dp.label("…", "about-value"), dp.label("", "about-sub")
+            for lab in (value, sub):
+                lab.set_line_wrap(True)
+                lab.set_max_width_chars(18)
+                tile.pack_start(lab, False, False, 0)
+            self.tile_labels[key] = (value, sub)
+            self.tiles.attach(tile, i % TILES_PER_LINE, i // TILES_PER_LINE, 1, 1)
+        hero.pack_start(self.tiles, False, False, 0)
+        return hero
+
+    def draw_hero(self):
+        facts = hero_facts(self.data)
+        self.logo.set_text(facts["logo"])
+        self.hero_system.set_text(facts["system"])
+        self.hero_model.set_text(facts["model"])
+        self.hero_model.set_visible(bool(facts["model"]))
+        for key, _icon, _caption, value, sub in facts["tiles"]:
+            v, s = self.tile_labels[key]
+            v.set_text(value)
+            s.set_text(sub)
+            s.set_visible(bool(sub))
+
+    def toggle_more(self):
+        show = not self.details.get_visible()
+        self.details.set_no_show_all(not show)
+        if show:
+            self.details.show_all()
+        else:
+            self.details.hide()
+        self.more.set_label("Fewer details  ▴" if show else "More details  ▾")
+
     # -- gathering ---------------------------------------------------------------------------
     def refresh(self):
         for sid, _title in si.SECTIONS:
@@ -118,6 +283,7 @@ class Page:
         self.pending.discard(section["id"])
         self.data[section["id"]] = section
         self.draw(section["id"])
+        self.draw_hero()
         self.head_sub.set_text(si.summary(self.ordered(), host=False) or "checking…")
 
     def ordered(self):
