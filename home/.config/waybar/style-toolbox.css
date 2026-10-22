@@ -1,0 +1,41 @@
+/* Toolbox section (config-toolbox). Pulls in the main theme, so the rows are
+   the same pills as on the bar, then stacks them inside one glass card.
+   Colours are style.css's PALETTE names; a desktop theme reaches this card
+   through the same generated/theme.css, imported again at the END of this
+   file so a theme's rules for .modules-left and the rows below come after
+   these ones (style.css's own import of it comes before them). */
+@import "style.css";
+
+/* The card. .modules-left is the only box with anything in it and is only as
+   tall as its rows; the rest of the layer surface stays transparent. */
+.modules-left {
+    padding: 8px;
+    background-color: @surface-dense;
+    border: 1px solid @edge;
+    border-bottom-color: @edge-lit;
+    border-radius: 3px 14px 3px 14px;
+    box-shadow: none;
+}
+
+/* Rows: full width, small gap, no per-pill right margin from the bar. */
+#custom-fsstate,
+#custom-nightlight,
+#custom-awake,
+#custom-display,
+#custom-keybinds,
+#custom-settings,
+#tray {
+    margin: 0 0 6px 0;
+    padding: 4px 14px;
+    min-width: 150px;
+}
+
+#tray {
+    margin-bottom: 0;
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+
+/* The desktop theme, again (see the top of this file): same file as the one
+   style.css imports, so a theme writes its toolbox rules in its waybar.css. */
+@import url("generated/theme.css");

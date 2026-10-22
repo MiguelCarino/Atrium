@@ -1,0 +1,184 @@
+/* ===========================================================================
+   MATRIX -- every popup panel (~/.config/waybar/panel.css). Copied to
+   waybar/generated/theme-panel.css by ~/.config/hypr/scripts/theme.py and
+   imported LAST. Same palette and the same rules of thumb as this theme's
+   waybar.css (its header explains them): lightness carries structure, teal is
+   the second series, amber warns, red is bad -- and red ONLY for bad, so the
+   base file's structural magenta (section headings, weekday names, the hot
+   end of the weather) is put back to a green or to amber below.
+   Colours the panels DRAW (graphs, "Sure?") are theme.conf color.* keys.
+   =========================================================================== */
+
+/* CALMER (2026-10-18): green on everything was dizzying. Green is now the
+   ACCENT only -- lit, active, selected things (#3ddc68, softer than the old
+   #00ff41) -- and text is a soft grey with a hint of green (#c8d4cb, 13:1 on
+   the black; dim #7d8f81, 5.6:1). Edges and headings are dark green-greys,
+   selections a deeper green, no glows, no moving scan line. Where the text
+   below still says #00ff41 / #ccffd6 for text, read these. */
+
+
+@define-color m-dark     #2f4a36;
+@define-color m-deep     #12201a;
+@define-color m-teal     #4fbfae;
+/* Section headings: darker than the text so the eye reads them as structure,
+   still 7:1 on the card at 10px bold caps. */
+@define-color m-heading  #5f9e6e;
+
+/* --- PALETTE 1: hues (@cyan = accent= #00ff41, via generated/accent.css) --- */
+@define-color magenta    #ff3030;
+@define-color yellow     #ffb000;
+@define-color green      #3ddc68;
+@define-color red        #ff3030;
+@define-color mist       #8fa596;
+
+/* --- PALETTE 2: surfaces, edges, text ---------------------------------------
+   On the card (~#000803): text 15:1, text-dim 6:1, text-dimmer 4.6:1. */
+@define-color surface        rgba(0, 8, 3, 0.92);
+@define-color surface-deep   rgba(0, 4, 1, 0.80);
+@define-color surface-video  rgba(0, 0, 0, 0.88);
+@define-color knob           #001a06;
+@define-color edge           alpha(@m-dark, 0.80);
+@define-color edge-lit       alpha(@cyan, 0.75);
+@define-color accent         alpha(@cyan, 0.20);
+@define-color accent-lit     alpha(@cyan, 0.34);
+@define-color text           #c8d4cb;
+@define-color text-dim       #7d8f81;
+@define-color text-dimmer    #66766a;
+@define-color text-bright    #eef5ef;
+@define-color ink            #000000;
+@define-color rec-edge       rgba(255, 150, 150, 0.55);
+
+/* --- Square corners everywhere ---------------------------------------------- */
+#panel,
+#preview-frame,
+button.control,
+#cal-prev,
+#cal-next,
+label.cal-day,
+label.kb-cap,
+.ctl-icon,
+switch,
+switch slider,
+button.ctl-link,
+button.dev-pick,
+.dev-dot,
+button.pw-tile,
+button.dk-fs,
+levelbar.dk-bar trough,
+levelbar.dk-bar block.filled,
+#seek slider,
+scale.ctl-slider slider {
+    border-radius: 0px;
+}
+
+/* The card: a flat black slab with a 1px structure-green frame and a lit
+   top line, like a terminal window's title rule. No floor glow gradient. */
+#panel {
+    background-image: none;
+    border: 1px solid @edge;
+    border-top-color: @edge-lit;
+    border-bottom-color: @edge;
+}
+
+/* --- Headings: structure green, not the base file's magenta ----------------- */
+label.kb-heading,
+label.cal-weekday {
+    color: @m-heading;
+}
+
+/* --- Glow: key text only (the big readouts) --------------------------------- */
+#kb-title,
+label.wx-big-temp {
+    text-shadow: none;
+}
+
+/* Key caps: hollow terminal keys. */
+label.kb-cap {
+    background-color: alpha(@m-deep, 0.55);
+    border: 1px solid @edge;
+    border-bottom-color: @cyan;
+}
+
+/* Weather: cool low in teal, warm high in amber (theme.conf wx_cool /
+   wx_warm draw the same pair in the graph). Red would say "bad". */
+label.wx-lo { color: @m-teal; }
+label.wx-hi { color: @yellow; }
+
+/* Today in the calendar: the one inverse-video cell. */
+label.cal-today {
+    color: @ink;
+    background-color: @cyan;
+}
+
+/* Grooves in the deep green, so a slider or a usage bar reads as a track
+   even where it is empty. */
+#seek trough,
+scale.ctl-slider trough,
+levelbar.dk-bar trough {
+    background-color: alpha(@m-deep, 0.90);
+}
+
+/* Separators and the column rule in structure green. */
+.ctl-sep,
+.ctl-vsep {
+    background-color: alpha(@m-dark, 0.55);
+}
+
+/* Days of the neighbouring months: quieter than this month's days, but
+   READABLE -- the base's 22% of a green-grey was 1.4:1 here, and the 38% this
+   file first used was still 2:1. @text-dimmer is 4.6:1 on the card; the
+   regular weight (this month's days are bold) keeps them the quieter row. */
+label.cal-adjacent {
+    color: @text-dimmer;
+    font-weight: 400;
+}
+
+/* The filled run of a slider (audio panel, media #seek). GTK's default
+   highlight node keeps Adwaita's 1px BLUE border and blue background-color,
+   and the base gradient starts at alpha(@cyan, 0.55), so that blue showed
+   through: a blue outline and a teal-blue start (#10ca89) on a green bar.
+   Cyberpunk's blue accent hides the same pixels, which is why the base file
+   never noticed; here the run sits on black inside a structure-green line.
+   (Fixed here, not in the base, so cyberpunk stays pixel-identical.) */
+#seek highlight,
+scale.ctl-slider highlight {
+    background-color: @ink;
+    border-color: @m-dark;
+}
+
+/* The accent row while the theme fixes the accent (accent_follow=no):
+   display_panel.py makes the title and the swatch insensitive along with the
+   switch, but the base .ctl-title colour outranks GTK's own :disabled grey,
+   so the row read as live next to a dead switch. Dim both to match. */
+label.ctl-title:disabled {
+    color: @text-dim;
+}
+
+label.ctl-icon:disabled {
+    opacity: 0.45;
+}
+
+/* Capture panel, HDR range tile. The base paints every .live tile red, as on
+   the REC pill -- right for "recording now", wrong for "HDR capture is ON",
+   which is a mode, not a problem; and in this theme red ONLY means bad. So
+   this one tile is the inverse-video "on" cell (like today in the calendar):
+   a green that stops below full scale for the HDR panel, black ink on it
+   (8:1). The recording tiles keep the base's red. */
+button.pw-tile.live.cap-rec-range,
+button.pw-tile.live.cap-rec-range:hover {
+    background-color: #00b32c;
+    border-color: @cyan;
+}
+
+button.pw-tile.live.cap-rec-range label.pw-glyph,
+button.pw-tile.live.cap-rec-range label.pw-label {
+    color: @ink;
+}
+
+/* Slashed zero: in a terminal face 0 and O must never be mistaken (IPs,
+   hashes, versions). IBM Plex Mono has the `zero` feature; the base sets
+   "tnum" on the same selector, so it is repeated. GTK3 takes the
+   value as ONE string handed to Pango ("tnum", "zero" is a parse error). */
+* {
+    font-feature-settings: "tnum, zero";
+}

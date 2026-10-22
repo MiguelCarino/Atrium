@@ -1,0 +1,68 @@
+W95FA -- the face of the "win95" desktop theme (~/.config/themes/win95/).
+
+W95FA is a free, from-scratch recreation of the Windows 95 interface face
+(MS Sans Serif / the 8pt system font) by Alina Sava. MS Sans Serif itself
+ships only with Windows under Microsoft's licence, so this is the closest
+legal match. It is a PIXEL font: every outline sits on an 80-unit grid of a
+1000-unit em (cap height 9 grid pixels, x-height 6), so it is pixel-exact --
+no grey fringes -- at 12.5px (one grid pixel = one screen pixel, the 8pt
+Windows 95 look) and 25px (2x). The theme's stylesheets use exactly those
+two sizes; anything in between is soft.
+Coverage: Latin-1 (167 code points). No degree sign, no backtick, no arrows,
+no Cyrillic/CJK, and only a Regular weight -- so the theme lists IBM Plex Sans
+right after it (fontconfig falls back per glyph) and keeps font-weight
+normal: a requested bold would be synthesised, which smears a pixel face.
+
+Source:   https://fontsarena.com/w95fa-by-alina-sava/  (the author's own site:
+          Alina Sava runs FontsArena; the font's name table says
+          designer "Alina Sava", manufacturer "FontsArena.com")
+Download: https://fontsarena.com/wp-content/uploads/2020/01/W95FA.zip
+          sha256 a78972d3d46cc506f9aef423100b027696fad437b16b078e3bdf396c0bf6d3eb
+Files:    W95FA.otf (version 1.002) and OFL.txt from that zip, unmodified
+          (the .woff/.woff2 web copies and macOS metadata were left out).
+          W95FA.otf sha256 9e1ad53708307b2b68e06d43799b2267f6aec620dda972bc62753ad16ba50f2b
+Licence:  SIL Open Font License 1.1 (OFL.txt next to this file; the page says
+          "offered for free personal and commercial use under SIL OpenFont
+          license", and the font's licence field says the same). Personal
+          use, embedding and redistribution allowed; the font may not be sold
+          on its own.
+Installed: 2026-10-17, user-level only (fc-cache -f ~/.local/share/fonts).
+
+Rendering: ~/.config/fontconfig/conf.d/60-w95fa-pixels.conf turns
+antialiasing and hinting OFF for this one family, in the programs that draw it
+at scale 1 (waybar, wofi, mako and the Python GTK3 panels/launcher). W95FA's
+advance widths are not whole grid pixels, so with greyscale antialiasing most
+glyphs land at a fractional x and come out soft; monochrome, each grid pixel
+is exactly one screen pixel wherever it lands (the conf file has the detail).
+GTK4 apps (Nautilus) are left antialiased on purpose: they draw at the
+output's fractional scale (DP-2 is 0.8), where monochrome drops glyph pixels.
+Apps read it at start-up -- and a program started before the font was
+installed (mako, typically: it runs all session) keeps its old face until it
+is restarted once: systemctl --user restart mako.
+
+
+PxPlus IBM VGA 8x16 -- the win95 theme's TERMINAL face (term.font in
+~/.config/themes/win95/theme.conf: COSMIC Terminal and kitty)
+==========================================================================
+
+The IBM VGA's 8x16 text-mode font -- what the MS-DOS Prompt showed full
+screen -- redrawn as a TrueType "pixel outline" by VileR for The Ultimate
+Oldschool PC Font Pack. "Plus": 782 glyphs (CP437 plus Latin, Greek,
+Cyrillic, box drawing, block elements, arrows), so TUI programs draw their
+frames properly. Monospace, Regular only.
+Pixel-exact at 16px (1600-unit em, 100 units per pixel) and 32px: the theme
+sets term.font_size=16 (COSMIC Terminal, px; kitty gets 12pt = 16px).
+
+Author:   VileR (int10h.org)
+Licence:  CC BY-SA 4.0 -- PxPlus-LICENSE.txt next to this file
+Source:   https://int10h.org/oldschool-pc-fonts/
+Download: https://int10h.org/oldschool-pc-fonts/download/oldschool_pc_font_pack_v2.2_linux.zip
+          sha256 b30dc3ecc9931ad2dd8be7517dd01813c8834a1911b582ab7643191b41a3d759
+          (file used: "ttf - Px (pixel outline)/PxPlus_IBM_VGA_8x16.ttf")
+
+PxPlus_IBM_VGA_8x16-Bold.ttf is NOT from the pack: the same file with only
+its weight (OS/2 700, bold style bits) and names changed, glyphs untouched.
+COSMIC Terminal lists a monospace family only if it has a Regular AND a Bold
+face (its fallback logic needs both), so the Regular-only original never
+showed up there. The VGA had no bold either: bold text was a brighter
+colour, which is what this gives. A derivative under the same CC BY-SA 4.0.

@@ -1,0 +1,382 @@
+diff --git a/src/HyprViewPassElement.cpp b/src/HyprViewPassElement.cpp
+index b610f73..5c399a6 100644
+--- a/src/HyprViewPassElement.cpp
++++ b/src/HyprViewPassElement.cpp
+@@ -48,7 +48,7 @@ CRegion CHyprViewPassElement::opaqueRegion() {
+ 
+   auto monitor = instance->pMonitor.lock();
+   // Return the full monitor box as an opaque region using full physical size
+-  Vector2D fullMonitorSize = monitor->m_pixelSize;
++  Vector2D fullMonitorSize = monitor->m_transformedSize;
+   CBox monitorBox = {monitor->m_position.x, monitor->m_position.y,
+                      fullMonitorSize.x, fullMonitorSize.y};
+   return CRegion{monitorBox};
+diff --git a/src/hyprview.cpp b/src/hyprview.cpp
+index fe11c9a..76a2828 100644
+--- a/src/hyprview.cpp
++++ b/src/hyprview.cpp
+@@ -27,6 +27,44 @@ using Desktop::View::CWindow;
+ #include "HyprViewPassElement.hpp"
+ #include "PlacementAlgorithms.hpp"
+ 
++// CMonitor::updateMatrix() is private, but the projection it caches has to be
++// recomputed while the rotation is switched off below. An explicit template
++// instantiation is exempt from access checks, which is the standard-conforming
++// way to take a pointer to a private member.
++using UpdateMatrixFn = void (Monitor::CMonitor::*)();
++UpdateMatrixFn monitorUpdateMatrix();
++template <UpdateMatrixFn FN> struct SUpdateMatrixAccess {
++  friend UpdateMatrixFn monitorUpdateMatrix() { return FN; }
++};
++template struct SUpdateMatrixAccess<&Monitor::CMonitor::updateMatrix>;
++
++// Offscreen captures (window tiles, the background) are drawn back onto the
++// monitor as ordinary textures, and drawing a texture already applies the
++// monitor's rotation. Capturing with the rotation on as well turns the content
++// sideways and squeezes it into the wrong aspect ratio, so on a rotated
++// monitor each capture is taken as if the monitor were unrotated, at its
++// logical (transformed) size. Restored when the guard goes out of scope.
++struct SUnrotatedCapture {
++  PHLMONITOR mon;
++  wl_output_transform transform;
++  Vector2D pixelSize;
++  explicit SUnrotatedCapture(PHLMONITOR m)
++      : mon(m), transform(m->m_transform), pixelSize(m->m_pixelSize) {
++    if (transform == WL_OUTPUT_TRANSFORM_NORMAL)
++      return;
++    mon->m_transform = WL_OUTPUT_TRANSFORM_NORMAL;
++    mon->m_pixelSize = mon->m_transformedSize;
++    (mon.get()->*monitorUpdateMatrix())();
++  }
++  ~SUnrotatedCapture() {
++    if (transform == WL_OUTPUT_TRANSFORM_NORMAL)
++      return;
++    mon->m_transform = transform;
++    mon->m_pixelSize = pixelSize;
++    (mon.get()->*monitorUpdateMatrix())();
++  }
++};
++
+ // Helper to find the CHyprView instance for a given animation variable
+ CHyprView *findInstanceForAnimation(
+     WP<Hyprutils::Animation::CBaseAnimatedVariable> thisptr) {
+@@ -149,6 +187,7 @@ void CHyprView::setupWindowImages(std::vector<PHLWINDOW> &windowsToRender) {
+     // Temporarily move window to monitor position for rendering
+     window->positionAnimation()->setValue(pMonitor->m_position);
+ 
++    SUnrotatedCapture unrotated(pMonitor.lock());
+     g_pHyprRenderer->beginFullFakeRender(pMonitor.lock(), fakeDamage, image.fb);
+ 
+     if (window && window->m_isMapped) {
+@@ -164,7 +203,7 @@ void CHyprView::setupWindowImages(std::vector<PHLWINDOW> &windowsToRender) {
+   }
+ 
+   // Setup scale animation
+-  Vector2D fullMonitorSize = pMonitor->m_pixelSize;
++  Vector2D fullMonitorSize = pMonitor->m_transformedSize;
+ 
+   g_pAnimationManager->createAnimation(
+       1.0f, scale, Config::animationTree()->getAnimationPropertyConfig("windowsMove"),
+@@ -206,7 +245,7 @@ void CHyprView::captureBackground() {
+     return;
+ 
+   // Capture background at full monitor size to avoid recursive layers
+-  const auto MONITOR_SIZE = monitor->m_pixelSize;
++  const auto MONITOR_SIZE = monitor->m_transformedSize;
+   const auto FORMAT = monitor->m_output->state->state().drmFormat;
+ 
+   // Allocate the background framebuffer at full size
+@@ -247,6 +286,7 @@ void CHyprView::captureBackground() {
+ 
+   // Capture the background with hidden windows
+   CRegion fullRegion{0, 0, (int)MONITOR_SIZE.x, (int)MONITOR_SIZE.y};
++  SUnrotatedCapture unrotated(monitor);
+   g_pHyprRenderer->beginFullFakeRender(monitor, fullRegion, bgFramebuffer);
+   // Render the workspace with hidden windows (showing just the
+   // wallpaper/background)
+@@ -412,7 +452,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+   // Prepare screen info (available area after reserved regions)
+   Vector2D reservedTopLeft = Vector2D(pMonitor->m_reservedArea.left(), pMonitor->m_reservedArea.top());
+   Vector2D reservedBottomRight = Vector2D(pMonitor->m_reservedArea.right(), pMonitor->m_reservedArea.bottom());
+-  Vector2D fullMonitorSize = pMonitor->m_pixelSize;
++  Vector2D fullMonitorSize = pMonitor->m_transformedSize;
+ 
+   // Calculate extra bottom margin needed for window names if enabled
+   double bottomMarginAdjustment = 0.0;
+@@ -478,7 +518,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+     // Check if mouse is actually on this monitor BEFORE cancelling
+     Vector2D globalMousePos = g_pInputManager->getMouseCoordsInternal();
+     Vector2D monitorPos = pMonitor->m_position;
+-    Vector2D fullMonitorSize = pMonitor->m_pixelSize / pMonitor->m_scale;
++    Vector2D fullMonitorSize = pMonitor->m_transformedSize / pMonitor->m_scale;
+ 
+     bool mouseOnThisMonitor =
+         (globalMousePos.x >= monitorPos.x &&
+@@ -508,7 +548,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+     // Check if mouse is on this monitor BEFORE cancelling
+     Vector2D globalMousePos = g_pInputManager->getMouseCoordsInternal();
+     Vector2D monitorPos = pMonitor->m_position;
+-    Vector2D fullMonitorSize = pMonitor->m_pixelSize / pMonitor->m_scale;
++    Vector2D fullMonitorSize = pMonitor->m_transformedSize / pMonitor->m_scale;
+ 
+     bool mouseOnThisMonitor =
+         (globalMousePos.x >= monitorPos.x &&
+@@ -581,14 +621,15 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+     close();
+   };
+ 
+-  auto onMouseAxis = [this](SCallbackInfo &info) {
++  auto onMouseAxis = [this](const IPointer::SAxisEvent &event,
++                            SCallbackInfo &info) {
+     if (closing)
+       return;
+ 
+     // Check if mouse is on this monitor
+     Vector2D globalMousePos = g_pInputManager->getMouseCoordsInternal();
+     Vector2D monitorPos = pMonitor->m_position;
+-    Vector2D fullMonitorSize = pMonitor->m_pixelSize / pMonitor->m_scale;
++    Vector2D fullMonitorSize = pMonitor->m_transformedSize / pMonitor->m_scale;
+ 
+     bool mouseOnThisMonitor =
+         (globalMousePos.x >= monitorPos.x &&
+@@ -617,8 +658,14 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+       }
+     }
+ 
+-    // In normal (non-explicit) overview mode, don't do anything special with
+-    // scroll The focused window from hover will receive it
++    // In normal (non-explicit) overview mode the wheel steps this monitor
++    // through its workspaces: down = next, up = previous, matching the
++    // e+1 / e-1 wheel binds. The event is swallowed either way so it never
++    // reaches the window that happens to be focused underneath.
++    info.cancelled = true;
++    if (event.axis != WL_POINTER_AXIS_VERTICAL_SCROLL || event.delta == 0)
++      return;
++    hyprviewStepWorkspace(pMonitor.lock(), event.delta > 0 ? 1 : -1);
+   };
+ 
+   // 0.54: string-named hookSystem events became typed EventBus signals.
+@@ -629,7 +676,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+     if (event.button == BTN_LEFT && event.state == WL_POINTER_BUTTON_STATE_PRESSED)
+       onCursorSelect(info);
+   });
+-  mouseAxisHook   = EV.input.mouse.axis.listen([onMouseAxis](const IPointer::SAxisEvent&, SCallbackInfo& info) { onMouseAxis(info); });
++  mouseAxisHook   = EV.input.mouse.axis.listen([onMouseAxis](const IPointer::SAxisEvent& event, SCallbackInfo& info) { onMouseAxis(event, info); });
+   touchDownHook   = EV.input.touch.down.listen([onCursorSelect](const ITouch::SDownEvent&, SCallbackInfo& info) { onCursorSelect(info); });
+ 
+   // NOW unblock rendering - workspace migration is complete
+@@ -717,6 +764,7 @@ void CHyprView::redrawID(int id, bool forcelowres) {
+   const auto REALPOS = window->positionAnimation()->value();
+   window->positionAnimation()->setValue(pMonitor->m_position);
+ 
++  SUnrotatedCapture unrotated(pMonitor.lock());
+   g_pHyprRenderer->beginFullFakeRender(pMonitor.lock(), fakeDamage, image.fb);
+ 
+   if (window->m_isMapped) {
+@@ -840,6 +888,13 @@ void CHyprView::onPreRender() {
+ 
+ void CHyprView::onWorkspaceChange() {}
+ 
++void CHyprView::slideIn(int direction) {
++  scale->setValueAndWarp(1.0f);
++  pos->setValueAndWarp(
++      Vector2D{0.0, direction * pMonitor->m_transformedSize.y * 0.5});
++  *pos = Vector2D{0, 0};
++}
++
+ void CHyprView::render() {
+   g_pHyprRenderer->m_renderPass.add(makeUnique<CHyprViewPassElement>(this));
+ }
+@@ -852,7 +907,7 @@ void CHyprView::fullRender() {
+   // Render the captured background instead of a solid color
+   if (bgCaptured && bgFramebuffer && bgFramebuffer->m_size.x > 0 &&
+       bgFramebuffer->m_size.y > 0) {
+-    Vector2D fullMonitorSize = pMonitor->m_pixelSize;
++    Vector2D fullMonitorSize = pMonitor->m_transformedSize;
+     CBox monitorBox = {0, 0, fullMonitorSize.x, fullMonitorSize.y};
+     CRegion damage{0, 0, INT16_MAX, INT16_MAX};
+     g_pHyprOpenGL->renderTexture(
+@@ -866,7 +921,7 @@ void CHyprView::fullRender() {
+ 
+   // If no windows, show centered message
+   if (images.empty()) {
+-    Vector2D fullMonitorSize = pMonitor->m_pixelSize;
++    Vector2D fullMonitorSize = pMonitor->m_transformedSize;
+     std::string emptyMessage = "Overview (no windows)";
+     int fontSize = 32;
+ 
+diff --git a/src/hyprview.hpp b/src/hyprview.hpp
+index 8125b5c..d75ba83 100644
+--- a/src/hyprview.hpp
++++ b/src/hyprview.hpp
+@@ -56,6 +56,14 @@ public:
+ 
+   // close without a selection
+   void close();
++
++  // Read back what this overview was opened with, so stepping to another
++  // workspace can open the replacement the same way.
++  EWindowCollectionMode collectionMode() const { return m_collectionMode; }
++  const std::string &placement() const { return m_placement; }
++  // Skip the zoom-in and slide the tiles in from below (direction 1) or above
++  // (-1) instead; used when the overview is rebuilt after a workspace step.
++  void slideIn(int direction);
+   void selectHoveredWindow();
+ 
+   // Accurate mouse-to-tile calculation
+@@ -154,6 +162,10 @@ private:
+       WP<Hyprutils::Animation::CBaseAnimatedVariable>);
+ };
+ 
++// Switch the overview's monitor to its next (direction 1) or previous (-1)
++// workspace and rebuild the overview there. Defined in main.cpp.
++void hyprviewStepWorkspace(PHLMONITOR monitor, int direction);
++
+ // Map of monitor to CHyprView instance - one overview per monitor
+ inline std::unordered_map<PHLMONITOR, std::unique_ptr<CHyprView>>
+     g_pHyprViewInstances;
+diff --git a/src/main.cpp b/src/main.cpp
+index c37aa3e..cefa861 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -20,6 +20,9 @@ using Event::SCallbackInfo;
+ #include <hyprland/src/managers/input/trackpad/GestureTypes.hpp>
+ #include <hyprland/src/managers/input/trackpad/TrackpadGestures.hpp>
+ #include <hyprland/src/render/Renderer.hpp>
++#include <hyprland/src/managers/input/InputManager.hpp>
++#include <hyprland/src/state/WorkspaceState.hpp>
++#include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
+ #include <hyprutils/string/ConstVarList.hpp>
+ #include <iostream>
+ #include <unistd.h>
+@@ -106,12 +109,14 @@ struct DispatcherArgs {
+                       ON,
+                       OFF,
+                       SELECT,
++                      STEP,
+                       DEBUG } action;
+   EWindowCollectionMode collectionMode;
+   std::string placement;
+   std::string
+       targetMonitor; // Empty = current monitor, otherwise specific monitor name
+   std::string error;
++  int stepDirection = 0; // STEP: 1 = next workspace, -1 = previous
+ };
+ 
+ static DispatcherArgs parseDispatcherArgs(const std::string &arg) {
+@@ -130,6 +135,9 @@ static DispatcherArgs parseDispatcherArgs(const std::string &arg) {
+     result.action = DispatcherArgs::Action::DEBUG;
+   } else if (lowerArg == "select") {
+     result.action = DispatcherArgs::Action::SELECT;
++  } else if (lowerArg.starts_with("next") || lowerArg.starts_with("prev")) {
++    result.action = DispatcherArgs::Action::STEP;
++    result.stepDirection = lowerArg.starts_with("next") ? 1 : -1;
+   } else if (lowerArg.find("off") != std::string::npos) {
+     result.action = DispatcherArgs::Action::OFF;
+   } else if (lowerArg.find("on") != std::string::npos) {
+@@ -248,6 +256,24 @@ static SDispatchResult onHyprviewDispatcher(std::string arg) {
+     return {};
+   }
+ 
++  // Handle STEP action ("next" / "prev"): the keyboard twin of scrolling over
++  // an overview. Steps the monitor under the cursor, like the wheel does.
++  if (parsedArgs.action == DispatcherArgs::Action::STEP) {
++    // "next monitor:DP-1" steps that monitor instead.
++    const auto CURSOR = g_pInputManager->getMouseCoordsInternal();
++    for (auto &[monitor, instance] : g_pHyprViewInstances) {
++      const auto SIZE = monitor->m_transformedSize / monitor->m_scale;
++      const bool PICKED = parsedArgs.targetMonitor.empty()
++                              ? CBox{monitor->m_position, SIZE}.containsPoint(CURSOR)
++                              : monitor->m_name == parsedArgs.targetMonitor;
++      if (PICKED) {
++        hyprviewStepWorkspace(monitor, parsedArgs.stepDirection);
++        return {};
++      }
++    }
++    return {.success = false, .error = "no overview on the monitor under the cursor"};
++  }
++
+   // Handle DEBUG action
+   if (parsedArgs.action == DispatcherArgs::Action::DEBUG) {
+     auto PMONITOR = Desktop::focusState()->monitor();
+@@ -272,7 +298,7 @@ static SDispatchResult onHyprviewDispatcher(std::string arg) {
+     // Get monitor dimensions
+     Vector2D reservedTopLeft = Vector2D(PMONITOR->m_reservedArea.left(), PMONITOR->m_reservedArea.top());
+     Vector2D reservedBottomRight = Vector2D(PMONITOR->m_reservedArea.right(), PMONITOR->m_reservedArea.bottom());
+-    Vector2D fullMonitorSize = PMONITOR->m_pixelSize;
++    Vector2D fullMonitorSize = PMONITOR->m_transformedSize;
+     Vector2D availableSize = {
+         fullMonitorSize.x - reservedTopLeft.x - reservedBottomRight.x,
+         fullMonitorSize.y - reservedTopLeft.y - reservedBottomRight.y};
+@@ -561,6 +587,71 @@ static SDispatchResult onHyprviewDispatcher(std::string arg) {
+   return {};
+ }
+ 
++void hyprviewStepWorkspace(PHLMONITOR monitor, int direction) {
++  // A wheel notch can arrive as several events (high-resolution wheels,
++  // touchpads), so steps are rate-limited to one per 200 ms.
++  static auto lastStep = std::chrono::steady_clock::time_point{};
++  const auto now = std::chrono::steady_clock::now();
++  if (now - lastStep < std::chrono::milliseconds(200))
++    return;
++  lastStep = now;
++
++  // The axis event is still being dispatched to the instance that is about to
++  // be destroyed, so the rebuild runs on the next event loop iteration.
++  g_pEventLoopManager->doLater([weak = PHLMONITORREF{monitor}, direction] {
++    auto mon = weak.lock();
++    if (!mon || g_unloading)
++      return;
++    auto it = g_pHyprViewInstances.find(mon);
++    if (it == g_pHyprViewInstances.end() || !it->second ||
++        it->second->closing || it->second->m_isSwiping)
++      return;
++
++    // This monitor's regular workspaces in id order; the step does not wrap.
++    std::vector<PHLWORKSPACE> workspaces;
++    for (const auto &ref : State::workspaceState()->workspaces()) {
++      auto ws = ref.lock();
++      if (ws && !ws->inert() && !ws->m_isSpecialWorkspace &&
++          ws->m_monitor.lock() == mon)
++        workspaces.push_back(ws);
++    }
++    std::ranges::sort(workspaces, {}, [](const PHLWORKSPACE &ws) { return ws->m_id; });
++    auto cur = std::ranges::find(workspaces, mon->m_activeWorkspace);
++    if (cur == workspaces.end())
++      return;
++    const auto idx = (cur - workspaces.begin()) + direction;
++    if (idx < 0 || idx >= (long)workspaces.size())
++      return;
++    const auto target = workspaces[idx];
++
++    const auto mode = it->second->collectionMode();
++    const auto placement = it->second->placement();
++
++    // Same teardown as the 'off' dispatcher, minus the closing animation: the
++    // destructor puts every window back on its own workspace.
++    g_pHyprRenderer->m_renderPass.removeAllOfType("CHyprViewPassElement");
++    g_pHyprViewInstances.erase(it);
++
++    const auto previous = mon->m_activeWorkspace;
++    mon->changeWorkspace(target, false, true);
++    // Hyprland's own workspace slide would still be running while the new
++    // overview captures its tiles, smearing them; the overview slides instead.
++    for (const auto &ws : {previous, target}) {
++      if (!ws)
++        continue;
++      ws->m_renderOffset->warp();
++      ws->m_alpha->warp();
++    }
++
++    renderingOverview = true;
++    auto view = std::make_unique<CHyprView>(mon, mon->m_activeWorkspace, false,
++                                            mode, placement);
++    view->slideIn(direction);
++    g_pHyprViewInstances[mon] = std::move(view);
++    renderingOverview = false;
++  });
++}
++
+ static void failNotif(const std::string &reason) {
+   HyprlandAPI::addNotification(
+       PHANDLE, "[hyprview] Failure in initialization: " + reason,

@@ -1,0 +1,27 @@
+# LM Studio's daemon (llmster) and the models it loads (its llama-server
+# children), inside the limits set in Settings > AI & models: RAM, CPU and
+# priority (~/.config/hypr/scripts/llm-limits.py; its docstring has the why).
+# The limits themselves are in lmstudio.service.d/limits.conf, which
+# `llm-limits.py apply` writes from ~/.local/state/hypr/llm.json.
+#
+# Not started at login on purpose (no [Install]): llm_models.ensure_local --
+# the launcher's ?model asks, llm-chat, `llm-gpu.py load` -- starts it
+# when a local model is asked for. `run` execs the newest installed llmster,
+# in the foreground (as `lms` starts it: llmster does not fork away), so an
+# LM Studio update does not break this file; `wait` holds the start until
+# lms can talk to it. Stopping asks llmster to shut down (`lms daemon down`)
+# before anything is killed.
+[Unit]
+Description=LM Studio daemon (llmster), inside the local-model limits
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/llm-limits.py run
+ExecStartPost=/usr/bin/python3 %h/.config/hypr/scripts/llm-limits.py wait 60
+ExecStop=-%h/.lmstudio/bin/lms daemon down
+TimeoutStartSec=120
+TimeoutStopSec=30
+# The RAM limit's OOM killer ends the biggest process (a model's
+# llama-server); the daemon stays up and the load reports why.
+OOMPolicy=continue
+Restart=no

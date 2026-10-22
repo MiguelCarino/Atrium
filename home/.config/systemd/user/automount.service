@@ -1,0 +1,14 @@
+# USB drives mounted when plugged in: ~/.config/hypr/scripts/automount.py
+[Unit]
+Description=Mount removable drives when they are plugged in
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/automount.py daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

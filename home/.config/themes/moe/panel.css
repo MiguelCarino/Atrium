@@ -1,0 +1,232 @@
+/* ===========================================================================
+   MOE (萌え) -- the popup cards (~/.config/waybar/panel.css): media, calendar,
+   shortcuts, audio, network, CPU / GPU, disks, weather, power, capture,
+   display, repos, notifications, updates. Copied to
+   waybar/generated/theme-panel.css by theme.py and imported LAST.
+
+   Each card is a round pastel glass bubble: radius 22, a white gloss over
+   its top, a white rim, a soft rose shadow (in the 14px gutter the base
+   keeps for exactly that). Headings in Hachi Maru Pop, deep rose; every
+   control rounded -- pill switches, round knobs, rounded key caps.
+
+   Dimmer than the bar (a card is 400px of glass on an HDR primary): #dcb6c9 at
+   92%, luminance ~0.53. On it: plum text 7.9:1, dim text #63365a 5.2:1,
+   dimmer #7a5070 4.0:1 (hints only), the accent role (deep rose #8c2457)
+   4.6:1 as text; white on deep rose 7.9:1; plum on the pastel fills
+   6.5-9.8:1 (waybar.css has the list).
+   =========================================================================== */
+
+/* --- the theme's own names ---------------------------------------------------- */
+@define-color m-plum     #3d1f3b;
+@define-color m-sakura   #f78fb3;
+@define-color m-lavender #b8a4e3;
+@define-color m-sky      #9fd3f5;
+@define-color m-mint     #9fdcb8;
+@define-color m-lemon    #f3d27a;
+@define-color m-rosefill #f08aa0;
+@define-color m-gloss    rgba(255, 255, 255, 0.28);
+@define-color m-rim      rgba(255, 255, 255, 0.60);
+@define-color m-shade    rgba(200, 80, 138, 0.28);
+
+/* --- PALETTE 1: hues (@cyan = the accent role, deep rose, via accent.css) ------ */
+@define-color magenta    #8c2457;     /* headings, "this ends something" as TEXT */
+@define-color yellow     #6e4800;     /* warn as text: deep gold, 4.5:1 */
+@define-color green      #2f6b46;     /* good as text: deep mint, 5:1 */
+@define-color red        #d63a62;
+@define-color mist       #63365a;
+
+/* --- PALETTE 2: surfaces, edges, text ------------------------------------------ */
+@define-color surface        rgba(220, 182, 201, 0.92);
+@define-color surface-deep   rgba(232, 196, 214, 0.70);
+@define-color surface-video  rgba(43, 29, 46, 0.92);   /* the media preview's floor: plum night */
+@define-color knob           #ffffff;
+@define-color edge           @m-rim;
+@define-color edge-lit       @m-sakura;
+@define-color accent         alpha(@m-sakura, 0.45);
+@define-color accent-lit     alpha(@m-sakura, 0.70);
+@define-color text           @m-plum;
+@define-color text-dim       #63365a;
+@define-color text-dimmer    #7a5070;
+@define-color text-bright    #ffffff;
+@define-color ink            #ffffff;
+@define-color rec-edge       #ffffff;
+
+/* The rounded face; a touch bigger than Plex. */
+* {
+    font-weight: 500;
+}
+
+/* --- The card ------------------------------------------------------------------- */
+#panel {
+    border-radius: 22px;
+    background-color: @surface;
+    background-image: linear-gradient(to bottom, @m-gloss 0%, rgba(255, 255, 255, 0.04) 22%,
+                                      rgba(255, 255, 255, 0.00) 40%);
+    border: 1px solid @m-rim;
+    box-shadow: 0 6px 14px @m-shade;
+}
+
+/* Headings: Hachi Maru Pop, deep rose, no shouting letter-spacing (it is a
+   handwriting face, spacing breaks it). */
+label.kb-heading,
+#kb-title,
+#cal-month {
+    font-family: "Hachi Maru Pop", "Rounded Mplus 1c", sans-serif;
+    font-weight: normal;
+    letter-spacing: 0px;
+    color: #8c2457;
+}
+
+label.kb-heading {
+    font-size: 13px;
+}
+
+#title {
+    font-weight: bold;
+}
+
+/* --- Sliders: a sakura -> lavender fill, a round white knob -------------------- */
+#seek trough,
+scale.ctl-slider trough {
+    min-height: 6px;
+    border-radius: 3px;
+    background-color: rgba(255, 255, 255, 0.45);
+}
+
+#seek highlight,
+scale.ctl-slider highlight {
+    border-radius: 3px;
+    background-image: linear-gradient(to right, @m-sakura, @m-lavender);
+}
+
+#seek slider,
+scale.ctl-slider slider {
+    min-width: 16px;
+    min-height: 16px;
+    margin: -6px -2px;
+    border: 2px solid @m-sakura;
+    border-radius: 8px;
+    background-color: #ffffff;
+    box-shadow: 0 1px 3px @m-shade;
+}
+
+#seek slider:hover,
+scale.ctl-slider slider:hover {
+    border-color: #8c2457;
+    box-shadow: 0 0 6px alpha(@m-sakura, 0.8);
+}
+
+/* --- Switches: pills ---------------------------------------------------------------- */
+switch {
+    border-radius: 11px;
+    border: 1px solid @m-rim;
+    background-color: rgba(255, 255, 255, 0.40);
+}
+
+switch:checked {
+    background-color: @m-sakura;
+    border-color: #ffffff;
+}
+
+switch slider {
+    border-radius: 9px;
+    background-color: #ffffff;
+    box-shadow: 0 1px 2px @m-shade;
+}
+
+switch:checked slider {
+    background-color: #ffffff;
+}
+
+/* --- Buttons: rounded ----------------------------------------------------------- */
+button.control,
+button.ctl-link,
+button.dev-pick,
+button.pw-tile,
+button.dk-fs,
+button.sn-link,
+#cal-next,
+button.ctl-icon {
+    border-radius: 12px;
+}
+
+button.control:hover,
+button.dev-pick:hover,
+button.pw-tile:hover,
+#cal-next:hover {
+    background-color: rgba(255, 255, 255, 0.40);
+    box-shadow: 0 0 6px alpha(@m-sakura, 0.70);
+}
+
+#play {
+    border-radius: 22px;
+    background-color: @m-sakura;
+    color: @m-plum;
+}
+
+#play:hover {
+    background-color: #ff9fc2;
+}
+
+button.dev-pick.active {
+    background-color: @m-sakura;
+    color: @m-plum;
+    border-color: #ffffff;
+}
+
+button.dev-pick.active label.dev-name,
+button.dev-pick.active label.dev-kind {
+    color: @m-plum;
+}
+
+.ctl-row.on .ctl-icon {
+    background-color: @m-sakura;
+    color: @m-plum;
+    border-radius: 12px;
+}
+
+/* --- Keyboard caps: rounded pastel keys -------------------------------------------- */
+label.kb-cap {
+    border-radius: 7px;
+    background-color: rgba(255, 255, 255, 0.45);
+    border: 1px solid @m-rim;
+    border-bottom: 2px solid alpha(@m-sakura, 0.80);
+    color: @m-plum;
+}
+
+/* --- Calendar: today as a sakura circle --------------------------------------------- */
+label.cal-today {
+    border-radius: 14px;
+    background-color: @m-sakura;
+    color: @m-plum;
+    font-weight: bold;
+}
+
+/* --- Disks and level bars: pastel, rounded ------------------------------------------ */
+levelbar.dk-bar trough {
+    border-radius: 4px;
+    background-color: rgba(255, 255, 255, 0.45);
+}
+
+levelbar.dk-bar block.filled {
+    border-radius: 4px;
+    background-color: @m-sakura;
+}
+
+levelbar.dk-bar.warning block.filled {
+    background-color: @m-lemon;
+}
+
+levelbar.dk-bar.critical block.filled {
+    background-color: #d63a62;
+}
+
+/* --- Separators: a soft pink thread ------------------------------------------------- */
+.ctl-sep {
+    background-color: alpha(@m-sakura, 0.55);
+    min-height: 1px;
+}
+
+/* --- Weather: the low in sky's deep twin, the high in rose ------------------------- */
+label.wx-lo { color: #1f5a94; }
+label.wx-hi { color: #8c2457; }

@@ -1,0 +1,19 @@
+# Smart window layout: ~/.config/hypr/scripts/smartlayout.py learns where you
+# put each app (workspace, side, floating size) from Hyprland's event socket
+# and, in mode "on", puts an app's first window there when it opens. Settings
+# > Window layout (or `smartlayout.py set mode off|learn|on`); learn-only as
+# shipped, so nothing moves until you say so.
+[Unit]
+Description=Smart window layout (learned placements)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/smartlayout.py run
+Restart=on-failure
+RestartSec=5
+MemoryHigh=80M
+
+[Install]
+WantedBy=graphical-session.target

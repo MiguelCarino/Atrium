@@ -1,0 +1,43 @@
+# ~/.config/themes/win95/mako -- mako fragment for the win95 theme, copied to
+# ~/.config/mako/generated/theme by theme.py and included LAST by
+# ~/.config/mako/config (global lines first, then the sections it repeats).
+# accent_follow=no, so no accent include is added after these lines: the
+# border is the navy below.
+#
+# A Windows 95 message box as far as mako can draw one: the dimmed window
+# face (#ACACAC, the bar's and panels' grey), black body text (9.3:1), the
+# title in bold navy (7.1:1), a 3px navy frame -- the focused-window colour,
+# so a notification reads as "this wants you" -- and square corners. mako
+# has no gradients and no second border, so there is no bevel.
+#
+# font= again, after the one theme.py writes from theme.conf ("W95FA, IBM
+# Plex Sans SemiBold 11"): 11pt is 14.7px, off W95FA's pixel grid, and it has
+# no SemiBold. 9.375pt is 12.5px at mako's 96 dpi, the size where the face
+# is sharp (~/.local/share/fonts/themes/win95/README).
+#
+# A mako that was started BEFORE W95FA was installed keeps its old face (IBM
+# Plex Sans) with these colours: fontconfig reads the font list once, at
+# start. One `systemctl --user restart mako` fixes it for good -- best when no
+# critical notification is on screen, since a restart drops what is shown.
+font=W95FA, IBM Plex Sans 9.375
+background-color=#ACACACFF
+text-color=#000000
+border-color=#000080
+progress-color=over #00008059
+border-size=3
+border-radius=0
+format=<span color="#000080"><b>%s</b></span>\n%b
+
+# Sections from ~/.config/mako/sections, recoloured. Critical: a red frame
+# and a maroon title (#800000, 4.8:1 on the face), the body stays black.
+[grouped]
+format=<span color="#000080"><b>%s</b></span>\n%b\n<small>(%g more)</small>
+
+[urgency=critical]
+border-color=#C80000
+format=<span color="#800000"><b>%s</b></span>\n%b
+text-color=#000000
+border-size=3
+
+[urgency=low]
+text-color=#333333

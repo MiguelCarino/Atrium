@@ -1,0 +1,273 @@
+/* ===========================================================================
+   MOE (萌え) -- libadwaita / GTK4 (Nautilus). Becomes ~/.config/gtk-4.0/gtk.css
+   (theme.py). theme.conf keeps gtk_color_scheme=prefer-dark and this file
+   sets every colour libadwaita varies by scheme, as win95's does: under
+   prefer-light a running Nautilus fell back to stock white until restarted.
+
+   Pastel sakura glass: the window, sidebar and view are dimmed pastels a
+   little translucent (hypr.lua next to this file keeps blur on for
+   Nautilus), the header a sakura -> lavender gradient, plum text, deep rose
+   for accent TEXT, the sakura pastel for selection FILLS (plum on it 6.5:1),
+   everything round. Folders are pink (icon_theme=Moe: Papirus, pink).
+
+   HDR: the view is the largest field, so it is the dimmest -- #d9b4c7 at
+   94% (luminance ~0.51); sidebar #e0bccd, header gradient at most #f2c4d8
+   at its lightest end (a strip). On the view: plum 7.6:1, the dim text
+   #63365a 5.0:1, deep rose #8c2457 4.5:1.
+   =========================================================================== */
+
+:root {
+    --accent-bg-color: #f78fb3;
+    --accent-fg-color: #3d1f3b;
+    --accent-color: #8c2457;
+
+    --destructive-bg-color: #d63a62;
+    --destructive-fg-color: #ffffff;
+    --destructive-color: #94163a;
+    --success-bg-color: #9fdcb8;
+    --success-fg-color: #3d1f3b;
+    --success-color: #2f6b46;
+    --warning-bg-color: #f3d27a;
+    --warning-fg-color: #3d1f3b;
+    --warning-color: #6e4800;
+    --error-bg-color: #d63a62;
+    --error-fg-color: #ffffff;
+    --error-color: #94163a;
+
+    --window-bg-color: rgba(220, 182, 201, 0.92);
+    --window-fg-color: #3d1f3b;
+    --view-bg-color: rgba(217, 180, 199, 0.94);
+    --view-fg-color: #3d1f3b;
+    --headerbar-bg-color: rgba(236, 190, 214, 0.95);
+    --headerbar-fg-color: #3d1f3b;
+    --headerbar-border-color: rgba(255, 255, 255, 0.70);
+    --headerbar-backdrop-color: rgba(222, 194, 210, 0.95);
+    --headerbar-shade-color: rgba(200, 80, 138, 0.18);
+    --headerbar-darker-shade-color: rgba(200, 80, 138, 0.30);
+    --sidebar-bg-color: rgba(224, 188, 205, 0.94);
+    --sidebar-fg-color: #3d1f3b;
+    --sidebar-backdrop-color: rgba(220, 192, 206, 0.94);
+    --sidebar-border-color: rgba(255, 255, 255, 0.55);
+    --sidebar-shade-color: rgba(200, 80, 138, 0.15);
+    --secondary-sidebar-bg-color: rgba(222, 186, 203, 0.94);
+    --secondary-sidebar-fg-color: #3d1f3b;
+    --secondary-sidebar-backdrop-color: rgba(220, 192, 206, 0.94);
+    --secondary-sidebar-border-color: rgba(255, 255, 255, 0.55);
+    --secondary-sidebar-shade-color: rgba(200, 80, 138, 0.15);
+    --card-bg-color: rgba(255, 255, 255, 0.28);
+    --card-fg-color: #3d1f3b;
+    --card-shade-color: rgba(200, 80, 138, 0.20);
+    --overview-bg-color: rgba(217, 180, 199, 0.94);
+    --overview-fg-color: #3d1f3b;
+    --thumbnail-bg-color: rgba(232, 200, 216, 0.95);
+    --thumbnail-fg-color: #3d1f3b;
+    --dialog-bg-color: rgba(222, 186, 203, 0.98);
+    --dialog-fg-color: #3d1f3b;
+    --popover-bg-color: rgba(226, 192, 208, 0.98);
+    --popover-fg-color: #3d1f3b;
+    --popover-shade-color: rgba(200, 80, 138, 0.25);
+    --shade-color: rgba(200, 80, 138, 0.20);
+    --scrollbar-outline-color: rgba(255, 255, 255, 0.50);
+    --border-color: rgba(255, 255, 255, 0.55);
+
+    --window-radius: 16px;
+    --document-font-family: "Rounded Mplus 1c";
+    --monospace-font-family: "M PLUS 1 Code";
+}
+
+* {
+    font-family: "Rounded Mplus 1c", "IBM Plex Sans", "Noto Color Emoji", sans-serif;
+}
+
+/* --- The title bar: a pastel sakura -> lavender sky ------------------------------ */
+headerbar,
+.content-pane headerbar,
+toolbarview > .top-bar headerbar {
+    background-image: linear-gradient(to right, rgba(242, 196, 216, 0.95), rgba(214, 200, 238, 0.95));
+    box-shadow: inset 0 -1px rgba(255, 255, 255, 0.70),
+                0 1px rgba(200, 80, 138, 0.18);
+}
+
+.sidebar-pane headerbar,
+.sidebar-pane toolbarview > .top-bar headerbar {
+    background-image: none;
+    background-color: rgba(242, 196, 216, 0.95);
+}
+
+/* "Files" over the sidebar: Hachi Maru Pop, deep rose. */
+.sidebar-pane headerbar .title {
+    font-family: "Hachi Maru Pop", "Rounded Mplus 1c", sans-serif;
+    font-weight: normal;
+    color: #8c2457;
+}
+
+headerbar label.title {
+    font-weight: bold;
+}
+
+/* --- Buttons: soft white-glass bubbles ---------------------------------------------- */
+button,
+headerbar button,
+.path-bar button,
+.linked > button,
+.linked > button:first-child,
+.linked > button:last-child,
+dropdown > button,
+menubutton > button {
+    border-radius: 12px;
+}
+
+headerbar button:not(.flat),
+headerbar .linked > button,
+button:not(.flat):not(.suggested-action):not(.destructive-action) {
+    background-color: rgba(255, 255, 255, 0.32);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+                0 1px 2px rgba(200, 80, 138, 0.18);
+}
+
+button:hover,
+headerbar button:hover {
+    background-color: rgba(255, 255, 255, 0.50);
+    box-shadow: inset 0 0 0 1px #ffffff,
+                0 0 6px rgba(247, 143, 179, 0.70);
+}
+
+button:checked,
+button:active {
+    background-color: #f78fb3;
+    color: #3d1f3b;
+}
+
+/* The close button: a round bubble, sakura under the pointer. */
+windowcontrols > button > image {
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.40);
+}
+
+windowcontrols > button:hover > image {
+    background-color: #f78fb3;
+    color: #3d1f3b;
+}
+
+/* --- Entries: white-ish pills, a deep-rose caret ------------------------------------ */
+entry,
+searchbar entry,
+spinbutton {
+    border-radius: 16px;
+    background-color: rgba(255, 255, 255, 0.45);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.70);
+    caret-color: #8c2457;
+}
+
+entry:focus-within {
+    box-shadow: inset 0 0 0 2px #f78fb3,
+                0 0 6px rgba(247, 143, 179, 0.60);
+}
+
+/* --- The sidebar: sakura pills ---------------------------------------------------- */
+.navigation-sidebar > row {
+    border-radius: 12px;
+    margin: 1px 6px;
+}
+
+.navigation-sidebar > row:hover {
+    background-color: rgba(255, 255, 255, 0.35);
+}
+
+.navigation-sidebar > row:selected {
+    background-color: #f78fb3;
+    color: #3d1f3b;
+}
+
+/* --- Files: round sakura bubbles when selected ---------------------------------------- */
+gridview > child {
+    border-radius: 18px;
+}
+
+gridview > child:hover {
+    background-color: rgba(255, 255, 255, 0.30);
+}
+
+gridview > child:selected {
+    background-color: rgba(247, 143, 179, 0.85);
+    color: #3d1f3b;
+    box-shadow: inset 0 0 0 1px #ffffff, 0 0 8px rgba(247, 143, 179, 0.55);
+}
+
+listview > row,
+columnview > listview > row {
+    border-radius: 10px;
+}
+
+listview > row:selected,
+columnview > listview > row:selected {
+    background-color: rgba(247, 143, 179, 0.85);
+    color: #3d1f3b;
+}
+
+.dim-label,
+columnview label.dim-label {
+    color: #63365a;
+    opacity: 1;
+}
+
+rubberband {
+    background-color: rgba(247, 143, 179, 0.25);
+    border: 1px solid #f78fb3;
+    border-radius: 8px;
+}
+
+/* --- Floating things: rounded pastel cards -------------------------------------------- */
+popover > contents,
+popover.menu > contents {
+    border-radius: 18px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.70),
+                0 6px 20px rgba(200, 80, 138, 0.30);
+}
+
+popover.menu modelbutton {
+    border-radius: 10px;
+}
+
+popover.menu modelbutton:hover,
+popover.menu modelbutton:selected {
+    background-color: #f78fb3;
+    color: #3d1f3b;
+}
+
+toast {
+    border-radius: 18px;
+    background-color: rgba(214, 200, 238, 0.97);
+    color: #3d1f3b;
+    box-shadow: inset 0 0 0 1px #ffffff, 0 4px 12px rgba(200, 80, 138, 0.30);
+}
+
+tooltip,
+tooltip > * {
+    border-radius: 10px;
+}
+
+tooltip {
+    background-color: rgba(61, 31, 59, 0.94);
+    color: #fff0f7;
+}
+
+/* --- Scrollbars and progress: sakura ---------------------------------------------- */
+scrollbar slider {
+    background-color: rgba(247, 143, 179, 0.70);
+    border-radius: 6px;
+}
+
+scrollbar slider:hover {
+    background-color: #f78fb3;
+}
+
+progressbar > trough > progress,
+levelbar block.filled {
+    background-color: #f78fb3;
+    border-radius: 6px;
+}
+
+*:focus-visible {
+    outline-color: rgba(140, 36, 87, 0.70);
+}

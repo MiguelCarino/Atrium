@@ -1,0 +1,20 @@
+# Shared keyboard and mouse with the paired machines: lan-mouse 0.11.0 (the
+# release binary peers.py `kvm install` fetched and checked), configured by
+# peers.py in ~/.config/lan-mouse/config.toml (DTLS, only the paired machines'
+# certificate fingerprints). Ships disabled: Settings > Machines > Shared
+# keyboard and mouse (`peers.py kvm on|off`) enables it. Hold
+# Ctrl+Shift+Super+Alt to bring the pointer back.
+[Unit]
+Description=Shared keyboard and mouse (lan-mouse) with the paired machines
+PartOf=graphical-session.target
+After=graphical-session.target
+ConditionPathExists=%h/.local/share/peers/lan-mouse/lan-mouse
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=%h/.local/share/peers/lan-mouse/lan-mouse daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

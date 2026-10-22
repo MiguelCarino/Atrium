@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Run once per login (lua/autostart.lua). Rebuilds any plugin that Hyprland
+# refused to load -- which after a Hyprland update is all of them, since a
+# plugin only loads into the exact version it was built against -- then
+# reloads the config so lua/cube.lua and lua/overview.lua load the new .so.
+#
+# The signal is the real one: the .so is missing, or it exists but is not in
+# `hyprctl plugin list`. No version stamp to drift out of sync with manual
+# builds.
+#
+# Builds use --keep: the checkout already carries the local patch, and a
+# rebuild against the new headers is what an update needs. Pulling upstream
+# at login could leave the patch not applying and nothing built; do that by
+# hand (hypr-cube-build.sh / hyprview-build.sh with no argument).
+#
+# A failed build just notifies; it is tried again at the next login.
+#   journalctl --user -t hypr-plugins     the build output
+set -uo pipefail
+
+dir=$HOME/.config/hypr/scripts
+lib=$HOME/.local/lib/hyprland
+
+# name in `hyprctl plugin list`  .so file      build script
+plugins=(
+    "hypr-cube                    hypr-cube.so  hypr-cube-build.sh"
+    "hyprview                     hyprview.so   hyprview-build.sh"
+)
+
+loaded=$(hyprctl plugin list 2>/dev/null)
+rebuilt=()
+failed=()
+for p in "${plugins[@]}"; do
+    read -r name so script <<<"$p"
+    if [[ -f $lib/$so ]] && grep -q "^Plugin $name by" <<<"$loaded"; then
+        continue
+    fi
+    notify-send -a Hyprland "Rebuilding $name" "It did not load into Hyprland $(rpm -q --qf '%{version}' hyprland); about a minute."
+    if "$dir/$script" --keep 2>&1 | systemd-cat -t hypr-plugins; [[ ${PIPESTATUS[0]} -eq 0 ]]; then
+        rebuilt+=("$name")
+    else
+        failed+=("$name")
+    fi
+done
+
+if ((${#rebuilt[@]})); then
+    hyprctl reload >/dev/null
+    notify-send -a Hyprland "Plugins rebuilt" "${rebuilt[*]}"
+fi
+if ((${#failed[@]})); then
+    notify-send -a Hyprland -u critical "Plugin rebuild failed" \
+        "${failed[*]} -- journalctl --user -t hypr-plugins"
+fi

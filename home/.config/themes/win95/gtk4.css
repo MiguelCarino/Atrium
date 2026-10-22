@@ -1,0 +1,398 @@
+/* ===========================================================================
+   WINDOWS 95 -- libadwaita / GTK4 (Nautilus). Becomes ~/.config/gtk-4.0/gtk.css
+   (theme.py; a hand-written gtk.css is kept as gtk.css.before-themes).
+   gsettings does the rest: color-scheme prefer-DARK, accent-color slate
+   (theme.conf gtk_*). It will read as "GNOME in Windows 95 colours" -- the
+   layout is libadwaita's, only the paint is changed:
+
+     * the window face is the same dimmed grey as the bar and panels
+       (#acacac); the file view, Windows 95's white list, is a dimmed white
+       (#b8b8b8, black text 10.8:1) -- not libadwaita's near-white page, which
+       would be the largest lit field on the HDR panel;
+     * the header bar is ONE Windows 95/98 title bar: solid navy over the
+       sidebar, then navy into #1084d0 across the content pane, so the two
+       panes' header bars meet navy-to-navy at the divider (two gradients, one
+       per pane, left a hard light-blue/navy seam there). Unfocused, both are
+       Windows 95's grey title, darkened to #626262 under #e4e4e4 text (4.8:1;
+       Windows 95 drew #c0c0c0 on #808080, 2.2:1);
+     * selection is navy with white text (16:1); accent text navy (7.1:1 on
+       the face);
+     * square corners on the window, buttons, entries and rows, and the 3D
+       bevel on push buttons (inset box-shadows, as in the bar);
+     * W95FA at 12.5px, IBM Plex Sans behind it for what it lacks. In GTK4
+       apps it is drawn ANTIALIASED: the monochrome rendering the bar uses
+       (~/.config/fontconfig/conf.d/60-w95fa-pixels.conf) is only exact at
+       scale 1, and GTK4 draws at the output's own scale -- on a screen at scale 0.8 the
+       face lands off its pixel grid and monochrome drops whole glyph pixels
+       ("Trash" read "Tiach"). That conf file names the processes it is for;
+       a libadwaita app is not one of them, so it gets the normal greyscale
+       rendering: a little soft at scale 1, intact everywhere;
+     * no bold: W95FA has only a Regular, and a synthesised bold smeared the
+       title ("Files" lost the bar of its e).
+   libadwaita's dimmed text is the foreground at --dim-opacity (55% by
+   default): black at 55% on the view is ~3.9:1, so it is raised to 75%
+   (~6.5:1).
+
+   Why prefer-dark, for a light grey theme: gsettings is LIVE in every running
+   libadwaita app, this file is not (read at process start only). Under
+   prefer-light an app that started before the switch -- the Nautilus that is
+   always open -- drops to stock light Adwaita at once: a #ffffff view, the
+   brightest field on the HDR desktop until it restarts (measured). Under
+   prefer-dark it simply keeps its old dark look until then. Every variable
+   libadwaita sets differently per scheme is set below, so this file draws
+   the same greys under either scheme; the four libadwaita sets ONLY for dark
+   (--active-toggle-*, --overview-*) are among them.
+
+   Nautilus is ONE process for all its windows, so while any Nautilus window
+   is open, new ones keep the old look too: it shows once every window is
+   closed (or `nautilus -q`) and it starts again (theme.py offers the
+   restart).
+   =========================================================================== */
+
+:root {
+    --accent-bg-color: #000080;
+    --accent-fg-color: #ffffff;
+    --accent-color: #000080;
+
+    --destructive-bg-color: #c80000;
+    --destructive-fg-color: #ffffff;
+    --destructive-color: #800000;
+    --success-bg-color: #007a00;
+    --success-fg-color: #ffffff;
+    --success-color: #004800;
+    --warning-bg-color: #d4c000;
+    --warning-fg-color: #000000;
+    --warning-color: #5a4a00;
+    --error-bg-color: #c80000;
+    --error-fg-color: #ffffff;
+    --error-color: #800000;
+
+    --window-bg-color: #acacac;
+    --window-fg-color: #000000;
+    --view-bg-color: #b8b8b8;
+    --view-fg-color: #000000;
+    --headerbar-bg-color: #000080;
+    --headerbar-fg-color: #ffffff;
+    --headerbar-border-color: #000000;
+    --headerbar-backdrop-color: #808080;
+    --headerbar-shade-color: rgba(0, 0, 0, 0.35);
+    --headerbar-darker-shade-color: rgba(0, 0, 0, 0.55);
+    --sidebar-bg-color: #acacac;
+    --sidebar-fg-color: #000000;
+    --sidebar-backdrop-color: #acacac;
+    --sidebar-border-color: #727272;
+    --sidebar-shade-color: rgba(0, 0, 0, 0.20);
+    --secondary-sidebar-bg-color: #acacac;
+    --secondary-sidebar-fg-color: #000000;
+    --secondary-sidebar-backdrop-color: #acacac;
+    --secondary-sidebar-border-color: #727272;
+    --secondary-sidebar-shade-color: rgba(0, 0, 0, 0.20);
+    --card-bg-color: #b8b8b8;
+    --card-fg-color: #000000;
+    --card-shade-color: rgba(0, 0, 0, 0.25);
+    --overview-bg-color: #acacac;
+    --overview-fg-color: #000000;
+    /* Dark-scheme-only variables in libadwaita (the selected segment of a
+       toggle group): a pressed Windows 95 button, the light grey. */
+    --active-toggle-bg-color: #c4c4c4;
+    --active-toggle-fg-color: #000000;
+    --thumbnail-bg-color: #b8b8b8;
+    --thumbnail-fg-color: #000000;
+    --dialog-bg-color: #acacac;
+    --dialog-fg-color: #000000;
+    --popover-bg-color: #acacac;
+    --popover-fg-color: #000000;
+    --popover-shade-color: rgba(0, 0, 0, 0.25);
+    --shade-color: rgba(0, 0, 0, 0.20);
+    --scrollbar-outline-color: #e4e4e4;
+    --border-color: #727272;
+
+    --dim-opacity: 0.75;
+    --window-radius: 0px;
+    --document-font-family: "W95FA", "IBM Plex Sans";
+    --monospace-font-family: "IBM Plex Mono";
+}
+
+/* The UI face is a gsettings key (font-name), not a variable; a CSS rule
+   reaches every widget of these apps without touching the desktop-wide key.
+   The size is on every node so libadwaita's relative headings (.title-1 at
+   181%...) scale from 12.5px. */
+* {
+    font-family: "W95FA", "IBM Plex Sans", "Noto Color Emoji", sans-serif;
+    font-size: 12.5px;
+}
+
+/* --- The title bar ------------------------------------------------------------
+   Every header bar, the sidebar's included: libadwaita gives the sidebar pane's
+   header the SIDEBAR's foreground (black here), which on the navy was black
+   on navy -- so the white is set on the header bar itself, at a specificity
+   that beats the pane rules.
+
+   One title bar out of two widgets: the content pane's header carries the
+   navy -> #1084d0 gradient, the sidebar pane's is plain navy, so they meet
+   navy to navy at the pane divider. `toolbarview > .top-bar headerbar` is
+   (0,1,2) and beats `.sidebar-pane headerbar` (0,1,1), hence the long
+   sidebar selector. */
+headerbar,
+.sidebar-pane headerbar,
+.content-pane headerbar,
+toolbarview > .top-bar headerbar {
+    background-image: linear-gradient(to right, #000080, #1084d0);
+    color: #ffffff;
+    box-shadow: inset 0 -1px #000000;
+}
+
+.sidebar-pane headerbar,
+.sidebar-pane toolbarview > .top-bar headerbar {
+    background-image: none;
+    background-color: #000080;
+}
+
+/* Unfocused: Windows 95's grey title. libadwaita fades the whole top bar of
+   an unfocused window to 50% (filter: opacity on the windowhandle), which
+   turned the grey into #8f8f8f under a #d6d6d6 title (2.2:1) and the path
+   bar's black labels into #5c5c5c (3.2:1) -- the path bar is content, not
+   decoration. No fade here: the title bar alone goes grey, #626262 under
+   #e4e4e4 (4.8:1), and the buttons on it keep their black labels (10:1). */
+headerbar:backdrop > windowhandle,
+toolbarview > .top-bar:backdrop > windowhandle {
+    filter: none;
+}
+
+headerbar:backdrop,
+.sidebar-pane headerbar:backdrop,
+.content-pane headerbar:backdrop,
+toolbarview > .top-bar headerbar:backdrop,
+.sidebar-pane toolbarview > .top-bar headerbar:backdrop {
+    background-image: none;
+    background-color: #626262;
+    color: #e4e4e4;
+}
+
+/* Normal weight: W95FA has no bold, and the synthesised one smeared the
+   title. */
+headerbar .title,
+headerbar label.title {
+    font-weight: normal;
+    color: #ffffff;
+}
+
+headerbar:backdrop .title,
+headerbar:backdrop label.title {
+    color: #e4e4e4;
+}
+
+/* Buttons in the title bar: EVERY one a raised grey Windows 95 button with
+   a black glyph -- Windows 95 Explorer's toolbar buttons were always raised
+   (flat-until-hover came with 98). They were half and half at first: search
+   and the sidebar toggle raised, the menu flat (white on navy), which read
+   as two different kinds of control. The base libadwaita fill is a
+   translucent tint of the WHITE foreground, which left black arrows on light
+   navy, hence the explicit grey. */
+headerbar button,
+headerbar button.flat,
+headerbar .linked > button,
+headerbar menubutton > button,
+headerbar button:checked {
+    background-color: #acacac;
+    background-image: none;
+    color: #000000;
+    box-shadow: inset 2px 2px #c4c4c4,
+                inset -2px -2px #727272,
+                inset 1px 1px #e4e4e4,
+                inset -1px -1px #000000;
+}
+
+headerbar button:active,
+headerbar button:checked {
+    box-shadow: inset 2px 2px #727272,
+                inset -2px -2px #c4c4c4,
+                inset 1px 1px #000000,
+                inset -1px -1px #e4e4e4;
+}
+
+/* Disabled (forward with nothing ahead): Windows 95's etched glyph, dim grey
+   with a white one 1px down-right, on the same raised grey -- not the
+   libadwaita fade, which left a ghostly blue arrow on the navy. */
+button:disabled,
+headerbar button:disabled,
+headerbar .linked > button:disabled,
+headerbar:backdrop button:disabled {
+    background-color: #acacac;
+    color: #7a7a7a;
+    -gtk-icon-shadow: 1px 1px #e4e4e4;
+    /* libadwaita fades a disabled button with a FILTER (and the content of
+       the linked back/forward pair again), not just its colour: off, or
+       the grey turned see-through blue on the navy. */
+    filter: none;
+    opacity: 1;
+}
+
+button:disabled > image,
+button:disabled > label,
+headerbar .linked > button:disabled > image {
+    color: #7a7a7a;
+    filter: none;
+    opacity: 1;
+}
+
+/* Chicago95's icons are full-colour pictures, which a text colour cannot
+   grey: the back / forward arrows stayed bright cyan while disabled. The
+   icon filter greys and dims the picture itself. */
+button:disabled image {
+    -gtk-icon-filter: grayscale(1) opacity(0.45);
+}
+
+/* The window's close button: Windows 95's title-bar button, small (16x14 in
+   the original, 18x16 here for the 12.5px face), square, raised, a black x.
+   libadwaita draws window controls as a round disc ON THE IMAGE inside the
+   button -- that was the dark circle -- so the disc goes and the button
+   itself is the bevel. */
+windowcontrols > button {
+    min-width: 18px;
+    min-height: 16px;
+    padding: 0;
+    margin: 0 2px;
+    border-radius: 0;
+    background-color: #acacac;
+    background-image: none;
+    color: #000000;
+    box-shadow: inset 1px 1px #e4e4e4,
+                inset -1px -1px #000000,
+                inset 2px 2px #c4c4c4,
+                inset -2px -2px #727272;
+}
+
+windowcontrols > button > image {
+    background: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+    color: #000000;
+    -gtk-icon-size: 12px;
+}
+
+windowcontrols > button:hover > image,
+windowcontrols > button:active > image {
+    background: none;
+}
+
+windowcontrols > button:active {
+    box-shadow: inset 1px 1px #000000,
+                inset -1px -1px #e4e4e4,
+                inset 2px 2px #727272,
+                inset -2px -2px #c4c4c4;
+}
+
+/* Unfocused: the title bar greys, its buttons do not -- Windows 95 kept
+   them face grey with black glyphs either way. */
+headerbar:backdrop button,
+headerbar:backdrop windowcontrols > button {
+    background-color: #acacac;
+    color: #000000;
+}
+
+/* --- Square corners -------------------------------------------------------------- */
+window,
+window.csd,
+button,
+entry,
+spinbutton,
+dropdown > button,
+popover > contents,
+popover > arrow,
+.card,
+row,
+list > row,
+.navigation-sidebar > row,
+gridview > child,
+listview > row,
+columnview > listview > row,
+switch,
+switch > slider,
+check,
+scale > trough,
+scale > trough > slider,
+progressbar > trough,
+progressbar > trough > progress,
+.linked > button,
+.linked > button:first-child,
+.linked > button:last-child,
+toast,
+tooltip,
+tooltip > * {
+    border-radius: 0px;
+}
+
+/* --- Push buttons: the 3D bevel -------------------------------------------------
+   Every button that is drawn as a button (not the flat ones in the title
+   bar and the sidebar, which only show it under the pointer), and every
+   button while held: pressed. GTK4, like GTK3, paints the LAST shadow of a
+   list on top (measured on Nautilus's close button: written outer-line-
+   first, the 2px lines hid the 1px ones), so each stack lists the inner
+   lines first -- the same order as the waybar.css stacks. */
+button:not(.flat):not(.toggle):not(.sidebar-button),
+button.flat:hover,
+headerbar button:hover {
+    background-color: #acacac;
+    color: #000000;
+    box-shadow: inset 2px 2px #c4c4c4,
+                inset -2px -2px #727272,
+                inset 1px 1px #e4e4e4,
+                inset -1px -1px #000000;
+}
+
+button:active,
+button:checked {
+    background-color: #acacac;
+    color: #000000;
+    box-shadow: inset 2px 2px #727272,
+                inset -2px -2px #c4c4c4,
+                inset 1px 1px #000000,
+                inset -1px -1px #e4e4e4;
+}
+
+button.suggested-action,
+button.destructive-action {
+    box-shadow: inset 3px 3px #c4c4c4,
+                inset -3px -3px #727272,
+                inset 2px 2px #e4e4e4,
+                inset -2px -2px #000000,
+                inset 0 0 0 1px #000000;
+}
+
+/* --- Text fields: sunken, the dimmed white ------------------------------------- */
+entry,
+spinbutton,
+searchbar entry {
+    background-color: #c4c4c4;
+    color: #000000;
+    box-shadow: inset -2px -2px #c4c4c4,
+                inset 2px 2px #000000,
+                inset -1px -1px #e4e4e4,
+                inset 1px 1px #727272;
+}
+
+/* --- Selection: navy, white text ------------------------------------------------- */
+gridview > child:selected,
+listview > row:selected,
+columnview > listview > row:selected,
+.navigation-sidebar > row:selected,
+list > row:selected {
+    background-color: #000080;
+    color: #ffffff;
+}
+
+gridview > child:selected label,
+listview > row:selected label,
+columnview > listview > row:selected label,
+.navigation-sidebar > row:selected label {
+    color: #ffffff;
+}
+
+/* The sidebar pane: a sunken well like Windows 95's tree view. */
+.navigation-sidebar {
+    box-shadow: inset -1px -1px #e4e4e4,
+                inset 1px 1px #727272;
+}

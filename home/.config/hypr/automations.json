@@ -1,0 +1,26 @@
+{
+  "_doc": [
+    "Automations: when an event happens, run actions. automations.py's docstring has everything;",
+    "`automations.py catalog` lists the events and actions, `automations.py check` validates this file.",
+    "A rule: {id, name, enabled, when: {event, ...options}, do: [{action, value}], cooldown (s, default 10)}.",
+    "Keys starting with _ are ignored. Settings > Automations edits this file too.",
+    "Events (options): app-open (class), app-close (class), game-start, game-end, monitor-added (name), monitor-removed (name), audio-output (device), wifi-connected (ssid), wifi-disconnected (ssid), dnd-on, dnd-off, idle-start, idle-end, presence-away, presence-back, time (at, days), work-start, work-end, phone-connected, phone-disconnected, context-enter (name), context-leave (name), focus-start, focus-end.",
+    "Actions (value): theme NAME, dnd on|off, gamemode on|off, sound-output TEXT, sound-profile \"CARD PROFILE\", nightlight on|off|auto, notify TEXT, shell TEXT, open TEXT, session NAME, context NAME, digest, brief, journal, task NAME, focus TEXT."
+  ],
+  "rules": [
+    {
+      "id": "dnd-digest",
+      "name": "Digest after Do Not Disturb",
+      "enabled": true,
+      "builtin": true,
+      "when": {
+        "event": "dnd-off"
+      },
+      "do": [
+        {
+          "action": "digest"
+        }
+      ]
+    }
+  ]
+}

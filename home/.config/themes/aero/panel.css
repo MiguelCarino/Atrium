@@ -1,0 +1,457 @@
+/* ===========================================================================
+   AERO GLASS -- every popup panel (~/.config/waybar/panel.css). Copied to
+   waybar/generated/theme-panel.css by ~/.config/hypr/scripts/theme.py and
+   imported LAST. Same palette and the same rules of thumb as this theme's
+   waybar.css (its header explains them): navy glass, a gloss on the top half
+   of every control, a dark outline with a bright line inside it, white text
+   with a faint shadow, and the wallpaper accent never raw: tempered into
+   Aero blue as @a-tone for edges, meters and sliders, @a-glow when it is
+   text and @a-sel when it is a fill under text.
+
+   The card is denser than the bar's pills (80% navy, not 55%): a panel
+   floats over whatever window is there, a white page included. Over white,
+   after blur at brightness 0.85, the card is ~#35475f: text 9.5:1,
+   text-dim #b0c4dc 5:1, text-dimmer #a2b8d0 4.5:1. Over the dark wallpaper
+   all three are above 8:1.
+
+   The card's gloss is a sheen across its top 40px, not the bar's half-height
+   band: a reflection over half of a 412px card would be a large light field
+   (HDR), and it would sit behind the first rows of text. Two faint diagonal
+   streaks across the whole card are the reflections Windows 7 drew on its
+   window glass.
+   Colours the panels DRAW (graphs, "Sure?") are theme.conf color.* keys.
+   =========================================================================== */
+
+@define-color a-navy     #0c2240;
+@define-color a-gloss    #ffffff;
+@define-color a-shade    #000814;
+@define-color a-sky      #8cc8ff;   /* headings, the cool end of things */
+@define-color a-amber    #ffc46b;   /* the warm end of the weather (not a status) */
+@define-color a-crit     #c81e32;
+@define-color a-aero     #4aa3f0;
+@define-color a-tone     mix(@cyan, @a-aero, 0.65);   /* the accent, tempered: waybar.css says why */
+@define-color a-glow     mix(@a-tone, @a-gloss, 0.55);
+@define-color a-sel      mix(@a-tone, @a-navy, 0.62);
+
+/* --- PALETTE 1: hues (@cyan = the wallpaper accent, used only through @a-tone) */
+@define-color magenta    #ff5c6c;
+@define-color yellow     #ffd75e;
+@define-color green      #7ddc5a;
+@define-color red        #e02a3a;   /* .live tiles: white text on it, so deep */
+@define-color mist       #c4d8ee;
+
+/* --- PALETTE 2: surfaces, edges, text --------------------------------------- */
+@define-color surface        rgba(12, 34, 64, 0.80);
+@define-color surface-deep   rgba(4, 14, 30, 0.55);
+@define-color surface-video  rgba(0, 4, 12, 0.88);
+@define-color knob           #d4e4f6;               /* a light glass thumb, Windows 7 style */
+@define-color edge           alpha(@a-gloss, 0.16); /* hairlines on the glass: light, not dark */
+@define-color edge-lit       alpha(@a-tone, 0.80);
+@define-color accent         alpha(@a-tone, 0.26);
+@define-color accent-lit     alpha(@a-tone, 0.40);
+@define-color text           #f4f9ff;
+@define-color text-dim       #b0c4dc;
+@define-color text-dimmer    #a2b8d0;
+@define-color text-bright    #ffffff;
+@define-color ink            #000000;
+@define-color rec-edge       rgba(255, 170, 178, 0.60);
+
+* {
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.70);
+}
+
+/* --- The card ---------------------------------------------------------------
+   Dark outline, a bright line inside its top edge, the sheen, the streaks,
+   and a soft drop shadow in the 14px gutter (the base keeps that margin for
+   exactly this; GTK clips a shadow to the toplevel). */
+#panel {
+    border-radius: 8px;
+    border: 1px solid alpha(@a-shade, 0.75);
+    border-top-color: alpha(@a-shade, 0.75);
+    border-bottom-color: alpha(@a-shade, 0.75);
+    background-image:
+        linear-gradient(to bottom,
+            alpha(@a-gloss, 0.16) 0px,
+            alpha(@a-gloss, 0.05) 38px,
+            alpha(@a-gloss, 0.00) 40px),
+        linear-gradient(115deg,
+            alpha(@a-gloss, 0.00) 0%,
+            alpha(@a-gloss, 0.00) 30%,
+            alpha(@a-gloss, 0.035) 30.5%,
+            alpha(@a-gloss, 0.035) 38%,
+            alpha(@a-gloss, 0.00) 38.5%,
+            alpha(@a-gloss, 0.00) 44%,
+            alpha(@a-gloss, 0.022) 44.5%,
+            alpha(@a-gloss, 0.022) 47%,
+            alpha(@a-gloss, 0.00) 47.5%,
+            alpha(@a-gloss, 0.00) 100%),
+        linear-gradient(to bottom,
+            alpha(@a-tone, 0.00) 80%,
+            alpha(@a-tone, 0.08) 100%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.32),
+                inset 0 0 0 1px alpha(@a-gloss, 0.10),
+                0 3px 10px alpha(@a-shade, 0.45);
+}
+
+/* --- Rounded corners everywhere --------------------------------------------- */
+#preview-frame,
+button.pw-tile {
+    border-radius: 6px;
+}
+
+button.control,
+#cal-prev,
+#cal-next,
+.ctl-icon,
+button.ctl-link,
+button.dev-pick,
+button.dk-fs,
+label.kb-cap,
+label.cal-day,
+switch {
+    border-radius: 4px;
+}
+
+switch slider {
+    border-radius: 3px;
+}
+
+#seek slider,
+scale.ctl-slider slider {
+    border-radius: 3px;
+}
+
+/* --- Glass buttons -----------------------------------------------------------
+   Every clickable control is a small pane of the same glass as the bar's
+   pills: the half-height gloss and a two-tone edge. */
+button.control,
+#cal-prev,
+#cal-next,
+.ctl-icon,
+button.pw-tile {
+    background-color: alpha(@a-gloss, 0.05);
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.20) 0%,
+                        alpha(@a-gloss, 0.07) 49%,
+                        alpha(@a-gloss, 0.00) 50%,
+                        alpha(@a-tone, 0.00) 70%,
+                        alpha(@a-tone, 0.10) 100%);
+    border: 1px solid alpha(@a-shade, 0.65);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.30),
+                inset 0 0 0 1px alpha(@a-gloss, 0.08);
+}
+
+button.control:hover,
+#cal-prev:hover,
+#cal-next:hover,
+button.ctl-icon:hover,
+button.pw-tile:hover {
+    background-color: alpha(@a-tone, 0.14);
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.26) 0%,
+                        alpha(@a-gloss, 0.10) 49%,
+                        alpha(@a-gloss, 0.00) 50%,
+                        alpha(@a-tone, 0.08) 55%,
+                        alpha(@a-tone, 0.30) 100%);
+    border-color: alpha(@a-shade, 0.80);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.42),
+                inset 0 0 0 1px alpha(@a-gloss, 0.14),
+                inset 0 -2px 6px alpha(@a-tone, 0.40);
+}
+
+button.control:active,
+#cal-prev:active,
+#cal-next:active,
+button.pw-tile:active {
+    background-color: alpha(@a-tone, 0.30);
+    box-shadow: inset 0 1px 3px alpha(@a-shade, 0.60);
+}
+
+/* Play: the lit button, accent glass. */
+#play {
+    color: @text-bright;
+    background-color: @a-sel;
+    border-color: alpha(@a-shade, 0.80);
+}
+
+#play:hover {
+    background-color: mix(@a-tone, @a-navy, 0.50);
+}
+
+/* --- Accent as text: the pale @a-glow ---------------------------------------- */
+#cal-month,
+#cal-prev,
+#cal-next,
+#kb-title,
+.ctl-icon,
+.ctl-value,
+button.ctl-link:hover,
+label.wx-big-temp,
+button.dev-pick.active,
+label.pw-uptime,
+label.pw-glyph {
+    color: @a-glow;
+}
+
+label.wx-rain {
+    color: alpha(@a-glow, 0.90);
+}
+
+button.dev-pick.active label.dev-kind {
+    color: alpha(@a-glow, 0.85);
+}
+
+/* The current device's radio dot: the base fills it with the raw accent. */
+button.dev-pick.active .dev-dot {
+    border-color: @a-glow;
+    background-color: @a-glow;
+}
+
+/* An unplugged device is greyed (insensitive: WirePlumber would ignore the
+   pick), but its name is still information -- which outputs exist. The
+   base's @text-dimmer at 0.6 opacity measured 4.0:1 here; 0.8 is 5.5:1 and
+   still clearly dimmer than the live rows. */
+button.dev-pick.unplugged,
+button.dev-pick:disabled {
+    opacity: 0.8;
+}
+
+/* The big temperature: white like the bar's clock, the accent as a haze. */
+label.wx-big-temp {
+    color: @text-bright;
+    text-shadow: 0 0 10px alpha(@a-tone, 0.50), 0 1px 2px alpha(@a-shade, 0.90);
+}
+
+/* --- Headings: Aero blue, not the base file's magenta ----------------------- */
+label.kb-heading,
+label.cal-weekday {
+    color: @a-sky;
+}
+
+/* Key caps: small glass keys. */
+label.kb-cap {
+    color: @text;
+    background-color: alpha(@a-gloss, 0.06);
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.20) 0%,
+                        alpha(@a-gloss, 0.06) 49%,
+                        alpha(@a-gloss, 0.00) 50%);
+    border: 1px solid alpha(@a-shade, 0.65);
+    border-bottom-color: alpha(@a-shade, 0.85);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.30);
+}
+
+/* Weather: cool low in sky, warm high in amber. Red would say "bad". */
+label.wx-lo { color: @a-sky; }
+label.wx-hi { color: @a-amber; }
+
+/* --- Calendar ---------------------------------------------------------------- */
+label.cal-today {
+    color: @text-bright;
+    background-color: @a-sel;
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.30) 0%,
+                        alpha(@a-gloss, 0.10) 49%,
+                        alpha(@a-gloss, 0.00) 50%);
+    box-shadow: inset 0 0 0 1px alpha(@a-gloss, 0.35);
+}
+
+/* Out-of-month days: dimmer than the month's own, but still numbers to read
+   (which day the 1st falls on). 0.40 measured 2.95:1 on the card; 0.58 is
+   ~4.8:1 and still plainly the faded ones. */
+label.cal-adjacent {
+    color: alpha(@mist, 0.58);
+}
+
+/* --- Rows that are ON or MUTED: accent glass / red glass, white glyph ------- */
+.ctl-row.on .ctl-icon {
+    color: @text-bright;
+    background-color: @a-sel;
+    border-color: alpha(@a-shade, 0.80);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.40),
+                inset 0 0 0 1px alpha(@a-gloss, 0.20);
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.80);
+}
+
+.ctl-row.muted .ctl-icon {
+    color: @text-bright;
+    background-color: alpha(@a-crit, 0.90);
+    border-color: alpha(@a-shade, 0.80);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.40);
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.80);
+}
+
+/* --- Sliders: a dark groove, a glossy accent run, a light glass thumb ------ */
+#seek trough,
+scale.ctl-slider trough {
+    min-height: 5px;
+    border-radius: 3px;
+    background-color: alpha(@a-shade, 0.50);
+    box-shadow: inset 0 1px 2px alpha(@a-shade, 0.70);
+}
+
+#seek highlight,
+scale.ctl-slider highlight {
+    border-radius: 3px;
+    background-image: linear-gradient(to bottom,
+                        mix(@a-tone, @a-gloss, 0.40) 0%,
+                        @a-tone 50%,
+                        mix(@a-tone, @a-navy, 0.30) 100%);
+}
+
+#seek slider,
+scale.ctl-slider slider {
+    border: 1px solid alpha(@a-shade, 0.75);
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.90) 0%,
+                        alpha(@a-gloss, 0.40) 49%,
+                        alpha(@a-gloss, 0.00) 50%);
+    box-shadow: 0 1px 2px alpha(@a-shade, 0.60);
+}
+
+#seek slider:hover,
+scale.ctl-slider slider:hover {
+    background-color: mix(@a-tone, @a-gloss, 0.55);
+}
+
+/* --- Switches: a dark well; on, the accent glass with a light thumb -------- */
+switch {
+    border: 1px solid alpha(@a-shade, 0.70);
+    background-color: alpha(@a-shade, 0.40);
+    box-shadow: inset 0 1px 2px alpha(@a-shade, 0.60);
+}
+
+switch:checked {
+    background-color: @a-sel;
+    border-color: alpha(@a-shade, 0.80);
+    box-shadow: inset 0 0 0 1px alpha(@a-gloss, 0.20);
+}
+
+switch slider {
+    background-color: @knob;
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.80) 0%,
+                        alpha(@a-gloss, 0.20) 49%,
+                        alpha(@a-gloss, 0.00) 50%);
+    border: 1px solid alpha(@a-shade, 0.60);
+}
+
+switch:checked slider {
+    background-color: @knob;
+}
+
+/* --- Disk bars: the Windows 7 drive bar -- glossy accent, amber, then red -- */
+levelbar.dk-bar trough {
+    min-height: 7px;
+    border-radius: 3px;
+    background-color: alpha(@a-shade, 0.50);
+    box-shadow: inset 0 1px 2px alpha(@a-shade, 0.70);
+}
+
+/* The fill is @a-tone, never the base's raw accent: on the teal and aurora
+   wallpapers that was cyberpunk's neon cyan / mint on every drive bar and on
+   the CPU panel's RAM and swap bars (same widget). The warning and critical
+   fills keep their status colours (the base's .warning / .critical rules
+   outrank this one). */
+levelbar.dk-bar block.filled {
+    min-height: 7px;
+    border-radius: 3px;
+    background-color: @a-tone;
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.50) 0%,
+                        alpha(@a-gloss, 0.15) 49%,
+                        alpha(@a-gloss, 0.00) 50%);
+}
+
+button.dk-fs:hover,
+button.dev-pick:hover {
+    border-color: @edge;
+    background-color: alpha(@a-gloss, 0.07);
+}
+
+/* --- Power and capture tiles --------------------------------------------------- */
+button.pw-tile.danger:hover {
+    border-color: alpha(@a-shade, 0.80);
+    background-color: alpha(@magenta, 0.16);
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.26) 0%,
+                        alpha(@a-gloss, 0.10) 49%,
+                        alpha(@a-gloss, 0.00) 50%,
+                        alpha(@magenta, 0.08) 55%,
+                        alpha(@magenta, 0.34) 100%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.42),
+                inset 0 0 0 1px alpha(@a-gloss, 0.14),
+                inset 0 -2px 6px alpha(@magenta, 0.40);
+}
+
+/* Armed (first click taken): Windows 7 red glass, white text. */
+button.pw-tile.armed,
+button.pw-tile.armed:hover {
+    background-color: alpha(@a-crit, 0.92);
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.30) 0%,
+                        alpha(@a-gloss, 0.10) 49%,
+                        alpha(@a-gloss, 0.00) 50%);
+    border-color: alpha(@a-shade, 0.80);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.40);
+}
+
+button.pw-tile.armed label.pw-glyph,
+button.pw-tile.armed label.pw-label {
+    color: @text-bright;
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.80);
+}
+
+button.pw-tile.live,
+button.pw-tile.live:hover {
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.30) 0%,
+                        alpha(@a-gloss, 0.10) 49%,
+                        alpha(@a-gloss, 0.00) 50%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.40);
+}
+
+/* The HDR capture-range tile shares .live with the recording tiles, but it
+   means "a mode is on", not "recording now" (capture_panel.py gives every
+   tile its own class for exactly this). Solid red there, next to Record
+   monitor / Record region, read as a recording in progress -- and red in
+   this theme means "wrong" or "this ends something". So it is an ON tile:
+   the accent glass of a lit control, gloss and all, white text. The real
+   recording tiles keep the red. */
+button.pw-tile.live.cap-rec-range,
+button.pw-tile.live.cap-rec-range:hover {
+    background-color: @a-sel;
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.30) 0%,
+                        alpha(@a-gloss, 0.10) 49%,
+                        alpha(@a-gloss, 0.00) 50%,
+                        alpha(@a-tone, 0.00) 70%,
+                        alpha(@a-tone, 0.22) 100%);
+    border-color: alpha(@a-shade, 0.80);
+    border-bottom-color: @a-tone;
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.45),
+                inset 0 0 0 1px alpha(@a-gloss, 0.20);
+}
+
+button.pw-tile.live.cap-rec-range label.pw-glyph,
+button.pw-tile.live.cap-rec-range label.pw-label {
+    color: @text-bright;
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.85);
+}
+
+/* --- Separators: a light hairline over a dark one, etched into the glass --- */
+.ctl-sep {
+    background-color: alpha(@a-gloss, 0.14);
+    box-shadow: 0 -1px alpha(@a-shade, 0.40);
+}
+
+.ctl-vsep {
+    background-color: alpha(@a-gloss, 0.14);
+    box-shadow: -1px 0 alpha(@a-shade, 0.40);
+}
+
+/* The media preview keeps its black floor (video needs one), framed in glass. */
+#preview-frame {
+    border: 1px solid alpha(@a-shade, 0.80);
+    box-shadow: inset 0 0 0 1px alpha(@a-gloss, 0.10);
+}

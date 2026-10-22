@@ -1,0 +1,19 @@
+# Machines: the paired computers' daemon (~/.config/hypr/scripts/peers.py serve):
+# mutual-TLS listener on 47615/tcp for the paired machines only, mDNS announce
+# (avahi), and -- each only while its switch is on (Settings > Machines) --
+# the clipboard watcher and the project-context follower. Ships disabled:
+# pairing a machine enables it, forgetting the last one disables it, and it
+# exits by itself when nothing is paired or `peers.py set enabled off`.
+[Unit]
+Description=Machines: share with your paired computers (peer to peer, LAN only)
+PartOf=graphical-session.target
+After=graphical-session.target mako.service avahi-daemon.service
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/peers.py serve
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,12 @@
+# Every hour (and at the next login when one was missed): desktop-index.service.
+# The privacy switches are checked by the script itself, so this stays on.
+[Unit]
+Description=Hourly update of the desktop search index
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

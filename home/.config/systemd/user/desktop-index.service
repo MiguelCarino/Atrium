@@ -1,0 +1,18 @@
+# Keeps "Ask your desktop"'s search index fresh: ~/.config/hypr/scripts/
+# desktop-index.py update, which reads only the files that changed since the
+# last run and drops the ones that are gone. It does nothing when Settings >
+# Privacy has Ask, its Files or its search index off, and skips the run
+# while game mode is on, a Steam game is open, or on battery.
+[Unit]
+Description=Update the desktop search index
+ConditionACPower=true
+
+[Service]
+Type=oneshot
+TimeoutStartSec=3h
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/desktop-index.py update --auto
+Nice=19
+IOSchedulingClass=idle
+CPUQuota=200%
+MemoryHigh=600M
+MemoryMax=1G

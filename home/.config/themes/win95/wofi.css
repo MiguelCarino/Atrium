@@ -1,0 +1,130 @@
+/* ===========================================================================
+   WINDOWS 95 -- wofi (~/.config/wofi/style.css): the SUPER+W window switcher
+   and the SUPER+V clipboard picker. Copied to waybar/generated/theme-wofi.css
+   by theme.py, which also writes `@define-color cyan #000080` above this
+   text (theme.conf accent=; wofi never imports generated/accent.css). Kept in
+   step with this theme's launcher.css: the Start menu -- raised grey window
+   with the navy banner down its left edge, a sunken (dimmed-white) text
+   field, rows as menu items that go navy with white text when selected. No
+   scan line, no slide-in animation. Sizes on W95FA's grid: 25px for the
+   field, 12.5px for the rows (the launcher's header says why).
+   =========================================================================== */
+
+@define-color w-face     #acacac;
+@define-color w-hover    #b6b6b6;
+@define-color w-hi       #e4e4e4;
+@define-color w-light    #c4c4c4;
+@define-color w-shadow   #727272;
+@define-color w-dark     #000000;
+@define-color w-navy     #000080;
+@define-color w-title2   #1084d0;
+@define-color w-field    #cccccc;
+
+@define-color magenta    @w-navy;
+@define-color violet     @w-shadow;
+@define-color mist       #333333;
+@define-color sel-mid    @w-navy;
+@define-color surface    @w-face;
+@define-color groove     @w-field;
+@define-color edge       @w-shadow;
+@define-color edge-lit   @w-dark;
+@define-color text       #000000;
+@define-color text-dim   #333333;
+@define-color text-bright #000000;
+@define-color ink        #ffffff;
+
+/* The field's hint ("window", "clipboard"). GTK3 draws an entry's
+   placeholder in the theme's named colour placeholder_text_color, not in
+   anything a selector reaches (#input placeholder and .dim-label were tried:
+   neither applies). The stock grey measured #818181 on the #cdcdcd field,
+   2.45:1; #4a4a4a is 5.6:1, still clearly lighter than typed black text. */
+@define-color placeholder_text_color #4a4a4a;
+
+* {
+    font-size: 12.5px;
+    font-weight: normal;
+}
+
+#outer-box {
+    padding: 18px 18px 14px 48px;
+    border: none;
+    border-bottom: none;
+    border-radius: 0px;
+    animation: none;
+    background-color: @w-face;
+    background-image: linear-gradient(to top, @w-navy, @w-title2);
+    background-size: 26px 100%;
+    background-position: 3px 0px;
+    background-repeat: no-repeat;
+    box-shadow: inset 0 0 0 3px @w-face,
+                inset 2px 2px @w-hi,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-light,
+                inset -1px -1px @w-dark;
+}
+
+#input,
+#input:focus {
+    font-size: 25px;
+    color: @text;
+    caret-color: @text;
+    border: none;
+    border-bottom: none;
+    border-radius: 0px;
+    background-color: @w-field;
+    box-shadow: inset -2px -2px @w-light,
+                inset 2px 2px @w-dark,
+                inset -1px -1px @w-hi,
+                inset 1px 1px @w-shadow;
+}
+
+#input image {
+    color: @text;
+}
+
+#input selection {
+    background-color: @w-navy;
+    color: @ink;
+}
+
+#entry {
+    padding: 6px 12px;
+    border: none;
+    border-left: none;
+    border-radius: 0px;
+    transition: none;
+}
+
+#entry:hover {
+    background-color: @w-hover;
+    border: none;
+}
+
+#entry:selected {
+    padding-left: 12px;
+    background-color: @w-navy;
+    background-image: none;
+    border: none;
+    border-left: none;
+}
+
+#entry:selected #text {
+    color: @ink;
+}
+
+scrollbar slider {
+    border-radius: 0px;
+}
+
+/* The rows in the theme's monospace face. window-switcher.py lays its rows
+   out as space-padded columns (workspace, app, title); in a proportional
+   face the titles started anywhere between ~165 and ~192 px (measured), and
+   W95FA's narrow space made that worse than the base. In IBM Plex Mono
+   (font_mono=) every column starts at the same x; the field above keeps
+   W95FA. The clipboard picker's rows are text snippets, which a fixed face
+   suits too. 12.5px like every other row in this theme; Plex is not a pixel
+   face, so this is not on W95FA's grid and does not need to be. */
+#text {
+    font-family: "IBM Plex Mono", "Noto Color Emoji", monospace;
+    font-size: 12.5px;
+}

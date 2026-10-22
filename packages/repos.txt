@@ -1,0 +1,5 @@
+# Extra repositories (install.sh). rpmfusion is installed from its release
+# RPMs; copr: lines are enabled with `dnf copr enable`.
+rpmfusion-free
+rpmfusion-nonfree
+copr:lionheartp/Hyprland

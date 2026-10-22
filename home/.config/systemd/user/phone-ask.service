@@ -1,0 +1,21 @@
+# Ask your desktop from the phone (~/.config/hypr/scripts/phone-ask.py
+# watch): a text shared from the paired phone that starts with "?" goes to the
+# desktop assistant (local model) and the answer goes back to the phone.
+# It follows kdeconnectd's own "shared text" notification on the session bus
+# (busctl monitor, Notify calls only; everything else is dropped unread).
+# Enabled only while privacy.conf phone_ask=on (`phone-ask.py on|off`,
+# Settings > Devices); the phone's "Run command" quick questions need no
+# service.
+[Unit]
+Description=Ask your desktop from the phone (KDE Connect shared text)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/phone-ask.py watch
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

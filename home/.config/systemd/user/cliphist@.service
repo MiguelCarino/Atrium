@@ -1,0 +1,15 @@
+# Clipboard history recorder, one instance per MIME class: cliphist@text,
+# cliphist@image. SUPER+V (lua/binds.lua) reads what these store.
+[Unit]
+Description=Clipboard history (%i)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/wl-paste --type %i --watch /usr/bin/cliphist store
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

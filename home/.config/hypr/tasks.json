@@ -1,0 +1,21 @@
+{
+  "_doc": [
+    "Background tasks: tasks.py's docstring has everything; `tasks.py catalog` lists the types and",
+    "their options, `tasks.py check` validates this file. A task: {id, name, type, params, schedule, enabled}.",
+    "Schedules: watch | once | every 30m|2h|1d | daily HH:MM | weekdays HH:MM | mon,thu HH:MM | on-event | manual.",
+    "Keys starting with _ are ignored. Settings > Background tasks edits this file too."
+  ],
+  "settings": {},
+  "tasks": [
+    {
+      "id": "health-checkup",
+      "name": "Nightly health checkup",
+      "type": "nightly-checkup",
+      "params": {},
+      "schedule": "daily 03:30",
+      "enabled": true,
+      "created": 1792581083,
+      "source": "settings"
+    }
+  ]
+}

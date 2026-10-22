@@ -1,0 +1,1110 @@
+/* ===========================================================================
+   NEON — waybar theme ("cyberpunk", the base every desktop theme starts from).
+
+   Replaces the earlier "liquid glass" theme. The idea in one line: near-black
+   panes with a lit neon edge, instead of frosted glass with a lit white edge.
+
+   What makes it read as neon rather than as "dark theme with a colour":
+
+     1. the surface is almost opaque near-black, so the colour has something
+        to glow against -- a glowing edge on grey glass just looks washed out;
+     2. every pane has a hairline neon border, brighter along the BOTTOM, like
+        a strip light under a shelf;
+     3. a soft outer glow (box-shadow with no offset) in the same hue, which is
+        the "light bleeding into the air" that sells the effect;
+     4. text carries a faint glow of its own instead of a drop shadow;
+     5. chamfered corners: two tight corners, two wide ones, on a diagonal.
+        GTK3 has no clip-path, so this is the closest it gets to a cut corner.
+
+   The compositor still blurs behind the bar (layer rule `waybar-glass` in
+   ~/.config/hypr/lua/rules.lua). At this alpha the blur is mostly invisible;
+   it only stops a busy window under the bar from showing through as noise.
+
+   Neon colours are the window-border palette from
+   ~/.config/hypr/lua/settings.lua (general.col.active_border), so the bar and the window frames match.
+
+   THEMES (~/.config/themes/<name>/, switched with ~/.config/hypr/scripts/theme.py)
+   -------------------------------------------------------------------------
+   This file is the cyberpunk look and the base of every other theme. A theme
+   never edits it: its waybar.css is copied into generated/theme.css, which is
+   imported LAST (after the wallpaper accent), so the theme gets the final say
+   twice over --
+
+     colours   by redefining the names in the PALETTE below. GTK3 resolves a
+               named colour by its LAST definition anywhere in the provider,
+               even for rules written above it (tested; generated/accent.css
+               has always worked this way), so `@define-color surface ...;`
+               in a theme recolours every pill that uses @surface.
+     the rest  (radii, borders, fonts, gradients, padding) only by rules of
+               equal or higher specificity, which win because they come
+               later. Copy the selector from here, change the property.
+
+   That is why no rule below writes a colour literal: every colour is a name
+   from the PALETTE, used as is or through alpha(@name, a). Change a role to
+   change one job (@surface: every pill's fill); change a hue to change every
+   role and rule made from it (@magenta: the CPU edge, the power pill, muted,
+   the bad wash...). The names that were here before the theme work (@glass,
+   @fg, @dim, @bg-solid, @glass-hov) are kept as aliases of the roles that
+   replaced them -- readable, but a theme must redefine the ROLE, since no rule
+   uses the alias any more. style-toolbox.css and the generated workspace-tint
+   rules use these same names.
+   =========================================================================== */
+
+/* --- PALETTE 1: hues --------------------------------------------------------
+   @cyan is the ACCENT role, whatever hue a theme gives it -- the name is
+   history. generated/accent.css redefines it (wallpaper accent, or the
+   theme's own `accent=` from theme.conf), and it is the only name that does:
+   everything else here holds still when the wallpaper changes, so a warning
+   still looks like a warning on any wallpaper. @magenta is the second accent:
+   structure, "this ends something", bad. */
+@define-color cyan       #00f0ff;
+@define-color magenta    #ff2a6d;
+@define-color yellow     #f9f002;
+@define-color green      #39ff14;
+@define-color purple     #b026ff;
+@define-color red        #ff143c;   /* capture: REC, camera -- harder than magenta */
+@define-color mist       #96d7e6;   /* the blue-grey that dim text is made of */
+@define-color steel      #8c96aa;   /* neutral, outside the neon set */
+@define-color slate      #788091;   /* a darker steel: the GPU N/A wash */
+
+/* --- PALETTE 2: surfaces, edges, text ---------------------------------------- */
+@define-color surface        rgba(6, 8, 16, 0.80);    /* every pill's fill */
+@define-color surface-hover  rgba(10, 22, 34, 0.90);
+@define-color surface-dense  rgba(6, 8, 16, 0.88);    /* tray pill, toolbox card */
+@define-color surface-solid  #07090f;                 /* tray menu: a real popup, no blur */
+@define-color edge           alpha(@cyan, 0.28);      /* hairline round every pane */
+@define-color edge-lit       alpha(@cyan, 0.85);      /* the lit bottom edge, hover */
+@define-color accent         alpha(@cyan, 0.30);      /* accent WASH (a lit fsstate, tray hover) */
+@define-color text           #e6fcff;
+@define-color text-dim       alpha(@mist, 0.50);      /* idle, clean, up to date */
+@define-color text-bright    #ffffff;                 /* numbers; text on lit and alarm fills */
+@define-color ink            #000000;                 /* text on a full-neon fill */
+@define-color ink-warn       #101010;                 /* text on the solid yellow location pill */
+
+/* Old names, kept so nothing that still says them breaks. Aliases only: a
+   theme redefines the role on the right. */
+@define-color glass          @surface;
+@define-color glass-hov      @surface-hover;
+@define-color bg-solid       @surface-solid;
+@define-color fg             @text;
+@define-color dim            @text-dim;
+
+/* --- PALETTE 3: workspaces ----------------------------------------------------
+   Per-monitor workspace colours. Which workspace is on which screen is
+   decided live by scripts/workspace-tint.py, which writes rules that use
+   these names (see the Workspaces section).
+
+       mon1  the primary screen       cyan
+       mon2  the second screen        green
+       mon3  the third screen         magenta
+   (the order is the host file's M.screens -- hypr/lua/hosts/<host>.lua --
+   else the live screens', via hypr/scripts/screens.py)
+
+   -dim is the number's colour on an unlit pill, so you can tell where a
+   workspace lives without switching to it. The three hues are their own
+   names, not @cyan/@green/@magenta: they say which SCREEN, not accent or
+   status, so they must not follow the wallpaper accent or a theme's status
+   colours by accident. */
+@define-color mon1-hue   #00f0ff;
+@define-color mon2-hue   #39ff14;
+@define-color mon3-hue   #ff2a6d;
+@define-color mon1       alpha(@mon1-hue, 0.30);
+@define-color mon1-dim   alpha(@mon1-hue, 0.62);
+@define-color mon2       alpha(@mon2-hue, 0.26);
+@define-color mon2-dim   alpha(@mon2-hue, 0.62);
+@define-color mon3       alpha(@mon3-hue, 0.32);
+@define-color mon3-dim   alpha(@mon3-hue, 0.72);
+
+/* A workspace with no home monitor. Nothing should reach this (ALT+1..6 all
+   have workspace rules), but if something does it must not borrow a
+   monitor's colour -- neutral steel, outside the neon set. */
+@define-color mon-unknown alpha(@steel, 0.30);
+
+/* --- PALETTE 4: clock modes, status, alerts -----------------------------------
+   Clock modes: .local stays plain; UTC and epoch are the ones that shout. */
+@define-color utc        alpha(@purple, 0.24);
+@define-color utc-fg     #dcb0ff;
+@define-color epoch      alpha(@yellow, 0.16);
+@define-color epoch-fg   #fbf68a;
+
+/* Status. Washes on the surface, full neon in the text. These three must stay
+   tellable apart in every theme -- green good, yellow warn, magenta/red bad --
+   whatever the theme does to the accent. */
+@define-color good       alpha(@green, 0.12);
+@define-color good-fg    #8dff6e;
+@define-color bad        alpha(@magenta, 0.16);
+@define-color bad-fg     #ff6b95;
+@define-color warn       alpha(@yellow, 0.14);
+@define-color warn-fg    @yellow;
+@define-color critical   alpha(@magenta, 0.62);
+
+/* REC pill (#custom-recording): the pane is alpha(@red, 0.85); these are its
+   lit border and the dim end of its pulse. */
+@define-color rec-edge   rgba(255, 140, 165, 0.55);
+@define-color rec-dim    rgba(110, 0, 24, 0.85);
+
+/* Night light (#custom-nightlight.on): warm amber, outside the neon set on
+   purpose -- it is the one pill about the colour of the screen itself. */
+@define-color night      rgba(255, 150, 40, 0.16);
+@define-color night-fg   #ffb347;
+@define-color night-edge #ff9a2a;
+
+* {
+    border: none;
+    border-radius: 0;
+    /* One face for the whole bar, its toolbox, the popup panels, the
+       launcher and mako: IBM Plex Sans (Fedora's ibm-plex-sans-fonts). It
+       replaced a mix of Rajdhani (body), Share Tech Mono (numbers) and
+       Orbitron (headings) -- condensed display faces that looked the part
+       and were hard to read at bar sizes. Plex has open shapes, a tall
+       x-height and distinct 1/l/I and 0/O, so 14px here reads larger than
+       Rajdhani's 16px did.
+
+       tnum (tabular figures): every digit the same width, so a readout that
+       changes every second (clock, CPU %, rates) does not jitter -- the job
+       Share Tech Mono used to do, without a second typeface.
+
+       Font Awesome must still be listed explicitly -- its glyphs are in the
+       Private Use Area, which fontconfig will not fall back into on its own. */
+    font-family: "IBM Plex Sans", "Font Awesome 6 Free Solid", "Font Awesome 6 Free",
+                 "Font Awesome 6 Brands", "Noto Color Emoji", sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    font-feature-settings: "tnum";
+    letter-spacing: 0.2px;
+    /* Kill GTK's default shading everywhere; rules that want a shadow, a
+       glow or a transition opt back in by naming themselves. */
+    box-shadow: none;
+    text-shadow: none;
+    transition: none;
+}
+
+/* The bar's own surface is never painted: only the pills are, and the gaps
+   between them are real holes, which the compositor's ignore_alpha keys off. */
+window#waybar {
+    background: transparent;
+}
+
+window#waybar.hidden {
+    opacity: 0.2;
+}
+
+/* ---------------------------------------------------------------------------
+   Shared pill.
+
+   background-color and background-image are set separately (never the
+   `background` shorthand): state rules further down change only the colour,
+   and the shorthand would wipe the gradient with it.
+
+   The gradient is a faint cyan floor-glow rising from the bottom edge -- the
+   light from the neon strip catching the inside of the pane.
+   --------------------------------------------------------------------------- */
+#clock,
+#custom-day,
+#custom-clock,
+#custom-updates,
+#custom-weather,
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#network,
+#custom-network,
+#pulseaudio,
+#backlight,
+#battery,
+#temperature,
+#tray,
+#custom-player,
+#privacy,
+#custom-fsstate,
+#custom-nightlight,
+#custom-awake,
+#custom-keybinds,
+#custom-settings,
+#custom-toolbox,
+#custom-power,
+#custom-capture,
+#custom-repos,
+#custom-timers,
+#custom-workhours,
+#custom-context,
+#custom-notifications,
+#custom-display,
+#language,
+#submap,
+#window {
+    margin-top: 4px;
+    margin-bottom: 4px;
+    padding-left: 14px;
+    padding-right: 14px;
+    border-radius: 3px 12px 3px 12px;
+    color: @text;
+    background-color: @surface;
+    background-image: linear-gradient(to bottom,
+                        alpha(@cyan, 0.00) 0%,
+                        alpha(@cyan, 0.00) 55%,
+                        alpha(@cyan, 0.10) 100%);
+    border: 1px solid @edge;
+    border-bottom-color: @edge-lit;
+    box-shadow: none;
+    text-shadow: none;
+    transition: background-color 140ms ease-out, box-shadow 140ms ease-out,
+                border-color 140ms ease-out;
+}
+
+/* Hover: the whole edge lights up, not just the floor. */
+#clock:hover,
+#custom-day:hover,
+#custom-clock:hover,
+#custom-updates:hover,
+#custom-weather:hover,
+#custom-cpu:hover,
+#custom-gpu:hover,
+#custom-disk:hover,
+#network:hover,
+#custom-network:hover,
+#pulseaudio:hover,
+#tray:hover,
+#custom-player:hover,
+#privacy:hover,
+#custom-fsstate:hover,
+#custom-nightlight:hover,
+#custom-awake:hover,
+#custom-keybinds:hover,
+#custom-settings:hover,
+#custom-toolbox:hover,
+#custom-power:hover,
+#custom-repos:hover,
+#custom-timers:hover,
+#custom-workhours:hover,
+#custom-context:hover,
+#custom-notifications:hover,
+#custom-display:hover,
+#custom-capture:hover {
+    background-color: @surface-hover;
+    border-color: @edge-lit;
+    box-shadow: none;
+}
+
+/* Breathing room after the end of a run. Real transparency, not a margin on
+   a painted surface, or neighbouring pills fuse into one slab. */
+#pulseaudio,
+#network,
+#custom-network,
+#tray,
+#custom-player,
+#privacy,
+#custom-fsstate,
+#custom-nightlight,
+#custom-awake,
+#custom-keybinds,
+#custom-settings,
+#custom-toolbox,
+#custom-power,
+#custom-capture,
+#custom-timers,
+#custom-workhours,
+#custom-context,
+#custom-display,
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#backlight,
+#battery,
+#temperature,
+#submap,
+#language {
+    margin-right: 8px;
+}
+
+/* --- Joined capsules ------------------------------------------------------
+   [date | time | weather] and [updates | git | notifications] are one pane
+   each, with a faint seam between the parts. The chamfer continues across
+   the whole capsule: tight top-left on the first part, tight bottom-right on
+   the last, square in the middle, so it reads as one cut shape.
+   --------------------------------------------------------------------------- */
+#custom-day,
+#custom-updates {
+    border-radius: 3px 0px 0px 12px;
+    padding-right: 9px;
+    border-right-color: alpha(@cyan, 0.12);
+}
+
+#custom-clock,
+#custom-repos {
+    border-radius: 0px;
+    padding-left: 9px;
+    padding-right: 9px;
+    border-left-color: alpha(@cyan, 0.12);
+    border-right-color: alpha(@cyan, 0.12);
+}
+
+#custom-weather,
+#custom-notifications {
+    border-radius: 0px 12px 3px 0px;
+    padding-left: 9px;
+    border-left-color: alpha(@cyan, 0.12);
+}
+
+/* Gap between the two centre capsules. */
+#custom-weather {
+    margin-right: 8px;
+}
+
+/* ---------------------------------------------------------------------------
+   Date + time.
+
+   The time uses tabular figures (font-feature-settings: "tnum", set on the
+   base rule): every digit is the same width, so the seconds ticking over
+   never make the capsule twitch.
+   --------------------------------------------------------------------------- */
+#custom-day {
+    color: @text-dim;
+    font-weight: 600;
+}
+
+#custom-clock {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    font-size: 16px;
+    letter-spacing: 1px;
+    color: @cyan;
+    text-shadow: none;
+}
+
+#custom-clock.local {
+    color: @cyan;
+}
+
+#custom-clock.utc {
+    background-color: @utc;
+    color: @utc-fg;
+    border-color: alpha(@purple, 0.40);
+    border-bottom-color: @purple;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+#custom-clock.epoch {
+    background-color: @epoch;
+    color: @epoch-fg;
+    border-color: alpha(@yellow, 0.35);
+    border-bottom-color: @yellow;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+/* Weather: the glyph is coloured by condition in wttr.py's markup; the
+   temperature is set in the readout face, like the clock beside it. */
+#custom-weather {
+    font-family: "IBM Plex Sans", "Font Awesome 6 Free Solid", sans-serif;
+    font-weight: normal;
+    font-size: 16px;
+}
+
+#custom-weather.stale,
+#custom-weather.unavailable {
+    color: @text-dim;
+}
+
+
+/* Updates: the box glyph is coloured by state in updates.sh's markup (magenta
+   while pending); the count is the same size as the weather temperature in
+   the capsule beside it, with Font Awesome as the fallback that picks up the
+   glyph. */
+#custom-updates {
+    font-family: "IBM Plex Sans", "Font Awesome 6 Free Solid", sans-serif;
+    font-weight: normal;
+    font-size: 16px;
+}
+
+/* Pending: a magenta floor under this half of the capsule only, so it reads
+   as "something to do" without the full yellow wash that .many gets. */
+#custom-updates.pending {
+    border-bottom-color: @magenta;
+}
+
+/* ---------------------------------------------------------------------------
+   Workspaces.
+
+   The tallest thing in the bar, so its metrics set the bar's height (36px):
+   keep the button margins at 1px and the vertical padding at 0.
+   --------------------------------------------------------------------------- */
+#workspaces {
+    margin: 4px 8px 4px 8px;
+    padding: 0px 3px;
+    border-radius: 3px 12px 3px 12px;
+    background-color: @surface;
+    background-image: linear-gradient(to bottom,
+                        alpha(@cyan, 0.00) 55%,
+                        alpha(@cyan, 0.10) 100%);
+    border: 1px solid @edge;
+    border-bottom-color: @edge-lit;
+    box-shadow: none;
+}
+
+#workspaces button {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    color: @text-dim;
+    background: transparent;
+    padding: 0px 9px;
+    margin: 1px 1px;
+    font-size: 16px;
+    border-radius: 2px 8px 2px 8px;
+    transition: background-color 140ms ease-out, color 140ms ease-out;
+}
+
+/* Per-monitor colours, unlit pills: rules generated by
+   scripts/workspace-tint.py from the live workspace->monitor map, because
+   ALT+n re-homes workspaces at runtime. Must stay ABOVE the :hover rule (same
+   specificity, later wins). waybar reloads it by itself via
+   reload_style_on_change. */
+@import url("generated/workspace-tint.css");
+
+/* A workspace the compositor is not showing. */
+#workspaces button.hidden {
+    font-size: 14px;
+}
+
+/* GTK paints its own hover shading on buttons; inherit neutralises it. */
+#workspaces button:hover {
+    box-shadow: inherit;
+    text-shadow: none;
+    color: @text;
+    background-color: alpha(@cyan, 0.10);
+}
+
+/* The lit pill: a neon fill with its own glow and a bright underline. The
+   colour itself comes from the generated rules below (one per monitor);
+   @mon-unknown here only catches a workspace with no home. */
+#workspaces button.active {
+    color: @text-bright;
+    background-color: @mon-unknown;
+    background-image: linear-gradient(to bottom,
+                        alpha(@text-bright, 0.10),
+                        alpha(@text-bright, 0.00));
+    box-shadow: none;
+    text-shadow: none;
+}
+
+/* Per-monitor colours, lit pills. Sets background-color only; everything
+   else is inherited from .active above. Must stay BELOW .active. */
+@import url("generated/workspace-tint-active.css");
+
+/* Urgent outranks the monitor colour, including when it is the visible one. */
+#workspaces button.urgent,
+#workspaces button.active.urgent {
+    color: @text-bright;
+    background-color: @critical;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Window title.
+   --------------------------------------------------------------------------- */
+#window {
+    font-size: 15px;
+    font-weight: 600;
+    padding-left: 12px;
+    padding-right: 14px;
+    margin-right: 8px;
+    color: @text;
+}
+
+/* An empty title leaves no trace: clear every layer, not just the fill, or
+   the border and glow keep drawing an outline around nothing. */
+window#waybar.empty #window {
+    background-color: transparent;
+    background-image: none;
+    border-color: transparent;
+    box-shadow: none;
+    padding: 0;
+}
+
+
+#custom-cpu,
+#custom-gpu,
+#custom-disk {
+    font-family: "IBM Plex Sans", "Font Awesome 6 Free Solid", sans-serif;
+    font-weight: normal;
+}
+
+/* CPU / GPU: plain dark pane and white numbers; the colour lives only in the
+   label (set in the scripts' Pango markup: CPU magenta, GPU green) and in the
+   lit bottom edge. The earlier tinted washes put pink text on a pink pane and
+   green on green, which is what made them hard to read. No text glow either:
+   on these two it smudged rather than glowed. */
+#custom-cpu,
+#custom-gpu {
+    color: @text-bright;
+    text-shadow: none;
+}
+
+#custom-cpu {
+    border-color: alpha(@magenta, 0.30);
+    border-bottom-color: @magenta;
+    box-shadow: none;
+}
+
+#custom-gpu {
+    border-color: alpha(@green, 0.25);
+    border-bottom-color: @green;
+    box-shadow: none;
+}
+
+/* Critical breaks the look on purpose and blinks. */
+#custom-cpu.critical,
+#custom-gpu.critical {
+    background-color: @critical;
+    color: @text-bright;
+    animation: blink 1s linear infinite alternate;
+}
+
+#custom-gpu.unavailable {
+    background-color: alpha(@slate, 0.18);
+    color: @text-dim;
+    border-bottom-color: alpha(@steel, 0.5);
+}
+
+#custom-disk.warning  { background-color: @warn; color: @warn-fg; }
+#custom-disk.critical { background-color: @critical; color: @text-bright; }
+
+/* ---------------------------------------------------------------------------
+   Player pill. The preview panel is a GTK app of its own (panel.css).
+   --------------------------------------------------------------------------- */
+#custom-player {
+    font-weight: 600;
+    padding-left: 14px;
+    padding-right: 14px;
+}
+
+#custom-player.playing {
+    color: @text;
+    border-bottom-color: @magenta;
+    box-shadow: none;
+}
+#custom-player.paused  { color: @text-dim; }
+#custom-player.error   { color: @warn-fg; }
+
+/* Nothing playing: no pane at all. Every layer cleared, as for the title. */
+#custom-player.stopped {
+    background-color: transparent;
+    background-image: none;
+    border-color: transparent;
+    box-shadow: none;
+    padding: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Privacy indicators. Only visible while a device is in use, and meant to
+   be noticed: solid magenta / red / amber with a strong glow.
+   --------------------------------------------------------------------------- */
+#custom-mic,
+#custom-camera,
+#custom-location {
+    margin: 4px 6px 4px 0;
+    padding-left: 12px;
+    padding-right: 12px;
+    border-radius: 3px 12px 3px 12px;
+    color: @text-bright;
+    border: 1px solid alpha(@text-bright, 0.35);
+    text-shadow: none;
+}
+
+#custom-mic.active {
+    background-color: alpha(@magenta, 0.75);
+    box-shadow: none;
+}
+#custom-camera.active {
+    background-color: alpha(@red, 0.85);
+    box-shadow: none;
+}
+#custom-location.active {
+    background-color: alpha(@yellow, 0.85);
+    color: @ink-warn;
+    text-shadow: none;
+    box-shadow: none;
+}
+
+/* Idle: collapse to nothing so they take no space. */
+#custom-mic.idle,
+#custom-camera.idle,
+#custom-location.idle,
+#custom-mic.error,
+#custom-camera.error,
+#custom-location.error {
+    background-color: transparent;
+    background-image: none;
+    border-color: transparent;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Recording indicator (scripts/recording.py; the recorder itself is
+   ~/.config/hypr/scripts/record.sh, ALT+F9 / ALT+F10).
+
+   Same shape as the privacy indicators above, and for the same reason: it
+   says "something is capturing your screen", so it exists only while that is
+   true. Deliberately NOT in the shared-pill lists at the top: those paint a
+   pane, a glow and a hover state unconditionally, and this pill must vanish
+   completely when idle.
+   --------------------------------------------------------------------------- */
+#custom-recording {
+    margin: 4px 8px 4px 0;
+    padding-left: 12px;
+    padding-right: 12px;
+    border-radius: 3px 12px 3px 12px;
+    /* The elapsed time is a readout, like the clock: monospace, so the pill
+       does not twitch in width as the seconds tick. */
+    font-family: "IBM Plex Sans", "Font Awesome 6 Free Solid", sans-serif;
+    font-weight: normal;
+    color: @text-bright;
+    border: 1px solid alpha(@text-bright, 0.35);
+    transition: background-color 140ms ease-out, box-shadow 140ms ease-out,
+                border-color 140ms ease-out;
+}
+
+/* REC: solid red, breathing. The pulse is on the pane and its glow only --
+   the text stays white throughout, so the timer is readable at every point
+   of the cycle. Slower than the critical blink on purpose: this is a state,
+   not an alarm. */
+#custom-recording.recording {
+    background-color: alpha(@red, 0.85);
+    border-color: @rec-edge;
+    border-bottom-color: @magenta;
+    box-shadow: none;
+    text-shadow: none;
+    animation: rec-pulse 1.1s ease-in-out infinite alternate;
+}
+
+/* Instant replay buffer: present but quiet. It can run for a whole gaming
+   session, and must not compete with things that actually need attention.
+   The faint red floor is the only hint that it is a capture. */
+#custom-recording.replay {
+    background-color: @surface;
+    color: @text-dim;
+    border-color: @edge;
+    border-bottom-color: alpha(@magenta, 0.55);
+    box-shadow: none;
+    text-shadow: none;
+}
+
+#custom-recording.replay:hover {
+    background-color: @surface-hover;
+    color: @text;
+    border-color: @edge-lit;
+}
+
+/* Idle: collapse to nothing, as #custom-mic.idle does. waybar already hides
+   a custom module whose text is empty; this is the belt to those braces, so a
+   stale class can never leave a red sliver at the end of the bar. */
+#custom-recording.idle {
+    background-color: transparent;
+    background-image: none;
+    border-color: transparent;
+    box-shadow: none;
+    animation: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Voice typing / live captions (hypr/scripts/voice.py bar). The same pill
+   as the REC one: it says "the microphone is being listened to", so it is
+   there only while that is true. Dictating breathes magenta (the mic
+   indicator's colour), transcribing is a quiet pane, captions a dim CC. */
+#custom-voice {
+    margin: 4px 8px 4px 0;
+    padding-left: 12px;
+    padding-right: 12px;
+    border-radius: 3px 12px 3px 12px;
+    font-family: "IBM Plex Sans", "Font Awesome 6 Free Solid", sans-serif;
+    font-weight: normal;
+    color: @text-bright;
+    border: 1px solid alpha(@text-bright, 0.35);
+}
+#custom-voice.recording {
+    background-color: alpha(@magenta, 0.75);
+    box-shadow: none;
+    text-shadow: none;
+    animation: rec-pulse 1.1s ease-in-out infinite alternate;
+}
+#custom-voice.busy,
+#custom-voice.captions {
+    background-color: @surface;
+    color: @text-dim;
+    border-color: @edge;
+    box-shadow: none;
+    text-shadow: none;
+}
+#custom-voice.idle {
+    background-color: transparent;
+    background-image: none;
+    border-color: transparent;
+    box-shadow: none;
+    animation: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* The dim end of the REC pulse; #custom-recording.recording is the lit end. */
+@keyframes rec-pulse {
+    to {
+        background-color: @rec-dim;
+        box-shadow: none;
+    }
+}
+
+/* --- Capture (camera) pill ----------------------------------------------
+   Stands in for record.sh's start/stop notifications, which are gone. While
+   recording, the camera glyph turns red and breathes on the same rhythm as
+   the REC pill; when the file is written it flashes green once (the .saved
+   class lasts ~2.5 s, see recording.py watch capture). Listed after the
+   shared pill rules so these colours win over :hover. */
+#custom-capture.recording,
+#custom-capture.recording:hover {
+    color: @red;
+    border-color: alpha(@red, 0.75);
+    animation: cap-pulse 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes cap-pulse {
+    to {
+        color: alpha(@red, 0.30);
+        border-color: alpha(@red, 0.20);
+    }
+}
+
+#custom-capture.saved,
+#custom-capture.saved:hover {
+    animation: cap-saved 0.8s ease-out 3;
+}
+
+@keyframes cap-saved {
+    from {
+        color: @ink;
+        background-color: @green;
+        border-color: @green;
+    }
+}
+
+/* --- Night light ---------------------------------------------------------
+   Amber while the screens are warmed, dim otherwise. Click toggles. */
+#custom-nightlight.off {
+    color: @text-dim;
+}
+
+#custom-nightlight.on {
+    background-color: @night;
+    color: @night-fg;
+    border-bottom-color: @night-edge;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+/* --- Split fullscreen state -----------------------------------------------
+   Always visible (it is a button). A and B are different hues on purpose:
+   opposite behaviours, not degrees of one. */
+#custom-fsstate.idle,
+#custom-fsstate.none {
+    color: @text-dim;
+}
+
+#custom-fsstate.mode-a {
+    background-color: @accent;
+    color: @cyan;
+    border-color: @edge-lit;
+    box-shadow: none;
+}
+
+#custom-fsstate.mode-b {
+    background-color: @good;
+    color: @good-fg;
+    border-bottom-color: @green;
+    box-shadow: none;
+}
+
+/* Any fullscreen state that is neither of ours reads as a warning. */
+#custom-fsstate.other {
+    background-color: @warn;
+    color: @warn-fg;
+    border-bottom-color: @yellow;
+}
+
+#custom-fsstate.error {
+    background-color: @bad;
+    color: @bad-fg;
+    border-bottom-color: @magenta;
+}
+
+/* ---------------------------------------------------------------------------
+   Tray section.
+   --------------------------------------------------------------------------- */
+/* Toolbox handle (custom/toolbox in config): the sliders button that opens
+   the toolbox section (config-toolbox) with game mode, night light, idle,
+   shortcuts and the tray. Lit cyan while the section is open, so it reads as
+   a toggle. */
+#custom-toolbox {
+    font-family: "Font Awesome 6 Free Solid", sans-serif;
+}
+
+#custom-toolbox:hover,
+#custom-toolbox.open {
+    color: @cyan;
+}
+
+#custom-toolbox.open {
+    border-color: @edge-lit;
+    box-shadow: none;
+}
+
+/* Tray icons are third-party artwork; give them a slightly denser floor. */
+#tray {
+    padding-left: 12px;
+    padding-right: 12px;
+    background-color: @surface-dense;
+}
+
+/* The tray menu is a real GTK popup with no blur behind it: solid surface. */
+#tray menu {
+    background-color: @surface-solid;
+    color: @text;
+    border: 1px solid @edge-lit;
+    border-radius: 3px 10px 3px 10px;
+    padding: 4px;
+}
+
+#tray menu menuitem {
+    padding: 4px 10px;
+    border-radius: 2px;
+}
+
+#tray menu menuitem:hover {
+    background-color: @accent;
+    color: @cyan;
+}
+
+/* ---------------------------------------------------------------------------
+   State colours. These change colour only, so the pane keeps its shape and
+   glow through the change.
+   --------------------------------------------------------------------------- */
+#pulseaudio {
+    font-family: "IBM Plex Sans", "Font Awesome 6 Free Solid", "Noto Color Emoji", sans-serif;
+    font-weight: normal;
+}
+
+#pulseaudio.muted {
+    background-color: @bad;
+    color: @bad-fg;
+    border-bottom-color: @magenta;
+}
+
+#pulseaudio.source-muted {
+    color: @text-dim;
+}
+
+#network.disconnected,
+#custom-network.disconnected {
+    background-color: @bad;
+    color: @bad-fg;
+    border-bottom-color: @magenta;
+    box-shadow: none;
+}
+
+/* error = dnf failed or timed out (details in the tooltip): dimmed like
+   up to date, because a red pill for a slow mirror would be crying wolf. */
+#custom-updates.updated,
+#custom-updates.error {
+    color: @text-dim;
+}
+
+#custom-updates.many {
+    background-color: @warn;
+    color: @warn-fg;
+    border-bottom-color: @yellow;
+    text-shadow: none;
+}
+
+#privacy {
+    background-color: @warn;
+    color: @warn-fg;
+}
+
+#custom-awake.activated {
+    background-color: @good;
+    color: @good-fg;
+    border-bottom-color: @green;
+    box-shadow: none;
+}
+
+#temperature.critical {
+    background-color: @critical;
+    color: @text-bright;
+}
+
+#battery.charging {
+    background-color: @good;
+    color: @good-fg;
+}
+
+#battery.warning:not(.charging) {
+    background-color: @warn;
+    color: @warn-fg;
+}
+
+#battery.critical:not(.charging) {
+    background-color: @critical;
+    color: @text-bright;
+    animation: blink 0.5s linear infinite alternate;
+}
+
+#tray > .passive {
+    -gtk-icon-effect: dim;
+}
+
+#tray > .needs-attention {
+    -gtk-icon-effect: highlight;
+    background-color: @bad;
+}
+
+@keyframes blink {
+    to {
+        background-color: @magenta;
+        color: @ink;
+        text-shadow: none;
+        box-shadow: none;
+    }
+}
+
+
+/* ---------------------------------------------------------------------------
+   Power pill (custom/power -> scripts/power_panel.py).
+
+   The one pill with a magenta edge at rest: magenta is this theme's "this
+   ends something" colour (muted rows, errors, the armed tiles inside the
+   panel), and the power button should read as different from the cyan
+   readouts beside it without having to look at the glyph. Placed after the
+   shared hover rule so its own hover wins (same specificity, later rule).
+   --------------------------------------------------------------------------- */
+#custom-power {
+    color: @magenta;
+    border-color: alpha(@magenta, 0.30);
+    border-bottom-color: @magenta;
+    background-image: linear-gradient(to bottom,
+                        alpha(@magenta, 0.00) 0%,
+                        alpha(@magenta, 0.00) 55%,
+                        alpha(@magenta, 0.12) 100%);
+    box-shadow: none;
+    text-shadow: none;
+}
+
+#custom-power:hover {
+    background-color: @bad;
+    border-color: @magenta;
+    box-shadow: none;
+}
+
+/* --- Status pills: work hours, git -------------------------------------------
+   Work hours is hidden outside your work hours; the git logo is always there,
+   dim while every repo is clean, pushed and the dotfiles are synced.
+   Unpushed work is magenta -- the one state where something exists only on
+   this disk. */
+#custom-workhours.work {
+    background-color: @utc;
+    color: @utc-fg;
+    border-bottom-color: @purple;
+}
+/* Project context (contexts.py): the project you are in, cyan like a lit
+   pill; hidden outside a project. */
+#custom-context.active {
+    color: @cyan;
+    border-bottom-color: @cyan;
+}
+/* Timers (timers.py): lit while one counts down, dim while the stopwatch
+   is paused. Hidden (empty text) when nothing runs. */
+#custom-timers.timer,
+#custom-timers.alarm,
+#custom-timers.stopwatch {
+    color: @cyan;
+    border-bottom-color: @cyan;
+}
+#custom-timers.paused {
+    color: @text-dim;
+}
+#custom-repos.clean {
+    color: @text-dim;
+}
+#custom-repos.dirty {
+    color: @warn-fg;
+}
+#custom-repos.unpushed {
+    color: @bad-fg;
+    border-bottom-color: @magenta;
+}
+
+/* --- Notification bell: dim and struck through in Do Not Disturb. ---------- */
+#custom-notifications.dnd {
+    color: @text-dim;
+}
+
+/* --- Display row (toolbox): lit while a screen filter is on. ---------------- */
+#custom-display.on {
+    color: @cyan;
+    border-bottom-color: @cyan;
+}
+
+/* ---------------------------------------------------------------------------
+   Health (custom/doctor), USB drives (custom/drives), phone (custom/phone):
+   small pills that only exist while they have something to say -- an empty
+   text hides the module, so there is no idle style to collapse.
+   --------------------------------------------------------------------------- */
+#custom-doctor,
+#custom-tasks,
+#custom-drives,
+#custom-phone {
+    margin: 4px 6px 4px 0;
+    padding-left: 12px;
+    padding-right: 12px;
+    border-radius: 3px 12px 3px 12px;
+    color: @text;
+    background-color: @surface;
+    border: 1px solid alpha(@cyan, 0.35);
+}
+#custom-doctor.warn {
+    background-color: alpha(@yellow, 0.85);
+    color: @ink-warn;
+}
+#custom-doctor.fail {
+    background-color: alpha(@red, 0.85);
+    color: @text-bright;
+}
+#custom-phone.low {
+    color: @yellow;
+}
+/* Background tasks (tasks.py): shown only when one needs you. */
+#custom-tasks.attention {
+    background-color: alpha(@yellow, 0.85);
+    color: @ink-warn;
+}
+
+/* Wallpaper accent (scripts/theme-from-wallpaper.py, ~/.config/hypr/scripts).
+   Redefines @cyan -- and with it every alpha(@cyan, ...) above -- to a colour
+   picked from the primary screen's wallpaper, or to the theme's own accent= when it does
+   not follow the wallpaper, or leaves the file empty for this file's neon.
+   Near the end on purpose: GTK3 resolves a named colour by its final
+   definition anywhere in the provider, so this one import recolours rules
+   written above it (tested). Generated, never committed (sync.sh excludes
+   generated/). */
+@import url("generated/accent.css");
+
+/* The desktop theme (~/.config/themes/<name>/waybar.css, copied here by
+   ~/.config/hypr/scripts/theme.py set|apply; empty for cyberpunk). LAST, after
+   the accent, so a theme always gets the final word -- on colours (any
+   @define-color above, @cyan included if it insists) and, by coming later
+   with the same selectors, on every other property. theme.py writes it
+   before anything could import a missing file: a missing @import target
+   leaves waybar completely unstyled. */
+@import url("generated/theme.css");

@@ -1,0 +1,124 @@
+~/.config/themes/ -- desktop themes
+====================================
+
+One folder per theme. Switch with any of:
+    ~/.config/hypr/scripts/theme.py set <name>     (or display.py theme <name>)
+    the THEME chips in the display panel (SUPER+ALT+D)
+    "Theme: <name>" in the launcher's command palette (ALT+E, then ">")
+The choice is theme=<name> in ~/.local/state/hypr/display.conf and survives
+`hyprctl reload`, gamemode OFF and logins.
+
+    cyberpunk/   the base: today's neon look. Every other theme inherits its
+                 theme.conf keys; its stylesheets are empty because the base
+                 files (waybar/style.css...) ARE cyberpunk.
+    matrix/      phosphor green on black, IBM Plex Mono everywhere, square
+                 1px panes, fixed accent #00ff41 (amber warn, red bad);
+                 wallpapers: ~/.config/hypr/scripts/make-matrix-wallpaper.py
+                 --all (digital rain, matrix-1..4.png on all three monitors)
+    aero/        Windows 7 Aero Glass: deep-blue frosted glass with a gloss
+                 on the top half of every pill and card, 6-8px corners, soft
+                 shadows, white text with a faint dark shadow, Selawik (the
+                 open Segoe UI stand-in, ~/.local/share/fonts/themes/aero/,
+                 README there: source + OFL) with IBM Plex Sans fallback;
+                 accent follows the wallpaper but is always tempered into
+                 Aero sky blue first (@a-tone, waybar.css header), so a
+                 neon pick never shows raw; Nautilus as real frosted glass
+                 (gtk4.css + hypr.lua). Wallpapers:
+                 ~/.config/hypr/scripts/make-aero-wallpaper.py --all
+                 (aero-{aurora,blue,harmony,teal,violet}.png, kept cool so
+                 the accent never lands on the bad red or warn amber)
+    win95/       Windows 95: opaque dimmed grey (#acacac, not #c0c0c0 --
+                 HDR), real 3D bevels (inset box-shadows, border width 0),
+                 square corners, navy selection under white text, status as
+                 solid fills; the bar is a raised taskbar strip with the
+                 clock in a sunken tray well and the focused title as the
+                 pressed, dithered task button (dither.png); launcher and
+                 wofi are the Start menu. W95FA at 12.5px, monochrome
+                 (~/.local/share/fonts/themes/win95/, README there: source +
+                 OFL; ~/.config/fontconfig/conf.d/60-w95fa-pixels.conf turns
+                 its antialiasing off), fixed navy accent, calm animations,
+                 Nautilus in Windows 95 colours (gtk4.css). Wallpapers:
+                 ~/.config/hypr/scripts/make-win95-wallpaper.py --all
+                 (win95-teal plus win95-clouds-1..3, drawn from scratch)
+    moe/         萌え: pastel sakura. Pink / lavender / peach GLASS bubbles
+                 (dimmed for HDR: pills #e8c4d6, cards #dcb6c9) with deep
+                 plum text, everything round, Rounded Mplus 1c + Hachi Maru
+                 Pop (~/.local/share/fonts/themes/moe/README), lang=ja (the
+                 day 10月18日 (日), workspaces 一 二 三, a Japanese launcher
+                 prompt), the accent ROLE deep rose (text-safe; the sakura
+                 pastel is set explicitly for fills and glows), Papirus with
+                 pink folders (icon_theme=Moe), the Catppuccin pink cursor,
+                 a sakura-night terminal with a kaomoji prompt, uosc pastel
+                 + moe-hud.lua in mpv, sakura / Fuji / yozakura / kawaii
+                 wallpapers (make-moe-wallpaper.py --all) and falling petals
+                 (make-moe-sakura.py --all)
+    icons        icon_theme= in theme.conf (gsettings icon-theme, live in
+                 GTK apps; mako's icon-path): cyberpunk Adwaita, aero
+                 oxygen (needs `sudo dnf install oxygen-icon-theme`; Adwaita
+                 until then), matrix Phosphor, win95 Win95. Phosphor and
+                 Win95 are BUILT, not installed:
+                 ~/.config/hypr/scripts/make-icon-theme.py --all (rerun
+                 after installing an app; --sheet <variant> shows a before/
+                 after sheet). Win95 inherits Chicago95
+                 (~/.local/share/icons/Chicago95/README: source, licence,
+                 reinstall) and adds the apps it lacks, aliased to a
+                 Chicago95 picture or put through the 16-colour filter
+    tools/statebar.py      a test bar with every pill state, for screenshots
+                           (`statebar.py shot FILE.png`; deterministic, so two
+                           shots of one theme compare pixel for pixel)
+
+A theme folder
+--------------
+    theme.conf    key=value; every key optional; cyberpunk/theme.conf lists
+                  all of them with today's values and comments. font= and
+                  font_mono= may be a list, first choice first
+                  ("font=Selawik, IBM Plex Sans")
+    waybar.css    bar + toolbox   (overrides waybar/style.css, style-toolbox.css)
+    panel.css     popup panels    (overrides waybar/panel.css)
+    launcher.css  launcher, quick note, clipboard (overrides hypr/scripts/launcher.css)
+    llm-chat.css  the LLM chat window (overrides hypr/scripts/
+                  llm-chat.css; an open window restyles itself on a
+                  switch). Its mascot is per theme too, in code:
+                  hypr/scripts/mascots.py (moe_mascot.py, mascot_<theme>.py;
+                  `mascots.py --check` after changing one)
+    wofi.css      wofi            (overrides wofi/style.css)
+    mako          mako fragment   (key=value lines, may repeat [sections])
+    gtk4.css      libadwaita / GTK4 (becomes ~/.config/gtk-4.0/gtk.css;
+                  :root { --window-bg-color: ...; --accent-bg-color: ...; })
+                  read when a GTK4 app STARTS: Nautilus is one process for
+                  all its windows. `theme.py set` restarts it when it has
+                  no window open, else waits for the last one to close
+                  (the toast offers "Restart Files now"); gsettings parts
+                  change live
+    hypr.lua      optional: return { window_rules = {...}, layer_rules = {...} }
+                  enabled only while this theme is current (lua/display.lua)
+Missing file = no override. After editing any of them: theme.py apply.
+Before switching to a new theme: theme.py check <name>.
+
+How the overrides work (the short version; theme.py's docstring and the
+header of each base stylesheet have the long one): every base stylesheet
+starts with a PALETTE of @define-color names and uses only those names in
+its rules. The theme's css is imported LAST, after the wallpaper accent, and
+GTK3 resolves a named colour by its LAST definition -- so redefining
+`@define-color surface ...;` recolours every pill. Anything that is not a
+colour (radius, border width, font size, padding) is changed by repeating the
+base file's selector, which wins by coming later. font= / font_mono= in
+theme.conf swap the face in every base rule automatically.
+
+Rules every theme keeps
+-----------------------
+  * @cyan is the ACCENT role whatever its hue; set the theme's base accent
+    with accent= in theme.conf rather than in css, so the wallpaper accent
+    can still replace it when accent_follow=yes.
+  * Status colours stay distinguishable: good (green, @good / @good-fg),
+    warn (yellow, @warn / @warn-fg), bad (magenta-red, @bad / @bad-fg /
+    @critical). DP-1 is HDR: large light areas must be dimmed (no
+    full-white surfaces).
+  * The bar stays at the top; nothing here moves it.
+  * Panel sizes follow the theme's font. A narrower face (Selawik in aero,
+    W95FA in win95) makes most panels a little smaller than in cyberpunk --
+    aero measured disk 832x589 vs 861x628, display 432x507 vs 432x562 (its
+    THEME chips fit one row), calendar 277x310 vs 286x330, audio 400x360
+    vs 400x376; the CARD_HEIGHT=412 cards (CPU, GPU, network, updates,
+    notifications) do not change. So check a panel layout change in more
+    than one theme, and never take one theme's sizes as the reference.

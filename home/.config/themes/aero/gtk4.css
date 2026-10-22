@@ -1,0 +1,151 @@
+/* ===========================================================================
+   AERO GLASS -- libadwaita / GTK4 (Nautilus). Becomes ~/.config/gtk-4.0/gtk.css
+   (theme.py; a hand-written gtk.css is kept as gtk.css.before-themes).
+   gsettings does the rest: color-scheme prefer-dark, accent-color blue
+   (theme.conf gtk_*), and the variables below turn libadwaita's dark palette
+   into navy glass.
+
+   The glass is real: the window, view, sidebar and header backgrounds are
+   TRANSLUCENT navy, so Hyprland blurs the wallpaper (or the window) behind
+   them -- the theme's hypr.lua keeps blur on for Nautilus and fades it a
+   little when it is not focused. The alphas are set for text, not looks:
+   the file view is the densest (0.76, where the names are), the sidebar 0.76,
+   the window behind them thinner (0.72) so the frost shows most on the
+   frame, as on a Windows 7 window. Worst case, the brightest spot of any
+   aero wallpaper (blurred, ~#adadad after brightness 0.85) right behind it:
+   view white 10.7:1 and the dim text libadwaita derives (~55% white) 4.5:1
+   -- the floor, so the view goes no thinner; sidebar white 8.9:1, dim
+   4.0:1. The header stays denser (0.78: white 8.0:1, dim 3.7:1): it was
+   already the weakest, and at 0.72 its dim text fell to 3.4:1 there.
+   (History: 0.84 / 0.82 / 0.80 for view / sidebar / window until
+   2026-10-18, when it was asked for more glass.)
+
+   Dark, not light: libadwaita's light scheme is a near-white page, the largest
+   lit area on the HDR panel. Read at process start only, and Nautilus is
+   ONE process for all its windows: while any of them is open, new windows
+   keep the old look too, until every window is closed (or `nautilus -q`)
+   and it starts again. Every GTK4 app of this user reads this file; the
+   variables are libadwaita's own, so plain GTK4 apps mostly ignore them.
+   =========================================================================== */
+
+:root {
+    /* The accent fill (suggested buttons, switches, the selected sidebar
+       row) is a deeper Aero blue than the bar's, so white text on it is
+       5:1; accent text is the pale sky. */
+    --accent-bg-color: #2f6fb8;
+    --accent-fg-color: #ffffff;
+    --accent-color: #8cc8ff;
+
+    --destructive-bg-color: #c81e32;
+    --destructive-fg-color: #ffffff;
+    --destructive-color: #ff8a96;
+    --success-bg-color: #3f8f2e;
+    --success-fg-color: #ffffff;
+    --success-color: #9be37f;
+    --warning-bg-color: #d8a520;
+    --warning-fg-color: rgba(0, 0, 0, 0.85);
+    --warning-color: #ffd75e;
+    --error-bg-color: #c81e32;
+    --error-fg-color: #ffffff;
+    --error-color: #ff8a96;
+
+    /* Surfaces: navy glass, a little denser where text is. */
+    --window-bg-color: rgba(12, 34, 64, 0.72);
+    --window-fg-color: #f4f9ff;
+    --view-bg-color: rgba(10, 28, 54, 0.76);
+    --view-fg-color: #f4f9ff;
+    --headerbar-bg-color: rgba(22, 56, 98, 0.78);
+    --headerbar-fg-color: #ffffff;
+    --headerbar-border-color: rgba(0, 8, 20, 0.70);
+    --headerbar-backdrop-color: rgba(14, 38, 70, 0.76);
+    --headerbar-shade-color: rgba(0, 8, 20, 0.45);
+    --headerbar-darker-shade-color: rgba(0, 8, 20, 0.65);
+    --sidebar-bg-color: rgba(16, 44, 82, 0.76);
+    --sidebar-fg-color: #f4f9ff;
+    --sidebar-backdrop-color: rgba(14, 38, 70, 0.74);
+    --sidebar-border-color: rgba(0, 8, 20, 0.55);
+    --sidebar-shade-color: rgba(0, 8, 20, 0.35);
+    --secondary-sidebar-bg-color: rgba(14, 40, 76, 0.72);
+    --secondary-sidebar-fg-color: #f4f9ff;
+    --secondary-sidebar-backdrop-color: rgba(14, 38, 70, 0.74);
+    --secondary-sidebar-border-color: rgba(0, 8, 20, 0.55);
+    --secondary-sidebar-shade-color: rgba(0, 8, 20, 0.35);
+    --card-bg-color: rgba(255, 255, 255, 0.06);
+    --card-fg-color: #f4f9ff;
+    --card-shade-color: rgba(0, 8, 20, 0.40);
+    --overview-bg-color: rgba(12, 34, 64, 0.76);
+    --overview-fg-color: #f4f9ff;
+    --thumbnail-bg-color: rgba(22, 56, 98, 0.90);
+    --thumbnail-fg-color: #f4f9ff;
+    /* Popovers and dialogs are separate surfaces the compositor may not blur
+       (popups are, here, but a dialog of another app might not be): near
+       opaque, so they never depend on it. */
+    --dialog-bg-color: rgba(14, 38, 70, 0.96);
+    --dialog-fg-color: #f4f9ff;
+    --popover-bg-color: rgba(14, 38, 70, 0.96);
+    --popover-fg-color: #f4f9ff;
+    --popover-shade-color: rgba(0, 8, 20, 0.40);
+    --shade-color: rgba(0, 8, 20, 0.40);
+    --scrollbar-outline-color: rgba(0, 8, 20, 0.60);
+    --border-color: rgba(255, 255, 255, 0.14);
+
+    --window-radius: 8px;
+    --document-font-family: "Selawik", "IBM Plex Sans";
+    --monospace-font-family: "IBM Plex Mono";
+}
+
+/* The UI face is a gsettings key (font-name), not a variable; a CSS rule
+   reaches every widget of these apps without touching the desktop-wide key.
+   Selawik first, Plex for what it lacks (it is Latin only). */
+* {
+    font-family: "Selawik", "IBM Plex Sans", "Noto Color Emoji", sans-serif;
+}
+
+/* The title bar: the Aero gloss, a bright line along its top edge. */
+headerbar {
+    background-image: linear-gradient(to bottom,
+                        rgba(255, 255, 255, 0.16) 0%,
+                        rgba(255, 255, 255, 0.05) 49%,
+                        rgba(255, 255, 255, 0.00) 50%);
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.30),
+                inset 0 -1px rgba(0, 8, 20, 0.70);
+}
+
+/* White text on glass carries a faint shadow, as on the bar. Only on the
+   chrome and the file names; a shadow under every label of a dialog would
+   smudge more than it helps. */
+headerbar,
+.navigation-sidebar,
+gridview > child label,
+columnview label {
+    text-shadow: 0 1px 2px rgba(0, 8, 20, 0.65);
+}
+
+/* Buttons: small panes of glass. */
+headerbar button,
+button.flat:hover {
+    background-image: linear-gradient(to bottom,
+                        rgba(255, 255, 255, 0.14) 0%,
+                        rgba(255, 255, 255, 0.04) 49%,
+                        rgba(255, 255, 255, 0.00) 50%);
+}
+
+/* Selected files and rows: accent glass under white text, never a full fill
+   over a grid of icons (a large lit area on the HDR panel). On the view's
+   navy, #4aa3f0 at 40% is ~#24527f: white 7:1. */
+gridview > child:selected,
+listview > row:selected,
+columnview > listview > row:selected {
+    background-color: rgba(74, 163, 240, 0.40);
+    background-image: linear-gradient(to bottom,
+                        rgba(255, 255, 255, 0.16) 0%,
+                        rgba(255, 255, 255, 0.05) 49%,
+                        rgba(255, 255, 255, 0.00) 50%);
+    color: #ffffff;
+    box-shadow: inset 0 0 0 1px rgba(140, 200, 255, 0.45);
+}
+
+.navigation-sidebar > row:selected {
+    background-color: rgba(74, 163, 240, 0.40);
+    color: #ffffff;
+}

@@ -1,0 +1,310 @@
+/* ===========================================================================
+   CYBERPUNK -- libadwaita / GTK4 (Nautilus). Becomes ~/.config/gtk-4.0/gtk.css
+   (theme.py). Until this file the base theme had none: Files was stock dark
+   Adwaita, the one surface on the desktop that was not neon.
+
+   The bar's language, on the file manager:
+     * dark GLASS (rgba(6, 8, 16) at 84-92%, Hyprland blurs what is behind --
+       hypr.lua next to this file keeps blur on for Nautilus);
+     * CYAN is the accent (#00f0ff: selection, focus, the lit edges), MAGENTA
+       the second voice (#ff2a6d: the sidebar's selected bar, headings,
+       destructive), never mixed into one surface;
+     * the bar's slanted pill: corners 3px 10px 3px 10px on buttons, entries
+       and selected files;
+     * a lit 1px edge instead of a raised button, and a soft glow (shadow, no
+       offset, in the same hue) only on what the pointer or the keyboard is on.
+   Fixed #00f0ff rather than the wallpaper accent: a GTK4 app reads gtk.css
+   once, at start, and the accent changes under it with every wallpaper.
+
+   Contrast, worst case (the brightest blurred wallpaper, ~#8a8a8a after
+   brightness 0.80, behind the 86% view): the view is ~#191c24, #e6fcff on it
+   15:1, the dim text (#96d7e6 at 70%) 7.5:1, black on the cyan fill 15:1.
+   =========================================================================== */
+
+:root {
+    --accent-bg-color: #00f0ff;
+    --accent-fg-color: #000000;
+    --accent-color: #00f0ff;
+
+    --destructive-bg-color: #ff2a6d;
+    --destructive-fg-color: #000000;
+    --destructive-color: #ff6b96;
+    --success-bg-color: #39ff14;
+    --success-fg-color: #000000;
+    --success-color: #39ff14;
+    --warning-bg-color: #f9f002;
+    --warning-fg-color: #000000;
+    --warning-color: #f9f002;
+    --error-bg-color: #ff2a6d;
+    --error-fg-color: #000000;
+    --error-color: #ff6b96;
+
+    /* Glass: denser where the names are. */
+    --window-bg-color: rgba(6, 8, 16, 0.84);
+    --window-fg-color: #e6fcff;
+    --view-bg-color: rgba(4, 6, 12, 0.86);
+    --view-fg-color: #e6fcff;
+    --headerbar-bg-color: rgba(8, 12, 22, 0.92);
+    --headerbar-fg-color: #e6fcff;
+    --headerbar-border-color: rgba(0, 240, 255, 0.55);
+    --headerbar-backdrop-color: rgba(6, 8, 16, 0.90);
+    --headerbar-shade-color: rgba(0, 0, 0, 0.50);
+    --headerbar-darker-shade-color: rgba(0, 0, 0, 0.70);
+    --sidebar-bg-color: rgba(10, 14, 26, 0.88);
+    --sidebar-fg-color: #e6fcff;
+    --sidebar-backdrop-color: rgba(8, 10, 20, 0.88);
+    --sidebar-border-color: rgba(0, 240, 255, 0.22);
+    --sidebar-shade-color: rgba(0, 0, 0, 0.40);
+    --secondary-sidebar-bg-color: rgba(8, 12, 22, 0.86);
+    --secondary-sidebar-fg-color: #e6fcff;
+    --secondary-sidebar-backdrop-color: rgba(8, 10, 20, 0.86);
+    --secondary-sidebar-border-color: rgba(0, 240, 255, 0.22);
+    --secondary-sidebar-shade-color: rgba(0, 0, 0, 0.40);
+    --card-bg-color: rgba(0, 240, 255, 0.04);
+    --card-fg-color: #e6fcff;
+    --card-shade-color: rgba(0, 0, 0, 0.45);
+    --overview-bg-color: rgba(4, 6, 12, 0.86);
+    --overview-fg-color: #e6fcff;
+    --thumbnail-bg-color: rgba(10, 16, 28, 0.92);
+    --thumbnail-fg-color: #e6fcff;
+    /* Floating things are solid: a menu over a busy view must read at once. */
+    --dialog-bg-color: rgba(7, 9, 15, 0.97);
+    --dialog-fg-color: #e6fcff;
+    --popover-bg-color: rgba(7, 9, 15, 0.97);
+    --popover-fg-color: #e6fcff;
+    --popover-shade-color: rgba(0, 0, 0, 0.50);
+    --shade-color: rgba(0, 0, 0, 0.45);
+    --scrollbar-outline-color: rgba(0, 0, 0, 0.60);
+    --border-color: rgba(0, 240, 255, 0.22);
+
+    --window-radius: 6px;
+    --document-font-family: "IBM Plex Sans";
+    --monospace-font-family: "IBM Plex Mono";
+}
+
+* {
+    font-family: "IBM Plex Sans", "Noto Color Emoji", sans-serif;
+}
+
+/* --- The title bar: dark glass with the bar's lit bottom edge -------------------
+   Cyan line, then a faint magenta one under it: the two neons, stacked. */
+headerbar {
+    box-shadow: inset 0 -1px rgba(0, 240, 255, 0.60),
+                0 1px rgba(255, 42, 109, 0.30);
+}
+
+headerbar:backdrop {
+    box-shadow: inset 0 -1px rgba(0, 240, 255, 0.25);
+}
+
+/* The window's own title ("Files" over the sidebar): spaced like the bar's
+   section headings, in the second neon. */
+.sidebar-pane headerbar .title,
+headerbar label.title {
+    letter-spacing: 1.5px;
+    font-weight: 600;
+}
+
+.sidebar-pane headerbar .title {
+    color: #ff6b96;
+}
+
+/* --- Buttons: the slanted pill, a lit edge, a glow under the pointer ----------- */
+headerbar button,
+button.flat,
+.path-bar button,
+button:not(.flat) {
+    border-radius: 3px 10px 3px 10px;
+}
+
+headerbar button:not(.flat),
+headerbar .linked > button,
+button:not(.flat):not(.suggested-action):not(.destructive-action) {
+    background-color: rgba(0, 240, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.24),
+                inset 0 -1px rgba(0, 240, 255, 0.55);
+}
+
+headerbar button:hover,
+button:hover {
+    background-color: rgba(0, 240, 255, 0.14);
+    box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.75),
+                0 0 8px rgba(0, 240, 255, 0.35);
+}
+
+headerbar button:checked,
+button:checked,
+button:active {
+    background-color: rgba(0, 240, 255, 0.22);
+    color: #ffffff;
+    box-shadow: inset 0 0 0 1px #00f0ff,
+                inset 0 -2px #00f0ff;
+}
+
+button:disabled {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px rgba(150, 215, 230, 0.15);
+}
+
+/* Destructive (Empty Trash, Delete Permanently): the magenta pill. */
+button.destructive-action {
+    box-shadow: 0 0 10px rgba(255, 42, 109, 0.40);
+}
+
+/* The window's close button: a slanted cyan pill, magenta under the pointer
+   -- it ends something, which is what magenta means on this desktop. */
+windowcontrols > button > image {
+    border-radius: 2px 7px 2px 7px;
+    background-color: rgba(0, 240, 255, 0.10);
+    box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.40);
+}
+
+windowcontrols > button:hover > image {
+    background-color: rgba(255, 42, 109, 0.30);
+    box-shadow: inset 0 0 0 1px #ff2a6d, 0 0 8px rgba(255, 42, 109, 0.50);
+    color: #ffffff;
+}
+
+/* --- Entries: a dark well, cyan underline, magenta caret ----------------------- */
+entry,
+searchbar entry,
+.path-bar entry {
+    border-radius: 3px 10px 3px 10px;
+    background-color: rgba(0, 0, 0, 0.45);
+    box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.20),
+                inset 0 -1px rgba(0, 240, 255, 0.50);
+    caret-color: #ff2a6d;
+}
+
+entry:focus-within {
+    box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.55),
+                inset 0 -2px #00f0ff,
+                0 0 8px rgba(0, 240, 255, 0.30);
+}
+
+/* --- The sidebar: magenta bar on the place you are in -------------------------- */
+.navigation-sidebar > row {
+    border-radius: 0 10px 3px 0;
+}
+
+.navigation-sidebar > row:hover {
+    background-color: rgba(0, 240, 255, 0.07);
+    box-shadow: inset 2px 0 rgba(0, 240, 255, 0.55);
+}
+
+.navigation-sidebar > row:selected {
+    background-color: rgba(255, 42, 109, 0.14);
+    color: #ffffff;
+    box-shadow: inset 3px 0 #ff2a6d;
+}
+
+.navigation-sidebar > row:selected image {
+    color: #ff6b96;
+}
+
+/* Section headings in the sidebar and in dialogs: spaced, the second neon. */
+.navigation-sidebar .heading,
+label.heading,
+.heading {
+    color: #ff6b96;
+    letter-spacing: 1.2px;
+}
+
+/* --- Files: a cyan rim and a glow on the selection, never a full fill ---------
+   A full cyan fill over a grid of icons would be the largest lit area on the
+   HDR panel; a 16% wash under a lit rim reads as just as selected. */
+gridview > child {
+    border-radius: 3px 12px 3px 12px;
+}
+
+gridview > child:hover {
+    background-color: rgba(0, 240, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.28);
+}
+
+gridview > child:selected {
+    background-color: rgba(0, 240, 255, 0.16);
+    color: #ffffff;
+    box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.85),
+                0 0 12px rgba(0, 240, 255, 0.30);
+}
+
+/* The list view: the same, as a row with a lit left edge. */
+listview > row:hover,
+columnview > listview > row:hover {
+    background-color: rgba(0, 240, 255, 0.05);
+}
+
+listview > row:selected,
+columnview > listview > row:selected {
+    background-color: rgba(0, 240, 255, 0.14);
+    color: #ffffff;
+    box-shadow: inset 3px 0 #00f0ff;
+}
+
+/* Sizes, dates, kinds: the bar's blue-grey dim text. */
+columnview label.dim-label,
+.dim-label {
+    color: rgba(150, 215, 230, 0.72);
+    opacity: 1;
+}
+
+/* Rubber-band selection: a cyan net. */
+rubberband {
+    background-color: rgba(0, 240, 255, 0.10);
+    border: 1px solid rgba(0, 240, 255, 0.70);
+    border-radius: 0;
+}
+
+/* --- Menus, popovers, toasts, tooltips: solid, edged ----------------------------- */
+popover > contents,
+popover.menu > contents {
+    border-radius: 3px 12px 3px 12px;
+    box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.35),
+                0 6px 24px rgba(0, 0, 0, 0.60);
+}
+
+popover.menu modelbutton:hover,
+popover.menu modelbutton:selected {
+    background-color: rgba(0, 240, 255, 0.14);
+    box-shadow: inset 2px 0 #00f0ff;
+}
+
+toast {
+    border-radius: 3px 12px 3px 12px;
+    background-color: rgba(7, 9, 15, 0.96);
+    box-shadow: inset 0 0 0 1px rgba(255, 42, 109, 0.55),
+                0 0 12px rgba(255, 42, 109, 0.25);
+}
+
+tooltip,
+tooltip > * {
+    border-radius: 3px 8px 3px 8px;
+}
+
+tooltip {
+    background-color: rgba(7, 9, 15, 0.96);
+    box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.35);
+}
+
+/* --- Scrollbars: a thin cyan rail ----------------------------------------------- */
+scrollbar slider {
+    background-color: rgba(0, 240, 255, 0.40);
+    border-radius: 2px;
+}
+
+scrollbar slider:hover {
+    background-color: rgba(0, 240, 255, 0.75);
+}
+
+/* --- Progress (copying, the disk usage bars): cyan fill, glowing ---------------- */
+progressbar > trough > progress,
+levelbar block.filled {
+    background-color: #00f0ff;
+    box-shadow: 0 0 6px rgba(0, 240, 255, 0.50);
+}
+
+/* Keyboard focus: the accent outline, a little glow. */
+*:focus-visible {
+    outline-color: rgba(0, 240, 255, 0.85);
+}

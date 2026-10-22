@@ -1,0 +1,633 @@
+/* ===========================================================================
+   WINDOWS 95 -- every popup panel (~/.config/waybar/panel.css). Copied to
+   waybar/generated/theme-panel.css by ~/.config/hypr/scripts/theme.py and
+   imported LAST. Same palette and the same rules as this theme's waybar.css
+   (its header explains them, with the measurements): the dimmed #acacac
+   face, bevels drawn as inset box-shadows over a zero-width border, square
+   corners, black text, navy selection under white text, status as a fill.
+
+   A panel is a Windows 95 dialog: the card has the window frame (light /
+   highlight on the top-left, shadow / black on the bottom-right), every
+   control on it is a raised push button that goes PRESSED while held, an ON
+   row's icon stays pressed and fills navy (muted: maroon), wells and grooves
+   (sliders, switches, the media preview, the disk bars) are sunken, and a
+   selected list row is navy with white text, like a selected file in
+   Explorer. The disk bars are the Windows 95 progress bar: navy blocks in a
+   sunken trough.
+
+   Text on the face (WCAG): text #000 9.3:1, text-dim #333 5.6:1,
+   text-dimmer #404040 4.6:1, accent navy 7.1:1, maroon 4.8:1. Colours the
+   panels DRAW (graphs, "Sure?", the weather glyphs) are theme.conf color.*
+   keys, all dark hues for the same face.
+   =========================================================================== */
+
+@define-color w-face     #acacac;
+@define-color w-hover    #b6b6b6;
+@define-color w-hi       #e4e4e4;
+@define-color w-light    #c4c4c4;
+@define-color w-shadow   #727272;
+@define-color w-dark     #000000;
+@define-color w-navy     #000080;
+@define-color w-crit     #c80000;   /* an armed tile: brighter than the maroon */
+
+/* --- PALETTE 1: hues (@cyan = navy, theme.conf accent=) --------------------- */
+@define-color magenta    #800000;
+@define-color yellow     #c8aa00;   /* a disk bar's warn blocks: darker than the bar's fill, to show on the trough */
+@define-color green      #007a00;
+@define-color red        #b00000;   /* .live tiles, under white text 7.4:1 */
+@define-color mist       #333333;
+
+/* --- PALETTE 2: surfaces, edges, text --------------------------------------- */
+@define-color surface        @w-face;
+@define-color surface-deep   @w-light;
+@define-color surface-video  #000000;
+@define-color knob           @w-face;
+@define-color edge           @w-shadow;
+@define-color edge-lit       @w-dark;
+@define-color accent         @w-navy;
+@define-color accent-lit     #1084d0;
+@define-color text           #000000;
+@define-color text-dim       #333333;
+@define-color text-dimmer    #404040;
+@define-color text-bright    #ffffff;
+@define-color ink            #ffffff;
+@define-color rec-edge       @w-dark;
+
+/* --- The face: 12.5px pixel type, normal weight ----------------------------
+   12.5px is where one W95FA grid pixel is one screen pixel (its README).
+   Every base rule that names a size is repeated here at that size; the
+   weather's big temperature is the one exception, at 3x (37.5px). */
+* {
+    font-weight: normal;
+    /* Labels with no size rule of their own (the "End" / "Clear" buttons,
+       the display panel's chips) would otherwise take the desktop's 11pt
+       (14.7px), off W95FA's grid: jagged with the monochrome rendering. */
+    font-size: 12.5px;
+}
+
+#title,
+#subtitle,
+button.control,
+#cal-month,
+#cal-prev,
+#cal-next,
+label.cal-weekday,
+label.cal-day,
+#cal-footer,
+#kb-title,
+#kb-hint,
+label.kb-heading,
+label.kb-cap,
+label.kb-desc,
+.ctl-title,
+.ctl-sub,
+.ctl-value,
+button.ctl-link,
+label.sn-label,
+label.sn-value,
+label.sn-procs,
+label.ns-value,
+label.wx-desc,
+label.wx-fact,
+label.wx-hour,
+label.wx-temp,
+label.wx-rain,
+label.wx-day,
+label.wx-lo,
+label.wx-hi,
+label.dev-name,
+label.dev-kind,
+label.pw-user,
+label.pw-uptime,
+label.pw-label,
+button.pw-tile.armed label.pw-label,
+.sn-compact label.sn-value,
+button.sn-link {
+    font-size: 12.5px;
+    letter-spacing: 0px;
+}
+
+/* Bold where Windows 95 had bold: titles, headings, the active choice. */
+#title,
+#cal-month,
+#kb-title,
+label.kb-heading,
+label.cal-weekday,
+.ctl-title,
+label.wx-desc,
+label.pw-label {
+    font-weight: bold;
+}
+
+/* --- The dialog --------------------------------------------------------------
+   The window frame: light then highlight on the top-left, shadow then black
+   on the bottom-right. The base's 14px margin (the glow gutter) stays: the
+   panels position themselves with it. */
+#panel {
+    border: none;
+    border-radius: 0px;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-hi,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-light,
+                inset -1px -1px @w-dark;
+}
+
+/* --- Square corners everywhere ---------------------------------------------- */
+#preview-frame,
+button.control,
+#cal-prev,
+#cal-next,
+label.cal-day,
+label.kb-cap,
+.ctl-icon,
+switch,
+switch slider,
+button.ctl-link,
+button.dev-pick,
+button.pw-tile,
+button.dk-fs,
+#seek trough,
+scale.ctl-slider trough,
+#seek highlight,
+scale.ctl-slider highlight,
+#seek slider,
+scale.ctl-slider slider,
+levelbar.dk-bar trough,
+levelbar.dk-bar block.filled {
+    border-radius: 0px;
+}
+
+/* --- Push buttons: raised; pressed while held ------------------------------- */
+button.control,
+#cal-prev,
+#cal-next,
+.ctl-icon,
+button.ctl-link,
+button.pw-tile {
+    color: @text;
+    border: none;
+    background-color: @w-face;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+    transition: none;
+}
+
+button.control:hover,
+#cal-prev:hover,
+#cal-next:hover,
+button.ctl-icon:hover,
+button.ctl-link:hover,
+button.pw-tile:hover {
+    color: @text;
+    background-color: @w-hover;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+/* A greyed-out Windows 95 button: the caption drawn as an etched grey
+   label (dark grey text over a white 1px shadow), the bevel kept -- the
+   base file's opacity fade would wash the whole bevel into the grey face. */
+button.ctl-link:disabled {
+    opacity: 1;
+    color: @w-shadow;
+    text-shadow: 1px 1px @w-hi;
+}
+
+button.control:active,
+#cal-prev:active,
+#cal-next:active,
+button.ctl-icon:active,
+button.ctl-link:active,
+button.pw-tile:active {
+    background-color: @w-face;
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+/* The links ("Mixer...", "Advanced...", "Rescan") are buttons too in
+   Windows 95; a little more padding than the base's bare text needs. */
+button.ctl-link {
+    padding: 3px 10px;
+}
+
+/* Play is the DEFAULT button: the extra black outline Windows 95 drew round
+   the button Enter would press, the bevel one pixel further in. */
+#play {
+    color: @text;
+    background-color: @w-face;
+    box-shadow: inset 3px 3px @w-light,
+                inset -3px -3px @w-shadow,
+                inset 2px 2px @w-hi,
+                inset -2px -2px @w-dark,
+                inset 0 0 0 1px @w-dark;
+}
+
+#play:hover {
+    background-color: @w-hover;
+}
+
+#play:active {
+    box-shadow: inset 2px 2px @w-shadow,
+                inset 0 0 0 1px @w-dark;
+}
+
+/* --- Accent text: navy on the face --------------------------------------- */
+#cal-month,
+#kb-title,
+.ctl-value,
+label.wx-big-temp,
+label.pw-uptime,
+label.pw-glyph {
+    color: @w-navy;
+}
+
+#cal-prev,
+#cal-next {
+    color: @text;
+}
+
+/* Headings: navy, bold (the base's magenta is "bad" in this theme). */
+label.kb-heading,
+label.cal-weekday {
+    color: @w-navy;
+}
+
+/* The big temperature at 3x the grid (W95FA stays sharp). */
+label.wx-big-temp {
+    font-size: 37.5px;
+}
+
+/* --- Calendar ------------------------------------------------------------- */
+label.cal-today {
+    color: @text-bright;
+    background-color: @w-navy;
+}
+
+label.cal-adjacent {
+    color: @text-dimmer;
+}
+
+/* --- Key caps: small raised keys -------------------------------------------- */
+label.kb-cap {
+    color: @text;
+    padding: 1px 6px;
+    border: none;
+    background-color: @w-face;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+/* --- Rows that are ON or MUTED: the icon stays pressed, filled -------------- */
+.ctl-row.on .ctl-icon {
+    color: @text-bright;
+    background-color: @w-navy;
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+.ctl-row.muted .ctl-icon {
+    color: @text-bright;
+    background-color: @magenta;
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+.ctl-row.muted scale.ctl-slider highlight {
+    background-image: none;
+    background-color: @magenta;
+}
+
+/* --- Sliders: the Windows 95 trackbar ---------------------------------------
+   A sunken groove (shadow / black on the top-left, light / highlight on the
+   bottom-right), the level in navy inside it, and a raised button for a
+   thumb. */
+#seek trough,
+scale.ctl-slider trough {
+    min-height: 4px;
+    border: none;
+    background-color: @w-light;
+    background-image: none;
+    box-shadow: inset -1px -1px @w-hi,
+                inset 1px 1px @w-shadow;
+}
+
+#seek highlight,
+scale.ctl-slider highlight {
+    background-image: none;
+    background-color: @w-navy;
+    box-shadow: none;
+}
+
+#seek slider,
+scale.ctl-slider slider {
+    min-width: 11px;
+    min-height: 20px;
+    margin: -8px -3px;
+    border: none;
+    background-color: @w-face;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+#seek slider:hover,
+scale.ctl-slider slider:hover {
+    background-color: @w-hover;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+/* --- Switches: a sunken box; on = navy inside, the thumb a raised button -- */
+switch {
+    border: none;
+    background-color: @w-light;
+    background-image: none;
+    box-shadow: inset -2px -2px @w-light,
+                inset 2px 2px @w-dark,
+                inset -1px -1px @w-hi,
+                inset 1px 1px @w-shadow;
+}
+
+switch:checked {
+    background-color: @w-navy;
+    box-shadow: inset -2px -2px @w-light,
+                inset 2px 2px @w-dark,
+                inset -1px -1px @w-hi,
+                inset 1px 1px @w-shadow;
+}
+
+switch slider,
+switch:checked slider {
+    margin: 2px;
+    min-width: 16px;
+    min-height: 16px;
+    border: none;
+    background-color: @w-face;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+/* --- Separators: the etched groove (shadow over highlight) ------------------ */
+.ctl-sep {
+    min-height: 2px;
+    background-color: @w-shadow;
+    background-image: linear-gradient(to bottom, @w-shadow 50%, @w-hi 50%);
+}
+
+.ctl-vsep {
+    min-width: 2px;
+    background-color: @w-shadow;
+    background-image: linear-gradient(to right, @w-shadow 50%, @w-hi 50%);
+}
+
+.wx-footer {
+    border-top: 1px solid @w-shadow;
+    box-shadow: inset 0 1px @w-hi;
+}
+
+/* --- Lists: device pickers, chips, repos, updates ---------------------------
+   Flat until touched; under the pointer a raised button; the current one
+   is the selected item: navy, white text. */
+button.dev-pick,
+button.dk-fs {
+    border: none;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    transition: none;
+}
+
+button.dev-pick:hover,
+button.dk-fs:hover {
+    color: @text;
+    background-color: @w-hover;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+button.dev-pick.active,
+button.dev-pick.active:hover {
+    color: @text-bright;
+    background-color: @w-navy;
+    box-shadow: none;
+}
+
+button.dev-pick.active label.dev-kind {
+    color: @w-hi;
+}
+
+/* The radio dot: a sunken circle; on, a black dot inside a light ring. */
+.dev-dot {
+    border: 1px solid @w-shadow;
+    background-color: @w-light;
+}
+
+button.dev-pick.active .dev-dot {
+    border-color: @w-hi;
+    background-color: @w-dark;
+    box-shadow: inset 0 0 0 2px @w-hi;
+}
+
+/* Commands, not choices: the same dev-pick class also draws the panels'
+   ACTION buttons -- updates' Upgrade, the process tables' End, the memory
+   section's swap Clear, the disk panel's cache Clear, the repos panel's
+   Pull / Sync / Commit. Flat until touched, they read as bare words (the
+   updates card's one primary action was a plain "Upgrade" in an empty
+   corner) beside htop, Re-check and Rescan, which are raised buttons;
+   Windows 95 drew every command as a push button. GTK3 CSS cannot ask "has
+   a dot inside", so they are told apart by where they sit, which the code
+   fixes: an action is a grid cell (End, both Clears), a box in a grid cell
+   (the repos actions) or a direct child of the card (Upgrade); the choice
+   lists are boxes (.dev-list) and flow boxes. Same bevel as the other push
+   buttons; pressed while held. */
+grid > button.dev-pick,
+grid > box > button.dev-pick,
+#panel > button.dev-pick {
+    padding: 1px 8px;
+    color: @text;
+    background-color: @w-face;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+/* Upgrade stands alone: the size of Re-check, the other command on its card
+   (the table buttons stay compact, so the rows keep their height). */
+#panel > button.dev-pick {
+    padding: 3px 10px;
+}
+
+grid > button.dev-pick:hover,
+grid > box > button.dev-pick:hover,
+#panel > button.dev-pick:hover {
+    background-color: @w-hover;
+}
+
+/* Held, and ARMED (the first click of End / Clear taken, "Sure?" waiting
+   for the second): pressed, on the face. The list rule above makes .active
+   a navy fill, and the code writes "Sure?" in the danger maroon -- maroon
+   on navy was unreadable; on the face it is 4.8:1. */
+grid > button.dev-pick:active,
+grid > box > button.dev-pick:active,
+#panel > button.dev-pick:active,
+grid > button.dev-pick.active,
+grid > button.dev-pick.active:hover {
+    color: @text;
+    background-color: @w-face;
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+/* Greyed out ("in use", nothing to clear, a pull running): the etched
+   caption of a disabled Windows 95 button, bevel kept -- as button.ctl-link
+   above. */
+grid > button.dev-pick:disabled,
+grid > box > button.dev-pick:disabled,
+#panel > button.dev-pick:disabled {
+    opacity: 1;
+    color: @w-shadow;
+    text-shadow: 1px 1px @w-hi;
+}
+
+grid > button.dev-pick:disabled label,
+grid > box > button.dev-pick:disabled label,
+#panel > button.dev-pick:disabled label {
+    color: @w-shadow;
+}
+
+/* The CPU panel's right column: "APPS BY MEMORY" follows the TOP CPU list
+   (label.sn-procs) with nothing between, so its caps sat on that list's
+   last baseline. A gap the size of the one under each heading. */
+label.sn-procs + label.kb-heading {
+    margin-top: 8px;
+}
+
+/* --- Power and capture tiles ------------------------------------------------- */
+button.pw-tile.danger label.pw-glyph {
+    color: @magenta;
+}
+
+button.pw-tile.danger:hover {
+    background-color: @w-hover;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+/* Armed (first click taken, waiting for the second): pressed, red, white. */
+button.pw-tile.armed,
+button.pw-tile.armed:hover {
+    background-color: @w-crit;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+button.pw-tile.armed label.pw-glyph,
+button.pw-tile.armed label.pw-label {
+    color: @text-bright;
+}
+
+/* A capture in progress: pressed, the REC red, white. */
+button.pw-tile.live,
+button.pw-tile.live:hover {
+    background-color: @red;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+/* The HDR capture-range tile shares .live with the recording tiles but
+   means "a mode is on", not "recording now" (capture_panel.py gives every
+   tile its own class for exactly this). Red here is the critical / bad
+   fill (the critical disk pill, a hot CPU), so a healthy HDR range read as
+   an alarm. It is an ON control instead: pressed, the navy fill, white text
+   -- what an ON row's icon is in the display and audio panels. The real
+   recording tiles keep the red. */
+button.pw-tile.live.cap-rec-range,
+button.pw-tile.live.cap-rec-range:hover {
+    background-color: @w-navy;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+button.pw-tile.live.cap-rec-range label.pw-glyph,
+button.pw-tile.live.cap-rec-range label.pw-label {
+    color: @text-bright;
+}
+
+/* --- Disk bars: the Windows 95 progress bar ---------------------------------
+   A sunken trough, the level as a row of navy blocks (8px pitch, 2px gaps),
+   then the warn blocks from 85% and red from 95% -- the base's thresholds. */
+levelbar.dk-bar trough {
+    min-height: 12px;
+    padding: 2px;
+    border: none;
+    background-color: @w-face;
+    background-image: none;
+    box-shadow: inset -1px -1px @w-hi,
+                inset 1px 1px @w-shadow;
+}
+
+levelbar.dk-bar block.filled {
+    min-height: 8px;
+    border: none;
+    background-color: transparent;
+    background-image: linear-gradient(to right, @w-navy 6px, transparent 6px);
+    background-size: 8px 100%;
+    background-repeat: repeat-x;
+}
+
+levelbar.dk-bar.warning block.filled {
+    background-color: transparent;
+    background-image: linear-gradient(to right, @yellow 6px, transparent 6px);
+}
+
+levelbar.dk-bar.critical block.filled {
+    background-color: transparent;
+    background-image: linear-gradient(to right, @w-crit 6px, transparent 6px);
+}
+
+/* --- The media preview: a sunken black field -------------------------------- */
+#preview-frame {
+    border: none;
+    box-shadow: inset -2px -2px @w-light,
+                inset 2px 2px @w-dark,
+                inset -1px -1px @w-hi,
+                inset 1px 1px @w-shadow;
+}

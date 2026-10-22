@@ -1,0 +1,10 @@
+# Day / night theme (theme-schedule.py): Aero by day, Matrix at night, at the
+# night light's START / END. "theme-schedule.py off" stops it.
+[Unit]
+Description=Switch the desktop theme for day or night
+PartOf=graphical-session.target
+After=graphical-session.target waybar.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/theme-schedule.py

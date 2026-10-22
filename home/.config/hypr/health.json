@@ -1,0 +1,6 @@
+{
+  "_doc": "Desktop health (scripts/health.py; its docstring explains). Settings > Desktop health edits this.",
+  "settings": {
+    "notify": true
+  }
+}

@@ -1,0 +1,450 @@
+/* ===========================================================================
+   MOE (萌え) -- the LLM chat window (~/.config/hypr/scripts/llm-chat.py,
+   base stylesheet llm-chat.css there). Copied to
+   waybar/generated/theme-llm-chat.css by theme.py and imported LAST.
+
+   LLM ♡ 萌え: deep plum text #3d1f3b on dimmed sakura glass -- the window
+   #dcb6c9 (the cards' tone), bubbles #e8c4d6 (the pills') -- because the primary
+   may be HDR and no surface may be near white; the pastels (sakura #f78fb3,
+   lavender #b8a4e3, sky, mint, lemon) only as fills under plum text; deep
+   rose #8c2457 where the accent is text. The mascot's stage and code
+   blocks are the terminal's night palette instead: #2b1d2e under #f6dce8
+   (moe_mascot.PANEL). Everything round; titles, the bubble and the send
+   button in Hachi Maru Pop. The base's palette names are mapped onto
+   these below, then every rule the moe look changes is repeated.
+   =========================================================================== */
+
+@define-color plum      #3d1f3b;
+@define-color plum-dim  #63365a;
+@define-color pill      #e8c4d6;
+@define-color card      #dcb6c9;
+@define-color sakura    #f78fb3;
+@define-color lavender  #b8a4e3;
+@define-color sky       #9fd3f5;
+@define-color mint      #9fdcb8;
+@define-color lemon     #f3d27a;
+@define-color rose      #8c2457;
+@define-color night     #2b1d2e;
+@define-color night-2   #3d2b40;
+@define-color night-fg  #f6dce8;
+@define-color rim       rgba(255, 255, 255, 0.55);
+
+
+/* --- the base's PALETTE, in moe ------------------------------------------- */
+@define-color magenta       @rose;
+@define-color violet        @lavender;
+@define-color yellow        @lemon;
+@define-color green         @mint;
+@define-color mist          @plum-dim;
+@define-color surface       @card;
+@define-color surface-2     @pill;
+@define-color edge          @rim;
+@define-color edge-lit      #ffffff;
+@define-color text          @plum;
+@define-color text-dim      @plum-dim;
+@define-color ink           @plum;
+@define-color button-bg     alpha(white, 0.25);
+@define-color button-hover  alpha(white, 0.42);
+@define-color stop-bg       @sakura;
+@define-color stop-fg       @plum;
+@define-color user-bg       @sakura;
+@define-color user-edge     #ffffff;
+@define-color user-fg       @plum;
+@define-color assistant-bg  alpha(@pill, 0.70);
+@define-color assistant-edge @rim;
+@define-color stage-bg      @night;
+@define-color stage-edge    alpha(@sakura, 0.45);
+@define-color stage-glow    #3a2440;
+@define-color scanline      alpha(@night, 0.0);
+@define-color stage-fg      @night-fg;
+@define-color bubble-bg     @pill;
+@define-color bubble-fg     @plum;
+@define-color bubble-edge   #ffffff;
+@define-color code-bg       @night;
+@define-color code-fg       @night-fg;
+@define-color code-lang     @lavender;
+@define-color code-edge     alpha(@lavender, 0.5);
+@define-color chip-bg       alpha(@pill, 0.85);
+@define-color chip-edge     @rim;
+@define-color run-bg        @lemon;
+@define-color done-bg       @mint;
+@define-color bad-bg        #d63a62;
+@define-color dot-fg        @plum;
+@define-color error-bg      alpha(@sakura, 0.60);
+@define-color error-edge    #d63a62;
+@define-color note-bg       alpha(white, 0.18);
+@define-color sel-bg        alpha(@rose, 0.85);
+@define-color sel-fg        #fbe6ef;
+@define-color input-bg      alpha(white, 0.45);
+@define-color input-edge    @rim;
+@define-color input-line    @sakura;
+@define-color caret         @rose;
+@define-color send-bg       @sakura;
+@define-color send-fg       @plum;
+@define-color send-glow     alpha(@sakura, 0.7);
+@define-color slider        alpha(@lavender, 0.9);
+@define-color tooltip-bg    @night;
+@define-color tooltip-fg    @night-fg;
+@define-color rule          alpha(@sakura, 0.7);
+/* reply markup (llm-chat.py): deep rose accents, plum-dim quotes, a
+   rose `code` span on a soft pink chip */
+@define-color md-accent     #8c2457;
+@define-color md-dim        #63365a;
+@define-color md-code-fg    #8c2457;
+@define-color md-code-bg    #ecd0de;
+
+/* --- the rules the moe look changes (the window as it was made) ---------- */
+window#llm-chat {
+    background-color: @card;
+    background-image: linear-gradient(to bottom, #dfb9cc 0%, #d6b3cf 55%, #cfb2d6 100%);
+    color: @plum;
+    font-family: "Rounded Mplus 1c", "IBM Plex Sans", sans-serif;
+    font-size: 11pt;
+}
+
+/* --- header bar ---------------------------------------------------------- */
+window#llm-chat headerbar {
+    background-color: @pill;
+    background-image: linear-gradient(to right, alpha(@sakura, 0.55), alpha(@lavender, 0.55));
+    border-bottom: 1px solid @rim;
+    box-shadow: none;
+    color: @plum;
+    min-height: 40px;
+}
+
+window#llm-chat headerbar .title {
+    font-family: "Hachi Maru Pop", "Rounded Mplus 1c", sans-serif;
+    font-size: 13pt;
+    color: @plum;
+}
+
+window#llm-chat headerbar .subtitle {
+    color: @plum-dim;
+    font-size: 9pt;
+}
+
+window#llm-chat headerbar button {
+    background-color: alpha(white, 0.25);
+    background-image: none;
+    border: 1px solid @rim;
+    border-radius: 14px;
+    color: @plum;
+    box-shadow: none;
+    text-shadow: none;
+    -gtk-icon-shadow: none;
+    padding: 2px 10px;
+}
+
+window#llm-chat headerbar button:hover {
+    background-color: alpha(white, 0.42);
+}
+
+window#llm-chat headerbar button.stop {
+    background-color: @sakura;
+    font-weight: bold;
+}
+
+window#llm-chat headerbar button.titlebutton {
+    padding: 2px;
+    border-radius: 999px;
+    min-width: 22px;
+    min-height: 22px;
+}
+
+/* --- the stage: the mascot on its night card ----------------------------- */
+#stage-wrap {
+    padding: 12px 14px 6px 14px;
+    background-color: transparent;
+}
+
+#stage {
+    background-color: @night;
+    background-image: radial-gradient(ellipse at top, #3a2440 0%, @night 70%);
+    border: 1px solid alpha(@sakura, 0.45);
+    border-radius: 22px;
+    box-shadow: 0 4px 14px rgba(140, 36, 87, 0.30), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    padding: 10px 12px 8px 12px;
+}
+
+#art-scroll, #art-view {
+    background-color: transparent;
+    border: none;
+}
+
+#art {
+    font-family: "M PLUS 1 Code", "IBM Plex Mono", monospace;
+    font-size: 10pt;
+    color: @night-fg;
+}
+
+#bubble {
+    background-color: @pill;
+    background-image: linear-gradient(to right, @sakura, #d79ccc 55%, @lavender);
+    color: @plum;
+    border: 1px solid #ffffff;
+    border-radius: 16px;
+    padding: 3px 16px;
+    font-family: "Hachi Maru Pop", "Rounded Mplus 1c", sans-serif;
+    font-size: 11pt;
+    box-shadow: 0 0 10px alpha(@sakura, 0.45);
+}
+
+paned > separator {
+    background-color: transparent;
+    background-image: linear-gradient(to right, transparent, alpha(@sakura, 0.7), transparent);
+    min-height: 2px;
+    margin: 0 40px;
+}
+
+/* --- the conversation ---------------------------------------------------- */
+#transcript-scroll, #transcript-scroll viewport {
+    background-color: transparent;
+    border: none;
+}
+
+#transcript {
+    padding: 10px 18px 14px 18px;
+}
+
+#transcript-scroll scrollbar slider {
+    background-color: alpha(@lavender, 0.9);
+    border-radius: 99px;
+    min-width: 6px;
+}
+
+#transcript-scroll scrollbar {
+    background-color: transparent;
+    border: none;
+}
+
+label.user {
+    background-color: @sakura;
+    background-image: linear-gradient(to bottom right, @sakura, @lavender);
+    color: @plum;
+    border: 1px solid #ffffff;
+    border-radius: 18px 18px 4px 18px;
+    padding: 8px 14px;
+    margin-left: 120px;
+    box-shadow: 0 2px 8px rgba(140, 36, 87, 0.22);
+}
+
+label.user.queued {
+    background-image: none;
+    background-color: alpha(@pill, 0.8);
+    border: 1px dashed @rose;
+}
+
+label.user.dropped {
+    background-image: none;
+    background-color: alpha(@pill, 0.5);
+    color: @plum-dim;
+    border: 1px dashed @plum-dim;
+}
+
+.assistant {
+    background-color: alpha(@pill, 0.70);
+    border: 1px solid @rim;
+    border-radius: 18px 18px 18px 4px;
+    padding: 10px 14px;
+    margin-right: 60px;
+}
+
+label.md {
+    color: @plum;
+}
+
+label.md link {
+    color: @rose;
+}
+
+label selection, label.md selection, label.code selection, label.user selection {
+    background-color: alpha(@rose, 0.85);
+    color: #fbe6ef;
+}
+
+.codeblock {
+    background-color: @night;
+    border: 1px solid alpha(@lavender, 0.5);
+    border-radius: 12px;
+    padding: 8px 12px;
+}
+
+.codeblock label.code-lang {
+    color: @lavender;
+    font-size: 8.5pt;
+    font-family: "M PLUS 1 Code", monospace;
+}
+
+label.code, .mono {
+    font-family: "M PLUS 1 Code", "IBM Plex Mono", monospace;
+    font-size: 10pt;
+}
+
+label.code {
+    color: @night-fg;
+}
+
+/* tool chips */
+.toolchip {
+    background-color: alpha(@pill, 0.85);
+    border: 1px solid @rim;
+    border-radius: 14px;
+    padding: 3px 12px 3px 4px;
+    color: @plum;
+}
+
+.toolchip.error {
+    border-color: #d63a62;
+    background-color: alpha(@sakura, 0.55);
+}
+
+/* The status dot: lemon while it runs, mint when done, rose on error --
+   fills under plum text, as the theme does status. */
+label.tool-icon {
+    background-color: @lemon;
+    color: @plum;
+    border-radius: 99px;
+    min-width: 20px;
+    min-height: 20px;
+    font-size: 9pt;
+    font-weight: bold;
+}
+
+.toolchip.done label.tool-icon {
+    background-color: @mint;
+}
+
+.toolchip.error label.tool-icon {
+    background-color: #d63a62;
+    color: #ffffff;
+}
+
+label.tool-name {
+    font-weight: bold;
+    color: @plum;
+}
+
+label.tool-summary {
+    font-family: "M PLUS 1 Code", "IBM Plex Mono", monospace;
+    font-size: 9.5pt;
+    color: @plum-dim;
+}
+
+expander.tool-output {
+    margin-left: 14px;
+}
+
+expander.tool-output title > label, expander.tool-output > box > label,
+expander.tool-output arrow {
+    color: @plum-dim;
+    font-size: 9pt;
+}
+
+label.tool-excerpt {
+    background-color: @night;
+    color: @night-fg;
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-size: 9pt;
+    margin-top: 2px;
+}
+
+label.note {
+    color: @plum-dim;
+    font-size: 9pt;
+    background-color: alpha(white, 0.18);
+    border-radius: 99px;
+    padding: 2px 14px;
+}
+
+label.error-card {
+    background-color: alpha(@sakura, 0.60);
+    border: 1px solid #d63a62;
+    border-radius: 14px;
+    padding: 8px 14px;
+    color: @plum;
+    font-family: "M PLUS 1 Code", "IBM Plex Mono", monospace;
+    font-size: 9.5pt;
+}
+
+/* --- the input and the status line --------------------------------------- */
+#bottom {
+    padding: 8px 16px 8px 16px;
+    background-color: alpha(@pill, 0.55);
+    border-top: 1px solid @rim;
+}
+
+#input-scroll {
+    background-color: alpha(white, 0.45);
+    border: 1px solid @rim;
+    border-bottom: 2px solid @sakura;
+    border-radius: 18px;
+    padding: 6px 12px;
+}
+
+#input, #input text {
+    background-color: transparent;
+    color: @plum;
+    caret-color: @rose;
+    font-size: 11pt;
+}
+
+#input text selection {
+    background-color: alpha(@sakura, 0.7);
+    color: @plum;
+}
+
+#placeholder {
+    color: alpha(@plum-dim, 0.75);
+    margin-left: 14px;
+    font-size: 10.5pt;
+}
+
+button#send {
+    background-color: @sakura;
+    background-image: linear-gradient(to bottom right, @sakura, @lavender);
+    border: 1px solid #ffffff;
+    border-radius: 18px;
+    color: @plum;
+    font-family: "Hachi Maru Pop", "Rounded Mplus 1c", sans-serif;
+    padding: 6px 16px;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+button#send:hover {
+    box-shadow: 0 0 10px alpha(@sakura, 0.7);
+}
+
+#status {
+    color: @plum-dim;
+    font-family: "M PLUS 1 Code", "IBM Plex Mono", monospace;
+    font-size: 8.5pt;
+    margin-left: 6px;
+}
+
+tooltip, tooltip.background {
+    background-color: @night;
+    color: @night-fg;
+    border-radius: 10px;
+}
+
+tooltip label {
+    color: @night-fg;
+}
+
+/* Markdown tables: a grid of labels (llm-chat.py md_table), the bars and
+   the header rule thin plum-dim lines. */
+.md-table label.cell {
+    padding: 2px 9px;
+}
+
+.md-table separator {
+    background-color: alpha(@plum-dim, 0.45);
+    min-width: 1px;
+    min-height: 1px;
+}
+
+/* The base sets these; moe's faces carry their own weight. */
+window#llm-chat headerbar .title { font-weight: normal; }
+button#send { font-weight: normal; }

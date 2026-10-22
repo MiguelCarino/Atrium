@@ -1,0 +1,15 @@
+# The on-screen volume / microphone / brightness pill:
+# ~/.config/hypr/scripts/osd.py (its docstring has the commands).
+[Unit]
+Description=On-screen indicator for volume, microphone and brightness
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/osd.py daemon
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target

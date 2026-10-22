@@ -1,0 +1,18 @@
+# Rotates still wallpapers through hyprpaper: ~/.config/hypr/scripts/wallpaper-slideshow.py
+[Unit]
+Description=Wallpaper slideshow for hyprpaper
+PartOf=graphical-session.target
+After=graphical-session.target hyprpaper.service
+# Tied to hyprpaper: if hyprpaper dies, this stops with it; when hyprpaper
+# (re)starts it pulls this in (WantedBy below), and the slideshow puts back
+# each monitor's remembered image instead of leaving hyprpaper.conf's.
+BindsTo=hyprpaper.service
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/wallpaper-slideshow.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=hyprpaper.service

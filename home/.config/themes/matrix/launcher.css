@@ -1,0 +1,170 @@
+/* ===========================================================================
+   MATRIX -- the launcher, the quick note and the clipboard picker
+   (~/.config/hypr/scripts/launcher.css). Copied to
+   waybar/generated/theme-launcher.css by theme.py and imported LAST.
+
+   Here @magenta is NOT a status colour: the base file uses it for structure
+   only (caret, the card's bottom edge, the dark end of the selection), so in
+   this theme it is the structure green #008f11 -- unlike the bar, where it is
+   the red of "bad". The rainbow scan line becomes a run of greens, dark to
+   bright and back, sweeping along the top like a column of rain on its side.
+
+   The selection is the one large lit field on screen, and the primary can be HDR: it
+   starts at #00d936, not at full #00ff41, and falls off to #008f11 -- black
+   ink stays above 5:1 on every part of it.
+   =========================================================================== */
+
+/* CALMER (2026-10-18): green on everything was dizzying. Green is now the
+   ACCENT only -- lit, active, selected things (#3ddc68, softer than the old
+   #00ff41) -- and text is a soft grey with a hint of green (#c8d4cb, 13:1 on
+   the black; dim #7d8f81, 5.6:1). Edges and headings are dark green-greys,
+   selections a deeper green, no glows, no moving scan line. Where the text
+   below still says #00ff41 / #ccffd6 for text, read these. */
+
+
+@define-color m-dark     #2f4a36;
+@define-color m-deep     #12201a;
+@define-color sel-hi     #2e9e4f;   /* bright end of the selected hero / tile */
+
+@define-color magenta    @m-dark;
+@define-color violet     @m-dark;   /* scrollbar */
+@define-color mist       #8fa596;
+@define-color sel-mid    #23803f;
+@define-color scan-1     #12201a;
+@define-color scan-2     #2f4a36;
+@define-color scan-3     #3d6b4a;
+@define-color scan-4     #2f4a36;
+@define-color scan-5     #12201a;
+@define-color surface    rgba(0, 8, 3, 0.95);
+@define-color groove     rgba(0, 0, 0, 0.65);
+@define-color edge       alpha(@m-dark, 0.80);
+@define-color edge-lit   alpha(@cyan, 0.75);
+@define-color text       #c8d4cb;
+@define-color text-dim   #7d8f81;
+@define-color text-bright #eef5ef;
+@define-color ink        #000000;
+/* The entry's placeholder ("window", "Search"): GTK3 draws it in the named
+   colour placeholder_text_color if the provider defines one, else a fixed
+   50% grey (#808080) -- the one neutral grey left on this screen. */
+@define-color placeholder_text_color @text-dim;
+
+/* --- Square, thin ------------------------------------------------------------ */
+#card {
+    border-radius: 0px;
+    border: 1px solid @edge;
+    border-bottom: 1px solid @edge;
+    /* The scan line stays (2px now); the floor glow goes. */
+    background-image:
+        linear-gradient(to right,
+            @scan-1, @scan-2, @scan-3, @scan-4, @scan-5, @scan-1,
+            @scan-2, @scan-3, @scan-4, @scan-5, @scan-1),
+        linear-gradient(to bottom,
+            alpha(@cyan, 0.04) 0%,
+            alpha(@cyan, 0.00) 30%);
+    background-size: 200% 2px, 100% 100%;
+}
+
+/* The prompt: a terminal line. Green caret, 1px underline, the typed text in
+   the pale head colour with a faint glow -- the one glowing thing here. */
+#search {
+    border-radius: 0px;
+    border: 1px solid @edge;
+    border-bottom: 1px solid @cyan;
+    caret-color: @cyan;
+    text-shadow: none;
+}
+
+#search image {
+    color: @cyan;
+}
+
+#search selection {
+    background-color: alpha(@cyan, 0.35);
+    color: @text-bright;
+}
+
+#hero {
+    border-radius: 0px;
+    background-color: alpha(@m-deep, 0.35);
+    border: 1px solid @edge;
+    border-left: 1px solid @edge;
+}
+
+/* The hero is the largest lit field in the theme (1000x126), so it starts
+   lower than the tiles do: #00b32c, not @sel-hi. The dark end stays #008f11,
+   where black ink is still ~5:1 -- any darker and the sub line goes under. */
+#hero.selected {
+    background-color: #00b32c;
+    background-image: linear-gradient(to right, #00b32c 0%, #00a026 45%, @m-dark 100%);
+    border-color: @sel-hi;
+    border-left-color: @text-bright;
+}
+
+label.hero-hint {
+    border-radius: 0px;
+}
+
+/* On the selection the sub line is black too: at 75% ink it fell under 4:1
+   on the dark end of the gradient. */
+#hero.selected label.hero-sub { color: @ink; }
+
+.tile {
+    border-radius: 0px;
+    background-color: alpha(@m-deep, 0.25);
+    border: 1px solid alpha(@m-dark, 0.45);
+    border-bottom: 1px solid alpha(@m-dark, 0.80);
+}
+
+.tile:hover {
+    background-color: alpha(@m-deep, 0.60);
+    border-color: @m-dark;
+}
+
+.tile.selected {
+    background-color: @sel-hi;
+    background-image: linear-gradient(to bottom right, @sel-hi 0%, @sel-mid 50%, @m-dark 100%);
+    border-color: @sel-hi;
+    border-bottom-color: @text-bright;
+}
+
+scrollbar slider {
+    border-radius: 0px;
+}
+
+/* Slashed zero: 0 and O never alike in a terminal face (IBM Plex Mono has
+   the `zero` feature; the base sets no features here). */
+* {
+    font-feature-settings: "zero";
+}
+
+/* --- Selection as an OUTLINE (2026-10-18) -----------------------------------
+   Like the icons: green line on black, not a green field. The selected hero
+   was a 1000x126 block of #00b32c, the biggest lit area in the theme, and
+   the tiles a smaller one each; now both keep their dark fill and get a
+   green frame (a thicker left edge on the hero, as a caret), and their text
+   goes back to the light grey -- black ink was for the green fill. */
+#hero.selected {
+    background-color: alpha(@cyan, 0.08);
+    background-image: none;
+    border: 1px solid @cyan;
+    border-left: 4px solid @cyan;
+}
+
+#hero.selected label.hero-name { color: @text-bright; }
+#hero.selected label.hero-sub  { color: @text-dim; }
+#hero.selected label.hero-hint {
+    color: @cyan;
+    border-color: alpha(@cyan, 0.60);
+}
+#hero.selected label.clip-hero-text { color: @text-bright; }
+
+.tile.selected {
+    background-color: alpha(@cyan, 0.08);
+    background-image: none;
+    border: 1px solid @cyan;
+    border-bottom: 2px solid @cyan;
+}
+
+.tile.selected label.tile-name,
+.tile.selected label.clip-text,
+.tile.selected label.clip-caption { color: @text-bright; }

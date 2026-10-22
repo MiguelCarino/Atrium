@@ -1,0 +1,161 @@
+// Waybar — the toolbox section. A second, separate waybar process
+// (waybar-toolbox.service) that holds game mode, night light, Keep awake,
+// the shortcuts button and the tray. It starts hidden and drops down under the
+// sliders pill on the main bar (custom/toolbox in ./config) when that pill is
+// clicked; clicking it again folds it away. scripts/toolbox.sh does the toggle.
+//
+// Why a waybar and not a panel.py card like the others: the tray. A tray needs
+// a StatusNotifierWatcher that is up for the whole session -- apps register
+// with it once, at start, and some decide there is no tray at all if nobody
+// answers -- and it needs the apps' own right-click menus. waybar's tray
+// module already does both; a short-lived GTK panel could do neither.
+//
+// A horizontal (top) bar, although the card is a column: waybar's tray lays
+// its icons out along the BAR's orientation and ignores a group's, so this is
+// the only way to get the tray icons side by side in a row instead of stacked.
+// The rows are stacked by group/card ("orientation": "vertical") instead.
+//
+// Layer-shell has no "anchor to one corner only" for a waybar: a top bar is
+// always anchored top + left + right, and stretched between its margins; its
+// height follows the content. So the margins ARE the width of the box: 4 from
+// the top (measured from under the main bar, whose 36 px Hyprland already
+// reserves), 58 from the right (the power pill, so the card lines up under the
+// sliders pill), and from the left whatever makes the box exactly as wide as
+// the card. That only moves once the tray row outgrows the other rows, but it
+// lives in generated/ and is rewritten by scripts/toolbox_fit.py each time the
+// section opens: any transparent box left beside the card would swallow clicks
+// meant to close it.
+[
+{
+    "name": "waybar-toolbox",
+    "layer": "overlay",
+    "position": "top",
+    "exclusive": false,
+    "start_hidden": true,
+    "include": ["~/.config/waybar/generated/toolbox-margin.jsonc"],
+    "reload_style_on_change": true,
+
+    "modules-left": ["group/card"],
+
+    "group/card": {
+        "orientation": "vertical",
+        "modules": [
+            "custom/settings",
+            "custom/fsstate",
+            "custom/nightlight",
+            "custom/awake",
+            "custom/display",
+            "custom/keybinds",
+            "tray"
+        ]
+    },
+
+    // Split fullscreen state. Hyprland tracks what it does to a window and
+    // what the window is told separately; this toggles the two useful
+    // mismatches. Left: the app thinks it is fullscreen but stays a normal
+    // window. Right: the window fills the monitor but the app thinks it is
+    // windowed (borderless). Middle: back to plain windowed.
+    //
+    // No "interval": the script watches Hyprland's event socket and re-reads
+    // state on a short timer, because a mode-A change never fires a
+    // `fullscreen` event -- the internal state it keys off of does not move.
+    "custom/fsstate": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/fsstate.py watch",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}   Game mode",
+        "align": 0,
+        "on-click": "$HOME/.config/waybar/scripts/fsstate.py a",
+        "on-click-right": "$HOME/.config/waybar/scripts/fsstate.py b",
+        "on-click-middle": "$HOME/.config/waybar/scripts/fsstate.py reset"
+    },
+
+    // Night light button. All logic is in ~/.config/hypr/scripts/nightlight.sh;
+    // click = same as SUPER+N (flip until the next 20:00/07:00 boundary, then
+    // the schedule takes over again). The script sends SIGRTMIN+11 to every
+    // waybar whenever it changes the screen, so this row updates at once; the
+    // 60 s interval only catches an override quietly expiring between the
+    // 5-minute timer ticks. class on/off drives the colour.
+    "custom/nightlight": {
+        "tooltip": false,
+        "exec": "$HOME/.config/hypr/scripts/nightlight.sh status --json",
+        "return-type": "json",
+        "interval": 60,
+        "signal": 11,
+        "format": "{icon}   Night light",
+        "align": 0,
+        "format-icons": { "on": "", "off": "" },
+        "on-click": "$HOME/.config/hypr/scripts/nightlight.sh toggle"
+    },
+
+    // Keep awake: the same switch as Settings > Power (idle-settings.py
+    // awake, a systemd idle lock hypridle honours), so the two always agree.
+    // This used to be waybar's built-in idle_inhibitor, a Wayland inhibitor
+    // only this waybar knew about -- a second "Keep awake" the Power page
+    // could not see. scripts/toolbox_awake.py has the details. Left: on until
+    // turned off / off. Right: on for an hour. Signal 21: after a click, and
+    // from toolbox.sh each time the card opens; the interval only catches a
+    // timed one running out while it is open.
+    "custom/awake": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/toolbox_awake.py",
+        "return-type": "json",
+        "interval": 60,
+        "signal": 21,
+        "format": "{icon}   {}",
+        "align": 0,
+        "format-icons": { "activated": "\uf0f4", "deactivated": "\uf186" },
+        "on-click": "$HOME/.config/waybar/scripts/toolbox_awake.py toggle",
+        "on-click-right": "$HOME/.config/waybar/scripts/toolbox_awake.py toggle 60"
+    },
+
+    // Display: HDR, screen filter, animation preset, wallpaper theme -- the
+    // display panel (scripts/display_panel.py), same as SUPER+ALT+D. Lit
+    // while a screen filter is on. Right: filter on/off (= SUPER+SHIFT+F).
+    // ~/.config/hypr/scripts/display.py signals 13 after every change.
+    "custom/display": {
+        "tooltip": false,
+        "exec": "$HOME/.config/hypr/scripts/display.py bar",
+        "return-type": "json",
+        "interval": "once",
+        "signal": 13,
+        "format": "{}   Display",
+        "align": 0,
+        "on-click": "$HOME/.config/waybar/scripts/toolbox.sh hide; $HOME/.config/waybar/scripts/panel.py toggle display",
+        "on-click-right": "$HOME/.config/hypr/scripts/display.py filter toggle"
+    },
+
+    // Opens the shortcuts panel (scripts/keybinds_panel.py), same as SUPER+F1,
+    // and folds this section away so the two do not stack.
+    // Static text from exec: waybar hides a custom module whose exec prints nothing.
+    "custom/keybinds": {
+        "tooltip": false,
+        "exec": "echo '{\"text\": \"\", \"tooltip\": \"Keyboard shortcuts  (Super+F1)\"}'",
+        "return-type": "json",
+        "interval": "once",
+        "format": "{}   Shortcuts",
+        "align": 0,
+        "on-click": "$HOME/.config/waybar/scripts/toolbox.sh hide; $HOME/.config/waybar/scripts/panel.py toggle keybinds"
+    },
+
+    // Opens the Settings window (hypr/scripts/settings.py), same as SUPER+I:
+    // screens, theme, emergency alerts, devices, system. Folds this away.
+    "custom/settings": {
+        "tooltip": false,
+        "exec": "echo '{\"text\": \"\uf013\", \"tooltip\": \"Settings  (Super+I)\"}'",
+        "return-type": "json",
+        "interval": "once",
+        "format": "{}   Settings",
+        "align": 0,
+        "on-click": "$HOME/.config/waybar/scripts/toolbox.sh hide; $HOME/.config/hypr/scripts/settings.py"
+    },
+
+    // Background apps. Horizontal row of icons at the bottom of the card.
+    "tray": {
+        "tooltip": false,
+        "icon-size": 18,
+        "spacing": 10
+    }
+}
+]

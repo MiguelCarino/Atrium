@@ -1,0 +1,53 @@
+# ~/.config/themes/aero/mako -- mako fragment for the aero theme, copied to
+# ~/.config/mako/generated/theme by theme.py and included LAST by
+# ~/.config/mako/config (global lines first, then the sections it repeats).
+# font= comes from theme.conf (Selawik, IBM Plex Sans SemiBold 11, written by
+# theme.py above these lines). accent_follow=yes, so theme.py inserts the
+# wallpaper accent's include after the global lines below and before the
+# first [section] -- and the [urgency=low] / [urgency=normal] sections at the
+# end take the border back from it (see there).
+#
+# mako draws no gradients, so the glass here is the compositor's blur (the
+# "notifications" layer rule) under navy at 0xE6 (~0.90): denser than the
+# bar, because a notification lands on whatever is open, white pages
+# included. A shade lighter and bluer than the panels' navy (#14305A, not
+# #0C2240) so the toast reads as a pane of tinted glass rather than a dark
+# box: over a blurred white window it is still ~#2c3d58, white text ~11:1;
+# over the wallpaper the body measured 16:1. The title is Aero's pale sky
+# (#A8D8FF, ~8:1 at worst), the body near-white (#F4F9FF). The edge is a
+# single 1px line of light sky blue, the bright rim of a glass pane -- not
+# the 2px accent frame of cyberpunk's toast. 8px corners like the panels.
+background-color=#14305AE6
+text-color=#F4F9FF
+border-color=#8CC8FFCC
+progress-color=over #4AA3F04D
+border-size=1
+border-radius=8
+format=<span color="#A8D8FF"><b>%s</b></span>\n%b
+
+# Sections from ~/.config/mako/sections, recoloured. Critical keeps the bad
+# red (#FF5C6C, the waybar.css @magenta) for its border and title.
+[grouped]
+format=<span color="#A8D8FF"><b>%s</b></span>\n%b\n<small>(%g more)</small>
+
+[urgency=critical]
+border-color=#FF5C6C
+format=<span color="#FF8A96"><b>%s</b></span>\n%b
+text-color=#FFD6DA
+border-size=2
+
+# The rim stays sky blue on every wallpaper. theme.py puts the wallpaper
+# accent's include (border-color=<accent>B3) after the global lines above,
+# and mako has no way to mix colours, so the raw neon pick -- #2eebff on
+# aero-teal -- became the toast's frame and progress bar, the one place
+# the rest of this theme never lets it show (@a-tone in the stylesheets).
+# These two sections cover every non-critical toast and come after that
+# include, so they win; critical keeps its red from the section above.
+[urgency=low]
+text-color=#B0C4DC
+border-color=#8CC8FFCC
+progress-color=over #4AA3F04D
+
+[urgency=normal]
+border-color=#8CC8FFCC
+progress-color=over #4AA3F04D

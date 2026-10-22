@@ -1,0 +1,502 @@
+/* ===========================================================================
+   AERO GLASS -- the bar and the toolbox card (~/.config/waybar/style.css and
+   style-toolbox.css). Copied to waybar/generated/theme.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST, after the accent, so the
+   palette below wins over the base file's and the rules below win over its
+   rules of the same selector.
+
+   The look in one line: Windows 7's frosted taskbar. Every pill is a pane of
+   tinted glass over Hyprland's blur, with
+
+     1. a GLOSS on its top half -- white from 0.30 at the top edge to 0.10 at
+        mid-height, then a clean break to nothing, the "lit from above"
+        reflection every Aero button had;
+     2. the accent rising from the BOTTOM edge as a soft glow (the light
+        Windows 7 put under a hovered taskbar button), which is where the
+        wallpaper accent shows on a pill at rest;
+     3. a dark 1px outline with a bright 1px line just inside its top edge --
+        the two-tone edge that makes a pane of glass read as glass;
+     4. white text with a faint dark shadow under it, so it stays readable
+        where the gloss is brightest;
+     5. 6px corners (8px on the toolbox card), no chamfer.
+   The face is Selawik, Microsoft's open Segoe UI stand-in (theme.conf font=;
+   theme.py swaps it, with IBM Plex Sans as fallback, into every base rule).
+
+   The tint is NAVY rather than Windows 7's light sky blue, because the primary can be
+   HDR: light glass would be a large lit field, and over a white window it
+   would leave white text under 3:1. Measured on screen (aero set, blur at
+   brightness 0.85, the wallpaper's top band kept dark by the generator --
+   mean 22/255, max 68), the pill is ~#0c2e4c below the gloss and ~#344964
+   in its brightest part:
+       text        #f4f9ff   12:1 overall, >= 8:1 in the gloss
+       text-dim    #bccfe4   8.8:1 overall, >= 5.8:1 in the gloss
+   A first try at navy #102c52 / 55% read as near-black; this one, a bluer
+   rgba(30, 78, 138, 0.52), is as blue as the contrast budget allows. The
+   sky blue lives in the gloss, the lit edges and the accent besides.
+
+   Accent rules (@cyan is the wallpaper's pick, a neon such as #2effca or
+   #8b3fff): never used straight, anywhere in this theme. It is first
+   TEMPERED into Aero's own sky blue -- @a-tone, 35% accent in #4aa3f0 --
+   and every edge, glow, meter and slider takes @a-tone. Two of the five aero
+   wallpapers (teal, aurora) give #2eebff / #2effca, cyberpunk's signature
+   neon cyan and mint; used raw on the meters and lit edges they made the
+   desktop read as cyberpunk on navy (found in review). Tempered they come
+   out #40bcf5 / #40c3e4, the hue of Windows 7's own drive bar, while violet
+   still gives a periwinkle #6180f5 -- the accent still follows the
+   wallpaper, inside Aero's range. The theme's own accent= is #4aa3f0 itself,
+   so with the switch off @a-tone is exactly Aero blue. panel.css,
+   launcher.css and wofi.css define the same @a-tone.
+   As text the accent is @a-glow, @a-tone mixed 55% towards white; as a fill
+   under text it is @a-sel, 38% @a-tone in navy.
+   =========================================================================== */
+
+/* --- the theme's own names (not in the base palette) ----------------------- */
+@define-color a-navy     #102c52;   /* the glass tint */
+@define-color a-gloss    #ffffff;   /* the reflection; only ever used through alpha() */
+@define-color a-shade    #000814;   /* outlines, text shadow, drop shadow */
+@define-color a-sky      #8cc8ff;   /* Aero blue: structure that used to be magenta */
+@define-color a-crit     #c81e32;   /* Windows 7's red: critical fills */
+@define-color a-aero     #4aa3f0;   /* Windows 7's sky blue, theme.conf accent= */
+@define-color a-tone     mix(@cyan, @a-aero, 0.65);    /* the accent, tempered (header) */
+@define-color a-glow     mix(@a-tone, @a-gloss, 0.55);   /* the accent as text */
+@define-color a-sel      mix(@a-tone, @a-navy, 0.62);    /* the accent as a fill under white text */
+
+/* --- PALETTE 1: hues ---------------------------------------------------------
+   @cyan is the accent (wallpaper, or theme.conf accent=), not redefined here;
+   nothing below uses it except @a-tone, the tempered accent (header).
+   @magenta is the base files' "this ends something / bad" hue: in this theme
+   a clear red-pink. Its STRUCTURAL uses (CPU edge, the playing player, the
+   pending updates floor) are put back to sky blue by the rules further down. */
+@define-color magenta    #ff5c6c;
+@define-color yellow     #ffd75e;   /* warn */
+@define-color green      #7ddc5a;   /* good */
+@define-color purple     #b99cff;   /* UTC clock, work hours */
+@define-color red        #ff4040;   /* REC, camera */
+@define-color mist       #c4d8ee;
+@define-color steel      #9aa8ba;
+@define-color slate      #7c8a9c;
+
+/* --- PALETTE 2: surfaces, edges, text --------------------------------------- */
+@define-color surface        rgba(30, 78, 138, 0.52);
+@define-color surface-hover  rgba(40, 96, 160, 0.60);
+@define-color surface-dense  rgba(22, 60, 108, 0.70);
+@define-color surface-solid  #11294a;               /* tray menu: a real popup, no blur */
+@define-color edge           alpha(@a-shade, 0.60); /* the dark outline of the glass */
+@define-color edge-lit       alpha(@a-tone, 0.80);
+@define-color accent         alpha(@a-tone, 0.30);
+@define-color text           #f4f9ff;
+@define-color text-dim       #bccfe4;
+@define-color text-bright    #ffffff;
+@define-color ink            #000000;
+@define-color ink-warn       #101010;
+
+/* --- PALETTE 3: workspaces --------------------------------------------------
+   Sky, lime, violet: one per screen, told apart by hue, none of them the
+   accent or a status colour. The lit pill is a ~1/4 wash (glass, not paint)
+   under a fainter gloss than the other pills. The unlit numbers are the hue
+   lifted 35-40% towards white, not the hue itself.
+   Both were measured from the bar, glyph pixels against the pill under them,
+   whole digit and the top (gloss) half apart: the first values -- washes at
+   30-36% under a 0.32 gloss, unlit numbers at the plain hue -- left the lit
+   1/6/7 at 3.5-4.6:1 (3.0-3.4 in the gloss) and the unlit blue 2/3/5 at
+   4.2:1 (3.5); the review caught it. These clear 4.5:1 overall and stay
+   near it in the gloss band: lit 1/6/7 now 5.2/6.3/6.0:1 (4.6/5.0/5.0 in
+   the gloss), unlit 6.9-8.8:1 (6.0-7.6). */
+@define-color mon1-hue   #5ab0ff;
+@define-color mon2-hue   #8fe07a;
+@define-color mon3-hue   #c79bff;
+@define-color mon1       alpha(@mon1-hue, 0.21);
+@define-color mon1-dim   mix(@mon1-hue, #ffffff, 0.40);
+@define-color mon2       alpha(@mon2-hue, 0.20);
+@define-color mon2-dim   mix(@mon2-hue, #ffffff, 0.35);
+@define-color mon3       alpha(@mon3-hue, 0.24);
+@define-color mon3-dim   mix(@mon3-hue, #ffffff, 0.35);
+
+/* --- PALETTE 4: clock modes, status, alerts --------------------------------- */
+@define-color utc        alpha(@purple, 0.26);
+@define-color utc-fg     #e2d6ff;
+@define-color epoch      alpha(@yellow, 0.18);
+@define-color epoch-fg   #ffeaa6;
+
+@define-color good       alpha(@green, 0.20);
+@define-color good-fg    #b4f59c;
+@define-color bad        alpha(@magenta, 0.24);
+@define-color bad-fg     #ffa3ac;
+@define-color warn       alpha(@yellow, 0.20);
+@define-color warn-fg    #ffe27a;
+/* Critical is the one opaque-ish fill: Windows 7 red, deep enough that white
+   text on it stays above 5:1 with the gloss on top. */
+@define-color critical   alpha(@a-crit, 0.88);
+
+@define-color rec-edge   rgba(255, 170, 178, 0.60);
+@define-color rec-dim    rgba(110, 10, 24, 0.85);
+
+/* ---------------------------------------------------------------------------
+   The taskbar. The base never paints the bar's own surface (the gaps between
+   pills are holes), which left aero as a row of glossy pills floating over
+   the raw wallpaper -- buttons without the continuous glass taskbar that
+   defines the Windows 7 look. Here the strip itself is a faint pane of navy
+   glass: at 0.38 it is well above the waybar-glass layer rule's ignore_alpha
+   (0.2), so Hyprland frosts the whole strip, not just the pills. Kept dark
+   and thin on purpose: it is 3440px wide on the HDR screen. A faint sheen in
+   its top half and a 1px light line along its lower edge -- the edge facing
+   the desktop, where Windows 7 lit its taskbar -- finish it. By the bar's
+   name class: the toolbox imports this file too, and its surface must stay
+   a hole round the card (statebar.py's test bar has neither name). */
+window#waybar.waybar-main {
+    background-color: rgba(16, 44, 82, 0.38);
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.07) 0%,
+                        alpha(@a-gloss, 0.02) 49%,
+                        alpha(@a-gloss, 0.00) 50%);
+    box-shadow: inset 0 -1px alpha(@a-gloss, 0.16),
+                inset 0 1px alpha(@a-gloss, 0.06);
+}
+
+/* ---------------------------------------------------------------------------
+   The glass. Same selector list as the base file's shared pill, so these come
+   later at equal specificity and win. Only the properties that MAKE the
+   glass are set here -- shape, gloss, the inner highlight, the text shadow;
+   colour and border colour are left to the base file's per-pill rules (the
+   CPU edge, the power pill, the state washes), which this list would
+   otherwise flatten, since every rule here has the same specificity as those.
+   --------------------------------------------------------------------------- */
+#clock,
+#custom-day,
+#custom-clock,
+#custom-updates,
+#custom-weather,
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#network,
+#custom-network,
+#pulseaudio,
+#backlight,
+#battery,
+#temperature,
+#tray,
+#custom-player,
+#privacy,
+#custom-fsstate,
+#custom-nightlight,
+#idle_inhibitor,
+#custom-keybinds,
+#custom-settings,
+#custom-toolbox,
+#custom-power,
+#custom-capture,
+#custom-repos,
+#custom-timers,
+#custom-workhours,
+#custom-notifications,
+#custom-display,
+#language,
+#submap,
+#window {
+    border-radius: 6px;
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.30) 0%,
+                        alpha(@a-gloss, 0.10) 49%,
+                        alpha(@a-gloss, 0.00) 50%,
+                        alpha(@a-tone, 0.00) 68%,
+                        alpha(@a-tone, 0.16) 100%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.38),
+                inset 0 0 0 1px alpha(@a-gloss, 0.08);
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.85);
+}
+
+/* Hover: the glass lights from inside, the accent glow climbs higher -- the
+   Windows 7 taskbar button under the pointer. */
+#clock:hover,
+#custom-day:hover,
+#custom-clock:hover,
+#custom-updates:hover,
+#custom-weather:hover,
+#custom-cpu:hover,
+#custom-gpu:hover,
+#custom-disk:hover,
+#network:hover,
+#custom-network:hover,
+#pulseaudio:hover,
+#tray:hover,
+#custom-player:hover,
+#privacy:hover,
+#custom-fsstate:hover,
+#custom-nightlight:hover,
+#idle_inhibitor:hover,
+#custom-keybinds:hover,
+#custom-settings:hover,
+#custom-toolbox:hover,
+#custom-power:hover,
+#custom-repos:hover,
+#custom-timers:hover,
+#custom-workhours:hover,
+#custom-notifications:hover,
+#custom-display:hover,
+#custom-capture:hover {
+    border-color: alpha(@a-shade, 0.75);
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.36) 0%,
+                        alpha(@a-gloss, 0.14) 49%,
+                        alpha(@a-gloss, 0.00) 50%,
+                        alpha(@a-tone, 0.08) 55%,
+                        alpha(@a-tone, 0.34) 100%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.50),
+                inset 0 0 0 1px alpha(@a-gloss, 0.16),
+                inset 0 -2px 6px alpha(@a-tone, 0.45);
+}
+
+/* States that the base file writes with `box-shadow: none` / `text-shadow:
+   none` at id.class specificity would come out as flat panes without these:
+   the same glass edge and text shadow, again, for every VISIBLE state that
+   does that (the collapsing ones -- .stopped, .idle -- are left alone, or
+   their highlight would draw a frame round nothing). */
+#custom-clock.utc,
+#custom-clock.epoch,
+#custom-updates.many,
+#custom-player.playing,
+#custom-fsstate.mode-a,
+#custom-fsstate.mode-b,
+#custom-nightlight.on,
+#idle_inhibitor.activated,
+#network.disconnected,
+#custom-network.disconnected {
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.38),
+                inset 0 0 0 1px alpha(@a-gloss, 0.08);
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.85);
+}
+
+/* --- Joined capsules: one pane, rounded at its two outer ends ------------- */
+#custom-day,
+#custom-updates {
+    border-radius: 6px 0px 0px 6px;
+    border-right-color: alpha(@a-gloss, 0.14);
+}
+
+#custom-clock,
+#custom-repos {
+    border-radius: 0px;
+    border-left-color: alpha(@a-gloss, 0.14);
+    border-right-color: alpha(@a-gloss, 0.14);
+}
+
+#custom-weather,
+#custom-notifications {
+    border-radius: 0px 6px 6px 0px;
+    border-left-color: alpha(@a-gloss, 0.14);
+}
+
+/* --- Clock: white, with the accent as a soft haze behind it ---------------- */
+#custom-clock,
+#custom-clock.local {
+    color: @text-bright;
+    text-shadow: 0 0 8px alpha(@a-tone, 0.55), 0 1px 2px alpha(@a-shade, 0.90);
+}
+
+/* --- Workspaces ------------------------------------------------------------ */
+/* A fainter gloss than the other pills (0.18, not 0.30): this pill is all
+   small digits, and the gloss band sits right behind their top halves. */
+#workspaces {
+    border-radius: 6px;
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.18) 0%,
+                        alpha(@a-gloss, 0.06) 49%,
+                        alpha(@a-gloss, 0.00) 50%,
+                        alpha(@a-tone, 0.00) 68%,
+                        alpha(@a-tone, 0.14) 100%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.38),
+                inset 0 0 0 1px alpha(@a-gloss, 0.08);
+}
+
+#workspaces button {
+    border-radius: 4px;
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.85);
+}
+
+#workspaces button:hover {
+    background-color: alpha(@a-gloss, 0.12);
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.85);
+}
+
+/* The lit pill: the monitor's wash (generated rules) under its own gloss
+   and a bright inner frame -- a pressed-in, lit Aero button. The frame
+   carries the "lit" more than the fill does: a brighter fill or gloss put
+   the white number under 4.5:1 (PALETTE 3). */
+#workspaces button.active {
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.18) 0%,
+                        alpha(@a-gloss, 0.05) 49%,
+                        alpha(@a-gloss, 0.00) 50%,
+                        alpha(@a-gloss, 0.05) 100%);
+    box-shadow: inset 0 0 0 1px alpha(@a-gloss, 0.38),
+                inset 0 0 4px alpha(@a-gloss, 0.10);
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.90);
+}
+
+#workspaces button.urgent,
+#workspaces button.active.urgent {
+    box-shadow: inset 0 0 0 1px alpha(@a-gloss, 0.32);
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.90);
+}
+
+/* --- Structural magenta, put back to Aero blue ------------------------------ */
+#custom-cpu {
+    border-color: @edge;
+    border-bottom-color: alpha(@a-sky, 0.85);
+}
+
+#custom-gpu {
+    border-color: @edge;
+    border-bottom-color: alpha(@green, 0.85);
+}
+
+#custom-updates.pending {
+    border-bottom-color: @a-sky;
+}
+
+#custom-player.playing {
+    border-bottom-color: @edge-lit;
+}
+
+/* Text that the base file draws in the raw accent: the pale @a-glow instead,
+   which reads on the glass whatever neon the wallpaper picked. */
+#custom-toolbox:hover,
+#custom-toolbox.open,
+#custom-display.on {
+    color: @a-glow;
+}
+
+#custom-fsstate.mode-a {
+    color: @a-glow;
+}
+
+/* The base lights the Display row's floor in the raw accent; the tempered
+   one here, like every other lit edge. */
+#custom-display.on {
+    border-bottom-color: @a-tone;
+}
+
+/* --- The capture pill while recording -----------------------------------
+   The base breathes the camera glyph between @red and alpha(@red, 0.30). On
+   black that dim end is still a red glyph; on this navy glass it fell to
+   2.3:1 (1.9 under the gloss) and the icon all but vanished once a second.
+   Here it breathes between a light and a mid coral instead, both opaque:
+   #ff6b78 is ~4.3:1 on the pill (3.3 in the gloss), #ffa3ab ~6:1, so the
+   glyph never drops under 3:1, the floor for a graphic that carries
+   meaning, and the pulse still reads -- a change of light, not a fade-out.
+   Same keyframes name as the base: GTK keeps the last @keyframes of a name,
+   and this file comes after style.css. */
+#custom-capture.recording,
+#custom-capture.recording:hover {
+    color: #ffa3ab;
+}
+
+@keyframes cap-pulse {
+    to {
+        color: #ff6b78;
+        border-color: alpha(@red, 0.35);
+    }
+}
+
+/* Power: glass like the rest, the red only as its glyph and a floor line, so
+   it still reads as "this ends something" without a red slab on the bar. */
+#custom-power {
+    border-color: @edge;
+    border-bottom-color: alpha(@magenta, 0.80);
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.30) 0%,
+                        alpha(@a-gloss, 0.10) 49%,
+                        alpha(@a-gloss, 0.00) 50%,
+                        alpha(@magenta, 0.00) 68%,
+                        alpha(@magenta, 0.18) 100%);
+}
+
+#custom-power:hover {
+    border-color: alpha(@a-shade, 0.75);
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.36) 0%,
+                        alpha(@a-gloss, 0.14) 49%,
+                        alpha(@a-gloss, 0.00) 50%,
+                        alpha(@magenta, 0.10) 55%,
+                        alpha(@magenta, 0.40) 100%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.50),
+                inset 0 0 0 1px alpha(@a-gloss, 0.16),
+                inset 0 -2px 6px alpha(@magenta, 0.45);
+}
+
+/* --- Privacy and recording pills: the same glass over their solid colour --- */
+#custom-mic,
+#custom-camera,
+#custom-location,
+#custom-recording {
+    border-radius: 6px;
+}
+
+#custom-mic.active,
+#custom-camera.active,
+#custom-location.active,
+#custom-recording.recording {
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.34) 0%,
+                        alpha(@a-gloss, 0.12) 49%,
+                        alpha(@a-gloss, 0.00) 50%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.45);
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.80);
+}
+
+/* The location pill is solid yellow under dark ink: no dark shadow under dark
+   text, it only smudges it. */
+#custom-location.active {
+    text-shadow: none;
+}
+
+/* --- Tray menu: a real popup (no blur behind it), so solid navy glass ------ */
+#tray menu {
+    border: 1px solid alpha(@a-shade, 0.80);
+    border-radius: 6px;
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.12) 0px,
+                        alpha(@a-gloss, 0.03) 18px,
+                        alpha(@a-gloss, 0.00) 19px);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.30),
+                inset 0 0 0 1px alpha(@a-gloss, 0.10);
+}
+
+#tray menu menuitem {
+    border-radius: 4px;
+}
+
+#tray menu menuitem:hover {
+    background-color: @a-sel;
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.26) 0%,
+                        alpha(@a-gloss, 0.08) 49%,
+                        alpha(@a-gloss, 0.00) 50%);
+    color: @text-bright;
+}
+
+/* --- The toolbox card (style-toolbox.css). By the bar's name class, so the
+   main bar's own .modules-left box (which also exists, unpainted) is never
+   matched: this file is imported by both bars. ---------------------------- */
+/* Off rows (Game mode with nothing split, Night light off) are still labels
+   to read, not disabled controls. In @text-dim they measured 5.0 / 5.4:1 on
+   the card's denser glass and ~3.5:1 under the row gloss; a paler dim keeps
+   them visibly "off" next to the white "on" rows and clears 4.5:1 in the
+   gloss. Toolbox only: on the bar, fsstate's dim idle look stays as it is. */
+window#waybar.waybar-toolbox #custom-fsstate.idle,
+window#waybar.waybar-toolbox #custom-fsstate.none,
+window#waybar.waybar-toolbox #custom-nightlight.off {
+    color: #dde8f4;
+}
+
+window#waybar.waybar-toolbox .modules-left {
+    border-radius: 8px;
+    border: 1px solid alpha(@a-shade, 0.70);
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.18) 0px,
+                        alpha(@a-gloss, 0.05) 26px,
+                        alpha(@a-gloss, 0.00) 27px);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.34),
+                inset 0 0 0 1px alpha(@a-gloss, 0.10);
+}

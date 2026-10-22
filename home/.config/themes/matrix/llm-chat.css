@@ -1,0 +1,206 @@
+/* ===========================================================================
+   MATRIX -- the LLM chat window (~/.config/hypr/scripts/llm-chat.py,
+   base stylesheet llm-chat.css there). Copied to
+   waybar/generated/theme-llm-chat.css by theme.py and imported LAST.
+
+   The calm matrix of this theme's launcher.css: black panes, square 1px
+   edges in the dark green-grey #2f4a36, text the soft grey #c8d4cb (dim
+   #7d8f81), green #3ddc68 (the ACCENT, @cyan) only for what is lit or
+   active -- the caret, links, the running tool, the send key -- and as an
+   OUTLINE, never a large green field (the primary can be HDR, and green on everything
+   was dizzying). IBM Plex Mono everywhere (theme.conf font=), slashed zero.
+   The stage is the terminal's black (#010803 = mascot_matrix.PANEL), where
+   the hacker sits in the digital rain; its bubble a prompt line.
+   =========================================================================== */
+
+@define-color m-dark        #2f4a36;
+@define-color m-deep        #12201a;
+@define-color m-black       #010803;
+
+@define-color magenta       @m-dark;     /* structure only here: never a status */
+@define-color violet        @m-dark;
+@define-color yellow        #ffb000;     /* running: the theme's amber */
+@define-color green         @cyan;
+@define-color mist          #8fa596;
+@define-color surface       #020603;
+@define-color surface-2     #040b06;
+@define-color edge          alpha(@m-dark, 0.90);
+@define-color edge-lit      @cyan;
+@define-color text          #c8d4cb;
+@define-color text-dim      #7d8f81;
+@define-color ink           #000000;
+@define-color button-bg     alpha(@m-deep, 0.60);
+@define-color button-hover  @m-deep;
+@define-color stop-bg       alpha(#ff3030, 0.14);
+@define-color stop-fg       #ff6a6a;
+@define-color user-bg       alpha(@m-deep, 0.70);
+@define-color user-edge     @m-dark;
+@define-color user-fg       #eef5ef;
+@define-color assistant-bg  alpha(@m-deep, 0.25);
+@define-color assistant-edge alpha(@m-dark, 0.55);
+@define-color stage-bg      @m-black;
+@define-color stage-edge    @m-dark;
+@define-color stage-glow    alpha(@cyan, 0.05);
+@define-color scanline      alpha(@cyan, 0.02);
+@define-color stage-fg      #00b32c;
+@define-color bubble-bg     @m-black;
+@define-color bubble-fg     @cyan;
+@define-color bubble-edge   @m-dark;
+@define-color code-bg       #000000;
+@define-color code-fg       #c8d4cb;
+@define-color code-lang     @text-dim;
+@define-color code-edge     @m-dark;
+@define-color chip-bg       alpha(@m-deep, 0.50);
+@define-color chip-edge     @m-dark;
+@define-color run-bg        #ffb000;
+@define-color done-bg       @cyan;
+@define-color bad-bg        #ff3030;
+@define-color dot-fg        #000000;
+@define-color error-bg      alpha(#ff3030, 0.10);
+@define-color error-edge    #ff3030;
+@define-color note-bg       transparent;
+@define-color sel-bg        alpha(@cyan, 0.35);
+@define-color sel-fg        #eef5ef;
+@define-color input-bg      #000000;
+@define-color input-edge    @m-dark;
+@define-color input-line    @cyan;
+@define-color caret         @cyan;
+@define-color send-bg       alpha(@cyan, 0.08);
+@define-color send-fg       @cyan;
+@define-color send-glow     alpha(@cyan, 0.30);
+@define-color slider        @m-dark;
+@define-color tooltip-bg    #000000;
+@define-color tooltip-fg    #c8d4cb;
+@define-color rule          @m-dark;
+@define-color md-accent     #3ddc68;
+@define-color md-dim        #7d8f81;
+@define-color md-code-fg    #3ddc68;
+@define-color md-code-bg    #12201a;
+@define-color placeholder_text_color @text-dim;
+
+* {
+    font-feature-settings: "zero";
+}
+
+window#llm-chat {
+    background-image: none;
+}
+
+window#llm-chat headerbar {
+    box-shadow: none;
+    border-bottom: 1px solid @m-dark;
+}
+
+window#llm-chat headerbar .title {
+    color: @cyan;
+    font-weight: normal;
+}
+
+window#llm-chat headerbar button,
+window#llm-chat headerbar button.titlebutton {
+    border-radius: 0px;
+    border: 1px solid @m-dark;
+}
+
+window#llm-chat headerbar button.stop {
+    border: 1px solid #ff3030;
+}
+
+#stage {
+    border-radius: 0px;
+    border: 1px solid @m-dark;
+    box-shadow: none;
+    background-image: none;
+}
+
+#bubble {
+    border-radius: 0px;
+    border: 1px solid @m-dark;
+    border-left: 3px solid @cyan;
+    box-shadow: none;
+    padding: 2px 12px;
+}
+
+paned > separator {
+    margin: 0px;
+}
+
+#transcript-scroll scrollbar slider {
+    border-radius: 0px;
+}
+
+label.user {
+    border-radius: 0px;
+    border: 1px solid @m-dark;
+    border-right: 3px solid @cyan;
+}
+
+label.user.queued,
+label.user.dropped {
+    border-radius: 0px;
+}
+
+.assistant {
+    border-radius: 0px;
+    border: none;
+    border-left: 1px solid @m-dark;
+    background-color: transparent;
+}
+
+.codeblock {
+    border-radius: 0px;
+}
+
+.toolchip {
+    border-radius: 0px;
+}
+
+label.tool-name {
+    color: @text;
+}
+
+.toolchip.done label.tool-name {
+    color: @text-dim;
+}
+
+label.tool-icon {
+    border-radius: 0px;
+}
+
+label.tool-excerpt {
+    border-radius: 0px;
+    border-left: 1px solid @m-dark;
+}
+
+label.note {
+    border-radius: 0px;
+}
+
+label.error-card {
+    border-radius: 0px;
+}
+
+#bottom {
+    border-top: 1px solid @m-dark;
+}
+
+#input-scroll {
+    border-radius: 0px;
+    border-bottom: 1px solid @cyan;
+}
+
+button#send {
+    border-radius: 0px;
+    border: 1px solid @cyan;
+    font-weight: normal;
+}
+
+button#send:hover {
+    background-color: alpha(@cyan, 0.16);
+    box-shadow: none;
+}
+
+tooltip, tooltip.background {
+    border-radius: 0px;
+    border: 1px solid @m-dark;
+}

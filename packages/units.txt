@@ -1,0 +1,37 @@
+# User units install.sh enables (sync.sh writes this from the maintainer's
+# install). Features that ship OFF are not here; Settings turns them on.
+activity-log.service
+auto-dnd.service
+automations.service
+automount.service
+brief.timer
+cliphist@image.service
+cliphist@text.service
+closed-windows.service
+desktop-index.timer
+desktop-memory.timer
+emergency-alerts.service
+focus-guard.service
+game-profiles.service
+hypr-guard.service
+hypridle.service
+hyprpaper.service
+hyprpolkitagent.service
+launcher.service
+mako.service
+osd.service
+phone-handoff.service
+screen-color.service
+sessions-autosave.timer
+sessions-offer.service
+smart-clipboard.service
+smartlayout.service
+suggest.service
+tasks.service
+theme-schedule.timer
+timers-calendar.timer
+timers.service
+wallpaper-slideshow.service
+waybar.service
+waybar-toolbox.service
+workspace-tint.service

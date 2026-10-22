@@ -1,0 +1,10 @@
+# Calendar alarms: an alarm 10 min before each timed event in Evolution's
+# enabled calendars (timers.py calendar; "timers.py calendar off" stops it).
+[Unit]
+Description=Arm alarms for upcoming calendar events
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/timers.py calendar

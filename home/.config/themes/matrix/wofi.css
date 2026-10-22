@@ -1,0 +1,137 @@
+/* ===========================================================================
+   MATRIX -- wofi (~/.config/wofi/style.css): the SUPER+W window switcher and
+   the SUPER+V clipboard picker. Copied to waybar/generated/theme-wofi.css by
+   theme.py, which also writes `@define-color cyan #00ff41` above this text
+   (wofi never imports generated/accent.css). Same choices as this theme's
+   launcher.css, which wofi is kept in step with: @magenta is structure here
+   (#008f11, never red), greens for the scan line, square and 1px, and a
+   selected row that tops out below full green for the HDR panel.
+   =========================================================================== */
+
+/* CALMER (2026-10-18): green on everything was dizzying. Green is now the
+   ACCENT only -- lit, active, selected things (#3ddc68, softer than the old
+   #00ff41) -- and text is a soft grey with a hint of green (#c8d4cb, 13:1 on
+   the black; dim #7d8f81, 5.6:1). Edges and headings are dark green-greys,
+   selections a deeper green, no glows, no moving scan line. Where the text
+   below still says #00ff41 / #ccffd6 for text, read these. */
+
+
+@define-color m-dark     #2f4a36;
+@define-color m-deep     #12201a;
+@define-color sel-hi     #2e9e4f;
+
+@define-color magenta    @m-dark;
+@define-color violet     @m-dark;
+@define-color mist       #8fa596;
+@define-color sel-mid    #23803f;
+@define-color scan-1     #12201a;
+@define-color scan-2     #2f4a36;
+@define-color scan-3     #3d6b4a;
+@define-color scan-4     #2f4a36;
+@define-color scan-5     #12201a;
+@define-color surface    rgba(0, 8, 3, 0.95);
+@define-color groove     rgba(0, 0, 0, 0.65);
+@define-color edge       alpha(@m-dark, 0.80);
+@define-color edge-lit   alpha(@cyan, 0.75);
+@define-color text       #c8d4cb;
+@define-color text-dim   #7d8f81;
+@define-color text-bright #eef5ef;
+@define-color ink        #000000;
+/* The entry's placeholder ("window", "Search"): GTK3 draws it in the named
+   colour placeholder_text_color if the provider defines one, else a fixed
+   50% grey (#808080) -- the one neutral grey left on this screen. */
+@define-color placeholder_text_color @text-dim;
+
+#outer-box {
+    border-radius: 0px;
+    border: 1px solid @edge;
+    border-bottom: 1px solid @edge;
+    background-image:
+        linear-gradient(to right,
+            @scan-1, @scan-2, @scan-3, @scan-4, @scan-5, @scan-1,
+            @scan-2, @scan-3, @scan-4, @scan-5, @scan-1),
+        linear-gradient(to bottom,
+            alpha(@cyan, 0.04) 0%,
+            alpha(@cyan, 0.00) 30%);
+    background-size: 200% 2px, 100% 100%;
+}
+
+#input {
+    border-radius: 0px;
+    border: 1px solid @edge;
+    border-bottom: 1px solid @cyan;
+    caret-color: @cyan;
+    text-shadow: none;
+}
+
+#input:focus {
+    border-color: @edge-lit;
+    border-bottom-color: @cyan;
+}
+
+#input image {
+    color: @cyan;
+}
+
+#input selection {
+    background-color: alpha(@cyan, 0.35);
+    color: @text-bright;
+}
+
+#entry {
+    border-radius: 0px;
+    border: 1px solid transparent;
+    border-left: 1px solid transparent;
+}
+
+#entry:hover {
+    background-color: alpha(@m-deep, 0.60);
+    border-color: alpha(@m-dark, 0.60);
+}
+
+/* No slide-in: the base pushes the selected row 10px right (padding-left 24
+   vs 14) as a cyberpunk flourish, but here the switcher's padded columns are
+   a table, and the selected row's columns fell out of line with the rest. */
+#entry:selected {
+    padding-left: 14px;
+    background-color: @sel-hi;
+    background-image: linear-gradient(to right, @sel-hi 0%, @sel-mid 45%, @m-dark 100%);
+    border: 1px solid @sel-hi;
+    border-left: 1px solid @text-bright;
+}
+
+scrollbar slider {
+    border-radius: 0px;
+}
+
+/* Monospace is wider than Plex Sans: at the base 16px the window switcher's
+   longer titles wrapped onto a second line. 14px mono fits about as many
+   characters per row as 16px sans did -- and the switcher's padded columns
+   now line up, which sans never managed. */
+#text {
+    font-size: 14px;
+}
+
+/* Slashed zero, as everywhere in this theme (the row numbers are 00..07). */
+* {
+    font-feature-settings: "zero";
+}
+
+/* Calmer: no moving scan line across the card. */
+#outer-box {
+    animation: none;
+}
+
+/* --- Selection as an OUTLINE (2026-10-18), as in launcher.css: the selected
+   row keeps the dark fill with a green frame and a thick green left edge,
+   and its text stays light -- no green bar. */
+#entry:selected {
+    background-color: alpha(@cyan, 0.08);
+    background-image: none;
+    border: 1px solid @cyan;
+    border-left: 4px solid @cyan;
+}
+
+#entry:selected #text {
+    color: @text-bright;
+}

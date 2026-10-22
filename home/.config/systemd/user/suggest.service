@@ -1,0 +1,21 @@
+# Live suggestions: ~/.config/hypr/scripts/suggest.py follows the focus,
+# the lock / sleep, project contexts and (when switched on) the calendar and
+# the smart clipboard, and offers the next step in a small strip that never
+# takes the keyboard -- "draft a commit message", "pick up where you left
+# off". Local only; no model runs until you click. Its docstring has the
+# rules; Settings > Live suggestions switches this unit and each kind.
+[Unit]
+Description=Live suggestions: the next step for what you are doing
+PartOf=graphical-session.target
+After=graphical-session.target mako.service
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/suggest.py daemon
+Restart=on-failure
+RestartSec=5
+# the daemon is ~20 MB; the strip (GTK) runs in this cgroup too while a card is up
+MemoryHigh=200M
+
+[Install]
+WantedBy=graphical-session.target

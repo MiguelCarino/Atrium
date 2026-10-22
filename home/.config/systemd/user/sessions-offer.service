@@ -1,0 +1,15 @@
+# Once after login: "Pick up where you left off?" with a Restore button, for
+# the windows open before the last logout or reboot (sessions.py offer). It
+# never restores by itself; Settings > Workspace sessions turns the offer off.
+[Unit]
+Description=Offer to restore the last session after login
+PartOf=graphical-session.target
+After=graphical-session.target mako.service
+
+[Service]
+Type=simple
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/sessions.py offer --delay 20
+
+[Install]
+WantedBy=graphical-session.target

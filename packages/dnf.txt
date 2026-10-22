@@ -1,0 +1,103 @@
+# Packages the desktop needs (install.sh installs them; a name that does
+# not exist on a release is skipped, not fatal). One per line, # comments.
+
+# Hyprland session (copr lionheartp/Hyprland, see repos.txt)
+hyprland
+hyprlock
+hypridle
+hyprpaper
+hyprpolkitagent
+hyprpicker
+hyprsunset
+xdg-desktop-portal-hyprland
+xdg-desktop-portal-gtk
+uwsm
+
+# Bar, notifications, launcher, terminals, files
+waybar
+mako
+wofi
+kitty
+cosmic-term
+cosmic-files
+nautilus
+libnotify
+yad
+zenity
+
+# Screens, capture, clipboard, input
+grim
+slurp
+wl-clipboard
+cliphist
+wtype
+ydotool
+gpu-screen-recorder
+brightnessctl
+ImageMagick
+tesseract
+tesseract-langpack-eng
+fcitx5
+
+# Sound, media, devices
+pipewire-utils
+wireplumber
+pulseaudio-utils
+playerctl
+mpv
+ffmpeg
+gstreamer1-plugins-good
+gstreamer1-plugins-bad-free
+gstreamer1-plugins-ugly
+gstreamer1-plugin-libav
+bluez
+NetworkManager
+udisks2
+psmisc
+lm_sensors
+fwupd
+
+# Python and GTK for the scripts and panels
+python3-gobject
+gtk3
+gtk4
+libadwaita
+gtk-layer-shell
+gdk-pixbuf2
+librsvg2
+python3-cairo
+python3-numpy
+python3-pillow
+python3-requests
+python3-pyyaml
+python3-psutil
+luajit
+python3-cryptography
+
+# Tools the scripts call
+jq
+rsync
+curl
+gh
+git-core
+plocate
+poppler-utils
+qt5ct
+qt6ct
+firefox
+
+# Building the Hyprland plugins (hyprview, hypr-cube)
+cmake
+meson
+gcc-c++
+
+# System side (setup-root.sh): snapshots and the phone link
+snapper
+libdnf5-plugin-actions
+kdeconnectd
+kde-connect
+
+# Several machines (peers.py): discovery; the shared keyboard and mouse is
+# lan-mouse, installed only if the release has it
+avahi-tools
+lan-mouse

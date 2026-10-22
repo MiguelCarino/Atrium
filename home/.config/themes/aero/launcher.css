@@ -1,0 +1,169 @@
+/* ===========================================================================
+   AERO GLASS -- the launcher, the quick note and the clipboard picker
+   (~/.config/hypr/scripts/launcher.css). Copied to
+   waybar/generated/theme-launcher.css by theme.py and imported LAST.
+
+   A Windows 7 window of frosted glass: dark outline, a bright line inside the
+   top edge, a sheen across the top and two faint diagonal reflections. The
+   rainbow scan line is cyberpunk's and goes, animation and all.
+
+   Here @magenta is NOT a status colour: the base file uses it for structure
+   only (caret, the card's bottom edge, the end of the selection gradient),
+   so in this theme it is Aero blue. @ink is the text ON the selection, and
+   the selection here is accent glass (@a-sel, the accent mixed into navy)
+   rather than a solid neon bar -- so ink is white, with a dark shadow:
+   >= 5.4:1 on the lightest accent of the aero set, more on the rest.
+
+   The search well is DARK, not the white field Windows 7 had: a 1000px white
+   strip would be the brightest thing on the HDR panel.
+   =========================================================================== */
+
+@define-color a-navy     #0c2240;
+@define-color a-gloss    #ffffff;
+@define-color a-shade    #000814;
+@define-color a-sky      #8cc8ff;
+@define-color a-aero     #4aa3f0;
+@define-color a-tone     mix(@cyan, @a-aero, 0.65);   /* the accent, tempered: waybar.css says why */
+@define-color a-glow     mix(@a-tone, @a-gloss, 0.55);
+@define-color a-sel      mix(@a-tone, @a-navy, 0.62);
+
+@define-color magenta    @a-sky;
+@define-color violet     alpha(@a-gloss, 0.35);   /* scrollbar */
+@define-color mist       #c4d8ee;
+@define-color sel-mid    mix(@a-tone, @a-navy, 0.70);
+@define-color surface    rgba(12, 34, 64, 0.84);
+@define-color groove     rgba(2, 10, 24, 0.60);
+@define-color edge       alpha(@a-gloss, 0.16);
+@define-color edge-lit   alpha(@a-tone, 0.80);
+@define-color text       #f4f9ff;
+@define-color text-dim   #b0c4dc;
+@define-color text-bright #ffffff;
+@define-color ink        #ffffff;
+
+* {
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.70);
+}
+
+#card {
+    border-radius: 8px;
+    border: 1px solid alpha(@a-shade, 0.75);
+    border-bottom: 1px solid alpha(@a-shade, 0.75);
+    animation: none;
+    background-image:
+        linear-gradient(to bottom,
+            alpha(@a-gloss, 0.16) 0px,
+            alpha(@a-gloss, 0.05) 46px,
+            alpha(@a-gloss, 0.00) 48px),
+        linear-gradient(115deg,
+            alpha(@a-gloss, 0.00) 0%,
+            alpha(@a-gloss, 0.00) 34%,
+            alpha(@a-gloss, 0.04) 34.5%,
+            alpha(@a-gloss, 0.04) 41%,
+            alpha(@a-gloss, 0.00) 41.5%,
+            alpha(@a-gloss, 0.00) 46%,
+            alpha(@a-gloss, 0.025) 46.5%,
+            alpha(@a-gloss, 0.025) 48.5%,
+            alpha(@a-gloss, 0.00) 49%,
+            alpha(@a-gloss, 0.00) 100%);
+    background-size: 100% 100%, 100% 100%;
+    background-repeat: no-repeat, no-repeat;
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.32),
+                inset 0 0 0 1px alpha(@a-gloss, 0.10);
+}
+
+/* The search: a dark inset well with an accent glow when it has focus (it
+   always has, here), white text, sky caret. */
+#search {
+    border-radius: 6px;
+    border: 1px solid alpha(@a-shade, 0.85);
+    border-bottom: 1px solid alpha(@a-shade, 0.85);
+    caret-color: @a-sky;
+    box-shadow: inset 0 1px 3px alpha(@a-shade, 0.70),
+                0 0 0 1px alpha(@a-tone, 0.55),
+                0 0 8px alpha(@a-tone, 0.35);
+}
+
+#search image {
+    color: @a-glow;
+}
+
+#search selection {
+    background-color: @a-sel;
+    color: @text-bright;
+}
+
+/* --- Hero: the best match ------------------------------------------------- */
+#hero {
+    border-radius: 6px;
+    background-color: alpha(@a-gloss, 0.05);
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.12) 0%,
+                        alpha(@a-gloss, 0.04) 49%,
+                        alpha(@a-gloss, 0.00) 50%);
+    border: 1px solid alpha(@a-shade, 0.60);
+    border-left: 1px solid alpha(@a-shade, 0.60);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.20);
+}
+
+#hero.selected {
+    background-color: @a-sel;
+    background-image:
+        linear-gradient(to bottom,
+            alpha(@a-gloss, 0.28) 0%,
+            alpha(@a-gloss, 0.09) 49%,
+            alpha(@a-gloss, 0.00) 50%),
+        linear-gradient(to right, @a-sel 0%, @sel-mid 100%);
+    border-color: alpha(@a-shade, 0.80);
+    border-left-color: alpha(@a-shade, 0.80);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.45),
+                inset 0 0 0 1px alpha(@a-gloss, 0.20),
+                0 0 10px alpha(@a-tone, 0.35);
+}
+
+label.hero-hint {
+    border-radius: 4px;
+}
+
+#hero.selected label.hero-name,
+#hero.selected label.clip-hero-text {
+    text-shadow: 0 1px 3px alpha(@a-shade, 0.90);
+}
+
+#hero.selected label.hero-sub  { color: alpha(@ink, 0.90); }
+
+/* --- Tiles ------------------------------------------------------------------ */
+.tile {
+    border-radius: 6px;
+    background-color: alpha(@a-gloss, 0.04);
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.10) 0%,
+                        alpha(@a-gloss, 0.03) 49%,
+                        alpha(@a-gloss, 0.00) 50%);
+    border: 1px solid alpha(@a-shade, 0.45);
+    border-bottom: 1px solid alpha(@a-shade, 0.60);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.14);
+}
+
+.tile:hover {
+    background-color: alpha(@a-tone, 0.12);
+    border-color: alpha(@a-shade, 0.70);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.30),
+                inset 0 -2px 6px alpha(@a-tone, 0.35);
+}
+
+.tile.selected {
+    background-color: @a-sel;
+    background-image: linear-gradient(to bottom,
+                        alpha(@a-gloss, 0.28) 0%,
+                        alpha(@a-gloss, 0.09) 49%,
+                        alpha(@a-gloss, 0.00) 50%);
+    border-color: alpha(@a-shade, 0.80);
+    border-bottom-color: alpha(@a-shade, 0.80);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.45),
+                inset 0 0 0 1px alpha(@a-gloss, 0.20),
+                0 0 8px alpha(@a-tone, 0.30);
+}
+
+scrollbar slider {
+    border-radius: 3px;
+}

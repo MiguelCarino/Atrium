@@ -1,0 +1,12 @@
+# Once a day, and at the next login when the day was missed. Turned on and
+# off by `storage.py auto` (Settings > Storage) to match the GNOME switches.
+[Unit]
+Description=Daily clean-up of old trash and temporary files
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target

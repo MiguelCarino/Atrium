@@ -1,0 +1,15 @@
+# Every 5 minutes while logged in: desktop-memory.service. mako keeps 50
+# notifications in memory only, so this has to come round often; the
+# privacy switches are checked by the script itself, so this stays on.
+[Unit]
+Description=Collect the desktop memory every 5 minutes
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Timer]
+OnActiveSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,11 @@
+# The automatic clean-up: ~/.config/hypr/scripts/storage.py cleanup, which
+# deletes trash and/or your temporary files older than old-files-age days --
+# only what gsettings org.gnome.desktop.privacy says is switched on.
+[Unit]
+Description=Delete old trash and temporary files
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/storage.py cleanup
+Nice=19
+IOSchedulingClass=idle

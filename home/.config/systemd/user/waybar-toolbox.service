@@ -1,0 +1,29 @@
+# The toolbox section of the bar: a second, normally hidden waybar holding game
+# mode, night light, idle, shortcuts and the tray. Opened and closed by the
+# sliders pill on the main bar (~/.config/waybar/scripts/toolbox.sh).
+# Tied to waybar.service: started, stopped and restarted along with it.
+[Unit]
+Description=Waybar toolbox section (game mode, night light, idle, tray)
+PartOf=graphical-session.target waybar.service
+After=graphical-session.target waybar.service
+Requisite=graphical-session.target
+StartLimitIntervalSec=30
+StartLimitBurst=5
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+# waybar starts hidden (start_hidden), so the "open" flag is stale by definition.
+ExecStartPre=/usr/bin/rm -f %t/waybar-toolbox.open
+# style-toolbox.css @imports the desktop theme's generated/theme.css (via
+# style.css, and again at its end). waybar.service runs the same `ensure`
+# first and this unit is ordered after it, but a toolbox restarted on its
+# own after generated/ was cleared would come up unstyled; ensure only
+# creates missing files, so running it twice costs nothing.
+ExecStartPre=-/usr/bin/python3 %h/.config/hypr/scripts/theme.py ensure
+ExecStart=/usr/bin/waybar -c %h/.config/waybar/config-toolbox -s %h/.config/waybar/style-toolbox.css
+Restart=always
+RestartSec=2
+TimeoutStopSec=3
+
+[Install]
+WantedBy=graphical-session.target waybar.service

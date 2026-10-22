@@ -1,0 +1,32 @@
+# ~/.config/themes/matrix/mako -- mako fragment for the matrix theme, copied
+# to ~/.config/mako/generated/theme by theme.py and included LAST by
+# ~/.config/mako/config (global lines first, then the sections it repeats).
+# font= comes from theme.conf (IBM Plex Mono SemiBold 11, written by theme.py
+# above these lines). accent_follow=no, so no wallpaper accent comes after.
+#
+# A terminal message: black, 1px green frame, square. The title is the pale
+# "head" green (#ccffd6, 18:1 on the fill), the body phosphor #00ff41 (15:1).
+background-color=#000803EB
+text-color=#C8D4CB
+border-color=#2E9E4FCC
+progress-color=over #3DDC6833
+border-size=1
+border-radius=0
+# The outer span turns on Plex Mono's slashed zero (Pango's font_features;
+# mako's font= cannot carry OpenType features), as in every stylesheet of
+# this theme: 0 and O must never look alike in a terminal face.
+format=<span font_features="zero"><span color="#EEF5EF"><b>%s</b></span>\n%b</span>
+
+# Sections from ~/.config/mako/sections, recoloured. Critical is red -- the
+# one place a notification is allowed to stop looking like the terminal.
+[grouped]
+format=<span font_features="zero"><span color="#EEF5EF"><b>%s</b></span>\n%b\n<small>(%g more)</small></span>
+
+[urgency=critical]
+border-color=#FF3030
+format=<span font_features="zero"><span color="#FF3030"><b>%s</b></span>\n%b</span>
+text-color=#FF7070
+border-size=2
+
+[urgency=low]
+text-color=#7D8F81

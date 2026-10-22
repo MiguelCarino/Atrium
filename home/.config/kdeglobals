@@ -1,0 +1,30 @@
+[General]
+[Colors:Header][Inactive]
+[Colors:Header]
+[WM]
+[Colors:View]
+[Colors:Window]
+[ColorEffects:Inactive]
+[KFileDialog Settings]
+Sort directories first=true
+Decoration position=2
+Show Preview=false
+Sort reversed=false
+View Style=DetailTree
+Allow Expansion=false
+Sort by=Name
+Show Full Path=false
+Automatically select filename extension=true
+Show hidden files=false
+Sort hidden files last=false
+Show Inline Previews=true
+Speedbar Width=144
+Breadcrumb Navigation=true
+Show Speedbar=true
+[Colors:Selection]
+[Colors:Button]
+[ColorEffects:Disabled]
+[KDE]
+[Icons]
+[Colors:Complementary]
+[Colors:Tooltip]

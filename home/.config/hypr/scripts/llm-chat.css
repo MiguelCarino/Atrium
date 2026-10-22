@@ -1,0 +1,743 @@
+/* llm-chat.py -- the LLM chat window, with the mascot's stage on top.
+
+   THEMES: the same contract as ~/.config/hypr/scripts/launcher.css (and
+   ~/.config/waybar/style.css, whose header explains it). This file IS the
+   cyberpunk look; the desktop theme's ~/.config/themes/<name>/
+   llm-chat.css is copied into ~/.config/waybar/generated/
+   theme-llm-chat.css by ~/.config/hypr/scripts/theme.py and imported
+   LAST: it redefines the PALETTE names below for colour, and repeats
+   selectors for everything else. No rule below writes a colour literal.
+   font= / font_mono= in the theme's theme.conf swap "IBM Plex Sans" /
+   "IBM Plex Mono" in every rule here by themselves (theme.py font_rules).
+   llm-chat.py re-reads all of it, and picks the theme's mascot, when
+   the generated file changes -- an open window follows `theme.py set`.
+
+   Cyberpunk: neon cyan (the ACCENT role, @cyan: generated/accent.css
+   replaces it with the wallpaper's) and magenta on near-black glass; the
+   corners cut 2/14 like the launcher's card; the stage a dark card with
+   scanlines, where mascot_cyberpunk.py draws its android. DP-1 is HDR:
+   every surface is dark, the neon is in edges and text only.
+
+   The md-* names are not used here: llm-chat.py reads them (GTK
+   lookup_color) for the Pango markup of replies -- headings, bullets,
+   links, `code` spans -- so they must be plain opaque colours. */
+
+/* --- PALETTE --------------------------------------------------------------- */
+@define-color cyan          #00f0ff;
+@define-color magenta       #ff2a6d;
+@define-color violet        #9f00ff;
+@define-color yellow        #f9f002;
+@define-color green         #39ff14;
+@define-color mist          #96d7e6;
+@define-color surface       #0a0d15;               /* the window */
+@define-color surface-2     #0e121c;               /* header bar, input strip */
+@define-color edge          alpha(@cyan, 0.28);
+@define-color edge-lit      alpha(@cyan, 0.85);
+@define-color text          #e6fcff;
+@define-color text-dim      #8fb4c4;
+@define-color ink           #04060c;               /* text on an accent fill */
+@define-color button-bg     alpha(@cyan, 0.08);
+@define-color button-hover  alpha(@cyan, 0.18);
+@define-color stop-bg       alpha(@magenta, 0.85);
+@define-color stop-fg       @ink;
+@define-color user-bg       alpha(@magenta, 0.14);
+@define-color user-edge     alpha(@magenta, 0.70);
+@define-color user-fg       @text;
+@define-color assistant-bg  alpha(@cyan, 0.045);
+@define-color assistant-edge alpha(@cyan, 0.22);
+@define-color stage-bg      #07090f;               /* = mascot_cyberpunk.PANEL */
+@define-color stage-edge    alpha(@cyan, 0.45);
+@define-color stage-glow    alpha(@magenta, 0.10);
+@define-color scanline      alpha(@cyan, 0.035);
+@define-color stage-fg      #c8d3e6;
+@define-color bubble-bg     #0e121c;
+@define-color bubble-fg     @cyan;
+@define-color bubble-edge   alpha(@magenta, 0.80);
+@define-color code-bg       #05070c;
+@define-color code-fg       #c8d3e6;
+@define-color code-lang     @magenta;
+@define-color code-edge     alpha(@cyan, 0.22);
+@define-color chip-bg       alpha(@cyan, 0.06);
+@define-color chip-edge     alpha(@cyan, 0.30);
+@define-color run-bg        @yellow;               /* a tool's dot: running, done, failed */
+@define-color done-bg       @green;
+@define-color bad-bg        @magenta;
+@define-color dot-fg        @ink;
+@define-color error-bg      alpha(@magenta, 0.14);
+@define-color error-edge    @magenta;
+@define-color note-bg       alpha(@cyan, 0.06);
+@define-color sel-bg        alpha(@cyan, 0.40);
+@define-color sel-fg        #ffffff;
+@define-color input-bg      rgba(0, 0, 0, 0.45);
+@define-color input-edge    alpha(@cyan, 0.35);
+@define-color input-line    @cyan;
+@define-color caret         @magenta;
+@define-color send-bg       alpha(@cyan, 0.85);
+@define-color send-fg       @ink;
+@define-color send-glow     alpha(@cyan, 0.55);
+@define-color slider        alpha(@violet, 0.85);
+@define-color tooltip-bg    #07090f;
+@define-color tooltip-fg    @text;
+@define-color rule          alpha(@cyan, 0.45);
+/* read by llm-chat.py for reply markup (opaque only) */
+@define-color md-accent     @cyan;
+@define-color md-dim        #8fb4c4;
+@define-color md-code-fg    #ff6b96;
+@define-color md-code-bg    #141a26;
+
+window#llm-chat {
+    background-color: @surface;
+    background-image: linear-gradient(to bottom, alpha(@cyan, 0.04) 0%, alpha(@cyan, 0.0) 30%,
+                                      alpha(@magenta, 0.0) 75%, alpha(@magenta, 0.05) 100%);
+    color: @text;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 11pt;
+}
+
+/* --- header bar ------------------------------------------------------------ */
+window#llm-chat headerbar {
+    background-color: @surface-2;
+    background-image: none;
+    border-bottom: 1px solid @edge;
+    box-shadow: inset 0 -2px alpha(@magenta, 0.35);
+    color: @text;
+    min-height: 40px;
+}
+
+window#llm-chat headerbar .title {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: bold;
+    font-size: 12pt;
+    color: @cyan;
+}
+
+window#llm-chat headerbar .subtitle {
+    color: @text-dim;
+    font-size: 9pt;
+}
+
+window#llm-chat headerbar button {
+    background-color: @button-bg;
+    background-image: none;
+    border: 1px solid @edge;
+    border-radius: 2px 10px 2px 10px;
+    color: @text;
+    box-shadow: none;
+    text-shadow: none;
+    -gtk-icon-shadow: none;
+    padding: 2px 10px;
+}
+
+window#llm-chat headerbar button:hover {
+    background-color: @button-hover;
+}
+
+window#llm-chat headerbar button.stop {
+    background-color: @stop-bg;
+    color: @stop-fg;
+    font-weight: bold;
+}
+
+window#llm-chat headerbar button.titlebutton {
+    padding: 2px;
+    border-radius: 2px;
+    min-width: 22px;
+    min-height: 22px;
+}
+
+/* The model picker: its button is a header button like the others; its
+   popover lists LM Studio's models (and Claude's, when Claude Code is installed). Palette names only, so
+   every theme's colours reach it without a rule of its own. A popover is a
+   child of the button (CSS-wise), so the header button rule above would
+   reach its entries: reset here. */
+window#llm-chat headerbar button#model-button {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9pt;
+}
+
+window#llm-chat popover#model-menu {
+    background-color: @surface-2;
+    background-image: none;
+    border: 1px solid @edge-lit;
+    border-radius: 8px;
+    box-shadow: 0 4px 14px alpha(black, 0.45);
+    color: @text;
+    padding: 6px;
+}
+
+window#llm-chat popover#model-menu modelbutton,
+window#llm-chat popover#model-menu button {
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    border-radius: 4px;
+    box-shadow: none;
+    color: @text;
+    padding: 4px 10px;
+    min-height: 22px;
+}
+
+window#llm-chat popover#model-menu modelbutton:hover,
+window#llm-chat popover#model-menu modelbutton:focus {
+    background-color: @button-hover;
+}
+
+window#llm-chat popover#model-menu modelbutton:disabled {
+    color: @text-dim;
+}
+
+window#llm-chat popover#model-menu check,
+window#llm-chat popover#model-menu radio {
+    color: @edge-lit;
+    margin-right: 6px;
+}
+
+window#llm-chat popover#model-menu .model-heading {
+    color: @text-dim;
+    font-size: 8pt;
+    font-weight: bold;
+    padding: 6px 10px 2px 10px;
+}
+
+window#llm-chat popover#model-menu .model-detail {
+    color: @text-dim;
+    font-style: italic;
+    padding: 2px 10px;
+}
+
+window#llm-chat popover#model-menu separator {
+    background-color: @edge;
+    min-height: 1px;
+    margin: 4px 6px;
+}
+
+/* --- the stage: the mascot on its card ------------------------------------- */
+#stage-wrap {
+    padding: 12px 14px 6px 14px;
+    background-color: transparent;
+}
+
+#stage {
+    background-color: @stage-bg;
+    background-image: repeating-linear-gradient(to bottom, @scanline 0px, @scanline 1px,
+                                                alpha(@stage-bg, 0.0) 1px, alpha(@stage-bg, 0.0) 3px),
+                      radial-gradient(ellipse at bottom, @stage-glow 0%, alpha(@stage-bg, 0.0) 70%);
+    border: 1px solid @stage-edge;
+    border-radius: 2px 18px 2px 18px;
+    box-shadow: 0 0 12px alpha(@cyan, 0.18), inset 0 0 0 1px alpha(@magenta, 0.10);
+    padding: 10px 12px 8px 12px;
+}
+
+#art-scroll, #art-view {
+    background-color: transparent;
+    border: none;
+}
+
+#art {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10pt;
+    color: @stage-fg;
+}
+
+#bubble {
+    background-color: @bubble-bg;
+    background-image: none;
+    color: @bubble-fg;
+    border: 1px solid @bubble-edge;
+    border-radius: 2px 12px 2px 12px;
+    padding: 3px 16px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5pt;
+    box-shadow: 0 0 8px alpha(@magenta, 0.35);
+}
+
+paned > separator {
+    background-color: transparent;
+    background-image: linear-gradient(to right, alpha(@cyan, 0.0), @rule, alpha(@magenta, 0.0));
+    min-height: 2px;
+    margin: 0 40px;
+}
+
+/* A wide window: the stage in a column on the right (llm-chat.py
+   set_side). The card's own edge parts it from the conversation, so the
+   handle is a bare gap; the more specific selectors win over the themes'
+   "paned > separator" and "#stage-wrap" without repeating them there. */
+paned.horizontal > separator {
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    min-width: 2px;
+    min-height: 0px;
+    margin: 0px;
+}
+
+#stage-wrap.side {
+    padding: 12px 14px 12px 4px;
+}
+
+/* The corner card (Ctrl+K): the same #stage, in a box floating over a
+   corner of the conversation. */
+#corner {
+    background-color: transparent;
+}
+
+/* --- the conversation ------------------------------------------------------ */
+#transcript-scroll, #transcript-scroll viewport {
+    background-color: transparent;
+    border: none;
+}
+
+#transcript {
+    padding: 10px 18px 14px 18px;
+}
+
+#transcript-scroll scrollbar slider {
+    background-color: @slider;
+    border-radius: 2px;
+    min-width: 4px;
+}
+
+#transcript-scroll scrollbar {
+    background-color: transparent;
+    border: none;
+}
+
+label.user {
+    background-color: @user-bg;
+    background-image: none;
+    color: @user-fg;
+    border: 1px solid @user-edge;
+    border-radius: 14px 2px 14px 2px;
+    padding: 8px 14px;
+    margin-left: 120px;
+    box-shadow: none;
+}
+
+label.user.queued {
+    background-image: none;
+    background-color: alpha(@user-bg, 0.5);
+    border: 1px dashed @user-edge;
+}
+
+label.user.dropped {
+    background-image: none;
+    background-color: alpha(@user-bg, 0.3);
+    color: @text-dim;
+    border: 1px dashed @text-dim;
+}
+
+.assistant {
+    background-color: @assistant-bg;
+    border: 1px solid @assistant-edge;
+    border-radius: 2px 14px 2px 14px;
+    padding: 10px 14px;
+    margin-right: 60px;
+}
+
+label.md {
+    color: @text;
+}
+
+label.md link {
+    color: @cyan;
+}
+
+label selection, label.md selection, label.code selection, label.user selection {
+    background-color: @sel-bg;
+    color: @sel-fg;
+}
+
+.codeblock {
+    background-color: @code-bg;
+    border: 1px solid @code-edge;
+    border-radius: 2px 8px 2px 8px;
+    padding: 8px 12px;
+}
+
+.codeblock label.code-lang {
+    color: @code-lang;
+    font-size: 8.5pt;
+    font-family: "IBM Plex Mono", monospace;
+}
+
+/* "⧉ copy": in a code block's header and at the foot of each reply. Flat
+   and quiet until hovered, so a reply full of code blocks is not a row of
+   buttons. The colours are names every theme defines. */
+button.copy {
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    border-radius: 4px;
+    box-shadow: none;
+    text-shadow: none;
+    min-height: 0;
+    min-width: 0;
+    padding: 0px 6px;
+    color: @code-lang;
+    font-size: 8.5pt;
+    opacity: 0.7;
+}
+
+button.copy:hover {
+    background-color: @button-hover;
+    opacity: 1;
+}
+
+/* The sessions menu's 🗑 (per session, and "delete all"): asks once --
+   the first click arms it ("delete? click again"), a second deletes. */
+window#llm-chat popover#model-menu button.delete {
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+    text-shadow: none;
+    min-height: 0;
+    min-width: 0;
+    padding: 2px 8px;
+    color: @text-dim;
+}
+
+window#llm-chat popover#model-menu button.delete:hover {
+    background-color: @button-hover;
+}
+
+window#llm-chat popover#model-menu button.delete.armed {
+    background-color: @error-bg;
+    border: 1px solid @error-edge;
+    color: @error-edge;
+}
+
+.assistant > button.copy {
+    color: @text-dim;
+    opacity: 0.5;
+}
+
+label.code, .mono {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10pt;
+}
+
+label.code {
+    color: @code-fg;
+}
+
+/* tool chips */
+.toolchip {
+    background-color: @chip-bg;
+    border: 1px solid @chip-edge;
+    border-radius: 2px 10px 2px 10px;
+    padding: 3px 12px 3px 4px;
+    color: @text;
+}
+
+.toolchip.error {
+    border-color: @error-edge;
+    background-color: @error-bg;
+}
+
+/* The status dot: yellow while it runs, green when done, magenta-red on
+   error -- fills under dark ink. */
+label.tool-icon {
+    background-color: @run-bg;
+    color: @dot-fg;
+    border-radius: 2px;
+    min-width: 20px;
+    min-height: 20px;
+    font-size: 9pt;
+    font-weight: bold;
+}
+
+.toolchip.done label.tool-icon {
+    background-color: @done-bg;
+}
+
+.toolchip.error label.tool-icon {
+    background-color: @bad-bg;
+    color: @dot-fg;
+}
+
+label.tool-name {
+    font-weight: bold;
+    color: @cyan;
+}
+
+label.tool-summary {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9.5pt;
+    color: @text-dim;
+}
+
+expander.tool-output {
+    margin-left: 14px;
+}
+
+expander.tool-output title > label, expander.tool-output > box > label,
+expander.tool-output arrow {
+    color: @text-dim;
+    font-size: 9pt;
+}
+
+label.tool-excerpt {
+    background-color: @code-bg;
+    color: @code-fg;
+    border-radius: 2px 6px 2px 6px;
+    padding: 6px 10px;
+    font-size: 9pt;
+    margin-top: 2px;
+}
+
+label.note {
+    color: @text-dim;
+    font-size: 9pt;
+    background-color: @note-bg;
+    border-radius: 2px 8px 2px 8px;
+    padding: 2px 14px;
+}
+
+label.error-card {
+    background-color: @error-bg;
+    border: 1px solid @error-edge;
+    border-radius: 2px 10px 2px 10px;
+    padding: 8px 14px;
+    color: @text;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9.5pt;
+}
+
+/* A permission request (PermCard): what the model wants to do, and the three
+   answers. Open: the accent's edge, lit; answered: dimmed to a note. */
+box.perm-card {
+    background-color: @chip-bg;
+    border: 1px solid @edge-lit;
+    border-left-width: 4px;
+    border-radius: 2px 10px 2px 10px;
+    padding: 10px 14px;
+}
+
+box.perm-card.answered,
+box.perm-card.denied,
+box.perm-card.expired {
+    border-color: @chip-edge;
+    padding: 6px 14px;
+}
+
+box.perm-card.denied {
+    border-left-color: @error-edge;
+}
+
+box.perm-card label.perm-title {
+    color: @text;
+    font-weight: bold;
+}
+
+box.perm-card label.perm-what {
+    color: @text;
+    background-color: @code-bg;
+    border: 1px solid @code-edge;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9.5pt;
+}
+
+box.perm-card label.perm-detail,
+box.perm-card label.perm-keys,
+box.perm-card label.perm-outcome {
+    color: @text-dim;
+    font-size: 9pt;
+}
+
+box.perm-card label.perm-detail.mono {
+    font-family: "IBM Plex Mono", monospace;
+}
+
+box.perm-card label.perm-warn {
+    color: @text;
+    background-color: @error-bg;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 9pt;
+}
+
+box.perm-card button {
+    background-color: @button-bg;
+    background-image: none;
+    border: 1px solid @chip-edge;
+    border-radius: 2px 10px 2px 10px;
+    color: @text;
+    box-shadow: none;
+    text-shadow: none;
+    padding: 2px 14px;
+}
+
+box.perm-card button:hover,
+box.perm-card button:focus {
+    background-color: @button-hover;
+    border-color: @edge-lit;
+}
+
+box.perm-card button.perm-allow {
+    background-color: @send-bg;
+    color: @send-fg;
+}
+
+box.perm-card button.perm-deny {
+    border-color: @error-edge;
+}
+
+/* the first press of Allow on a card that runs code: press again to confirm */
+box.perm-card button.perm-sure,
+button.retry.perm-sure {
+    border-color: @error-edge;
+    box-shadow: inset 0 0 0 1px @error-edge;
+}
+
+box.perm-card button:disabled {
+    opacity: 0.5;
+}
+
+box.perm-card entry.perm-note {
+    background-color: @input-bg;
+    border: 1px solid @input-edge;
+    color: @text;
+    caret-color: @caret;
+    font-size: 9pt;
+    min-height: 26px;
+}
+
+/* "Allow these and retry", under a refusal: an error-card button. */
+button.retry {
+    background-color: @error-bg;
+    background-image: none;
+    border: 1px solid @error-edge;
+    border-radius: 2px 10px 2px 10px;
+    color: @text;
+    box-shadow: none;
+    text-shadow: none;
+    padding: 2px 14px;
+}
+
+button.retry:hover {
+    background-color: @button-hover;
+}
+
+button.retry:disabled {
+    opacity: 0.45;
+}
+
+/* Ctrl+F: the search bar over the conversation. */
+#search, #search > revealer > box {
+    background-color: @surface-2;
+    background-image: none;
+    border: none;
+    border-bottom: 1px solid @edge;
+    box-shadow: none;
+}
+
+#search entry {
+    background-color: @input-bg;
+    background-image: none;
+    border: 1px solid @input-edge;
+    border-radius: 2px 8px 2px 8px;
+    color: @text;
+    box-shadow: none;
+}
+
+#find-count {
+    color: @text-dim;
+    font-size: 9pt;
+}
+
+/* Images waiting to go with the next message: tool-chip pills. */
+.attachment {
+    padding: 0px 4px 0px 10px;
+}
+
+/* --- the input and the status line ----------------------------------------- */
+#bottom {
+    padding: 8px 16px 8px 16px;
+    background-color: @surface-2;
+    border-top: 1px solid @edge;
+}
+
+#input-scroll {
+    background-color: @input-bg;
+    border: 1px solid @input-edge;
+    border-bottom: 2px solid @input-line;
+    border-radius: 2px 12px 2px 12px;
+    padding: 6px 12px;
+}
+
+#input, #input text {
+    background-color: transparent;
+    color: @text;
+    caret-color: @caret;
+    font-size: 11pt;
+}
+
+#input text selection {
+    background-color: @sel-bg;
+    color: @sel-fg;
+}
+
+#placeholder {
+    color: @text-dim;
+    margin-left: 14px;
+    font-size: 10.5pt;
+}
+
+button#send {
+    background-color: @send-bg;
+    background-image: none;
+    border: 1px solid @edge-lit;
+    border-radius: 2px 12px 2px 12px;
+    color: @send-fg;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: bold;
+    padding: 6px 16px;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+button#send:hover {
+    box-shadow: 0 0 10px @send-glow;
+}
+
+#status {
+    color: @text-dim;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 8.5pt;
+    margin-left: 6px;
+}
+
+tooltip, tooltip.background {
+    background-color: @tooltip-bg;
+    color: @tooltip-fg;
+    border-radius: 2px;
+}
+
+tooltip label {
+    color: @tooltip-fg;
+}
+
+/* Markdown tables: a grid of labels (llm-chat.py md_table), the bars and
+   the header rule thin lines. */
+.md-table label.cell {
+    padding: 2px 9px;
+}
+
+.md-table separator {
+    background-color: alpha(@text-dim, 0.45);
+    min-width: 1px;
+    min-height: 1px;
+}
+
+/* Wallpaper accent (theme-from-wallpaper.py): redefines @cyan to the DP-1
+   wallpaper's colour, or the theme's own accent=, or nothing for this neon.
+   Near the end on purpose: GTK3 resolves a named colour by its final
+   definition, so this one import recolours every rule above. */
+@import url("../../waybar/generated/accent.css");
+
+/* The desktop theme's llm-chat.css, copied by theme.py; empty for
+   cyberpunk. LAST, so the theme has the final word. */
+@import url("../../waybar/generated/theme-llm-chat.css");

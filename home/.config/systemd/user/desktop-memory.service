@@ -1,0 +1,20 @@
+# Desktop memory (Settings > Desktop memory): ~/.config/hypr/scripts/
+# desktop-memory.py collect takes in what is new from each source that is on
+# (window titles, copies, notifications, captions; a screenshot + OCR when
+# that source is on and one is due), prunes what is past its days, and now
+# and then embeds the new memories. Cheap: a second or two, nothing at all
+# while Settings > Privacy has the memory off (the prune still runs).
+[Unit]
+Description=Collect the desktop memory
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+TimeoutStartSec=10min
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/desktop-memory.py collect
+Nice=19
+IOSchedulingClass=idle
+CPUQuota=100%
+MemoryHigh=400M
+MemoryMax=800M

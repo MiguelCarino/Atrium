@@ -1,0 +1,11 @@
+# The automatic session slot for "where was I" (sessions.py autosave):
+# the windows open now, in ~/.local/state/hypr/sessions/_auto.json. Cheap
+# (Hyprland's socket and a few /proc reads, ~40 ms). Off in Settings >
+# Workspace sessions is checked by the script itself, so the timer stays on.
+[Unit]
+Description=Save the open windows to the automatic session slot
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/sessions.py autosave
+Nice=10

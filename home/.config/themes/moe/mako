@@ -1,0 +1,34 @@
+# ~/.config/themes/moe/mako -- mako fragment for the moe theme, copied to
+# ~/.config/mako/generated/theme by theme.py and included LAST by
+# ~/.config/mako/config (global lines first, then the sections it repeats).
+# accent_follow=no, so no accent include is added after these lines.
+#
+# A notification is a round pastel card: the cards' dimmed sakura glass
+# (#dcb6c9, opaque -- mako draws no blur), plum text (7.9:1), the summary in
+# deep rose with a ✿ before it, a white rim, corners as round as the bar's
+# bubbles. Critical: the deep-rose rim, title in deep rose, no flower.
+#
+# font= again after the one theme.py writes ("... SemiBold 11"): Rounded
+# Mplus 1c has Medium and Bold, no SemiBold, and Pango's nearest pick was
+# the thin Regular.
+font=Rounded Mplus 1c Medium 11
+background-color=#DCB6C9F5
+text-color=#3D1F3B
+border-color=#FFFFFFCC
+progress-color=over #F78FB366
+border-size=2
+border-radius=18
+format=<span color="#8C2457"><b>✿ %s</b></span>\n%b
+
+[grouped]
+format=<span color="#8C2457"><b>✿ %s</b></span>\n%b\n<small>(%g more)</small>
+
+[urgency=critical]
+border-color=#D63A62
+background-color=#DCB6C9FF
+format=<span color="#8C2457"><b>%s</b></span>\n%b
+border-size=3
+
+[urgency=low]
+text-color=#63365A
+border-color=#FFFFFF99

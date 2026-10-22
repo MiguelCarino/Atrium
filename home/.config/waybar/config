@@ -1,0 +1,626 @@
+// Waybar — top-level array: one object per bar.
+// Only DP-1 (3440x1440 ultrawide) carries a bar; HDMI-A-1 and DP-2 are left
+// bare on purpose, so this bar speaks for all three screens (see all-outputs
+// on workspaces and separate-outputs on window).
+//
+// Modules with no "interval" are deliberate: waybar runs those scripts once and
+// reads a JSON line per update forever. Polling five modules twice a second
+// cost ~9% of a core and ~150 processes a minute for a bar that mostly sits
+// still. The popup panels (media preview, calendar) are separate GTK apps in
+// scripts/, started by scripts/panel.py.
+[
+{
+    "name": "waybar-main",
+    // Module options that differ by desktop theme (the workspace numbers:
+    // 1 2 3 or 一 二 三), written by ~/.config/hypr/scripts/theme.py. waybar
+    // keeps this file's keys and takes only the ones it lacks from an
+    // include, so ext/workspaces below has no "format" of its own.
+    "include": ["~/.config/waybar/generated/theme-modules.json"],
+    "layer": "top",
+    "position": "top",
+    "margin": "0 0 0 0",
+    "reload_style_on_change": true,
+
+    "modules-left": [
+        "ext/workspaces",
+        "hyprland/submap",
+        "hyprland/language",
+        "hyprland/window"
+    ],
+    // Two capsules: [date | time | weather] and [updates | git | notifications]
+    // -- the "now" one and the "things waiting for you" one. Their joined
+    // look (shared seams, chamfers on the outer ends only) is in style.css.
+    "modules-center": [
+        "custom/day",
+        "custom/clock",
+        "custom/weather",
+        "custom/updates",
+        "custom/repos",
+        "custom/notifications"
+    ],
+    "modules-right": [
+        "custom/doctor",
+        "custom/tasks",
+        "custom/context",
+        "custom/workhours",
+        "custom/timers",
+        "custom/recording",
+        "custom/voice",
+        "custom/capture",
+        "custom/player",
+        "custom/drives",
+        "custom/phone",
+        "custom/mic",
+        "custom/camera",
+        "custom/location",
+        "privacy",
+        "custom/cpu",
+        "custom/gpu",
+        "custom/disk",
+        "custom/network",
+        "pulseaudio",
+        "custom/toolbox",
+        "custom/power"
+    ],
+
+    //***************************
+    //*  Modules configuration  *
+    //***************************
+
+    // all-outputs: this is the only bar on the machine now, so it has to show
+    // what is happening on the other two screens as well.
+    // Clicking a pill has to go somewhere, and which module you pick decides
+    // where. hyprland/workspaces sends the literal string "dispatch workspace 4"
+    // down Hyprland's IPC socket. That is hyprlang syntax, and this machine
+    // configures Hyprland in Lua (~/.config/hypr/hyprland.lua), so the socket
+    // hands the string to a Lua parser, which wraps it as
+    // `return hl.dispatch(workspace 4)` and rejects it:
+    //     ')' expected near '4'
+    // The error goes back over the socket and waybar drops it, so every click
+    // was a silent no-op -- the bar looked fine and simply did nothing.
+    //
+    // ext/workspaces does not send a string to be parsed at all. It speaks
+    // ext-workspace-v1, a Wayland protocol Hyprland implements natively, and
+    // activates the workspace through it. There is nothing for a config parser
+    // to reject, so this keeps working whichever language hyprland.lua is in.
+    //
+    // The trade is persistent-workspaces: that was waybar inventing pills for
+    // workspaces that did not exist, and a protocol can only report real ones.
+    // The always-there workspaces are now declared as persistent in
+    // ~/.config/hypr/lua/rules.lua instead, which is also what makes 1-6 show up here.
+    //
+    // {name} rather than {id}: under this protocol {id} is the compositor's
+    // internal handle, not the number on the key you press. Hyprland names its
+    // workspaces "1".."10", so {name} is what reads as a workspace number.
+    "ext/workspaces": {
+        "tooltip": false,
+        "on-click": "activate",
+        "all-outputs": true,
+        "sort-by-name": true
+    },
+
+    "hyprland/submap": {
+        "format": "pon {}",
+        "tooltip": false
+    },
+
+    "hyprland/language": {
+        "format-en": "US 💬",
+        "format-es": "ES 💬",
+        "min-length": 5,
+        "tooltip": false,
+        // Left: pick a keyboard layout or input method (scripts/language_panel.py).
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle language"
+    },
+
+    // keyboard-state used to sit here. It does not work for a normal user: it
+    // reads LEDs straight from /dev/input, which needs the `input` group, and
+    // you are not in it -- so it drew an empty pill that showed up as a dark
+    // sliver after the language. Not worth fixing via the group: that grants
+    // every process you run the ability to read every keystroke. If a Caps Lock
+    // indicator is wanted, `hyprctl devices -j` reports capsLock per keyboard
+    // without any of that.
+
+    // Event-driven; replaces the old custom/window that polled hyprctl every 2s.
+    // separate-outputs is off: with no bar on the other screens, tying the title
+    // to DP-1 meant it went blank whenever focus moved to one of them.
+    "hyprland/window": {
+        "tooltip": false,
+        "format": "{title}",
+        "separate-outputs": false,
+        "max-length": 90,
+        "icon": true,
+        "icon-size": 16,
+        "rewrite": {
+            "(.*) — Mozilla Firefox": "\uf269  $1",
+            "(.*) - Visual Studio Code": "\uf121  $1",
+            "(.*) - Chromium": "  $1",
+            "^$": "  Desktop"
+        }
+    },
+
+    // The old built-in clock is split in two: the date opens the calendar panel,
+    // the time cycles local → UTC → epoch. Neither is something waybar's clock
+    // can do — it has no epoch format, and its calendar is a tooltip that
+    // vanishes the moment you move the pointer toward it.
+    //
+    // custom/clock has no interval: clock.py holds the second hand itself and
+    // is woken by SIGUSR1 when the mode changes, so the new reading appears on
+    // the same click rather than at the next tick.
+    "custom/day": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/clock.py day",
+        "return-type": "json",
+        "interval": 60,
+        "signal": 10,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle calendar"
+    },
+
+    "custom/clock": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/clock.py watch",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/clock.py cycle"
+    },
+
+    // Icon (box-open -- deliberately NOT a cloud: it used to be welded to the
+    // weather pill, and two clouds side by side read as one weather readout),
+    // its colour and the count all come from scripts/updates.sh as Pango
+    // markup, so the format is a bare "{}". The count's face is set in
+    // style.css. Left: the updates panel. Right: re-check now.
+    "custom/updates": {
+        "tooltip": false,
+        "format": "{}",
+        "interval": 3600,
+        "exec": "$HOME/.config/waybar/scripts/updates.sh",
+        "return-type": "json",
+        "signal": 8,
+        // Left: the updates panel (scripts/updates_panel.py): every pending
+        // package and flatpak, and Upgrade = safe-upgrade.sh in kitty (btrfs
+        // snapshot of /, dnf, then builds and checks the NVIDIA module for the
+        // newest kernel and says whether a reboot is safe, then flatpak and a
+        // firmware listing). It re-signals this pill.
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle updates",
+        "on-click-right": "pkill -SIGRTMIN+8 waybar"
+    },
+
+    // Left: forecast panel (scripts/weather_panel.py). Right: wttr.in in the
+    // browser, for the place and units in ~/.config/hypr/region.conf (Settings >
+    // Date, time & region). No tooltip -- the panel replaces it and would sit
+    // under it.
+    "custom/weather": {
+        "format": "{}",
+        "tooltip": false,
+        "interval": 1800,
+        // Signal 16: theme.py after a theme switch, so the glyph takes the new
+        // theme's colour now (wttr.py reuses its last answer, no new fetch);
+        // region.py sends it too, after a place or units change.
+        "signal": 16,
+        "exec": "$HOME/.config/waybar/scripts/wttr.py",
+        "return-type": "json",
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle weather",
+        "on-click-right": "$HOME/.config/waybar/scripts/wttr.py open"
+    },
+
+    // ---- Status pills that only show up when there is something to say --
+    // Work hours prints empty text outside your work hours, and waybar hides a
+    // custom module with no text; the git logo is always there. Dotfiles
+    // drift (~/.config vs the repo) is not a pill of its own: it is a row in
+    // the git panel and colours the git logo.
+
+    // Work-hours mode (~/.config/hypr/scripts/workhours.py): a lit "Work 3:28"
+    // badge (its label from ~/.config/hypr/workhours.conf), time left, during
+    // the hours and days set there, outside its holidays. No workhours.conf:
+    // never shown. A global git hook can ask `workhours.py check` before a
+    // commit to a personal repo while it is lit. Right-click: today is a day off.
+    // Timers, alarms and the stopwatch (hypr/scripts/timers.py; set them from
+    // the launcher: "timer 5m tea", "alarm 7:30", "stopwatch"): the soonest
+    // counting down, "+2" for more, else the stopwatch; hidden when none.
+    // Click: the launcher's list (cancel one). Right: pause / resume the
+    // stopwatch.
+    "custom/timers": {
+        "exec": "$HOME/.config/hypr/scripts/timers.py bar watch",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "on-click": "$HOME/.config/hypr/scripts/launcher.py timers",
+        "on-click-right": "$HOME/.config/hypr/scripts/timers.py click-right"
+    },
+
+    "custom/workhours": {
+        "tooltip": false,
+        "exec": "$HOME/.config/hypr/scripts/workhours.py bar",
+        "return-type": "json",
+        "interval": 60,
+        "signal": 17,
+        "format": "{}",
+        "on-click-right": "$HOME/.config/hypr/scripts/workhours.py off-today"
+    },
+
+    // Project contexts (hypr/scripts/contexts.py): the project you are "in"
+    // -- its name, nothing at all outside one (empty text hides the pill).
+    // contexts.py signals 24 on enter / leave; the interval only refreshes
+    // the "for 1 h 20 min" in the tooltip. Left: the project picker (wofi);
+    // right: leave the project.
+    "custom/context": {
+        "exec": "$HOME/.config/hypr/scripts/contexts.py bar",
+        "return-type": "json",
+        "interval": 300,
+        "signal": 24,
+        "format": "{}",
+        "on-click": "$HOME/.config/hypr/scripts/contexts.py pick",
+        "on-click-right": "$HOME/.config/hypr/scripts/contexts.py leave"
+    },
+
+    // Git (scripts/repos.py): only the git logo, always there, coloured by the
+    // repos in your projects folder (hypr/desktop.conf) -- dim when all is clean and pushed, yellow with
+    // uncommitted work, magenta with commits that exist only on this disk.
+    // Left: the git panel (Rescan = fetch all, then per repo Pull / Commit,
+    // and Sync for ~/.config -> the dotfiles repo).
+    // Right: local rescan, no network.
+    "custom/repos": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/repos.py",
+        "return-type": "json",
+        "interval": 300,
+        "signal": 15,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle repos",
+        "on-click-right": "pkill -RTMIN+15 -x waybar"
+    },
+
+    // Screen recording indicator. The recorder is ~/.config/hypr/scripts/record.sh
+    // (ALT+F9 record, ALT+F10 save replay, ALT+SHIFT+F10 replay on/off).
+    // First in modules-right so a capture in progress is the first thing the
+    // eye lands on at that end of the bar. Red pulsing "REC 01:23" while
+    // recording, a dim "REPLAY" while the 30s instant-replay buffer runs,
+    // and nothing at all when idle: the script prints empty text, and waybar
+    // hides a custom module with no text.
+    //
+    // No "interval": recording.py stats two pid files in $XDG_RUNTIME_DIR once
+    // a second (no forks) and prints only when something changed -- which,
+    // apart from the REC clock, is almost never.
+    //
+    // Left: stop the recording, or save the replay if only the buffer runs.
+    // Right: stop the replay buffer (never starts one -- the pill is only
+    // visible while something is capturing).
+    // Desktop health (hypr/scripts/doctor.py): nothing while every service,
+    // timer and check is fine; a stethoscope and a count when not. Click: the
+    // logs panel (errors today); right-click: restart what failed.
+    "custom/doctor": {
+        "exec": "$HOME/.config/hypr/scripts/doctor.py bar",
+        "return-type": "json",
+        "interval": 60,
+        "signal": 18,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle logs",
+        "on-click-right": "$HOME/.config/hypr/scripts/doctor.py --fix >/dev/null; pkill -RTMIN+18 -x waybar"
+    },
+
+    // Background tasks (hypr/scripts/tasks.py): nothing while no task needs
+    // you; a count when one does (a build failed, a tidy plan waits for your
+    // OK). tasks.py signals 27 when that changes. Click: Settings >
+    // Background tasks; right-click: mark the failures seen (a plan stays
+    // until it is approved or discarded).
+    "custom/tasks": {
+        "exec": "$HOME/.config/hypr/scripts/tasks.py bar",
+        "return-type": "json",
+        "interval": 300,
+        "signal": 27,
+        "format": "{}",
+        "on-click": "$HOME/.config/hypr/scripts/settings.py tasks",
+        "on-click-right": "$HOME/.config/hypr/scripts/tasks.py seen"
+    },
+
+    // USB drives (hypr/scripts/automount.py): shown while one is mounted.
+    // Click: open it in Files; right-click: eject all, safe to pull out.
+    "custom/drives": {
+        "exec": "$HOME/.config/hypr/scripts/automount.py bar",
+        "return-type": "json",
+        "interval": 30,
+        "signal": 19,
+        "format": "{}",
+        "on-click": "sh -c 'nautilus \"$(~/.config/hypr/scripts/automount.py list | head -1 | cut -f2)\"'",
+        "on-click-right": "$HOME/.config/hypr/scripts/automount.py eject all"
+    },
+
+    // The phone over KDE Connect (hypr/scripts/phone.py): its battery while
+    // it is reachable. Click: ring it; right-click: send it the clipboard.
+    "custom/phone": {
+        "exec": "$HOME/.config/hypr/scripts/phone.py bar",
+        "return-type": "json",
+        "interval": 60,
+        "signal": 20,
+        "format": "{}",
+        "on-click": "$HOME/.config/hypr/scripts/phone.py ring",
+        "on-click-right": "$HOME/.config/hypr/scripts/phone.py clip"
+    },
+
+    // Voice typing and live captions (hypr/scripts/voice.py): nothing while
+    // idle; a pulsing mic and the elapsed time while dictating, a spinner
+    // while it turns the sound into text, CC while live captions run. Same
+    // no-"interval" watcher as custom/recording: a stat of
+    // $XDG_RUNTIME_DIR/voice.state, no forks. (custom/mic further right
+    // lights up too while dictating -- that one is any app using the mic.)
+    // Left: stop and type / captions off. Right: cancel the dictation.
+    "custom/voice": {
+        "exec": "$HOME/.config/hypr/scripts/voice.py bar",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "on-click": "$HOME/.config/hypr/scripts/voice.py bar-click",
+        "on-click-right": "$HOME/.config/hypr/scripts/voice.py cancel"
+    },
+
+    "custom/recording": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/recording.py watch",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "on-click": "$HOME/.config/hypr/scripts/record.sh click",
+        "on-click-right": "$HOME/.config/hypr/scripts/record.sh stop-replay"
+    },
+
+    // Screenshots and recording in one place (scripts/capture_panel.py): a
+    // row of screenshot tiles (region, window, monitor, annotate, OCR) and a
+    // row of record tiles that follow the recorder live. Every tile runs the
+    // same hyprshot / screenshot.sh / record.sh command as its key bind.
+    // Right: region straight to the clipboard, no file (= SUPER+S). Middle:
+    // the Screenshots folder. While a recording runs the camera pulses red,
+    // and it flashes once when the file is saved -- that replaces record.sh's
+    // start/stop notifications (recording.py watch capture).
+    "custom/capture": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/recording.py watch capture",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        // Left: stop the recording if one runs, else open the panel.
+        "on-click": "$HOME/.config/waybar/scripts/recording.py capture-click",
+        "on-click-right": "$HOME/.config/hypr/scripts/screenshot.sh region-copy",
+        "on-click-middle": "xdg-open $HOME/Pictures/Screenshots"
+    },
+
+    // Notification bell (scripts/notifications.py): a bell, or a struck bell
+    // with the held-back count in Do Not Disturb. Left: the history panel
+    // (SUPER+ALT+N too). Right: Do Not Disturb on/off (= ALT+SHIFT+D).
+    "custom/notifications": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/notifications.py",
+        "return-type": "json",
+        // 30 s only catches the history count growing; a Do Not Disturb
+        // toggle (here, ALT+SHIFT+D, the panel) signals 14 at once.
+        "interval": 30,
+        "signal": 14,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle notifications",
+        "on-click-right": "$HOME/.config/waybar/scripts/notifications.py dnd"
+    },
+
+    // Left-click opens the preview panel (scripts/flyout.py) rather than
+    // expanding a drawer inside the bar: a 30px inline thumbnail was never
+    // going to read as a preview. Playback control stays on the other buttons
+    // so the panel is never required to pause something.
+    //
+    // No interval: player.py sits on `playerctl --follow`, so a pause shows up
+    // here the moment it happens instead of up to two seconds later.
+    // Short on purpose: an icon and "Playing" / "Paused" (+ "2/3" with several
+    // players); the title is in the tooltip and the preview panel.
+    "custom/player": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/player.py watch",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "max-length": 45,
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle flyout",
+        "on-click-middle": "$HOME/.config/waybar/scripts/player.py toggle",
+        "on-click-right": "$HOME/.config/waybar/scripts/player.py next",
+        // Scroll: switch between everything playing (the pill says "2/3").
+        "on-scroll-up": "$HOME/.config/waybar/scripts/player.py cycle prev",
+        "on-scroll-down": "$HOME/.config/waybar/scripts/player.py cycle next"
+    },
+
+
+    // Screen-share only: microphone is handled by custom/mic below, which can
+    // name the app and focus it. Hidden when nothing is sharing.
+    "privacy": {
+        "tooltip": false,
+        "icon-spacing": 6,
+        "icon-size": 14,
+        "transition-duration": 250,
+        "modules": [
+            { "type": "screenshare", "tooltip": false, "tooltip-icon-size": 20 }
+        ]
+    },
+
+    // ---- Privacy indicators -------------------------------------------
+    // Each hides itself when idle, so anything visible means something is
+    // using that device right now. Left-click focuses the offending window.
+    // None of them poll: mic follows `pactl subscribe`, camera gets an inotify
+    // event when a /dev/video* node is opened or closed (the /proc scan that
+    // names the app runs only then), location listens for geoclue's D-Bus
+    // signals without ever starting geoclue. Each re-checks once a minute too.
+    "custom/mic": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/privacy.py watch mic",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/privacy.py mic focus",
+        "on-click-right": "pavucontrol -t 2",
+        "on-click-middle": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"
+    },
+
+    "custom/camera": {
+        "tooltip": false,
+        // One long-lived watcher, woken by events (inotify on /dev/video*),
+        // instead of a fresh python every 5 s.
+        "exec": "$HOME/.config/waybar/scripts/privacy.py watch camera",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/privacy.py camera focus",
+        "on-click-right": "kitty -e sh -c '$HOME/.config/waybar/scripts/privacy.py camera list; echo; printf \"press enter \"; read x'"
+    },
+
+    "custom/location": {
+        "tooltip": false,
+        // One long-lived watcher, woken by events (geoclue D-Bus signals),
+        // instead of a fresh python every 5 s.
+        "exec": "$HOME/.config/waybar/scripts/privacy.py watch location",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "on-click": "kitty -e sh -c '$HOME/.config/waybar/scripts/privacy.py location list; echo; printf \"press enter \"; read x'"
+    },
+
+    "custom/cpu": {
+        "exec": "$HOME/.config/waybar/scripts/cpu_usage.sh watch",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "min-length": 4,
+        // Left: CPU graphs + top processes, then MEMORY (RAM, swap, pressure,
+        // the biggest apps with End buttons), under this pill. Right: htop.
+        // No tooltip: it would sit on top of the panel it duplicates.
+        "tooltip": false,
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle cpu",
+        "on-click-right": "kitty -e htop --sort-key PERCENT_CPU"
+    },
+
+    // nvidia-smi stays resident in watch mode: its ~50ms of driver init was the
+    // most expensive thing in the bar, paid 30 times a minute.
+    "custom/gpu": {
+        "exec": "$HOME/.config/waybar/scripts/gpu_usage.sh watch",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "min-length": 4,
+        // Left: GPU graphs + every app on the GPU (SM %, VRAM, End), under
+        // this pill. Right: nvtop.
+        "tooltip": false,
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle gpu",
+        "on-click-right": "kitty -e nvtop"
+    },
+
+    // Not waybar's "disk" module: that follows one path only, and the pill
+    // should warn about ANY full disk. scripts/disk.py shows / and turns
+    // warning (85%) / critical (95%) on the fullest filesystem anywhere,
+    // appending its percentage. Left: every disk, under this pill. No
+    // tooltip: it would sit on top of the panel it duplicates.
+    "custom/disk": {
+        "exec": "$HOME/.config/waybar/scripts/disk.py",
+        "return-type": "json",
+        "interval": 60,
+        "format": "{}",
+        "tooltip": false,
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle disk"
+    },
+
+    // No "interface" key: waybar follows whichever of enp7s0 / wlp6s0 is active.
+    // The bandwidth fields make the old networkspeed.sh redundant.
+    // Was the built-in "network" module. It was replaced, not extended, because
+    // the thing wanted from it is not expressible there: waybar's network
+    // module has NO IPv6 format replacement at all. {ipaddr} is IPv4 and only
+    // IPv4, so no arrangement of its placeholders can put a v6 address in the
+    // tooltip. A throughput *rate*, DNS, link speed and the error/drop counters
+    // are likewise not among its replacements -- it offers
+    // {bandwidthUpBytes}/{bandwidthDownBytes}, which are per-interval totals.
+    //
+    // The pill is unchanged on purpose: scripts/network.py emits the same text
+    // and the same Font Awesome glyphs the old format- lines produced, so the
+    // bar looks identical. (Its stats live in the network panel now; the
+    // tooltip is off, see below.) Styling still works
+    // because style.css now names #custom-network alongside #network everywhere
+    // it used to name #network alone.
+    //
+    // No "interval": the script loops and prints a JSON line every 3 s, the
+    // pattern the note at the top of this file describes. It also HAS to loop --
+    // throughput is a delta between two readings of /proc/net/dev, so it must
+    // hold the previous sample, which a one-shot module re-invoked by waybar
+    // could not do.
+    "custom/network": {
+        "exec": "$HOME/.config/waybar/scripts/network.py watch",
+        "return-type": "json",
+        // Like every other watcher: if the script ever dies, waybar starts it
+        // again after 5 s instead of leaving the pill gone until a bar reload.
+        "restart-interval": 5,
+        // Left: the network panel (on/off per saved connection, Wi-Fi radio).
+        // Right: nmtui, for joining a new network or editing one.
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle network",
+        "on-click-right": "kitty -e nmtui",
+        // The stats that used to be this pill's hover tooltip are at the top
+        // of the network panel now; the tooltip covered the audio sliders.
+        "tooltip": false,
+        "max-length": 50
+    },
+
+    "pulseaudio": {
+        "reverse-scrolling": 1,
+        "format": "{volume}% {icon} {format_source}",
+        "format-bluetooth": "\uf294 {volume}% {icon} {format_source}",
+        "format-bluetooth-muted": "\uf057 \uf294 {icon} {format_source}",
+        "format-muted": "\uf057 {format_source}",
+        "format-source": "{volume}% 🎙",
+        "format-source-muted": "\uf131",
+        "format-icons": {
+            "headphone": "\uf025",
+            "hands-free": "\uf025",
+            "headset": "\uf7cd",
+            "phone": "\uf095",
+            "portable": "\uf095",
+            "car": "\uf1b9",
+            "default": ["\uf026", "\uf027", "\uf028"]
+        },
+        // Left: the audio panel (output + mic sliders). pavucontrol is its
+        // "Mixer" button, and SUPER+A. Right/middle still mute out/mic.
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle audio",
+        "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+        "on-click-middle": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+        // No tooltip: it pops up over the audio panel the left click just
+        // opened, and the panel already shows both levels and both devices.
+        "tooltip": false,
+        "min-length": 13
+    },
+
+    // Game mode, night light, idle and shortcuts moved to config-toolbox
+    // (the toolbox section, a second waybar), together with the tray.
+
+    // Opens the power panel (scripts/power_panel.py), same as SUPER+Escape:
+    // lock, suspend, log out, reboot, power off. The last pill on the bar, at
+    // the far right, where every desktop has always kept it -- and as far from
+    // the busy pills as it can get. Log out / reboot / power off take a second
+    // click inside the panel, so a stray click here only ever opens a menu.
+    // Static glyph from exec: waybar hides a custom module whose exec prints nothing.
+    "custom/power": {
+        "tooltip": false,
+        "exec": "echo '{\"text\": \"\uf011\", \"tooltip\": \"Power menu  (Super+Esc)\"}'",
+        "return-type": "json",
+        "interval": "once",
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle power"
+    },
+
+    // ---- Toolbox section ------------------------------------------------
+    // Game mode (fullscreen state), night light, Keep awake, shortcuts and
+    // the tray live in a small card that drops down under this sliders pill:
+    // click to open, click again to close. The card is a second waybar
+    // (config-toolbox, waybar-toolbox.service), not part of this bar, so
+    // opening it moves nothing here. scripts/toolbox.sh sends SIGRTMIN+12 on
+    // every open/close so the pill re-reads its state (class open lights it).
+    "custom/toolbox": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/toolbox.sh status",
+        "return-type": "json",
+        "interval": "once",
+        "signal": 12,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/toolbox.sh toggle"
+    }
+}
+]

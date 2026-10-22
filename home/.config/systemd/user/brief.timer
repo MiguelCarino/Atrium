@@ -1,0 +1,16 @@
+# Every 5 min, brief.service asks whether the morning brief is due
+# (~/.config/hypr/scripts/brief.py auto --tick): at the set time, or soon
+# after a fresh login. Coming back after being away is automations.py's
+# built-in rule daily-brief instead; brief.py shows it once a day either way.
+[Unit]
+Description=Check whether the daily brief is due
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Timer]
+OnActiveSec=90s
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=graphical-session.target

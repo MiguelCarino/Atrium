@@ -1,0 +1,15 @@
+# Each Steam game's own screen, refresh rates, HDR, volume and brightness:
+# ~/.config/hypr/scripts/game-profiles.py (its docstring has the rules).
+[Unit]
+Description=Per-game display and sound settings
+PartOf=graphical-session.target
+After=graphical-session.target screen-color.service
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/game-profiles.py watch
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

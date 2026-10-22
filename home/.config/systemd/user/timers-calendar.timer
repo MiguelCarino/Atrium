@@ -1,0 +1,14 @@
+# Every 5 min, timers-calendar.service looks 30 min ahead, so an event gets
+# its alarm with time to spare (each event once).
+[Unit]
+Description=Look for calendar events to ring for
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Timer]
+OnActiveSec=30s
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=graphical-session.target

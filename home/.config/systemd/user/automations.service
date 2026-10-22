@@ -1,0 +1,16 @@
+# "When X, do Y" rules: ~/.config/hypr/scripts/automations.py (its
+# docstring has the triggers, the actions and the loop guards; the rules are
+# ~/.config/hypr/automations.json, Settings > Automations edits them).
+[Unit]
+Description=Automations: when something happens, run the desktop's commands
+PartOf=graphical-session.target
+After=graphical-session.target mako.service
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/automations.py run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

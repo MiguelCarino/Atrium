@@ -1,0 +1,16 @@
+# Do Not Disturb on by itself while a Steam game is open, the screen is
+# shared or the quiet hours run: ~/.config/hypr/scripts/auto-dnd.py (its
+# docstring has the rules; Settings > Notifications switches each one).
+[Unit]
+Description=Do Not Disturb during games, screen sharing and quiet hours
+PartOf=graphical-session.target
+After=graphical-session.target mako.service
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/auto-dnd.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

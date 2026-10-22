@@ -1,0 +1,10 @@
+# The daily brief, if due (brief.py auto --tick; it decides, and starts the
+# notification as a transient unit of its own, so this ends at once).
+[Unit]
+Description=Show the daily brief when it is due
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/brief.py auto --tick

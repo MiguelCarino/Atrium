@@ -1,0 +1,15 @@
+# Timers and alarms (~/.config/hypr/scripts/timers.py) are transient systemd
+# timers, which end with the session: at login this arms them again --
+# repeating alarms always, one-offs still to come -- and says which ones
+# passed while the machine was off.
+[Unit]
+Description=Re-arm timers and alarms after login
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/timers.py restore
+
+[Install]
+WantedBy=graphical-session.target

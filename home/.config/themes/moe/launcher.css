@@ -1,0 +1,124 @@
+/* ===========================================================================
+   MOE (萌え) -- the launcher, quick note and clipboard (~/.config/hypr/scripts/
+   launcher.css). Copied to waybar/generated/theme-launcher.css by theme.py
+   and imported LAST.
+
+   A round pastel card (radius 26) of sakura glass; the search box a white-ish
+   pill with a deep-rose caret and a Japanese prompt (launcher.py reads
+   theme.conf lang=ja); the base's scan strip along the card's top is a
+   pastel rainbow -- sakura, peach, lemon, mint, sky, lavender; the selected
+   result a sakura -> lavender bubble with plum text (6.5:1 at the sakura
+   end, 6.5:1 at the lavender end); tiles round, the hero name in Hachi
+   Maru Pop.
+
+   Dimmed like the cards (HDR): the card #dcb6c9 at 94%; plum text 7.9:1,
+   dim #63365a 5.2:1.
+   =========================================================================== */
+
+@define-color m-plum     #3d1f3b;
+@define-color m-sakura   #f78fb3;
+@define-color m-lavender #b8a4e3;
+@define-color m-rim      rgba(255, 255, 255, 0.60);
+@define-color m-shade    rgba(200, 80, 138, 0.28);
+
+/* --- PALETTE --------------------------------------------------------------------- */
+@define-color magenta    #8c2457;
+@define-color violet     @m-lavender;     /* scrollbar */
+@define-color mist       #63365a;
+@define-color sel-mid    #d79ccc;         /* between sakura and lavender */
+@define-color scan-1     #f78fb3;         /* sakura */
+@define-color scan-2     #ffc9a8;         /* peach */
+@define-color scan-3     #f3d27a;         /* lemon */
+@define-color scan-4     #9fdcb8;         /* mint */
+@define-color scan-5     #9fd3f5;         /* sky -> back to sakura (the strip repeats) */
+@define-color surface    rgba(220, 182, 201, 0.94);
+@define-color groove     rgba(255, 255, 255, 0.50);
+@define-color edge       @m-rim;
+@define-color edge-lit   @m-sakura;
+@define-color text       @m-plum;
+@define-color text-dim   #63365a;
+@define-color text-bright @m-plum;        /* typed text and the hero name: plum, not white */
+@define-color ink        @m-plum;         /* on the pastel selection */
+
+/* --- The card --------------------------------------------------------------------- */
+#card {
+    border-radius: 26px;
+    border: 1px solid @m-rim;
+    box-shadow: 0 8px 20px @m-shade;
+}
+
+/* --- The search box: a soft white pill ---------------------------------------------- */
+#search {
+    border-radius: 22px;
+    border: 1px solid @m-rim;
+    border-bottom: 2px solid @m-sakura;
+    background-color: @groove;
+    caret-color: #8c2457;
+    color: @m-plum;
+}
+
+#search image {
+    color: #8c2457;
+}
+
+#search selection {
+    background-color: alpha(@m-sakura, 0.60);
+    color: @m-plum;
+}
+
+/* --- The hero and the tiles: round bubbles ------------------------------------------ */
+#hero {
+    border-radius: 20px;
+    border: 1px solid @m-rim;
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+#hero.selected {
+    background-color: @m-sakura;
+    background-image: linear-gradient(to right, @m-sakura 0%, @sel-mid 55%, @m-lavender 100%);
+    border: 1px solid #ffffff;
+    box-shadow: 0 0 12px alpha(@m-sakura, 0.60);
+}
+
+label.hero-name {
+    font-family: "Hachi Maru Pop", "Rounded Mplus 1c", sans-serif;
+    font-weight: normal;
+}
+
+label.hero-hint {
+    border-radius: 10px;
+    border-color: alpha(#8c2457, 0.50);
+    color: #8c2457;
+}
+
+#hero.selected label.hero-hint {
+    border-color: alpha(@m-plum, 0.55);
+    color: @m-plum;
+}
+
+.tile {
+    border-radius: 16px;
+    border: 1px solid alpha(#ffffff, 0.35);
+    background-color: rgba(255, 255, 255, 0.16);
+}
+
+.tile:hover {
+    background-color: rgba(255, 255, 255, 0.38);
+    box-shadow: 0 0 6px alpha(@m-sakura, 0.60);
+}
+
+.tile.selected {
+    background-color: @m-sakura;
+    background-image: linear-gradient(to bottom right, @m-sakura 0%, @m-lavender 100%);
+    border: 1px solid #ffffff;
+}
+
+.tile.selected label.tile-name,
+.tile.selected label.clip-text,
+.tile.selected label.clip-caption {
+    color: @m-plum;
+}
+
+scrollbar slider {
+    border-radius: 4px;
+}

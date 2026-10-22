@@ -1,0 +1,238 @@
+/* ===========================================================================
+   AERO GLASS -- the LLM chat window (~/.config/hypr/scripts/
+   llm-chat.py, base stylesheet llm-chat.css there). Copied to
+   waybar/generated/theme-llm-chat.css by theme.py and imported LAST.
+
+   A Windows 7 window of deep-blue frosted glass (84%, so Hyprland's blur
+   shows through), white Selawik with a faint dark shadow, 6-8px corners,
+   and the Aero gloss -- a lighter top half -- on the header bar, the
+   buttons, the bubbles and the chips. The accent follows the wallpaper but
+   is tempered into Aero sky blue first (@a-tone, as in waybar.css), so a
+   neon pick never shows raw. The stage is a window onto a Windows 7 sky
+   (#12325a at its middle = mascot_aero.PANEL) where the glass orb floats
+   over the hills. No white surface: the lightest fill is accent glass.
+   =========================================================================== */
+
+@define-color a-navy        #0c2240;
+@define-color a-gloss       #ffffff;
+@define-color a-shade       #000814;
+@define-color a-sky         #8cc8ff;
+@define-color a-aero        #4aa3f0;
+@define-color a-tone        mix(@cyan, @a-aero, 0.65);
+@define-color a-glow        mix(@a-tone, @a-gloss, 0.55);
+@define-color a-sel         mix(@a-tone, @a-navy, 0.62);
+
+@define-color magenta       @a-sky;
+@define-color violet        alpha(@a-gloss, 0.35);
+@define-color yellow        #ffd75e;
+@define-color green         #7ddc5a;
+@define-color mist          #c4d8ee;
+@define-color surface       rgba(12, 34, 64, 0.86);
+@define-color surface-2     rgba(20, 52, 92, 0.70);
+@define-color edge          alpha(@a-gloss, 0.16);
+@define-color edge-lit      alpha(@a-tone, 0.80);
+@define-color text          #f4f9ff;
+@define-color text-dim      #b0c4dc;
+@define-color ink           #000000;
+@define-color button-bg     alpha(@a-gloss, 0.08);
+@define-color button-hover  alpha(@a-tone, 0.30);
+@define-color stop-bg       #c81e32;
+@define-color stop-fg       #ffffff;
+@define-color user-bg       @a-sel;
+@define-color user-edge     alpha(@a-shade, 0.80);
+@define-color user-fg       #ffffff;
+@define-color assistant-bg  alpha(@a-gloss, 0.05);
+@define-color assistant-edge alpha(@a-shade, 0.60);
+@define-color stage-bg      #12325a;
+@define-color stage-edge    alpha(@a-shade, 0.80);
+@define-color stage-glow    alpha(@a-sky, 0.10);
+@define-color scanline      alpha(@a-gloss, 0.0);
+@define-color stage-fg      #c4d8ee;
+@define-color bubble-bg     @a-sel;
+@define-color bubble-fg     #ffffff;
+@define-color bubble-edge   alpha(@a-shade, 0.80);
+@define-color code-bg       rgba(2, 10, 24, 0.75);
+@define-color code-fg       #dce8f6;
+@define-color code-lang     @a-sky;
+@define-color code-edge     alpha(@a-shade, 0.80);
+@define-color chip-bg       alpha(@a-gloss, 0.06);
+@define-color chip-edge     alpha(@a-shade, 0.60);
+@define-color run-bg        #ffd75e;
+@define-color done-bg       #7ddc5a;
+@define-color bad-bg        #ff5c6c;
+@define-color dot-fg        #000000;
+@define-color error-bg      alpha(#c81e32, 0.25);
+@define-color error-edge    #ff5c6c;
+@define-color note-bg       alpha(@a-gloss, 0.06);
+@define-color sel-bg        @a-sel;
+@define-color sel-fg        #ffffff;
+@define-color input-bg      rgba(2, 10, 24, 0.60);
+@define-color input-edge    alpha(@a-shade, 0.85);
+@define-color input-line    alpha(@a-tone, 0.80);
+@define-color caret         @a-sky;
+@define-color send-bg       @a-sel;
+@define-color send-fg       #ffffff;
+@define-color send-glow     alpha(@a-tone, 0.55);
+@define-color slider        alpha(@a-gloss, 0.35);
+@define-color tooltip-bg    @a-navy;
+@define-color tooltip-fg    #f4f9ff;
+@define-color rule          alpha(@a-gloss, 0.30);
+@define-color md-accent     #8cc8ff;
+@define-color md-dim        #b0c4dc;
+@define-color md-code-fg    #ffd08a;
+@define-color md-code-bg    #0a1a30;
+
+window#llm-chat {
+    background-image: linear-gradient(115deg,
+            alpha(@a-gloss, 0.00) 0%, alpha(@a-gloss, 0.00) 34%,
+            alpha(@a-gloss, 0.035) 34.5%, alpha(@a-gloss, 0.035) 41%,
+            alpha(@a-gloss, 0.00) 41.5%, alpha(@a-gloss, 0.00) 100%);
+}
+
+window#llm-chat label {
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.70);
+}
+
+/* --- header bar: glass with the gloss across its top half -------------------- */
+window#llm-chat headerbar {
+    background-image: linear-gradient(to bottom,
+            alpha(@a-gloss, 0.18) 0%, alpha(@a-gloss, 0.06) 49%,
+            alpha(@a-gloss, 0.00) 50%, alpha(@a-gloss, 0.00) 100%);
+    border-bottom: 1px solid alpha(@a-shade, 0.80);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.30);
+}
+
+window#llm-chat headerbar .title {
+    font-family: "Selawik", "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    font-size: 12pt;
+    color: #ffffff;
+    text-shadow: 0 1px 3px alpha(@a-shade, 0.90);
+}
+
+window#llm-chat headerbar button {
+    border-radius: 4px;
+    border: 1px solid alpha(@a-shade, 0.70);
+    background-image: linear-gradient(to bottom,
+            alpha(@a-gloss, 0.22) 0%, alpha(@a-gloss, 0.08) 49%,
+            alpha(@a-gloss, 0.00) 50%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.35);
+}
+
+window#llm-chat headerbar button:hover {
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.45), 0 0 8px alpha(@a-tone, 0.50);
+}
+
+window#llm-chat headerbar button.titlebutton {
+    border-radius: 4px;
+}
+
+/* --- the stage: a window onto the sky ------------------------------------------- */
+#stage {
+    border-radius: 8px;
+    background-image: linear-gradient(to bottom, #0b2442 0%, #12325a 45%, #1c4a7c 100%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.25), 0 2px 8px alpha(@a-shade, 0.55);
+}
+
+#bubble {
+    border-radius: 6px;
+    background-image: linear-gradient(to bottom,
+            alpha(@a-gloss, 0.28) 0%, alpha(@a-gloss, 0.09) 49%,
+            alpha(@a-gloss, 0.00) 50%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.45), 0 0 10px alpha(@a-tone, 0.35);
+    font-family: "Selawik", "IBM Plex Sans", sans-serif;
+    font-size: 11pt;
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.90);
+}
+
+paned > separator {
+    background-image: linear-gradient(to right, alpha(@a-gloss, 0.0), @rule, alpha(@a-gloss, 0.0));
+}
+
+#transcript-scroll scrollbar slider {
+    border-radius: 3px;
+}
+
+/* --- the conversation ----------------------------------------------------------- */
+label.user {
+    border-radius: 8px;
+    background-image: linear-gradient(to bottom,
+            alpha(@a-gloss, 0.24) 0%, alpha(@a-gloss, 0.08) 49%,
+            alpha(@a-gloss, 0.00) 50%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.40);
+}
+
+label.user.queued,
+label.user.dropped {
+    border-radius: 8px;
+}
+
+.assistant {
+    border-radius: 8px;
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.16);
+}
+
+.codeblock {
+    border-radius: 6px;
+}
+
+.toolchip {
+    border-radius: 6px;
+    background-image: linear-gradient(to bottom,
+            alpha(@a-gloss, 0.12) 0%, alpha(@a-gloss, 0.04) 49%,
+            alpha(@a-gloss, 0.00) 50%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.20);
+}
+
+label.tool-icon {
+    border-radius: 99px;
+    text-shadow: none;
+}
+
+label.tool-name {
+    color: @a-sky;
+}
+
+label.tool-excerpt {
+    border-radius: 6px;
+}
+
+label.note {
+    border-radius: 99px;
+}
+
+label.error-card {
+    border-radius: 6px;
+}
+
+/* --- input ------------------------------------------------------------------------ */
+#bottom {
+    border-top: 1px solid alpha(@a-shade, 0.70);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.12);
+}
+
+#input-scroll {
+    border-radius: 6px;
+    border-bottom: 1px solid alpha(@a-shade, 0.85);
+    box-shadow: inset 0 1px 3px alpha(@a-shade, 0.70), 0 0 0 1px alpha(@a-tone, 0.45);
+}
+
+button#send {
+    border-radius: 6px;
+    border: 1px solid alpha(@a-shade, 0.80);
+    background-image: linear-gradient(to bottom,
+            alpha(@a-gloss, 0.30) 0%, alpha(@a-gloss, 0.10) 49%,
+            alpha(@a-gloss, 0.00) 50%);
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.45);
+    font-family: "Selawik", "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    text-shadow: 0 1px 2px alpha(@a-shade, 0.90);
+}
+
+button#send:hover {
+    box-shadow: inset 0 1px alpha(@a-gloss, 0.55), 0 0 10px @send-glow;
+}
+
+tooltip, tooltip.background {
+    border-radius: 6px;
+}

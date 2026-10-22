@@ -1,0 +1,19 @@
+# Background tasks: ~/.config/hypr/scripts/tasks.py (its docstring has the
+# task types, the schedules and the permissions; the tasks are
+# ~/.config/hypr/tasks.json, Settings > Background tasks edits them).
+[Unit]
+Description=Background tasks: watch builds, logs, units and pages; tidy and sum up folders
+PartOf=graphical-session.target
+After=graphical-session.target mako.service
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/tasks.py run-daemon
+Restart=on-failure
+RestartSec=5
+# A command a task runs (a build) is background work: a lower CPU priority,
+# so it never makes the desktop itself stutter.
+Nice=5
+
+[Install]
+WantedBy=graphical-session.target

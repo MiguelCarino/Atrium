@@ -1,0 +1,260 @@
+/* ===========================================================================
+   MATRIX -- the bar and the toolbox card (~/.config/waybar/style.css and
+   style-toolbox.css). Copied to waybar/generated/theme.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST, after the accent, so the
+   palette below wins over the base file's and the rules below win over its
+   rules of the same selector.
+
+   The look in one line: a phosphor terminal. Black glass with a hint of green,
+   #00ff41 text, square panes with 1px edges in a darker green, and a soft
+   glow on the one readout you look at most (the clock) and on the lit
+   workspace. The face is IBM Plex Mono (theme.conf font=; theme.py swaps it
+   into every base font-family rule above this file).
+
+   One hue for nearly everything means STRUCTURE has to come from lightness:
+       #00ff41  lit: text, the accent, the lit bottom edge
+       #008f11  edges, headings, separators   (@m-dark)
+       #003b00  washes, grooves               (@m-deep)
+       #ccffd6  the pale "head" of a falling column: numbers, text on fills
+   and anything that must not be mistaken for "just more green" gets a hue
+   of its own: teal for the second series (GPU, UTC, split-fullscreen A),
+   amber for warn, red for bad.
+   =========================================================================== */
+
+/* CALMER (2026-10-18): green on everything was dizzying. Green is now the
+   ACCENT only -- lit, active, selected things (#3ddc68, softer than the old
+   #00ff41) -- and text is a soft grey with a hint of green (#c8d4cb, 13:1 on
+   the black; dim #7d8f81, 5.6:1). Edges and headings are dark green-greys,
+   selections a deeper green, no glows, no moving scan line. Where the text
+   below still says #00ff41 / #ccffd6 for text, read these. */
+
+
+/* --- the theme's own names (not in the base palette) ----------------------- */
+@define-color m-dark     #2f4a36;
+@define-color m-deep     #12201a;
+@define-color m-teal     #4fbfae;   /* the "other" green: GPU, UTC, mode A */
+
+/* --- PALETTE 1: hues ---------------------------------------------------------
+   @cyan (the accent) is #00ff41 from theme.conf accent= via generated/
+   accent.css; not redefined here, so the fixed-accent path stays the only
+   source. @magenta is the base files' "this ends something / bad" hue: in
+   this theme that is red. Its STRUCTURAL uses (the CPU pill's edge, the
+   playing player, the pending updates floor) are put back to green by the
+   rules further down, so red on this bar always means something is wrong. */
+@define-color magenta    #ff3030;
+@define-color yellow     #ffb000;   /* amber: warn */
+@define-color green      #3ddc68;   /* good */
+@define-color purple     @m-teal;   /* UTC clock, work hours */
+@define-color red        #ff3030;   /* REC, camera */
+@define-color mist       #8fa596;   /* green-grey */
+@define-color steel      #707c74;
+@define-color slate      #59645c;
+
+/* --- PALETTE 2: surfaces, edges, text ---------------------------------------
+   Contrast on the pill fill (~#000803): text 15:1, text-dim 6:1,
+   text-bright 18:1. */
+@define-color surface        rgba(0, 8, 3, 0.86);
+@define-color surface-hover  rgba(0, 32, 10, 0.92);
+@define-color surface-dense  rgba(0, 6, 2, 0.92);
+@define-color surface-solid  #000a03;
+@define-color edge           alpha(@m-dark, 0.80);
+@define-color edge-lit       alpha(@cyan, 0.75);
+@define-color accent         alpha(@cyan, 0.20);
+@define-color text           #c8d4cb;
+@define-color text-dim       #7d8f81;
+@define-color text-bright    #eef5ef;
+@define-color ink            #000000;
+@define-color ink-warn       #000000;
+
+/* --- PALETTE 3: workspaces --------------------------------------------------
+   Three screens, three phosphors: green, teal, chartreuse. Told apart by
+   hue, still not tied to the accent or to a status colour. The third was the
+   pale head colour #ccffd6 at first, but at 22% over black that is a grey
+   block -- it read as "disabled", not as a monitor; chartreuse keeps the
+   green family and stays clear of the amber of warn. */
+@define-color mon1-hue   #3ddc68;
+@define-color mon2-hue   #4fbfae;
+@define-color mon3-hue   #b5c96a;
+@define-color mon1       alpha(@mon1-hue, 0.26);
+@define-color mon1-dim   alpha(@mon1-hue, 0.70);
+@define-color mon2       alpha(@mon2-hue, 0.26);
+@define-color mon2-dim   alpha(@mon2-hue, 0.70);
+@define-color mon3       alpha(@mon3-hue, 0.24);
+@define-color mon3-dim   alpha(@mon3-hue, 0.66);
+
+/* --- PALETTE 4: clock modes, status, alerts --------------------------------- */
+@define-color utc        alpha(@m-teal, 0.18);
+@define-color utc-fg     #bfe3dc;
+@define-color epoch      alpha(@yellow, 0.16);
+@define-color epoch-fg   #ffd27a;
+
+@define-color good       alpha(@green, 0.12);
+@define-color good-fg    #8fe0a4;
+@define-color bad        alpha(@magenta, 0.18);
+@define-color bad-fg     #ff7070;
+@define-color warn       alpha(@yellow, 0.16);
+@define-color warn-fg    @yellow;
+@define-color critical   alpha(@magenta, 0.62);
+
+@define-color rec-edge   rgba(255, 150, 150, 0.55);
+@define-color rec-dim    rgba(110, 0, 0, 0.85);
+
+/* ---------------------------------------------------------------------------
+   Square everything. The base chamfer (3px/12px on a diagonal) is the
+   cyberpunk signature; a terminal has none. Same selector lists as the base
+   file, so these come later at equal specificity and win.
+   --------------------------------------------------------------------------- */
+#clock,
+#custom-day,
+#custom-clock,
+#custom-updates,
+#custom-weather,
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#network,
+#custom-network,
+#pulseaudio,
+#backlight,
+#battery,
+#temperature,
+#tray,
+#custom-player,
+#privacy,
+#custom-fsstate,
+#custom-nightlight,
+#idle_inhibitor,
+#custom-keybinds,
+#custom-settings,
+#custom-toolbox,
+#custom-power,
+#custom-capture,
+#custom-repos,
+#custom-timers,
+#custom-workhours,
+#custom-notifications,
+#custom-display,
+#language,
+#submap,
+#window,
+#custom-mic,
+#custom-camera,
+#custom-location,
+#custom-recording,
+#workspaces,
+#workspaces button,
+#tray menu,
+#tray menu menuitem {
+    border-radius: 0px;
+}
+
+/* The joined capsules keep their seams, now in the structure green. */
+#custom-day,
+#custom-updates {
+    border-radius: 0px;
+    border-right-color: alpha(@m-dark, 0.45);
+}
+
+#custom-clock,
+#custom-repos {
+    border-radius: 0px;
+    border-left-color: alpha(@m-dark, 0.45);
+    border-right-color: alpha(@m-dark, 0.45);
+}
+
+#custom-weather,
+#custom-notifications {
+    border-radius: 0px;
+    border-left-color: alpha(@m-dark, 0.45);
+}
+
+/* The toolbox card (style-toolbox.css). */
+.modules-left {
+    border-radius: 0px;
+}
+
+/* --- Glow: key text only ----------------------------------------------------
+   The clock and the lit workspace number. Anything more and the bar turns
+   into a smear, which is the reason the base theme dropped glow entirely. */
+#custom-clock,
+#custom-clock.local {
+    text-shadow: none;
+}
+
+#workspaces button.active {
+    text-shadow: none;
+    background-image: none;
+}
+
+/* --- Structural magenta, put back to green ---------------------------------- */
+#custom-cpu {
+    border-color: alpha(@cyan, 0.30);
+    border-bottom-color: @cyan;
+}
+
+#custom-gpu {
+    border-color: alpha(@m-teal, 0.30);
+    border-bottom-color: @m-teal;
+}
+
+/* ...but not on the filled critical (red) pill: a green floor line under a
+   red fill is the red/green pair colour-blind eyes merge into one smear. The
+   label goes pale there too (theme.conf color.cpu_hot / gpu_hot). */
+#custom-cpu.critical,
+#custom-gpu.critical {
+    border-color: alpha(@magenta, 0.70);
+    border-bottom-color: @magenta;
+}
+
+#custom-updates.pending {
+    border-bottom-color: @cyan;
+}
+
+#custom-player.playing {
+    border-bottom-color: @cyan;
+}
+
+/* The power pill: square and green like everything else at rest, with a red
+   floor line so it still reads as "this ends something"; red all over only
+   under the pointer. */
+#custom-power {
+    color: @text;
+    border-color: @edge;
+    border-bottom-color: alpha(@magenta, 0.70);
+    background-image: linear-gradient(to bottom,
+                        alpha(@magenta, 0.00) 0%,
+                        alpha(@magenta, 0.00) 60%,
+                        alpha(@magenta, 0.10) 100%);
+}
+
+#custom-power:hover {
+    color: @bad-fg;
+    background-color: @bad;
+    border-color: @magenta;
+}
+
+/* Split fullscreen: A and B must be different hues, and @accent and @good
+   are both green here -- A goes teal. */
+#custom-fsstate.mode-a {
+    background-color: alpha(@m-teal, 0.18);
+    color: @m-teal;
+    border-color: alpha(@m-teal, 0.75);
+}
+
+/* Toolbox handle, open: a full lit edge, as in the base. */
+#custom-toolbox.open {
+    border-color: @edge-lit;
+}
+
+/* The tray menu is a real popup: solid black, 1px green. */
+#tray menu {
+    border: 1px solid @m-dark;
+}
+
+/* Slashed zero: in a terminal face 0 and O must never be mistaken (IPs,
+   versions, the clock). IBM Plex Mono has the `zero` feature; the base sets
+   "tnum" on this same selector, so it is repeated here. GTK3 takes the
+   value as ONE string handed to Pango ("tnum", "zero" is a parse error). */
+* {
+    font-feature-settings: "tnum, zero";
+}

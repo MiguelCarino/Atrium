@@ -1,0 +1,21 @@
+# Reopen the last closed window (ALT+SHIFT+T): ~/.config/hypr/scripts/
+# closed-windows.py keeps what it takes to start each open window again and
+# a stack of the last 20 closed. Stopping it (logout, shutdown) saves the
+# windows still open to the automatic session slot first, for
+# `sessions.py where-was-i` -- ExecStop runs while Hyprland is still up.
+[Unit]
+Description=Closed-window stack for "reopen the last closed window"
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/closed-windows.py
+ExecStop=-/usr/bin/timeout 8 /usr/bin/python3 %h/.config/hypr/scripts/sessions.py autosave --exit
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=12
+MemoryHigh=80M
+
+[Install]
+WantedBy=graphical-session.target

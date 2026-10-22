@@ -1,0 +1,23 @@
+Selawik -- the face of the "aero" desktop theme (~/.config/themes/aero/).
+
+Selawik is Microsoft's open-source fallback for Segoe UI: same metrics and
+proportions as the Windows 7 / Vista UI face, under a free licence. Segoe UI
+itself cannot be used here (its licence is Windows-only), so this is the
+closest legal match. It covers Latin only (348 glyphs, no arrows, no CJK), so
+the theme lists IBM Plex Sans right after it and fontconfig falls back per
+glyph; its figures are tabular by default (every digit 1104/1153 units wide),
+so the clock and the rates do not jitter without a "tnum" feature.
+
+Source:   https://github.com/microsoft/Selawik  (official Microsoft repo)
+Release:  1.01, 2015-12-08
+          https://github.com/microsoft/Selawik/releases/download/1.01/Selawik_Release.zip
+          sha256 3f62c51e05e3b5a1e6241cf92a371f0be2ea1183aa87b30718bbd40832a8d423
+Files:    the five .ttf from that zip, unmodified:
+          selawkl (Light) selawksl (Semilight) selawk (Regular)
+          selawksb (Semibold) selawkb (Bold)
+Licence:  SIL Open Font License 1.1 (LICENSE.txt next to this file, taken from
+          the repo's master branch -- the release zip ships no licence file).
+          Personal use, embedding and redistribution allowed; the fonts may
+          not be sold on their own; "Selawik" is a Reserved Font Name, so a
+          modified copy would have to be renamed.
+Installed: 2026-10-17, user-level only (fc-cache -f ~/.local/share/fonts).

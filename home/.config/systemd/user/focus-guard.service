@@ -1,0 +1,22 @@
+# Focus guard: ~/.config/hypr/scripts/focus-guard.py runs focus blocks --
+# a timers.py focus round with the notifications held, the distracting apps
+# and sites dimmed (lua/focusguard.lua) or made to wait, and a "what you
+# did" summary at the end -- and, only when its privacy switch is on
+# (privacy.conf focus_watch, off as shipped), notices scattered switching
+# and offers one. Local only; nothing is closed or blocked. Its docstring
+# has the rules; Settings > Focus switches this unit and the rest.
+[Unit]
+Description=Focus guard: focus blocks, and noticing when you are scattered
+PartOf=graphical-session.target
+After=graphical-session.target mako.service
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/focus-guard.py daemon
+Restart=on-failure
+RestartSec=5
+# the daemon is ~25 MB; the "still want it?" card (GTK) runs in this cgroup too while it is up
+MemoryHigh=200M
+
+[Install]
+WantedBy=graphical-session.target

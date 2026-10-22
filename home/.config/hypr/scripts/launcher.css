@@ -1,0 +1,267 @@
+/* launcher.py -- the SUPER+E app launcher, and the look of quicknote.py and
+   clipboard.py too (they load this same file). Same NEON palette as wofi
+   (~/.config/wofi/style.css), the bar and its panels; no glow anywhere, the
+   show is the rainbow scan line, the hero card and the solid selection.
+
+   THEMES: same contract as ~/.config/waybar/style.css (its header explains
+   it). The theme's launcher.css is copied into
+   ~/.config/waybar/generated/theme-launcher.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST: it redefines the PALETTE
+   names below for colour, and repeats selectors for everything else. No rule
+   below writes a colour literal. */
+
+/* --- PALETTE --------------------------------------------------------------
+   @cyan is the ACCENT role (generated/accent.css redefines it), @magenta the
+   second accent (caret, the bottom edge, the end of the selection gradient). */
+@define-color cyan       #00f0ff;
+@define-color magenta    #ff2a6d;
+@define-color violet     #9f00ff;   /* scrollbar */
+@define-color mist       #96d7e6;   /* the blue-grey dim text is made of */
+@define-color sel-mid    #00b8ff;   /* middle stop of the selected hero / tile gradient */
+/* The scan line: the focused-window border's colours (lua/settings.lua). */
+@define-color scan-1     #0ff0fc;
+@define-color scan-2     #39ff14;
+@define-color scan-3     #fffb00;
+@define-color scan-4     #ff0055;
+@define-color scan-5     #9f00ff;
+@define-color surface    rgba(6, 8, 16, 0.94);      /* the card */
+@define-color groove     rgba(0, 0, 0, 0.55);       /* the search well */
+@define-color edge       alpha(@cyan, 0.28);
+@define-color edge-lit   alpha(@cyan, 0.85);
+@define-color text       #e6fcff;
+@define-color text-dim   alpha(@mist, 0.55);
+@define-color text-bright #ffffff;                  /* typed text, the hero name */
+@define-color ink        #04060c;                   /* text on the selected (lit) hero / tile */
+
+/* Old names, kept as aliases: a theme redefines the role on the right. */
+@define-color glass      @surface;
+@define-color fg         @text;
+@define-color dim        @text-dim;
+
+* {
+    font-family: "IBM Plex Sans", "Noto Color Emoji", sans-serif;
+    font-weight: 600;
+    font-size: 17px;
+    box-shadow: none;
+    text-shadow: none;
+    outline: none;
+    -gtk-outline-radius: 0;
+}
+
+#launcher-window {
+    background: transparent;
+}
+
+/* The rainbow scan line along the top edge: the six border colours, twice
+   the card's width, slid along so they travel and wrap seamlessly. */
+@keyframes scan {
+    from { background-position: 0% 0%, 0% 0%; }
+    to   { background-position: 200% 0%, 0% 0%; }
+}
+
+#card {
+    min-width: 1000px;
+    padding: 24px 24px 18px 24px;
+    border-radius: 4px 24px 4px 24px;
+    color: @text;
+    background-color: @surface;
+    background-image:
+        linear-gradient(to right,
+            @scan-1, @scan-2, @scan-3, @scan-4, @scan-5, @scan-1,
+            @scan-2, @scan-3, @scan-4, @scan-5, @scan-1),
+        linear-gradient(to bottom,
+            alpha(@cyan, 0.07) 0%,
+            alpha(@cyan, 0.00) 30%,
+            alpha(@magenta, 0.00) 75%,
+            alpha(@magenta, 0.06) 100%);
+    background-size: 200% 3px, 100% 100%;
+    background-repeat: repeat-x, no-repeat;
+    border: 1px solid @edge;
+    border-bottom: 2px solid @magenta;
+    animation: scan 4s linear infinite;
+}
+
+/* --- Search ------------------------------------------------------------- */
+#search {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    font-size: 24px;
+    margin-bottom: 18px;
+    padding: 12px 16px;
+    min-height: 34px;
+    border-radius: 2px 14px 2px 14px;
+    color: @text-bright;
+    caret-color: @magenta;
+    background-color: @groove;
+    background-image: none;
+    border: 1px solid @edge-lit;
+    border-bottom: 3px solid @cyan;
+}
+
+#search image {
+    color: @magenta;
+    margin-right: 10px;
+}
+
+#search selection {
+    background-color: alpha(@magenta, 0.55);
+    color: @text-bright;
+}
+
+/* --- Hero: the best match ------------------------------------------------ */
+#hero {
+    margin-bottom: 18px;
+    border-radius: 4px 22px 4px 22px;
+    background-color: alpha(@cyan, 0.05);
+    border: 1px solid @edge;
+    border-left: 5px solid @edge;
+    transition: background-color 160ms ease-out, border-color 160ms ease-out;
+}
+
+/* Selected (the default): the loud solid bar, cyan into magenta. */
+#hero.selected {
+    background-color: @cyan;
+    background-image: linear-gradient(to right, @cyan 0%, @sel-mid 45%, @magenta 100%);
+    border-color: @cyan;
+    border-left-color: @text-bright;
+}
+
+label.hero-name {
+    font-size: 34px;
+    font-weight: bold;
+    color: @text-bright;
+}
+
+label.hero-sub {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    font-size: 15px;
+    color: @text-dim;
+}
+
+label.hero-hint {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    font-size: 13px;
+    color: @text-dim;
+    padding: 4px 10px;
+    border: 1px solid @edge;
+    border-radius: 2px 8px 2px 8px;
+}
+
+#hero.selected label.hero-name { color: @ink; }
+#hero.selected label.hero-sub  { color: alpha(@ink, 0.75); }
+#hero.selected label.hero-hint {
+    color: @ink;
+    border-color: alpha(@ink, 0.6);
+}
+
+label.empty {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 16px;
+    color: @text-dim;
+    padding: 30px;
+}
+
+/* --- Tiles ---------------------------------------------------------------- */
+#tiles-scroll {
+    min-height: 420px;          /* three rows of tiles */
+    background: transparent;
+}
+
+#tiles {
+    background: transparent;
+}
+
+#tiles flowboxchild {
+    padding: 4px;
+    background: transparent;
+}
+
+.tile {
+    min-height: 124px;
+    padding: 12px 6px;
+    border-radius: 3px 16px 3px 16px;
+    background-color: alpha(@cyan, 0.035);
+    border: 1px solid alpha(@cyan, 0.12);
+    border-bottom: 2px solid alpha(@cyan, 0.20);
+    transition: background-color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.tile:hover {
+    background-color: alpha(@cyan, 0.09);
+    border-color: alpha(@cyan, 0.35);
+}
+
+.tile.selected {
+    background-color: @cyan;
+    background-image: linear-gradient(to bottom right, @cyan 0%, @sel-mid 50%, @magenta 100%);
+    border-color: @cyan;
+    border-bottom-color: @text-bright;
+}
+
+label.tile-name {
+    font-size: 15px;
+    color: @text;
+}
+
+.tile.selected label.tile-name {
+    color: @ink;
+    font-weight: bold;
+}
+
+scrollbar slider {
+    min-width: 3px;
+    background-color: @violet;
+    border-radius: 2px;
+}
+
+/* --- Clipboard picker (clipboard.py) ------------------------------------- */
+label.clip-hero-text {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    font-size: 17px;
+    color: @text-bright;
+}
+
+#hero.selected label.clip-hero-text { color: @ink; }
+
+.clip-tile {
+    min-height: 132px;
+    padding-top: 12px;
+    padding-bottom: 10px;
+}
+
+label.clip-text {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    font-size: 13px;
+    color: @text;
+}
+
+label.clip-caption {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    font-size: 11px;
+    color: @text-dim;
+}
+
+.tile.selected label.clip-text,
+.tile.selected label.clip-caption {
+    color: @ink;
+}
+
+/* Wallpaper accent (scripts/theme-from-wallpaper.py, ~/.config/hypr/scripts).
+   Redefines @cyan -- and with it every alpha(@cyan, ...) above -- to a colour
+   picked from the DP-1 wallpaper, or to the theme's own accent= when it does
+   not follow the wallpaper, or leaves the file empty for this file's neon.
+   Near the end on purpose: GTK3 resolves a named colour by its final
+   definition anywhere in the provider, so this one import recolours rules
+   written above it (tested). Generated, never committed (sync.sh excludes
+   generated/). */
+@import url("../../waybar/generated/accent.css");
+
+/* The desktop theme's launcher.css, copied by theme.py; empty for cyberpunk.
+   LAST, so the theme has the final word. The launcher is a fresh process per
+   SUPER+E, so a change shows the next time it opens. */
+@import url("../../waybar/generated/theme-launcher.css");

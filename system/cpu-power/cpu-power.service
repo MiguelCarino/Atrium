@@ -1,0 +1,28 @@
+# cpu-power.service -- see /usr/local/libexec/cpu-power for what and why.
+[Unit]
+Description=Publish CPU package power (5 s average) for the desktop bar
+
+[Service]
+Type=simple
+ExecStart=/usr/local/libexec/cpu-power
+# /run/cpu-power, created fresh at start, world-readable, removed at stop.
+RuntimeDirectory=cpu-power
+RuntimeDirectoryMode=0755
+UMask=0022
+Restart=on-failure
+# It only reads one sysfs file and writes one file in its own /run folder.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+PrivateDevices=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+Nice=19
+
+[Install]
+WantedBy=multi-user.target

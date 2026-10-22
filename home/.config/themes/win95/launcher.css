@@ -1,0 +1,177 @@
+/* ===========================================================================
+   WINDOWS 95 -- the launcher, the quick note and the clipboard picker
+   (~/.config/hypr/scripts/launcher.css). Copied to
+   waybar/generated/theme-launcher.css by theme.py and imported LAST. Same
+   palette and rules as this theme's waybar.css (its header explains them).
+
+   The Start menu: a raised grey window with the vertical banner down its
+   left edge (navy into the Windows 98 title blue, bottom to top), a sunken
+   text field for the search, and the best match and the tiles as menu items
+   -- flat until chosen, then navy with white text. The rainbow scan line is
+   cyberpunk's and goes, animation and all.
+
+   The search field is NOT Windows 95's white: a 1000px white strip would be
+   the brightest thing on the HDR panel. #cccccc is the dimmed white, black
+   type on it 12.6:1. The search is 25px and the best match's name 25px
+   bold -- twice W95FA's grid, so both stay sharp; the rest is 12.5px.
+   =========================================================================== */
+
+@define-color w-face     #acacac;
+@define-color w-hover    #b6b6b6;
+@define-color w-hi       #e4e4e4;
+@define-color w-light    #c4c4c4;
+@define-color w-shadow   #727272;
+@define-color w-dark     #000000;
+@define-color w-navy     #000080;
+@define-color w-title2   #1084d0;
+@define-color w-field    #cccccc;   /* a text field's "white", dimmed */
+
+@define-color magenta    @w-navy;    /* structure only in this file: no status here */
+@define-color violet     @w-shadow;  /* scrollbar */
+@define-color mist       #333333;
+@define-color sel-mid    @w-navy;
+@define-color surface    @w-face;
+@define-color groove     @w-field;
+@define-color edge       @w-shadow;
+@define-color edge-lit   @w-dark;
+@define-color text       #000000;
+@define-color text-dim   #333333;
+@define-color text-bright #000000;   /* typed text, the best match's name: black on grey */
+@define-color ink        #ffffff;    /* text on the navy selection */
+
+* {
+    font-size: 12.5px;
+    font-weight: normal;
+}
+
+/* The menu: window frame, the banner (inset 3px, inside the frame, as the
+   Start menu drew it -- the 3px face ring over the background keeps the
+   gradient off the bevel), and the content shifted right of the banner. */
+#card {
+    padding: 20px 20px 16px 52px;
+    border: none;
+    border-bottom: none;
+    border-radius: 0px;
+    animation: none;
+    background-color: @w-face;
+    background-image: linear-gradient(to top, @w-navy, @w-title2);
+    background-size: 28px 100%;
+    background-position: 3px 0px;
+    background-repeat: no-repeat;
+    box-shadow: inset 0 0 0 3px @w-face,
+                inset 2px 2px @w-hi,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-light,
+                inset -1px -1px @w-dark;
+}
+
+/* --- Search: the sunken text field ------------------------------------------ */
+#search {
+    font-size: 25px;
+    color: @text;
+    caret-color: @text;
+    border: none;
+    border-bottom: none;
+    border-radius: 0px;
+    background-color: @w-field;
+    box-shadow: inset -2px -2px @w-light,
+                inset 2px 2px @w-dark,
+                inset -1px -1px @w-hi,
+                inset 1px 1px @w-shadow;
+}
+
+#search image {
+    color: @text;
+}
+
+#search selection {
+    background-color: @w-navy;
+    color: @ink;
+}
+
+/* --- The best match: a menu item ---------------------------------------------- */
+#hero {
+    border: none;
+    border-left: none;
+    border-radius: 0px;
+    background-color: transparent;
+    background-image: none;
+    transition: none;
+}
+
+#hero.selected {
+    background-color: @w-navy;
+    background-image: none;
+}
+
+label.hero-name {
+    font-size: 25px;
+    font-weight: bold;
+}
+
+label.hero-sub,
+label.empty,
+label.clip-hero-text,
+label.clip-text,
+label.clip-caption,
+label.tile-name {
+    font-size: 12.5px;
+}
+
+/* The key hint ("Enter"): a small raised key. On the selected row it keeps
+   its bevel, in white text on the navy. */
+label.hero-hint {
+    font-size: 12.5px;
+    color: @text;
+    padding: 3px 8px;
+    border: none;
+    border-radius: 0px;
+    background-color: @w-face;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+#hero.selected label.hero-name,
+#hero.selected label.clip-hero-text { color: @ink; }
+#hero.selected label.hero-sub       { color: @w-hi; }
+#hero.selected label.hero-hint {
+    color: @text;
+    border: none;
+}
+
+/* --- Tiles: menu items; raised under the pointer, navy when chosen --------- */
+.tile {
+    border: none;
+    border-bottom: none;
+    border-radius: 0px;
+    background-color: transparent;
+    background-image: none;
+    transition: none;
+}
+
+.tile:hover {
+    background-color: @w-hover;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+.tile.selected,
+.tile.selected:hover {
+    background-color: @w-navy;
+    background-image: none;
+    box-shadow: none;
+}
+
+.tile.selected label.tile-name,
+.tile.selected label.clip-text,
+.tile.selected label.clip-caption {
+    color: @ink;
+}
+
+scrollbar slider {
+    border-radius: 0px;
+}

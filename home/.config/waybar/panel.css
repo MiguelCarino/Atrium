@@ -1,0 +1,1047 @@
+/* ===========================================================================
+   NEON — popup panels: every card under the bar (media, calendar, shortcuts,
+   audio, network, CPU/GPU, disks, weather, power, capture, display, repos,
+   notifications, updates). The cyberpunk look, and the base of every theme.
+
+   Separate from style.css because these are GTK apps of their own, not
+   waybar: the widget names below are the ones the panel processes set. All
+   of them load this one file (scripts/panelui.py), so #panel-window and
+   #panel work for every panel and only the children differ.
+
+   Palette is kept in step with style.css by hand (GTK CSS has no @import
+   worth using across apps). Change a neon here, change it there. The NAMES
+   are the same ones style.css uses, so a theme can say the same thing to both.
+
+   THEMES: same contract as style.css (its header explains it). A theme's
+   panel.css is copied into generated/theme-panel.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST, after the wallpaper
+   accent; it redefines PALETTE names for colour and repeats selectors for
+   everything else. No rule below writes a colour literal. Colours the panels
+   DRAW (cairo graphs, Pango markup) are not CSS: they come from the theme's
+   theme.conf color.* keys through generated/colors.conf (panelui.color()).
+   =========================================================================== */
+
+/* --- PALETTE 1: hues. @cyan is the ACCENT role (generated/accent.css
+   redefines it), @magenta the second accent: headings, "this ends
+   something", muted, bad. */
+@define-color cyan       #00f0ff;
+@define-color magenta    #ff2a6d;
+@define-color yellow     #f9f002;
+@define-color green      #39ff14;
+@define-color red        #ff143c;   /* a capture in progress (.live tiles) */
+@define-color mist       #96d7e6;   /* the blue-grey dim text is made of */
+
+/* --- PALETTE 2: surfaces, edges, text ----------------------------------------- */
+@define-color surface        rgba(6, 8, 16, 0.88);    /* the card */
+@define-color surface-deep   rgba(2, 3, 8, 0.70);     /* (unused; kept for themes) */
+@define-color surface-video  rgba(0, 0, 0, 0.85);     /* the media preview's floor */
+@define-color knob           #0a1018;                 /* slider knob at rest */
+@define-color edge           alpha(@cyan, 0.28);
+@define-color edge-lit       alpha(@cyan, 0.85);
+@define-color accent         alpha(@cyan, 0.28);      /* accent WASH: the lit play button */
+@define-color accent-lit     alpha(@cyan, 0.45);
+@define-color text           #e6fcff;
+@define-color text-dim       alpha(@mist, 0.60);
+@define-color text-dimmer    alpha(@mist, 0.42);
+@define-color text-bright    #ffffff;                 /* text on a solid red .live tile */
+@define-color ink            #000000;                 /* text on a full-neon fill */
+@define-color rec-edge       rgba(255, 140, 165, 0.55);
+
+/* Old names, kept so nothing that still says them breaks. Aliases only: a
+   theme redefines the role on the right. */
+@define-color glass          @surface;
+@define-color glass-deep     @surface-deep;
+@define-color fg             @text;
+@define-color dim            @text-dim;
+@define-color dimmer         @text-dimmer;
+
+* {
+    /* Same stack as the bar. Font Awesome is listed because its glyphs live in
+       the Private Use Area, which fontconfig will not fall back into. */
+    font-family: "IBM Plex Sans", "Font Awesome 6 Free Solid", "Font Awesome 6 Free",
+                 "Font Awesome 6 Brands", "Noto Color Emoji", sans-serif;
+    font-weight: 500;
+    font-feature-settings: "tnum";       /* fixed-width digits; see style.css */
+    box-shadow: none;
+    text-shadow: none;
+    transition: none;
+}
+
+/* The toplevel stays transparent: the compositor's ignore_alpha keys off it,
+   and the card's glow needs an unpainted gutter to be drawn into. */
+#panel-window {
+    background: transparent;
+}
+
+/* ---------------------------------------------------------------------------
+   The card. Near-black slab, neon hairline, a bright neon floor line, and an
+   outer glow. The 14px margin is the gutter the glow is drawn into -- GTK
+   clips shadows to the toplevel, so without it the glow is cut off.
+   --------------------------------------------------------------------------- */
+#panel {
+    margin: 14px;
+    padding: 14px;
+    border-radius: 4px 18px 4px 18px;
+    color: @text;
+    background-color: @surface;
+    background-image: linear-gradient(to bottom,
+                        alpha(@cyan, 0.05) 0%,
+                        alpha(@cyan, 0.00) 30%,
+                        alpha(@cyan, 0.00) 80%,
+                        alpha(@cyan, 0.07) 100%);
+    border: 1px solid @edge;
+    border-top-color: @edge-lit;
+    border-bottom-color: @edge-lit;
+    box-shadow: none;
+}
+
+/* ===========================================================================
+   Media panel
+   =========================================================================== */
+
+/* The one surface that is solid black on purpose: video needs a floor. */
+#preview-frame {
+    background-color: @surface-video;
+    background-image: none;
+    border: 1px solid @edge;
+    border-radius: 3px 12px 3px 12px;
+    box-shadow: none;
+}
+
+#title {
+    color: @text;
+    font-size: 16px;
+    font-weight: bold;
+    padding: 10px 4px 0px 4px;
+    text-shadow: none;
+}
+
+#subtitle {
+    color: @text-dim;
+    font-size: 13px;
+    padding: 2px 4px 8px 4px;
+}
+
+/* --- Sliders --------------------------------------------------------------
+   GTK3 splits a Gtk.Scale into trough / highlight / slider, and all three
+   need explicit min sizes or the trough collapses to nothing. The media seek
+   bar (#seek) and the audio panel's sliders (.ctl-slider) share one look:
+   a dark groove, a neon-filled run with a glow, and a bright knob.
+   --------------------------------------------------------------------------- */
+#seek {
+    padding: 2px 4px;
+    margin: 2px 0px 6px 0px;
+}
+
+scale.ctl-slider {
+    padding: 4px 0px;
+}
+
+#seek trough,
+scale.ctl-slider trough {
+    min-height: 4px;
+    border: none;
+    border-radius: 0px;
+    background-color: alpha(@cyan, 0.10);
+    background-image: none;
+    box-shadow: none;
+}
+
+#seek highlight,
+scale.ctl-slider highlight {
+    border-radius: 0px;
+    background-image: linear-gradient(to right,
+                        alpha(@cyan, 0.55),
+                        @cyan);
+    box-shadow: none;
+}
+
+/* The negative margin lets the knob overhang a trough thinner than itself. A
+   small square-ish knob reads as a "fader cap" rather than a phone slider. */
+#seek slider,
+scale.ctl-slider slider {
+    min-width: 10px;
+    min-height: 16px;
+    margin: -7px -3px;
+    border: 1px solid @cyan;
+    border-radius: 2px;
+    background-color: @knob;
+    background-image: none;
+    box-shadow: none;
+}
+
+#seek slider:hover,
+scale.ctl-slider slider:hover {
+    background-color: @cyan;
+    box-shadow: none;
+}
+
+/* --- Transport ------------------------------------------------------------ */
+#controls {
+    padding: 2px 0px 0px 0px;
+}
+
+button.control {
+    color: @text;
+    padding: 3px 16px;
+    min-height: 0px;
+    min-width: 0px;
+    margin: 0px 3px;
+    font-size: 15px;
+    border-radius: 2px 10px 2px 10px;
+    background-color: alpha(@cyan, 0.05);
+    background-image: none;
+    border: 1px solid @edge;
+    box-shadow: none;
+    transition: background-color 120ms ease-out, box-shadow 120ms ease-out,
+                border-color 120ms ease-out;
+}
+
+/* Play/pause is the one control anybody aims for without looking: lit. */
+#play {
+    color: @cyan;
+    background-color: @accent;
+    border-color: @edge-lit;
+    padding-left: 22px;
+    padding-right: 22px;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+button.control:hover {
+    border-color: @edge-lit;
+    background-color: alpha(@cyan, 0.14);
+    box-shadow: none;
+}
+
+#play:hover {
+    background-color: @accent-lit;
+}
+
+button.control:active {
+    background-color: alpha(@cyan, 0.30);
+    box-shadow: none;
+}
+
+/* ===========================================================================
+   Calendar panel
+   =========================================================================== */
+#cal-header {
+    padding: 0px 2px 8px 2px;
+}
+
+#cal-month {
+    font-family: "IBM Plex Sans", sans-serif;
+    color: @cyan;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    padding: 0px 10px;
+    text-shadow: none;
+}
+
+#cal-prev,
+#cal-next {
+    color: @cyan;
+    min-width: 24px;
+    min-height: 22px;
+    padding: 0px 6px;
+    font-size: 13px;
+    border-radius: 2px 8px 2px 8px;
+    background-color: alpha(@cyan, 0.05);
+    background-image: none;
+    border: 1px solid @edge;
+    transition: background-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+
+#cal-prev:hover,
+#cal-next:hover {
+    border-color: @edge-lit;
+    background-color: alpha(@cyan, 0.14);
+    box-shadow: none;
+}
+
+#cal-prev:active,
+#cal-next:active {
+    background-color: alpha(@cyan, 0.30);
+}
+
+#cal-grid {
+    padding: 2px 0px;
+}
+
+label.cal-weekday {
+    color: @magenta;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+    padding: 2px 0px 5px 0px;
+    text-shadow: none;
+}
+
+/* Every cell reserves the same box whether or not it holds the today chip,
+   so the grid does not reflow when the month changes. */
+label.cal-day {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    color: @text;
+    font-size: 13px;
+    min-width: 26px;
+    padding: 4px 0px;
+    margin: 1px;
+    border-radius: 2px;
+}
+
+label.cal-adjacent {
+    color: alpha(@mist, 0.22);
+}
+
+/* Today: the one fully lit cell. */
+label.cal-today {
+    color: @ink;
+    background-color: @cyan;
+    background-image: none;
+    box-shadow: none;
+}
+
+#cal-footer {
+    color: @text-dim;
+    font-size: 13px;
+    padding: 8px 4px 2px 4px;
+}
+
+/* ===========================================================================
+   Shortcuts panel (scripts/keybinds_panel.py)
+   =========================================================================== */
+#kb-header {
+    padding: 0px 4px 12px 4px;
+}
+
+#kb-title {
+    font-family: "IBM Plex Sans", sans-serif;
+    color: @cyan;
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-shadow: none;
+}
+
+#kb-hint {
+    color: @text-dimmer;
+    font-size: 12px;
+}
+
+#kb-columns {
+    padding: 0px 4px;
+}
+
+.kb-section {
+    padding-bottom: 12px;
+}
+
+/* Section headings in magenta: the second neon, used for structure, so the
+   eye can jump between sections without reading them. */
+label.kb-heading {
+    font-family: "IBM Plex Sans", sans-serif;
+    color: @magenta;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    padding: 2px 0px 6px 0px;
+    text-shadow: none;
+}
+
+/* Keys as outlined neon caps. */
+label.kb-cap {
+    font-family: "IBM Plex Sans", "Font Awesome 6 Free Solid", sans-serif;
+    font-weight: normal;
+    color: @cyan;
+    font-size: 12px;
+    min-width: 12px;
+    padding: 0px 6px;
+    border-radius: 2px;
+    background-color: alpha(@cyan, 0.07);
+    background-image: none;
+    border: 1px solid alpha(@cyan, 0.45);
+    border-bottom-color: @cyan;
+    text-shadow: none;
+}
+
+label.kb-desc {
+    color: @text;
+    font-size: 14px;
+}
+
+/* ===========================================================================
+   Control panels: audio (scripts/audio_panel.py), network
+   (scripts/network_panel.py). Same row anatomy: an icon, a title and
+   subtitle, and the control on the right.
+   =========================================================================== */
+.ctl-row {
+    padding: 6px 4px;
+    min-width: 330px;
+}
+
+.ctl-icon {
+    color: @cyan;
+    font-size: 15px;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 0px;
+    border-radius: 2px 10px 2px 10px;
+    background-color: alpha(@cyan, 0.05);
+    background-image: none;
+    border: 1px solid @edge;
+    text-shadow: none;
+}
+
+button.ctl-icon:hover {
+    border-color: @edge-lit;
+    background-color: alpha(@cyan, 0.14);
+    box-shadow: none;
+}
+
+/* On: a connected network row. */
+.ctl-row.on .ctl-icon {
+    color: @ink;
+    background-color: @cyan;
+    border-color: @cyan;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+/* Muted: the button goes magenta so it is obvious what to click to undo it;
+   the rest of the row dims. */
+.ctl-row.muted .ctl-icon {
+    color: @ink;
+    background-color: @magenta;
+    border-color: @magenta;
+    box-shadow: none;
+    text-shadow: none;
+}
+.ctl-row.muted .ctl-title,
+.ctl-row.muted .ctl-value {
+    color: @text-dimmer;
+}
+.ctl-row.muted scale.ctl-slider highlight {
+    background-image: linear-gradient(to right,
+                        alpha(@magenta, 0.35),
+                        alpha(@magenta, 0.6));
+    box-shadow: none;
+}
+
+.ctl-title {
+    color: @text;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.ctl-sub {
+    color: @text-dim;
+    font-size: 12px;
+}
+
+.ctl-row.error .ctl-sub {
+    color: @magenta;
+}
+
+.ctl-value {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    color: @cyan;
+    font-size: 14px;
+    text-shadow: none;
+}
+
+/* Switches: dark groove when off, lit cyan when on. */
+switch {
+    min-width: 40px;
+    min-height: 20px;
+    border-radius: 2px;
+    border: 1px solid @edge;
+    background-color: alpha(@cyan, 0.05);
+    background-image: none;
+    color: transparent;                 /* hide GTK's I/O glyphs */
+}
+
+switch:checked {
+    background-color: alpha(@cyan, 0.35);
+    border-color: @cyan;
+    box-shadow: none;
+}
+
+switch slider {
+    min-width: 18px;
+    min-height: 18px;
+    margin: 1px;
+    border: none;
+    border-radius: 1px;
+    background-color: alpha(@mist, 0.55);
+    background-image: none;
+}
+
+switch:checked slider {
+    background-color: @cyan;
+}
+
+switch:disabled {
+    opacity: 0.4;
+}
+
+.ctl-sep {
+    margin: 4px 4px;
+    min-height: 1px;
+    background-color: @edge;
+}
+
+button.ctl-link {
+    color: @text-dim;
+    font-size: 13px;
+    padding: 2px 10px;
+    margin-top: 4px;
+    border-radius: 2px;
+    border: none;
+    background: none;
+}
+
+button.ctl-link:hover {
+    color: @cyan;
+    background-color: alpha(@cyan, 0.10);
+    text-shadow: none;
+}
+
+/* Insensitive links (the display panel's "Re-pick from wallpaper" while the
+   accent is fixed -- switch off, or a theme with accent_follow=no) fade like
+   the switch beside them, so the row reads as "not now" rather than as a
+   button that silently does nothing. */
+button.ctl-link:disabled {
+    opacity: 0.4;
+}
+
+/* ===========================================================================
+   Sensors panel (scripts/sensors_panel.py). The graphs draw themselves in
+   cairo (CPU magenta, GPU green); this only styles the text around them.
+   =========================================================================== */
+.sn-section {
+    padding-bottom: 10px;
+}
+
+label.sn-label {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    color: @text-dim;
+    font-size: 12px;
+    min-width: 44px;
+}
+
+label.sn-value {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    color: @text;
+    font-size: 14px;
+}
+
+label.sn-procs {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    color: @text-dim;
+    font-size: 12px;
+    padding: 6px 0px 0px 2px;
+}
+
+/* Network panel: the stats block above the switches. */
+.ns-stats {
+    padding: 0px 4px 6px 4px;
+}
+
+label.ns-value {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    color: @text;
+    font-size: 13px;
+}
+
+/* ===========================================================================
+   Weather panel (scripts/weather_panel.py). Glyph colours are set in Pango
+   markup from wttr.py (sun yellow, rain cyan, storm purple...), so only the
+   text around them is styled here.
+   =========================================================================== */
+.wx-now {
+    padding: 4px 4px 10px 4px;
+}
+
+label.wx-big-glyph {
+    font-family: "Font Awesome 6 Free Solid";
+    font-weight: 900;
+    min-width: 52px;
+}
+
+label.wx-big-temp {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    font-size: 44px;
+    color: @cyan;
+    text-shadow: none;
+}
+
+label.wx-desc {
+    color: @text;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+label.wx-fact {
+    font-family: "IBM Plex Sans", "Font Awesome 6 Free Solid", sans-serif;
+    font-weight: normal;
+    color: @text-dim;
+    font-size: 12px;
+}
+
+.wx-graph {
+    margin: 2px 4px 0px 4px;
+}
+
+.wx-hours {
+    padding: 2px 0px 10px 0px;
+}
+
+label.wx-hour {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    color: @text-dimmer;
+    font-size: 11px;
+}
+
+label.wx-glyph {
+    font-family: "Font Awesome 6 Free Solid";
+    font-weight: 900;
+    padding: 3px 0px;
+}
+
+label.wx-temp {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    color: @text;
+    font-size: 13px;
+}
+
+label.wx-rain {
+    font-family: "IBM Plex Sans", "Font Awesome 6 Free Solid", sans-serif;
+    font-weight: normal;
+    color: alpha(@cyan, 0.75);
+    font-size: 11px;
+}
+
+.wx-days {
+    padding: 2px 4px 8px 4px;
+}
+
+label.wx-day {
+    color: @text;
+    font-size: 14px;
+    min-width: 76px;
+}
+
+label.wx-lo,
+label.wx-hi {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    font-size: 13px;
+    min-width: 28px;
+}
+
+label.wx-lo { color: @cyan; }
+label.wx-hi { color: @magenta; }
+
+.wx-footer {
+    padding: 4px 4px 0px 4px;
+    border-top: 1px solid @edge;
+}
+
+/* ===========================================================================
+   Audio panel: device pickers (audio_panel.py DeviceList)
+   =========================================================================== */
+/* One radio-style row per output/mic under each slider. Plain buttons, not a
+   GtkComboBox: a combo's dropdown is a popup, and popups misbehave in a
+   keyboard-NONE layer-shell window. Quiet by default so the sliders stay the
+   main thing; the current device is the only one lit. */
+.dev-list {
+    margin-top: 6px;
+}
+
+button.dev-pick {
+    color: @text-dim;
+    padding: 3px 8px;
+    min-height: 0px;
+    border-radius: 2px 8px 2px 8px;
+    border: 1px solid transparent;
+    background: none;
+    box-shadow: none;
+    transition: background-color 120ms ease-out, border-color 120ms ease-out;
+}
+
+button.dev-pick:hover {
+    color: @text;
+    border-color: @edge;
+    background-color: alpha(@cyan, 0.08);
+}
+
+/* The current default: cyan name, faint fill, lit dot. */
+button.dev-pick.active {
+    color: @cyan;
+    border-color: @edge;
+    background-color: alpha(@cyan, 0.06);
+}
+
+/* Nothing in the jack: WirePlumber would ignore the pick, so the button is
+   insensitive; this just makes that read as "not now" rather than broken. */
+button.dev-pick.unplugged,
+button.dev-pick:disabled {
+    color: @text-dimmer;
+    opacity: 0.6;
+}
+
+/* The radio dot: an empty box with a round border, since Font Awesome Free
+   Solid has no hollow circle. */
+.dev-dot {
+    min-width: 8px;
+    min-height: 8px;
+    border-radius: 50%;
+    border: 1px solid @text-dim;
+}
+
+button.dev-pick.active .dev-dot {
+    border-color: @cyan;
+    background-color: @cyan;
+    box-shadow: none;
+}
+
+label.dev-name {
+    font-size: 14px;
+}
+
+button.dev-pick.active label.dev-name {
+    text-shadow: none;
+}
+
+/* "USB \00B7 Mono", "HDMI", "unplugged": how it is connected, in the number
+   font the rest of the panel uses for secondary readouts. */
+label.dev-kind {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 11px;
+    color: @text-dimmer;
+}
+
+button.dev-pick.active label.dev-kind {
+    color: alpha(@cyan, 0.65);
+}
+
+/* ===========================================================================
+   Power panel (scripts/power_panel.py). Five big tiles. Lock / Suspend light
+   cyan on hover like every other control; the three that end the session
+   (.danger) light magenta instead, so the colour already says "careful"
+   before anything is clicked. An armed tile (.armed: first click taken,
+   waiting for the second) goes solid magenta -- the same "this is the
+   dangerous state" fill as a muted audio row.
+   =========================================================================== */
+.pw-header {
+    padding: 0px 4px 10px 4px;
+}
+
+/* The heading is .kb-heading (magenta caps) and brings its own padding;
+   these two sit on its baseline on the right. */
+label.pw-user {
+    color: @text;
+    font-size: 13px;
+}
+
+label.pw-uptime {
+    font-family: "IBM Plex Sans", "Font Awesome 6 Free Solid", sans-serif;
+    font-weight: normal;
+    color: @cyan;
+    font-size: 13px;
+    text-shadow: none;
+}
+
+/* min-width and the homogeneous row keep all five tiles one size; the
+   caption wraps (max_width_chars in the script) instead of widening one. */
+button.pw-tile {
+    min-width: 92px;
+    min-height: 96px;
+    padding: 8px 6px;
+    color: @text;
+    border-radius: 3px 14px 3px 14px;
+    background-color: alpha(@cyan, 0.05);
+    background-image: linear-gradient(to bottom,
+                        alpha(@cyan, 0.00) 0%,
+                        alpha(@cyan, 0.00) 55%,
+                        alpha(@cyan, 0.08) 100%);
+    border: 1px solid @edge;
+    border-bottom-color: @edge-lit;
+    transition: background-color 120ms ease-out, box-shadow 120ms ease-out,
+                border-color 120ms ease-out;
+}
+
+label.pw-glyph {
+    font-family: "Font Awesome 6 Free Solid";
+    font-weight: 900;
+    font-size: 26px;
+    color: @cyan;
+    text-shadow: none;
+}
+
+/* Two lines tall even when the caption is one word, so the glyph above it
+   does not hop up when an armed tile's prompt wraps onto a second line. */
+label.pw-label {
+    color: @text;
+    font-size: 14px;
+    font-weight: bold;
+    min-height: 36px;
+}
+
+button.pw-tile:hover {
+    border-color: @edge-lit;
+    background-color: alpha(@cyan, 0.14);
+    box-shadow: none;
+}
+
+button.pw-tile.danger label.pw-glyph {
+    color: @magenta;
+    text-shadow: none;
+}
+
+button.pw-tile.danger:hover {
+    border-color: @magenta;
+    background-color: alpha(@magenta, 0.12);
+    box-shadow: none;
+}
+
+button.pw-tile:active {
+    background-color: alpha(@cyan, 0.30);
+    box-shadow: none;
+}
+
+/* Armed: listed after :hover so it wins while the pointer is still on it. */
+button.pw-tile.armed,
+button.pw-tile.armed:hover {
+    background-color: @magenta;
+    background-image: none;
+    border-color: @magenta;
+    box-shadow: none;
+}
+
+button.pw-tile.armed label.pw-glyph,
+button.pw-tile.armed label.pw-label {
+    color: @ink;
+    text-shadow: none;
+}
+
+button.pw-tile.armed label.pw-label {
+    font-size: 13px;
+}
+
+/* ===========================================================================
+   Capture panel (scripts/capture_panel.py). Reuses the power panel's tiles
+   in two rows. .live is a capture in progress: solid red with white text, as on
+   the REC pill, so "Stop" and "Replay on" read as the thing that is running.
+   =========================================================================== */
+.cap-row {
+    margin-bottom: 12px;
+}
+
+button.pw-tile.live,
+button.pw-tile.live:hover {
+    background-color: alpha(@red, 0.85);
+    background-image: none;
+    border-color: @rec-edge;
+    box-shadow: none;
+}
+
+button.pw-tile.live label.pw-glyph,
+button.pw-tile.live label.pw-label {
+    color: @text-bright;
+    text-shadow: none;
+}
+
+button.pw-tile:disabled {
+    opacity: 0.35;
+}
+
+/* ===========================================================================
+   Disks panel (scripts/disk_panel.py). Disk name and details reuse the
+   control-panel title/sub; each filesystem is a flat button holding a path, a
+   usage bar and the numbers. The bar is cyan, then yellow from 85% and
+   magenta from 95%, the same thresholds as the pill.
+   =========================================================================== */
+.dk-disk {
+    padding: 4px 4px 6px 4px;
+    min-width: 360px;
+}
+
+.dk-fs {
+    padding: 4px 6px;
+    margin-top: 4px;
+}
+
+button.dk-fs {
+    border-radius: 2px;
+    border: 1px solid transparent;
+    background: none;
+    box-shadow: none;
+}
+
+button.dk-fs:hover {
+    border-color: @edge;
+    background-color: alpha(@cyan, 0.07);
+}
+
+levelbar.dk-bar trough {
+    min-height: 6px;
+    padding: 0px;
+    border: none;
+    border-radius: 1px;
+    background-color: alpha(@cyan, 0.08);
+    background-image: none;
+}
+
+levelbar.dk-bar block.filled {
+    min-height: 6px;
+    border: none;
+    border-radius: 1px;
+    background-color: @cyan;
+    background-image: none;
+    box-shadow: none;
+}
+
+levelbar.dk-bar block.empty {
+    border: none;
+    background: none;
+}
+
+levelbar.dk-bar.warning block.filled {
+    background-color: @yellow;
+    box-shadow: none;
+}
+
+levelbar.dk-bar.critical block.filled {
+    background-color: @magenta;
+    box-shadow: none;
+}
+
+/* CPU/GPU panels, compact: no gap under the section (the card's own padding
+   ends it), a smaller value, and the htop/nvtop link on the heading line --
+   no top margin there, and padded to the heading's height. */
+.sn-compact {
+    padding-bottom: 0px;
+}
+
+.sn-compact label.sn-value {
+    font-size: 12px;
+}
+
+.sn-compact label.sn-procs {
+    padding-top: 4px;
+}
+
+button.sn-link {
+    margin-top: 0px;
+    padding: 0px 6px;
+    font-size: 11px;
+    min-height: 0px;
+}
+
+/* One-line switch rows (the network panel's connections): a smaller icon and
+   less padding, so the card stays as tall as the CPU and GPU ones. */
+.ctl-row.compact {
+    padding: 2px 4px;
+}
+
+.ctl-row.compact .ctl-icon {
+    font-size: 12px;
+    min-width: 26px;
+    min-height: 26px;
+}
+
+/* The upright hairline between the two columns of the CPU, GPU and network
+   panels (panelui.columns): graphs on the left, processes on the right. */
+.ctl-vsep {
+    margin: 4px 16px;
+    min-width: 1px;
+    background-color: @edge;
+}
+
+/* ===========================================================================
+   Sections as cards, choices as buttons (display_panel.py: Screens, Theme,
+   Effects -- in the popup and in Settings). Built from the theme's own
+   tokens -- alpha(@text, ...) is a faint light wash on a dark theme and a
+   faint dark one on a light theme -- so every theme gets them without a
+   rule of its own.
+   =========================================================================== */
+/* One card per section: the heading and its rows, set apart from the next. */
+.ctl-group {
+    background-color: alpha(@text, 0.05);
+    border: 1px solid alpha(@text, 0.12);
+    border-radius: 10px;
+    padding: 8px 10px 10px 10px;
+    margin-bottom: 10px;
+}
+
+/* A heading inside a card leads it: bigger, with a short accent bar under. */
+.ctl-group label.kb-heading {
+    font-size: 12px;
+    padding: 0px 0px 6px 0px;
+    margin-bottom: 4px;
+    border-bottom: 2px solid alpha(@magenta, 0.45);
+}
+
+/* Choice chips (themes, frames, filters, presets): every option looks like a
+   button you can press, the chosen one filled and bold. */
+button.dev-pick.chip {
+    color: @text;
+    padding: 5px 10px;
+    margin: 1px;
+    background-color: alpha(@text, 0.06);
+    border: 1px solid alpha(@text, 0.18);
+}
+
+button.dev-pick.chip:hover {
+    background-color: alpha(@text, 0.12);
+    border-color: @edge-lit;
+}
+
+button.dev-pick.chip.active {
+    color: @text;
+    font-weight: bold;
+    background-color: @accent-lit;
+    border: 1px solid @edge-lit;
+    box-shadow: inset 0 0 0 1px @edge-lit, 0 0 8px alpha(@edge-lit, 0.45);
+}
+
+/* Links (Re-pick, Theme default, Open ...): small outlined buttons, so they
+   read as things to press, not as stray grey text. */
+button.ctl-link {
+    color: @text;
+    border: 1px solid alpha(@text, 0.18);
+    background-color: alpha(@text, 0.04);
+}
+
+button.ctl-link:hover {
+    color: @text;
+    border-color: @edge-lit;
+}
+
+/* Wallpaper accent (scripts/theme-from-wallpaper.py, ~/.config/hypr/scripts).
+   Redefines @cyan -- and with it every alpha(@cyan, ...) above -- to a colour
+   picked from the primary screen's wallpaper, or to the theme's own accent= when it does
+   not follow the wallpaper, or leaves the file empty for this file's neon.
+   Near the end on purpose: GTK3 resolves a named colour by its final
+   definition anywhere in the provider, so this one import recolours rules
+   written above it (tested). Generated, never committed (sync.sh excludes
+   generated/). */
+@import url("generated/accent.css");
+
+/* The desktop theme's panel.css (~/.config/themes/<name>/panel.css, copied
+   by ~/.config/hypr/scripts/theme.py; empty for cyberpunk). LAST, after the
+   accent, so the theme has the final word. Panels are short-lived processes:
+   a theme change shows in the next one opened. */
+@import url("generated/theme-panel.css");

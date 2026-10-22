@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# cpu-power -- publish the CPU package's power draw for unprivileged readers.
+#
+# The kernel exposes the CPU's energy counter (RAPL, "package-0", on AMD
+# Ryzen as on Intel) as /sys/class/powercap/intel-rapl:0/energy_uj,
+# readable by root only since 2020: fine-grained energy readings are a side
+# channel (PLATYPUS, CVE-2020-8694/8695; AMD's CVE-2020-12912). This runs as
+# root, samples it every INTERVAL seconds and writes ONLY the average watts over
+# that window to /run/cpu-power/watts (world-readable). A 5-second average is
+# far too coarse to leak anything, and nothing else is ever published.
+#
+# Read by ~/.config/waybar/scripts/cpu_usage.sh for the CPU panel's POWER graph.
+# Installed by ./install.sh next to this file (cpu-power.service).
+
+set -u
+RAPL=/sys/class/powercap/intel-rapl:0
+OUT=/run/cpu-power/watts
+INTERVAL=5
+
+[[ -r $RAPL/energy_uj ]] || { echo "cpu-power: no RAPL counter at $RAPL" >&2; exit 1; }
+max=$(<"$RAPL/max_energy_range_uj")
+
+# EPOCHREALTIME is "seconds.microseconds"; dropping the dot gives an integer
+# number of microseconds, so the whole thing is bash arithmetic -- no bc.
+now_us() { local t=${EPOCHREALTIME/./}; echo $((10#$t)); }
+
+# Waiting without forking /usr/bin/sleep every tick: read -t on a pipe that is
+# never written to just times out.
+exec {tick}<> <(:)
+
+prev=$(<"$RAPL/energy_uj") t0=$(now_us)
+while :; do
+    read -rt "$INTERVAL" -u "$tick" _
+    e=$(<"$RAPL/energy_uj") t=$(now_us)
+    d=$((e - prev))
+    ((d < 0)) && d=$((d + max))           # the counter wrapped around
+    dt=$((t - t0))
+    prev=$e t0=$t
+    ((dt > 0)) || continue
+    w10=$((d * 10 / dt))                   # uJ per us is W; x10 for one decimal
+    printf '%d.%d\n' $((w10 / 10)) $((w10 % 10)) > "$OUT.tmp" && mv -f "$OUT.tmp" "$OUT"
+done

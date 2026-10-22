@@ -1,0 +1,16 @@
+# The app launcher (ALT+E), kept running and hidden so it opens at once:
+# ~/.config/hypr/scripts/launcher.py --daemon. Without it, launcher.py still
+# works on its own, just slower to open (its docstring has the details).
+[Unit]
+Description=App launcher (resident, hidden until ALT+E)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/launcher.py --daemon
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

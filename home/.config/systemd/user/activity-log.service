@@ -1,0 +1,15 @@
+# Which window had the focus, for ask-desktop.py ("what was I working on
+# yesterday at 3pm"): ~/.config/hypr/scripts/activity-log.py.
+[Unit]
+Description=Focused-window log for ask-desktop
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/activity-log.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

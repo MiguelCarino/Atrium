@@ -1,0 +1,18 @@
+# Phone -> desktop handoff over KDE Connect (~/.config/hypr/scripts/phone.py
+# watch): links shared from the phone onto the clipboard, photos into
+# ~/Pictures/Phone, and -- only when privacy.conf phone_codes=on (Settings >
+# Devices) -- a one-click Copy for sign-in codes in the phone's notifications.
+# Only D-Bus subscriptions: idle until kdeconnectd says something.
+[Unit]
+Description=Phone handoff (KDE Connect: links, photos, sign-in codes)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/phone.py watch
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

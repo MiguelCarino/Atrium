@@ -1,0 +1,23 @@
+# Ambient desktop: ~/.config/hypr/scripts/ambient.py lets the desktop's look
+# and sound follow the time of day, the weather and focus blocks -- a veil
+# over the wallpaper, the accent's warmth, the night light's strength,
+# calmer animations (lua/ambient.lua), the notification sound's volume, an
+# optional soundscape and optional smart lights (Hue / Home Assistant, LAN
+# only). Off as shipped: Settings > Ambient (ambient.py set on|off) enables
+# and starts this unit, or stops it -- which puts every output back.
+[Unit]
+Description=Ambient desktop: look and sound follow time, weather and focus
+PartOf=graphical-session.target
+After=graphical-session.target mako.service
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/ambient.py daemon
+Restart=on-failure
+RestartSec=5
+# the daemon is ~20 MB; the wallpaper veil (GTK, while there is one) and the
+# soundscape's mpv run in this cgroup too
+MemoryHigh=250M
+
+[Install]
+WantedBy=graphical-session.target

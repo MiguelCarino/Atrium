@@ -1,0 +1,25 @@
+# Presence (the webcam: is someone at the desk?): ~/.config/hypr/scripts/
+# presence.py, in its own venv (~/.local/share/presence: OpenCV + the YuNet
+# face model). OFF as shipped and NOT enabled: Settings > Privacy >
+# Presence (`privacy_settings.py presence on|off`) enables / disables it, and
+# the script itself exits when privacy.conf says presence=off. Frames are
+# looked at in memory and dropped; the bar's camera icon shows "presence"
+# whenever the camera is open. Gestures and gaze (gestures.py, Settings >
+# Gestures & gaze, also OFF as shipped) run inside this same process on the
+# same frames, and either one enables it too (privacy_settings.py gestures|gaze).
+[Unit]
+Description=Presence at the desk (webcam, opt-in)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecCondition=/usr/bin/test -x %h/.local/share/presence/venv/bin/python
+ExecStart=%h/.local/share/presence/venv/bin/python %h/.config/hypr/scripts/presence.py run
+Restart=on-failure
+RestartSec=10
+MemoryHigh=300M
+Nice=10
+
+[Install]
+WantedBy=graphical-session.target

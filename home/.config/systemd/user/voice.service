@@ -1,0 +1,13 @@
+# Voice typing and live captions: ~/.config/hypr/scripts/voice.py (its
+# docstring has the commands). Not started at login on purpose: the first
+# `voice.py toggle` / `captions on` starts it, and it holds no model until
+# asked -- the model lives in a worker process it kills after idle_min.
+[Unit]
+Description=Voice typing and live captions (faster-whisper)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/voice.py daemon
+Restart=on-failure
+RestartSec=3

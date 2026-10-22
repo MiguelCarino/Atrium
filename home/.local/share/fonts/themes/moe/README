@@ -1,0 +1,29 @@
+The moe theme's faces (~/.config/themes/moe/). All SIL Open Font License 1.1.
+
+Rounded Mplus 1c (M PLUS Rounded 1c) -- the UI face (theme.conf font=).
+    A rounded gothic with full Japanese (kana, kanji), so Japanese and Latin
+    match. Regular, Medium, Bold.
+    Source: https://github.com/google/fonts/tree/main/ofl/mplusrounded1c
+    (M+ FONTS PROJECT / Coji Morishita). Licence: OFL-MPLUS.txt (the M+
+    families share it).
+
+M PLUS 1 Code -- the terminal face (term.font=, font_mono=).
+    Monospace with Japanese (wide glyphs two cells: fontconfig "dual").
+    Google ships it as ONE variable font, MPLUS1Code[wght].ttf; COSMIC
+    Terminal lists a family only if it has a Regular AND a Bold face, and
+    its font library sees a variable font as one face -- so the two files
+    here are static instances cut from it with fontTools
+    (varLib.instancer: wght 400 -> MPLUS1Code-Regular.ttf, 700 ->
+    MPLUS1Code-Bold.ttf; names set to "M PLUS 1 Code" Regular / Bold). The
+    variable original is NOT in this folder (fontconfig would list its
+    instances twice). Modified versions under the same OFL.
+    Source: https://github.com/google/fonts/tree/main/ofl/mplus1code
+    Licence: OFL-MPLUS.txt
+
+Hachi Maru Pop (はちまるポップ) -- headings and little touches: the bar's
+    clock, the cards' headings, the launcher's hero name, mpv's 一時停止中 ♡.
+    A playful handwritten pop face (Nonty). Regular only.
+    Source: https://github.com/google/fonts/tree/main/ofl/hachimarupop
+    Licence: OFL-HachiMaruPop.txt
+
+Fetched 2026-10-18 from raw.githubusercontent.com/google/fonts/main/ofl/...

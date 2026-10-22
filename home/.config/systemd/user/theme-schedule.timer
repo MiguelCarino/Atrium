@@ -1,0 +1,16 @@
+# Every 15 min theme-schedule.py checks whether a new day or night has begun
+# since its last switch; most ticks do nothing. Ticking rather than firing at
+# 07:00 / 20:00 keeps the times in one place (nightlight.sh) and lets a game
+# that was on screen at the boundary hold the switch until it closes.
+[Unit]
+Description=Day / night theme check
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Timer]
+OnActiveSec=20s
+OnCalendar=*:0/15
+AccuracySec=30s
+
+[Install]
+WantedBy=graphical-session.target

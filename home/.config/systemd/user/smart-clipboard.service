@@ -1,0 +1,19 @@
+# Smart clipboard: on every text copy, ~/.config/hypr/scripts/smart-clipboard.py
+# recognises what it is (a link, an address, a colour, an error, a parcel
+# number...) and offers one to three things to do with it in a small card.
+# Fast rules, no model; secrets and password-manager copies are never acted on
+# (its docstring has the rules). Settings > Smart clipboard switches this unit
+# and each kind.
+[Unit]
+Description=Smart clipboard: suggestions for what you copy
+PartOf=graphical-session.target
+After=graphical-session.target mako.service
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/wl-paste --type text --watch /usr/bin/python3 %h/.config/hypr/scripts/smart-clipboard.py hook
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

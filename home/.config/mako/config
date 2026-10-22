@@ -1,0 +1,142 @@
+# ===========================================================================
+# mako — notification daemon
+#
+# Why this file exists: before it, nothing on this machine owned the D-Bus name
+# org.freedesktop.Notifications. Apps that could not find a daemon did not fail
+# quietly -- Firefox and Thunderbird fall back to drawing each notification as
+# their own ordinary toplevel window, which Hyprland then tiled like any other
+# app. That is where the "notification appears as a window and shoves the
+# layout around until I close it" behaviour came from. A real daemon draws on a
+# layer surface instead, which sits above the tiling layout and never enters it.
+#
+# Palette is lifted from ~/.config/waybar/style.css so the two agree. Colours
+# there are GTK rgba(); here they are #rrggbbaa. The mapping is
+# rgba(30,35,50,0.46) -> #1E2332 with alpha round(0.46*255)=0x75.
+#
+# The compositor-side half of the glass is a layer_rule on the "notifications" namespace
+# (what mako names its layer surface; `hyprctl layers` shows it)
+# in ~/.config/hypr/lua/rules.lua -- same arrangement as the waybar and wofi rules. Without it
+# these are flat translucent panels, not frosted ones.
+# ===========================================================================
+
+# IBM Plex Sans, like the bar and its panels (waybar/style.css explains why).
+font=IBM Plex Sans SemiBold 11
+
+# --- PALETTE ----------------------------------------------------------------
+# Every colour mako uses is on one of these lines or in the [grouped] /
+# [urgency=...] sections below (the title colour lives inside format=). mako
+# has no colour variables, so a desktop theme overrides these KEYS instead:
+# its ~/.config/themes/<name>/mako fragment is copied to
+# ~/.config/mako/generated/theme by ~/.config/hypr/scripts/theme.py and
+# included at the very END of this file, after the criteria sections, so both
+# its global lines (background-color=, text-color=, format=, font=, border-*)
+# and any [urgency=critical]-style sections it repeats come last and win --
+# mako applies criteria in file order, later ones overriding earlier ones.
+#
+# Deliberately more opaque than the bar's 0x75. The bar only ever sits over the
+# top 36px of the screen and can afford to be see-through; a notification lands
+# over whatever happens to be running, including white web pages, and has to
+# stay readable there. 0xE8 is about 0.91 alpha -- still visibly glass once the
+# compositor blur is on, but no longer transparent enough to read text through.
+background-color=#060810E8
+text-color=#E6FCFF
+border-color=#00F0FFB3
+progress-color=over #00F0FF59
+# Wallpaper accent: the two lines above, recoloured to match the DP-1
+# wallpaper -- or nothing, for plain neon. Written by
+# ~/.config/hypr/scripts/theme-from-wallpaper.py; never committed (sync.sh
+# leaves generated/ out). Must stay right here, after the defaults it overrides.
+include=~/.config/mako/generated/accent
+
+border-size=2
+border-radius=4
+padding=14
+width=420
+height=180
+
+# Gap between stacked notifications.
+margin=10
+
+# Gap around the whole stack. The 44 clears the 36px waybar on DP-1 plus a
+# little air; drop it to 10 if you ever move the bar off the top or hide it.
+outer-margin=44,14,14,14
+
+# anchor=, output=, max-visible=, default-timeout=, ignore-timeout=,
+# group-by= and max-history= below are the DEFAULTS: Settings >
+# Notifications overrides them through generated/settings (included near
+# the end of this file).
+anchor=top-right
+layer=overlay
+max-visible=5
+
+# Pinned to DP-1, the centre screen, where the bar is: the 44px outer-margin
+# above is measured to clear that bar. Delete this line to have them follow the
+# focused monitor instead (mako's default) -- they then land wherever you are
+# already looking, with a gap at the top sized for a bar that only DP-1 has.
+
+default-timeout=5000
+ignore-timeout=0
+
+# Keep dismissed notifications retrievable with `makoctl restore`.
+history=1
+max-history=50
+
+# Stack repeats from the same app into one entry instead of a tower of five
+# identical Discord pings. The [grouped] block below is what that collapsed
+# entry looks like.
+group-by=app-name
+
+format=<span color="#00F0FF"><b>%s</b></span>\n%b
+markup=1
+actions=1
+
+icons=1
+max-icon-size=48
+icon-location=left
+
+on-button-left=invoke-default-action
+on-button-middle=dismiss
+on-button-right=dismiss-all
+# The desktop theme's notification sound (theme-sound.sh: silent when theme
+# sounds are off or in Do Not Disturb; sections silence low urgency).
+on-notify=exec ~/.config/hypr/scripts/theme-sound.sh notify
+
+# ---------------------------------------------------------------------------
+# Criteria sections ([grouped], [urgency=critical], [urgency=low], do not
+# disturb) live in ~/.config/mako/sections, included here.
+#
+# Why a second file: mako refuses include= inside a [section] ("Failed to
+# parse option" -- tested), and once a section header appears every line
+# after it belongs to that section, so a theme include placed after the
+# sections in this file was a parse error, and `makoctl reload` rejected
+# the whole config.
+# An included file, though, starts in the global scope and may open sections
+# of its own, and when it returns the reader is back in the global scope of
+# this file. So: defaults and the accent above, then the base sections, then
+# the theme -- all three includes at the top level, the theme's last.
+# ---------------------------------------------------------------------------
+# Project contexts (~/.config/hypr/scripts/contexts.py): the current
+# project's notification filter, mode project-focus -- only notifications
+# that name the project pop up. BEFORE the sections on purpose: their
+# do-not-disturb ones then come later and win when both modes are on. A
+# comment-only file outside a project; mako.service.d/contexts.conf writes it
+# when it is missing (a missing include fails the whole config).
+include=~/.config/mako/generated/contexts
+include=~/.config/mako/sections
+
+# Your behaviour choices from Settings > Notifications: where popups sit and
+# on which screen, how long each urgency stays, how many at once, grouping,
+# history size, whether urgent ones break through Do Not Disturb. Written by
+# ~/.config/hypr/scripts/notify-settings.py from
+# ~/.local/state/hypr/notifications.json; never committed (generated/).
+# Here, after the sections, so its [urgency=...] timeouts beat theirs, and
+# before the theme, which sets looks only and so still wins on looks. The
+# values in this file and in mako/sections above are the defaults it starts
+# from. mako.service runs `notify-settings.py ensure` (a drop-in) so the
+# file exists before mako reads this include.
+include=~/.config/mako/generated/settings
+
+# Desktop theme (see PALETTE above). Must stay the LAST line: an include is
+# read in place, so anything after it would override the theme. Empty for
+# cyberpunk. theme.py creates it before mako could ever read a missing file.
+include=~/.config/mako/generated/theme

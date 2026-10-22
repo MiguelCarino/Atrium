@@ -1,0 +1,30 @@
+# uwsm session environment -- read by `uwsm start` BEFORE the compositor or any
+# systemd user service starts, and exported to all of them. That is the point:
+# under uwsm, services like xdg-desktop-portal and hyprpolkitagent are started
+# by systemd, not by Hyprland, so variables set with hl.env in
+# ~/.config/hypr/lua/env.lua never reach them. Variables here do.
+#
+# Only read in the "Hyprland (uwsm-managed)" session. The plain "Hyprland"
+# session ignores this file, which is why lua/env.lua still sets the same
+# five -- keep the two in step.
+#
+# Plain `export NAME=value` lines; uwsm sources this with sh.
+
+# The pointer size (and your own cursor theme, if you picked one) from the
+# Settings window's "Fonts & text" page: display.conf cursor_size /
+# cursor_theme_user, the same keys lua/env.lua reads. 24 when unset.
+_hypr_state="${XDG_STATE_HOME:-$HOME/.local/state}/hypr/display.conf"
+_hypr_size=$(sed -n 's/^cursor_size=\([0-9][0-9]*\)$/\1/p' "$_hypr_state" 2>/dev/null | head -n1)
+export XCURSOR_SIZE="${_hypr_size:-24}"
+export HYPRCURSOR_SIZE="$XCURSOR_SIZE"
+_hypr_cursor=$(sed -n 's/^cursor_theme_user=\([A-Za-z0-9._ -]*\)$/\1/p' "$_hypr_state" 2>/dev/null | head -n1)
+[ -n "$_hypr_cursor" ] && export XCURSOR_THEME="$_hypr_cursor"
+unset _hypr_state _hypr_size _hypr_cursor
+export QT_QPA_PLATFORM=wayland
+# Qt6 apps read their style and palette from ~/.config/qt6ct (dark COSMIC
+# palette). Without this the qt6ct config existed but nothing loaded it.
+export QT_QPA_PLATFORMTHEME=qt6ct
+export XDG_SCREENSHOTS_DIR="$HOME/Pictures/Screenshots"
+# Japanese input (fcitx5) for XWayland clients; see lua/env.lua for why
+# GTK_IM_MODULE / QT_IM_MODULE are deliberately NOT set.
+export XMODIFIERS=@im=fcitx

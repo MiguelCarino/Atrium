@@ -1,0 +1,691 @@
+/* ===========================================================================
+   WINDOWS 95 -- the bar and the toolbox card (~/.config/waybar/style.css and
+   style-toolbox.css). Copied to waybar/generated/theme.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST, after the accent, so the
+   palette below wins over the base file's and the rules below win over its
+   rules of the same selector.
+
+   The look in one line: the Windows 95 taskbar, docked at the top. The bar
+   itself is painted -- one opaque grey strip, raised -- and every pill on it
+   is a raised grey button:
+
+     1. square corners everywhere (radius 0);
+     2. the 3D bevel of Windows 95: a light top/left edge and a dark
+        bottom/right one, two pixels deep (highlight + light over shadow +
+        black), as four inset box-shadows. The border itself is width 0 on
+        purpose: style.css recolours borders in some thirty state rules, and
+        with no border those rules have nothing to paint, so every state keeps
+        its bevel without this file having to chase each one.
+        ORDER MATTERS, and GTK3 has it backwards from the CSS spec: the LAST
+        shadow in the list is painted on top (measured on the bar's pixels:
+        written outer-line-first, the 2px inner lines covered the 1px outer
+        ones and the black edge never showed). So every stack here lists the
+        inner 2px lines first and the outer 1px lines last, and a ring meant
+        to sit UNDER a bevel (the launcher's banner mask) comes first;
+     3. a toggle that is ON (toolbox open, night light, keep awake, a
+        fullscreen mode, a lit screen filter) is a PRESSED button -- the
+        bevel inverted -- as a Windows 95 toolbar showed a checked button;
+        the focused window's title is the pressed task button of the
+        Windows 95 taskbar: inverted bevel, the 1px checker dither, bold;
+     4. the [date | time | weather] and [updates | git | bell] capsules are
+        sunken WELLS (a 1px shadow/highlight pair), the notification area
+        where Windows 95 kept its clock;
+     5. black text, no glow, no gradient, no text shadow; the face is W95FA
+        at 12.5px (theme.conf font=; at 12.5px one pixel of its grid is one
+        screen pixel, so the strokes are sharp -- see the font's README).
+
+   The grey is dimmed for an HDR primary: Windows 95's #c0c0c0 face is #acacac,
+   and every bevel colour is scaled with it -- highlight #e4e4e4 instead of
+   #ffffff, shadow #727272 instead of #808080, the outer dark line stays
+   black. Measured (WCAG, on the #acacac face):
+       text        #000000   9.3:1
+       text-dim    #3a3a3a   5.0:1
+       accent text #000080   7.1:1   (the clock, a lit toggle's glyph)
+       maroon      #800000   4.8:1   (the power glyph)
+   and white on every status fill: navy 16:1, maroon 11:1, red #e00000
+   5.0:1, green #007a00 5.6:1, purple 9.4:1, teal 5.9:1; black on the warn
+   yellow #d4c000 11:1 and on the night amber #c87800 6.1:1.
+
+   Status is a FILL here, never a coloured word on the grey: a dark hue on
+   #acacac cannot be a distinct colour AND 4.5:1 text, and yellow text on
+   light grey is not readable at all. So good = a green button with white
+   text, warn = yellow with black, bad = maroon with white, critical = red
+   with white (brighter than maroon, so the two reds stay apart). The base
+   file's few "status as text colour" rules (git dirty / unpushed, a player
+   error) are turned into fills further down.
+
+   Colours that are not in the base palette start with w- (the face and its
+   four bevel tones, the title-bar navy and its Windows 98 blue end).
+   =========================================================================== */
+
+/* --- the theme's own names (not in the base palette) ----------------------- */
+@define-color w-face     #acacac;   /* button face (#c0c0c0, dimmed) */
+@define-color w-hover    #b6b6b6;   /* the face under the pointer (Windows 95 had none; a hint) */
+@define-color w-hi       #e4e4e4;   /* highlight: the outer top/left line (#ffffff, dimmed) */
+@define-color w-light    #c4c4c4;   /* light: the inner top/left line (#dfdfdf, dimmed) */
+@define-color w-shadow   #727272;   /* shadow: the inner bottom/right line (#808080, dimmed) */
+@define-color w-dark     #000000;   /* dark shadow: the outer bottom/right line */
+@define-color w-navy     #000080;   /* title bar, selection */
+@define-color w-title2   #1084d0;   /* the light end of the Windows 98 title bar */
+@define-color w-well-hov #7c7c7c;   /* the toolbox tray well under the pointer */
+
+/* --- PALETTE 1: hues ---------------------------------------------------------
+   @cyan is the accent: navy, from theme.conf accent= (accent_follow=no), so
+   it is not redefined here. @magenta, the base's "ends something / bad"
+   hue, is the Windows 95 maroon. */
+@define-color magenta    #800000;
+@define-color yellow     #d4c000;   /* warn: a fill under black text */
+@define-color green      #007a00;   /* good: a fill under white text */
+@define-color purple     #800080;   /* UTC clock, work hours */
+@define-color red        #b00000;   /* REC, camera: under white text 7.4:1 */
+@define-color mist       #3a3a3a;
+@define-color steel      #727272;
+@define-color slate      #727272;
+
+/* --- PALETTE 2: surfaces, edges, text --------------------------------------- */
+@define-color surface        @w-face;
+@define-color surface-hover  @w-hover;
+@define-color surface-dense  @w-face;
+@define-color surface-solid  @w-face;     /* tray menu: a Windows 95 menu */
+@define-color edge           @w-shadow;
+@define-color edge-lit       @w-dark;
+@define-color accent         @w-navy;     /* the accent WASH is a solid navy here */
+@define-color text           #000000;
+@define-color text-dim       #3a3a3a;
+@define-color text-bright    #ffffff;     /* on navy, maroon, red and green fills only */
+@define-color ink            #ffffff;     /* "text on a full accent fill": the fills are dark */
+@define-color ink-warn       #000000;     /* on the yellow location pill */
+
+/* --- PALETTE 3: workspaces --------------------------------------------------
+   One dark hue per screen, as the number's colour on an unlit button (each
+   >= 4.5:1 on the face) and as the solid fill under a white number on the
+   lit one: navy (the primary, the title-bar blue), green (the second screen),
+   plum (the third --
+   not maroon, which is "bad" in this theme). */
+@define-color mon1-hue   #000080;
+@define-color mon2-hue   #004800;
+@define-color mon3-hue   #6a006a;
+@define-color mon1       #000080;
+@define-color mon1-dim   #000080;
+@define-color mon2       #006400;
+@define-color mon2-dim   #004800;
+@define-color mon3       #6a006a;
+@define-color mon3-dim   #6a006a;
+@define-color mon-unknown #727272;
+
+/* --- PALETTE 4: clock modes, status, alerts --------------------------------- */
+@define-color utc        @purple;
+@define-color utc-fg     #ffffff;
+@define-color epoch      #007070;    /* Windows 95 teal */
+@define-color epoch-fg   #ffffff;
+@define-color good       @green;
+@define-color good-fg    #ffffff;
+@define-color bad        @magenta;
+@define-color bad-fg     #ffffff;
+@define-color warn       @yellow;
+@define-color warn-fg    #000000;
+/* Critical: a brighter red than the maroon "bad", and exactly this one --
+   cpu_usage.sh / gpu_usage.sh draw the CPU label in color.cpu (navy) with
+   Pango markup, which no CSS can recolour, and it sits on this fill when
+   the pill goes critical. For white numbers >= 4.5:1 AND the navy label
+   >= 3:1 the fill's luminance must lie between 0.153 and 0.183; #e00000 is
+   0.158: white 5.0:1, navy 3.2:1 (#c80000 left the label at 2.6:1). */
+@define-color critical   #e00000;
+@define-color rec-edge   @w-dark;
+@define-color rec-dim    #600000;    /* the dim end of the REC pulse */
+@define-color night      #c87800;    /* night light on: amber under black text */
+@define-color night-fg   #000000;
+@define-color night-edge @w-dark;
+
+/* ---------------------------------------------------------------------------
+   The taskbar strip. Only the main bar (by its name class: the toolbox is
+   window#waybar too, and its layer must stay transparent round the card).
+   Raised like the Windows 95 taskbar: highlight along the top, shadow and
+   black along the bottom edge, which faces the windows. Opaque, so the
+   wallpaper never shows between the buttons -- and there is no blur behind
+   it to show (theme.conf hypr.blur=no).
+   --------------------------------------------------------------------------- */
+window#waybar.waybar-main {
+    background-color: @w-face;
+    box-shadow: inset 0 2px @w-light,
+                inset 0 -2px @w-shadow,
+                inset 0 1px @w-hi,
+                inset 0 -1px @w-dark;
+}
+
+/* The pixel face everywhere: 12.5px (the size where W95FA is sharp), normal
+   weight -- W95FA has no bold, and a synthesised one is kept for the few
+   places Windows 95 itself used bold. */
+* {
+    font-size: 12.5px;
+    font-weight: normal;
+    letter-spacing: 0px;
+}
+
+/* ---------------------------------------------------------------------------
+   The raised button. Same selector list as the base file's shared pill, so
+   this comes later at equal specificity and wins; the colour and the state
+   washes are still the base file's per-pill rules (redefined above).
+   min-height 28 keeps the bar at the base's 36px (4 + 28 + 4): the pixel
+   face is shorter than Plex at 14-16px, and the bar would shrink with it,
+   moving every window's top edge.
+   --------------------------------------------------------------------------- */
+#clock,
+#custom-day,
+#custom-clock,
+#custom-updates,
+#custom-weather,
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#network,
+#custom-network,
+#pulseaudio,
+#backlight,
+#battery,
+#temperature,
+#tray,
+#custom-player,
+#privacy,
+#custom-fsstate,
+#custom-nightlight,
+#idle_inhibitor,
+#custom-keybinds,
+#custom-settings,
+#custom-toolbox,
+#custom-power,
+#custom-capture,
+#custom-repos,
+#custom-timers,
+#custom-workhours,
+#custom-notifications,
+#custom-display,
+#language,
+#submap,
+#window {
+    min-height: 28px;
+    padding-left: 10px;
+    padding-right: 10px;
+    border: none;
+    border-radius: 0px;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+    transition: none;
+}
+
+/* Hover: the same raised button, the face a shade lighter. The base hover
+   rule (id:hover) sets box-shadow: none, so the bevel is repeated here. */
+#clock:hover,
+#custom-day:hover,
+#custom-clock:hover,
+#custom-updates:hover,
+#custom-weather:hover,
+#custom-cpu:hover,
+#custom-gpu:hover,
+#custom-disk:hover,
+#network:hover,
+#custom-network:hover,
+#pulseaudio:hover,
+#tray:hover,
+#custom-player:hover,
+#privacy:hover,
+#custom-fsstate:hover,
+#custom-nightlight:hover,
+#idle_inhibitor:hover,
+#custom-keybinds:hover,
+#custom-settings:hover,
+#custom-toolbox:hover,
+#custom-power:hover,
+#custom-repos:hover,
+#custom-timers:hover,
+#custom-workhours:hover,
+#custom-notifications:hover,
+#custom-display:hover,
+#custom-capture:hover {
+    background-color: @surface-hover;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+/* Visible states that the base file writes with `box-shadow: none` at
+   id.class specificity (which beats the plain-id rule above): the raised
+   bevel again. The ones that are a toggle switched ON are in the pressed
+   list further down instead; the collapsing states (.stopped, .idle) are
+   left alone, or their bevel would frame nothing. */
+#custom-clock.utc,
+#custom-clock.epoch,
+#custom-player.playing,
+#custom-recording.replay,
+#network.disconnected,
+#custom-network.disconnected {
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+/* --- Joined capsules: sunken wells ----------------------------------------
+   [date | time | weather] and [updates | git | bell] are one well each, the
+   Windows 95 notification area: a 1px shadow line along the top and the
+   left end, a 1px highlight along the bottom and the right end, nothing
+   between the parts. Each part draws only its share of the frame. */
+#custom-day,
+#custom-updates {
+    border-radius: 0px;
+    padding-right: 6px;
+    box-shadow: inset 0 -1px @w-hi,
+                inset 0 1px @w-shadow,
+                inset 1px 0 @w-shadow;
+}
+
+#custom-clock,
+#custom-repos {
+    border-radius: 0px;
+    padding-left: 6px;
+    padding-right: 6px;
+    box-shadow: inset 0 -1px @w-hi,
+                inset 0 1px @w-shadow;
+}
+
+#custom-weather,
+#custom-notifications {
+    border-radius: 0px;
+    padding-left: 6px;
+    box-shadow: inset 0 -1px @w-hi,
+                inset 0 1px @w-shadow,
+                inset -1px 0 @w-hi;
+}
+
+/* A well has no hover of its own (the face stays the face): its parts are
+   clickable, but Windows 95's tray did not light up either. */
+#custom-day:hover,
+#custom-updates:hover {
+    background-color: @surface;
+    box-shadow: inset 0 -1px @w-hi,
+                inset 0 1px @w-shadow,
+                inset 1px 0 @w-shadow;
+}
+
+#custom-clock:hover,
+#custom-repos:hover {
+    background-color: @surface;
+    box-shadow: inset 0 -1px @w-hi,
+                inset 0 1px @w-shadow;
+}
+
+#custom-weather:hover,
+#custom-notifications:hover {
+    background-color: @surface;
+    box-shadow: inset 0 -1px @w-hi,
+                inset 0 1px @w-shadow,
+                inset -1px 0 @w-hi;
+}
+
+/* --- Date, time, weather, updates ----------------------------------------- */
+#custom-day {
+    color: @text;
+}
+
+/* The clock: black, as Windows 95's was (the base draws it in the accent).
+   W95FA's digits are proportional -- "1" is two grid pixels narrower than
+   the rest and the face has no tnum feature -- so the min-width holds the
+   well still while the seconds tick (the widest time, "00:00:00", is 42px). */
+#custom-clock,
+#custom-clock.local {
+    font-size: 12.5px;
+    letter-spacing: 0px;
+    color: @text;
+    min-width: 46px;
+}
+
+/* UTC and epoch keep shouting: the well fills with the mode's colour. */
+#custom-clock.utc {
+    background-color: @utc;
+    color: @utc-fg;
+}
+
+#custom-clock.epoch {
+    background-color: @epoch;
+    color: @epoch-fg;
+}
+
+#custom-weather,
+#custom-updates {
+    font-size: 12.5px;
+}
+
+/* Pending: the box glyph is maroon (updates.sh markup, theme.conf
+   color.pending); the base's magenta floor line has no border to draw on. */
+
+/* --- Readouts with ticking digits: hold their width ------------------------
+   Same reason as the clock (proportional digits). CPU and GPU print
+   "NN%  NN°  N.NG"-style text; 4 digits of slack is enough. */
+#custom-cpu,
+#custom-gpu {
+    color: @text;
+    min-width: 120px;
+}
+
+#custom-network {
+    min-width: 96px;
+}
+
+/* --- Workspaces: a row of small raised buttons, no frame round the row --- */
+#workspaces {
+    margin: 4px 6px 4px 4px;
+    padding: 0px;
+    border: none;
+    border-radius: 0px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+#workspaces button {
+    font-size: 12.5px;
+    min-height: 28px;
+    min-width: 14px;
+    padding: 0px 8px;
+    margin: 0px 2px 0px 0px;
+    border: none;
+    border-radius: 0px;
+    background-color: @w-face;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+    transition: none;
+}
+
+#workspaces button.hidden {
+    font-size: 12.5px;
+}
+
+#workspaces button:hover {
+    background-color: @w-hover;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+/* The shown workspace: pressed in, filled with its screen's colour (the
+   generated workspace-tint-active rules set the fill), white bold number. */
+#workspaces button.active label {
+    font-weight: bold;
+}
+
+#workspaces button.active {
+    background-image: none;
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+#workspaces button.urgent,
+#workspaces button.active.urgent {
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+/* --- The focused window's title: the pressed task button -------------------
+   Inverted bevel, the 1px checker dither of a Windows 95 task button that is
+   down, and bold, as the active task's name was. The base's empty-title rule
+   (higher specificity) still clears all of it when there is no window.
+   The dither is a 2x2 PNG next to this theme's css (dither.png: highlight on
+   two pixels, transparent on the other two, so the face shows through) --
+   a gradient cannot draw a sharp 1px checker, and GTK3 ignores data: urls
+   (tested: nothing drawn). The url is ABSOLUTE: theme.py copies this file to
+   waybar/generated/, so a relative one would point there. It is written
+   file://~/... and theme.py puts this home's path in for the ~. */
+/* The title is a LABEL inside the #window box (hyprland/window draws the
+   app icon beside it), and `*` above matches that label itself, so the bold
+   goes on the label -- on the box it would only be inherited, and `*` wins
+   over inheritance. Same for the workspace buttons' numbers. */
+#window label {
+    font-weight: bold;
+}
+
+#window {
+    font-size: 12.5px;
+    padding-left: 10px;
+    padding-right: 12px;
+    color: @text;
+    background-image: url("file://~/.config/themes/win95/dither.png");
+    background-repeat: repeat;
+    background-size: 2px 2px;
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+/* --- Toggles that are ON: pressed buttons ---------------------------------
+   Each keeps its state colour (the base file's rules, palette above); the
+   bevel says "down". The toolbox handle and the display row have no state
+   colour of their own, so they get the task button's dither instead. */
+#custom-toolbox.open,
+#custom-display.on,
+#custom-fsstate.mode-a,
+#custom-fsstate.mode-b,
+#custom-nightlight.on,
+#idle_inhibitor.activated {
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+#custom-toolbox.open,
+#custom-display.on {
+    color: @text;
+    background-image: url("file://~/.config/themes/win95/dither.png");
+    background-repeat: repeat;
+    background-size: 2px 2px;
+}
+
+#custom-toolbox:hover {
+    color: @text;
+}
+
+/* Split-fullscreen mode A: the base fills it with the accent wash and
+   writes the accent on it -- navy on navy here. White on navy instead. */
+#custom-fsstate.mode-a {
+    background-color: @w-navy;
+    color: @text-bright;
+}
+
+/* --- Status as text, made into fills (see the header) --------------------- */
+#custom-repos.dirty {
+    background-color: @warn;
+    color: @warn-fg;
+}
+
+#custom-repos.unpushed {
+    background-color: @bad;
+    color: @bad-fg;
+}
+
+#custom-player.error {
+    background-color: @warn;
+    color: @warn-fg;
+}
+
+/* --- CPU / GPU --------------------------------------------------------------
+   The labels are the theme's color.cpu / color.gpu (navy, dark green) in the
+   scripts' markup; the numbers black. Critical: the red fill, white text, and
+   the base's blink (to maroon). */
+#custom-cpu.critical,
+#custom-gpu.critical {
+    background-color: @critical;
+    color: @text-bright;
+}
+
+#custom-gpu.unavailable {
+    background-color: @w-face;
+    color: @text-dim;
+}
+
+/* --- Power: a raised button with the maroon glyph -------------------------- */
+#custom-power {
+    color: @magenta;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+#custom-power:hover {
+    background-color: @w-hover;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+/* --- Privacy and recording: solid buttons in their colour ------------------ */
+#custom-mic,
+#custom-camera,
+#custom-location,
+#custom-recording {
+    min-height: 28px;
+    border: none;
+    border-radius: 0px;
+}
+
+#custom-mic.active,
+#custom-camera.active,
+#custom-location.active,
+#custom-recording.recording {
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+/* Solid, not the base's 75-85% washes: over the grey strip a translucent
+   red is a muddy pink. */
+#custom-mic.active      { background-color: @magenta; }
+#custom-camera.active   { background-color: @red; }
+#custom-location.active { background-color: @yellow; }
+#custom-recording.recording { background-color: @red; }
+
+/* The camera pill while recording: the glyph pulses in red on the grey. */
+#custom-capture.recording,
+#custom-capture.recording:hover {
+    color: @red;
+}
+
+/* --- Tray menu: a Windows 95 menu ----------------------------------------- */
+#tray menu {
+    border: none;
+    border-radius: 0px;
+    padding: 2px;
+    background-color: @w-face;
+    color: @text;
+    box-shadow: inset 2px 2px @w-hi,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-light,
+                inset -1px -1px @w-dark;
+}
+
+#tray menu menuitem {
+    border-radius: 0px;
+    padding: 3px 18px;
+}
+
+#tray menu menuitem:hover {
+    background-color: @w-navy;
+    color: @text-bright;
+}
+
+/* --- The toolbox card (style-toolbox.css): a raised Windows 95 window ------
+   By the bar's name class, so the main bar's own .modules-left box (which
+   also exists, unpainted) is never matched: this file is imported by both
+   bars. Its rows are the same raised buttons as on the bar. */
+/* Widths add up to the base card's 198px on purpose (rows 150 + 2 x 15
+   padding, card 2 x 9): scripts/toolbox_fit.py sizes the toolbox layer to
+   that measured width, and a narrower card left a 12px strip of the layer
+   beside it that swallowed clicks. The base pays 1px of border on each row
+   and on the card; this theme has none, so the padding takes that pixel. */
+window#waybar.waybar-toolbox .modules-left {
+    padding: 6px 9px;
+    border: none;
+    border-radius: 0px;
+    background-color: @w-face;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-hi,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-light,
+                inset -1px -1px @w-dark;
+}
+
+window#waybar.waybar-toolbox #custom-fsstate,
+window#waybar.waybar-toolbox #custom-nightlight,
+window#waybar.waybar-toolbox #idle_inhibitor,
+window#waybar.waybar-toolbox #custom-display,
+window#waybar.waybar-toolbox #custom-keybinds,
+window#waybar.waybar-toolbox #custom-settings,
+window#waybar.waybar-toolbox #tray {
+    min-height: 26px;
+    margin: 0px 0px 4px 0px;
+    padding: 2px 15px;
+}
+
+window#waybar.waybar-toolbox #tray {
+    margin-bottom: 0px;
+}
+
+/* The tray row: a sunken well with a mid-grey floor, not the raised face.
+   Tray icons are the apps' own pixmaps, light or dark: on the #acacac face
+   Steam's white monochrome icon vanished (#dfdfdf on #adadad, 1.7:1,
+   measured) while the black keyboard icon was fine. On @w-shadow (#727272)
+   both clear the 3:1 a graphic needs: white 3.6:1, black 4.4:1. (An outline,
+   -gtk-icon-shadow, was tried first: it rescued Steam but filled the 1px
+   gaps between the keyboard icon's keys, which became a black slab.) The
+   bevel is the sunken one, like the Windows 95 tray's well; hover keeps it
+   and lightens the floor a step. */
+window#waybar.waybar-toolbox #tray,
+window#waybar.waybar-toolbox #tray:hover {
+    background-color: @w-shadow;
+    box-shadow: inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+window#waybar.waybar-toolbox #tray:hover {
+    background-color: @w-well-hov;
+}
+
+/* One column of labels. Each row is ONE label, "<glyph>   Name", so the
+   name starts wherever the glyph ends, and Font Awesome glyphs are not one
+   width: at 12.5px the gamepad, the TV and the mug are 15.6px, the question
+   mark 12.5px, the light bulb and the moon 9.4px -- the names wandered over
+   7px (most visible on Game mode, which starts furthest right). A label
+   cannot be split into an icon box and a text box from CSS, so each row
+   instead moves its padding from right to left by what its glyph is short
+   of the widest (640 font units = 15.6px): the names line up and the glyphs
+   end flush against the column, the row's width (150 + 2 x 15, which
+   toolbox_fit.py measures) unchanged. Keep awake changes glyph with its
+   state (mug when on, moon when off), hence the two class rules. Widths are
+   Font Awesome 6 Free Solid's advance widths, read with fontTools. */
+window#waybar.waybar-toolbox #custom-nightlight,
+window#waybar.waybar-toolbox #idle_inhibitor.deactivated {
+    padding-left: 21px;                 /* light bulb / moon: 384 units, +6 */
+    padding-right: 9px;
+}
+
+window#waybar.waybar-toolbox #custom-keybinds,
+window#waybar.waybar-toolbox #custom-settings {
+    padding-left: 18px;                 /* circle-question: 512 units, +3 */
+    padding-right: 12px;
+}

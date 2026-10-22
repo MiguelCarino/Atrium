@@ -1,0 +1,363 @@
+/* ===========================================================================
+   WINDOWS 95 -- the LLM chat window (~/.config/hypr/scripts/
+   llm-chat.py, base stylesheet llm-chat.css there). Copied to
+   waybar/generated/theme-llm-chat.css by theme.py and imported LAST.
+   Same palette and bevels as this theme's waybar.css and launcher.css
+   (waybar.css's header explains them, the GTK3 shadow order included:
+   inner 2px lines first, outer 1px lines last).
+
+   The window is a Windows 95 application: the dimmed face grey #acacac,
+   black W95FA type at 12.5px; the header bar the navy title bar into the
+   Windows 98 blue, its buttons raised grey; replies on raised panels, the
+   user's messages navy with white text (a selected item), code and tool
+   output in the black of an MS-DOS Prompt; the input a sunken text field
+   (#cccccc, the theme's dimmed white -- no white surface on the HDR
+   panel) beside a raised Send button; the status line a sunken status
+   bar. The stage is a sunken well, dark like a monitor's bezel (#4a4a4a =
+   mascot_win95.PANEL), holding a small Windows 95 screen -- teal desktop, taskbar, the
+   paperclip in his dialog box -- which the art paints cell by cell (not
+   PxPlus IBM VGA: its "|" is the PC's broken bar, and the clip is made of
+   them); his speech bubble is the pale balloon he spoke in, dimmed to
+   #d6d09a.
+   =========================================================================== */
+
+@define-color w-face        #acacac;
+@define-color w-hover       #b6b6b6;
+@define-color w-hi          #e4e4e4;
+@define-color w-light       #c4c4c4;
+@define-color w-shadow      #727272;
+@define-color w-dark        #000000;
+@define-color w-navy        #000080;
+@define-color w-title2      #1084d0;
+@define-color w-field       #cccccc;
+@define-color w-teal        #008080;
+@define-color w-balloon     #d6d09a;
+
+@define-color magenta       #800000;
+@define-color violet        @w-shadow;
+@define-color yellow        #d4c000;
+@define-color green         #007a00;
+@define-color mist          #333333;
+@define-color surface       @w-face;
+@define-color surface-2     @w-face;
+@define-color edge          @w-shadow;
+@define-color edge-lit      @w-dark;
+@define-color text          #000000;
+@define-color text-dim      #3a3a3a;
+@define-color ink           #ffffff;
+@define-color button-bg     @w-face;
+@define-color button-hover  @w-hover;
+@define-color stop-bg       @w-face;
+@define-color stop-fg       #800000;
+@define-color user-bg       @w-navy;
+@define-color user-edge     @w-navy;
+@define-color user-fg       #ffffff;
+@define-color assistant-bg  @w-face;
+@define-color assistant-edge @w-shadow;
+@define-color stage-bg      #4a4a4a;     /* the monitor's bezel; the art paints its own teal desktop */
+@define-color stage-edge    @w-shadow;
+@define-color stage-glow    alpha(@w-teal, 0.0);
+@define-color scanline      alpha(@w-teal, 0.0);
+@define-color stage-fg      #000000;
+@define-color bubble-bg     @w-balloon;
+@define-color bubble-fg     #000000;
+@define-color bubble-edge   #000000;
+@define-color code-bg       #000000;
+@define-color code-fg       #c4c4c4;
+@define-color code-lang     #c4c4c4;
+@define-color code-edge     #000000;
+@define-color chip-bg       @w-face;
+@define-color chip-edge     @w-shadow;
+@define-color run-bg        #d4c000;
+@define-color done-bg       #007a00;
+@define-color bad-bg        #800000;
+@define-color dot-fg        #000000;
+@define-color error-bg      @w-face;
+@define-color error-edge    #800000;
+@define-color note-bg       transparent;
+@define-color sel-bg        @w-navy;
+@define-color sel-fg        #ffffff;
+@define-color input-bg      @w-field;
+@define-color input-edge    @w-shadow;
+@define-color input-line    @w-shadow;
+@define-color caret         #000000;
+@define-color send-bg       @w-face;
+@define-color send-fg       #000000;
+@define-color send-glow     alpha(@w-face, 0.0);
+@define-color slider        @w-face;
+@define-color tooltip-bg    @w-balloon;
+@define-color tooltip-fg    #000000;
+@define-color rule          @w-shadow;
+@define-color md-accent     #000080;
+@define-color md-dim        #3a3a3a;
+@define-color md-code-fg    #000080;
+@define-color md-code-bg    #c4c4c4;
+@define-color placeholder_text_color #3a3a3a;
+
+window#llm-chat {
+    background-image: none;
+    font-size: 12.5px;
+}
+
+/* --- The title bar ------------------------------------------------------------ */
+window#llm-chat headerbar {
+    background-color: @w-navy;
+    background-image: linear-gradient(to right, @w-navy, @w-title2);
+    border-bottom: none;
+    box-shadow: none;
+    color: #ffffff;
+    min-height: 30px;
+    padding: 0 3px;
+}
+
+window#llm-chat headerbar .title {
+    font-family: "W95FA", "IBM Plex Sans", sans-serif;
+    color: #ffffff;
+    font-size: 12.5px;
+    font-weight: normal;     /* W95FA has no bold: a synthetic one smears its pixels */
+}
+
+window#llm-chat headerbar .subtitle {
+    color: @w-light;
+    font-size: 12.5px;
+}
+
+window#llm-chat headerbar button {
+    border: none;
+    border-radius: 0px;
+    color: #000000;
+    font-size: 12.5px;
+    padding: 1px 8px;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+window#llm-chat headerbar button:active {
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+window#llm-chat headerbar button.titlebutton {
+    border-radius: 0px;
+    min-width: 18px;
+    min-height: 16px;
+    padding: 0px;
+}
+
+/* --- The stage: a sunken well onto the desktop -------------------------------- */
+#stage-wrap {
+    padding: 10px 10px 6px 10px;
+}
+
+#stage {
+    border: none;
+    border-radius: 0px;
+    background-image: none;
+    padding: 8px 8px 6px 8px;
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+/* Clippy's balloon: pale yellow, a black line, round corners -- the one
+   round thing here, as it was. */
+#bubble {
+    background-image: none;
+    border: 1px solid #000000;
+    border-radius: 8px;
+    box-shadow: none;
+    font-family: "W95FA", "IBM Plex Sans", sans-serif;
+    font-size: 12.5px;
+    padding: 4px 12px;
+}
+
+paned > separator {
+    background-image: none;
+    background-color: @w-face;
+    min-height: 4px;
+    margin: 0px;
+    box-shadow: inset 0 1px @w-hi, inset 0 -1px @w-shadow;
+}
+
+/* --- The conversation --------------------------------------------------------- */
+#transcript-scroll scrollbar {
+    background-color: @w-light;
+}
+
+#transcript-scroll scrollbar slider {
+    border-radius: 0px;
+    min-width: 14px;
+    background-color: @w-face;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+label.user {
+    border: none;
+    border-radius: 0px;
+    padding: 6px 10px;
+}
+
+label.user.queued {
+    background-color: @w-face;
+    color: #000000;
+    border: 1px dashed #000000;
+}
+
+label.user.dropped {
+    background-color: @w-face;
+    border: 1px dashed @w-shadow;
+}
+
+.assistant {
+    border: none;
+    border-radius: 0px;
+    padding: 8px 12px;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+label.md link {
+    color: #000080;
+}
+
+.codeblock {
+    border: none;
+    border-radius: 0px;
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+    padding: 8px 10px;
+}
+
+label.code, .mono {
+    font-size: 9.5pt;
+}
+
+.toolchip {
+    border: none;
+    border-radius: 0px;
+    padding: 3px 10px 3px 4px;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+.toolchip.error {
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px #800000;
+}
+
+label.tool-icon {
+    border-radius: 0px;
+    color: #000000;
+}
+
+.toolchip.done label.tool-icon,
+.toolchip.error label.tool-icon {
+    color: #ffffff;
+}
+
+label.tool-name {
+    color: #000000;
+}
+
+label.tool-summary {
+    color: #3a3a3a;
+}
+
+label.tool-excerpt {
+    border-radius: 0px;
+}
+
+label.note {
+    border-radius: 0px;
+    color: #3a3a3a;
+}
+
+label.error-card {
+    border: none;
+    border-radius: 0px;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px #800000;
+}
+
+/* --- Input: a sunken field, a raised Send button, a sunken status bar ------- */
+#bottom {
+    border-top: none;
+    box-shadow: inset 0 1px @w-hi;
+}
+
+#input-scroll {
+    border: none;
+    border-radius: 0px;
+    padding: 5px 8px;
+    box-shadow: inset 2px 2px @w-dark,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-shadow,
+                inset -1px -1px @w-hi;
+}
+
+#input, #input text {
+    font-size: 12.5px;
+}
+
+#placeholder {
+    font-size: 12.5px;
+    margin-left: 10px;
+}
+
+button#send {
+    border: none;
+    border-radius: 0px;
+    font-family: "W95FA", "IBM Plex Sans", sans-serif;
+    font-weight: normal;
+    font-size: 12.5px;
+    padding: 4px 18px;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+button#send:hover {
+    background-color: @w-hover;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+button#send:active {
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+#status {
+    color: #000000;
+    padding: 2px 6px;
+    margin-left: 0px;
+    box-shadow: inset 1px 1px @w-shadow, inset -1px -1px @w-hi;
+}
+
+tooltip, tooltip.background {
+    border-radius: 0px;
+    border: 1px solid #000000;
+}

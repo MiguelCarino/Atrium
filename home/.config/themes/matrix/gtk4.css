@@ -1,0 +1,138 @@
+/* ===========================================================================
+   MATRIX -- libadwaita / GTK4 (Nautilus). Becomes ~/.config/gtk-4.0/gtk.css
+   (theme.py; a hand-written gtk.css is kept as gtk.css.before-themes).
+   gsettings does the rest: color-scheme prefer-dark, accent-color green
+   (theme.conf gtk_*), and the variables below then pin libadwaita's dark
+   palette to this theme's black and phosphor green.
+
+   Read at process start only. Nautilus is ONE process for all its windows,
+   so while any Nautilus window is open, new ones keep the old look too: it
+   shows after every window is closed (or `nautilus -q`) and Nautilus starts
+   again (tested 2026-10-17: a new window of a running Nautilus did not
+   change; a fresh process did).
+   Every GTK4 app of this user reads this file, not just Nautilus -- the
+   variables are libadwaita's own, so non-libadwaita GTK4 apps mostly ignore
+   them and only the font and radius rules reach them.
+
+   Same contrast budget as the bar: text #00ff41 on #000803 is 15:1. The
+   dim text (subtitles, captions, Nautilus's size/date columns) is the fg
+   colour at --dim-opacity; libadwaita's 55% measured 4.4:1 on a card and
+   3.6:1 on a selected row, so it is raised to 75% below (8:1 on a card,
+   ~6:1 on a selected row, measured in a fresh Adw process); selections and the accent fill are #00b32c with black
+   text (7:1), never full #00ff41 over a large area (the primary can be HDR).
+   =========================================================================== */
+
+/* CALMER (2026-10-18): text is the soft grey #c8d4cb (13:1 on the black),
+   the accent #3ddc68, fills #2e9e4f with black text (6:1), borders and
+   shades a dark green-grey -- green only where something is selected or
+   lit. Where the text above says #00ff41 / #00b32c, read these. */
+
+:root {
+    /* The accent: libadwaita's accent-bg is the FILL (suggested buttons,
+       switches, the selected sidebar row); accent-color is accent text and
+       focus rings. */
+    --accent-bg-color: #2e9e4f;
+    --accent-fg-color: #000000;
+    --accent-color: #3ddc68;
+
+    --destructive-bg-color: #c01818;
+    --destructive-fg-color: #ffffff;
+    --destructive-color: #ff5050;
+    --success-bg-color: #2e9e4f;
+    --success-fg-color: #000000;
+    --success-color: #3ddc68;
+    --warning-bg-color: #ffb000;
+    --warning-fg-color: rgba(0, 0, 0, 0.85);
+    --warning-color: #ffb000;
+    --error-bg-color: #c01818;
+    --error-fg-color: #ffffff;
+    --error-color: #ff5050;
+
+    /* Surfaces: black with a breath of green, a step lighter per layer. */
+    --window-bg-color: #000803;
+    --window-fg-color: #c8d4cb;
+    --view-bg-color: #000502;
+    --view-fg-color: #c8d4cb;
+    --headerbar-bg-color: #001405;
+    --headerbar-fg-color: #c8d4cb;
+    --headerbar-border-color: #2f4a36;
+    --headerbar-backdrop-color: #000803;
+    --headerbar-shade-color: rgba(47, 74, 54, 0.35);
+    --headerbar-darker-shade-color: rgba(47, 74, 54, 0.55);
+    --sidebar-bg-color: #000f04;
+    --sidebar-fg-color: #c8d4cb;
+    --sidebar-backdrop-color: #000803;
+    --sidebar-border-color: #12201a;
+    --sidebar-shade-color: rgba(47, 74, 54, 0.25);
+    --secondary-sidebar-bg-color: #000c03;
+    --secondary-sidebar-fg-color: #c8d4cb;
+    --secondary-sidebar-backdrop-color: #000803;
+    --secondary-sidebar-border-color: #12201a;
+    --secondary-sidebar-shade-color: rgba(47, 74, 54, 0.25);
+    --card-bg-color: rgba(18, 32, 26, 0.30);
+    --card-fg-color: #c8d4cb;
+    --card-shade-color: rgba(47, 74, 54, 0.30);
+    --overview-bg-color: #000803;
+    --overview-fg-color: #c8d4cb;
+    --thumbnail-bg-color: #001405;
+    --thumbnail-fg-color: #c8d4cb;
+    --dialog-bg-color: #000f04;
+    --dialog-fg-color: #c8d4cb;
+    --popover-bg-color: #000f04;
+    --popover-fg-color: #c8d4cb;
+    --popover-shade-color: rgba(47, 74, 54, 0.30);
+    --shade-color: rgba(0, 0, 0, 0.45);
+    --scrollbar-outline-color: rgba(0, 0, 0, 0.6);
+    --border-color: rgba(47, 74, 54, 0.55);
+
+    /* Dim text: see the header (libadwaita 1.9 default 55%). */
+    --dim-opacity: 75%;
+
+    /* Square corners, monospace documents. */
+    --window-radius: 0px;
+    --document-font-family: "IBM Plex Mono";
+    --monospace-font-family: "IBM Plex Mono";
+}
+
+/* The UI face is a gsettings key (font-name), not a variable; a CSS rule
+   reaches every widget of these apps without touching the desktop-wide key. */
+* {
+    font-family: "IBM Plex Mono", "Noto Color Emoji", monospace;
+    /* Slashed zero, as in the rest of the theme. */
+    font-feature-settings: "zero";
+}
+
+/* Rows, buttons, entries: libadwaita rounds them by fixed radii, not by a
+   variable, so square them by selector. 2px, not 0: a hairline curve keeps
+   adjacent buttons from fusing into one slab. */
+button,
+entry,
+row,
+.card,
+popover > contents,
+.navigation-sidebar > row,
+gridview > child,
+listview > row,
+.boxed-list,
+searchbar entry {
+    border-radius: 2px;
+}
+
+/* Selected files and rows: a half-strength accent wash under pale text
+   (#eef5ef on it is ~9:1) -- a full fill over a grid of icons is a large
+   lit area on the HDR panel. */
+gridview > child:selected,
+listview > row:selected,
+columnview > listview > row:selected {
+    background-color: rgba(46, 158, 79, 0.45);
+    color: #eef5ef;
+}
+
+/* Every other selected row (boxed lists, the sidebar): libadwaita keeps the
+   green fg on its dark-green selection, and the row's dim subtitle measured
+   ~5:1 there even at --dim-opacity 75%. Pale text, as on the selected files
+   above, lifts both (measured: title 10:1, subtitle 5.8:1). */
+row:selected,
+.navigation-sidebar > row:selected {
+    color: #eef5ef;
+}

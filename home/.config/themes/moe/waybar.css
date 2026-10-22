@@ -1,0 +1,426 @@
+/* ===========================================================================
+   MOE (萌え) -- the bar and the toolbox card (~/.config/waybar/style.css and
+   style-toolbox.css). Copied to waybar/generated/theme.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST, after the accent, so the
+   palette below wins over the base file's and the rules below win over its
+   rules of the same selector.
+
+   The look in one line: pastel sakura bubbles. Every pill is a round
+   (radius 14 = half its height) piece of pink GLASS -- a white gloss on its
+   top half, a white rim, a soft rose shadow -- floating over the wallpaper;
+   deep plum text; the clock in Hachi Maru Pop (はちまるポップ), the rest in
+   Rounded Mplus 1c (theme.conf font=); the hovered pill gets the base's lit
+   bottom edge in sakura.
+
+   The pastel is DIMMED for an HDR primary, as win95's grey is: a pill is
+   #e8c4d6 at 80% over the blurred wallpaper (luminance ~0.61, not the 0.9 of
+   a true pastel). Measured (WCAG) on #e8c4d6:
+       text        #3d1f3b   9.1:1   (plum)
+       text-dim    #63365a   6.0:1
+       accent text #8c2457   5.3:1   (the clock, a lit glyph: deep rose)
+   and plum on every pastel FILL: sakura #f78fb3 6.5:1, lavender #b8a4e3
+   6.5:1, sky #9fd3f5 9.0:1, mint #9fdcb8 9.2:1, lemon #f3d27a 9.8:1, rose
+   #f08aa0 6.1:1; white on the critical #d63a62 4.5:1.
+
+   Status is a FILL (win95's rule, same reason): a pastel cannot be both a
+   distinct colour and readable text on pastel glass. good mint, warn lemon,
+   bad rose -- plum text on all three -- critical deep rose with white.
+
+   Theme names start with m- (the deep twins of the pastels and the glass's
+   gloss and rim).
+   =========================================================================== */
+
+/* --- the theme's own names ---------------------------------------------------- */
+@define-color m-plum     #3d1f3b;   /* text */
+@define-color m-sakura   #f78fb3;   /* the pastel: fills and glows (the accent role is the deep rose) */
+@define-color m-rose     #8c2457;   /* deep sakura: accent as TEXT */
+@define-color m-violet   #55399a;   /* deep lavender */
+@define-color m-sky      #9fd3f5;
+@define-color m-lavender #b8a4e3;
+@define-color m-mint     #9fdcb8;
+@define-color m-lemon    #f3d27a;
+@define-color m-peach    #ffc9a8;
+@define-color m-rosefill #f08aa0;   /* bad */
+@define-color m-gloss    rgba(255, 255, 255, 0.30);
+@define-color m-rim      rgba(255, 255, 255, 0.55);
+@define-color m-shade    rgba(200, 80, 138, 0.22);
+
+/* --- PALETTE 1: hues ------------------------------------------------------------
+   @cyan is the accent ROLE: deep rose #8c2457 from theme.conf (text-safe; the
+   sakura pastel is @m-sakura, used explicitly for fills and glows).
+   @magenta, the base's "ends something / bad" hue, is the rose fill. */
+@define-color magenta    @m-rosefill;
+@define-color yellow     @m-lemon;
+@define-color green      @m-mint;
+@define-color purple     @m-lavender;
+@define-color red        #d63a62;
+@define-color mist       #63365a;
+@define-color steel      #8a6f84;
+@define-color slate      #8a6f84;
+
+/* --- PALETTE 2: surfaces, edges, text ------------------------------------------ */
+@define-color surface        rgba(232, 196, 214, 0.80);
+@define-color surface-hover  rgba(240, 206, 224, 0.88);
+@define-color surface-dense  rgba(232, 196, 214, 0.90);
+@define-color surface-solid  #e8c4d6;     /* tray menu: no blur under a popup */
+@define-color edge           @m-rim;
+@define-color edge-lit       @m-sakura;
+@define-color accent         alpha(@m-sakura, 0.55);
+@define-color text           @m-plum;
+@define-color text-dim       #63365a;
+@define-color text-bright    #ffffff;     /* on the critical fill only */
+@define-color ink            #ffffff;     /* text on a full accent (deep rose) fill: 7.9:1 */
+@define-color ink-warn       @m-plum;
+
+/* --- PALETTE 3: workspaces: one pastel per screen ------------------------------- */
+@define-color mon1-hue   #f78fb3;         /* the primary: sakura */
+@define-color mon2-hue   #b8a4e3;         /* the second screen: lavender */
+@define-color mon3-hue   #9fd3f5;         /* the third screen: sky */
+@define-color mon1       #f78fb3;
+@define-color mon1-dim   #8c2457;
+@define-color mon2       #b8a4e3;
+@define-color mon2-dim   #55399a;
+@define-color mon3       #9fd3f5;
+@define-color mon3-dim   #1f5a94;
+@define-color mon-unknown #8a6f84;
+
+/* --- PALETTE 4: clock modes, status, alerts ------------------------------------- */
+@define-color utc        @m-lavender;
+@define-color utc-fg     @m-plum;
+@define-color epoch      @m-peach;
+@define-color epoch-fg   @m-plum;
+@define-color good       @m-mint;
+@define-color good-fg    @m-plum;
+@define-color bad        @m-rosefill;
+@define-color bad-fg     @m-plum;
+@define-color warn       @m-lemon;
+@define-color warn-fg    @m-plum;
+/* Critical: deep rose under white numbers (4.5:1); the CPU label (deep rose
+   #8c2457 in markup, color.cpu) turns white there (color.cpu_hot). */
+@define-color critical   #d63a62;
+@define-color rec-edge   #ffffff;
+@define-color rec-dim    #f08aa0;
+@define-color night      @m-peach;
+@define-color night-fg   @m-plum;
+@define-color night-edge @m-rim;
+
+/* The rounded face everywhere, a touch larger than Plex (its x-height is
+   smaller), medium weight so plum on pastel stays crisp. */
+* {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* ---------------------------------------------------------------------------
+   The bubble. Same selector list as the base file's shared pill (as win95's),
+   so this comes later at equal specificity and wins; state washes are still
+   the base file's per-pill rules (redefined above).
+   --------------------------------------------------------------------------- */
+#clock,
+#custom-day,
+#custom-clock,
+#custom-updates,
+#custom-weather,
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#network,
+#custom-network,
+#pulseaudio,
+#backlight,
+#battery,
+#temperature,
+#tray,
+#custom-player,
+#privacy,
+#custom-fsstate,
+#custom-nightlight,
+#idle_inhibitor,
+#custom-keybinds,
+#custom-settings,
+#custom-toolbox,
+#custom-power,
+#custom-capture,
+#custom-repos,
+#custom-timers,
+#custom-workhours,
+#custom-notifications,
+#custom-display,
+#language,
+#submap,
+#window {
+    min-height: 28px;
+    padding-left: 12px;
+    padding-right: 12px;
+    border: 1px solid @m-rim;
+    border-radius: 14px;
+    background-image: linear-gradient(to bottom, @m-gloss 0%, rgba(255, 255, 255, 0.06) 50%,
+                                      rgba(255, 255, 255, 0.00) 51%);
+    box-shadow: 0 2px 5px @m-shade;
+}
+
+/* Hover: brighter glass and a sakura glow; the base's lit bottom edge
+   (edge-lit = sakura) stays. */
+#clock:hover,
+#custom-day:hover,
+#custom-clock:hover,
+#custom-updates:hover,
+#custom-weather:hover,
+#custom-cpu:hover,
+#custom-gpu:hover,
+#custom-disk:hover,
+#network:hover,
+#custom-network:hover,
+#pulseaudio:hover,
+#tray:hover,
+#custom-player:hover,
+#privacy:hover,
+#custom-fsstate:hover,
+#custom-nightlight:hover,
+#idle_inhibitor:hover,
+#custom-keybinds:hover,
+#custom-settings:hover,
+#custom-toolbox:hover,
+#custom-power:hover,
+#custom-repos:hover,
+#custom-timers:hover,
+#custom-workhours:hover,
+#custom-notifications:hover,
+#custom-display:hover,
+#custom-capture:hover {
+    background-color: @surface-hover;
+    box-shadow: 0 0 8px alpha(@m-sakura, 0.75), 0 2px 5px @m-shade;
+}
+
+/* --- Joined capsules: [date | time | weather] and [updates | git | bell] ---
+   One bubble each, rounded only at its two outer ends; the parts share a
+   thin pink seam. */
+#custom-day,
+#custom-updates {
+    border-radius: 14px 0px 0px 14px;
+    border-right-width: 0px;
+    padding-right: 8px;
+}
+
+#custom-clock,
+#custom-repos {
+    border-radius: 0px;
+    border-left: 1px solid alpha(@m-sakura, 0.70);
+    border-right: 1px solid alpha(@m-sakura, 0.70);
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+#custom-weather,
+#custom-notifications {
+    border-radius: 0px 14px 14px 0px;
+    border-left-width: 0px;
+    padding-left: 8px;
+}
+
+/* --- Date and time --------------------------------------------------------------
+   The day in Japanese (clock.py: 10月18日 (日)), the clock in Hachi Maru Pop,
+   deep rose. Its digits are proportional, so the width is held. */
+#custom-day {
+    color: @text;
+}
+
+#custom-clock,
+#custom-clock.local {
+    font-family: "Hachi Maru Pop", "Rounded Mplus 1c", sans-serif;
+    font-size: 15px;
+    font-weight: normal;
+    color: @m-rose;
+    min-width: 92px;
+}
+
+#custom-clock.utc {
+    background-color: @utc;
+    color: @utc-fg;
+}
+
+#custom-clock.epoch {
+    background-color: @epoch;
+    color: @epoch-fg;
+}
+
+/* --- CPU / GPU / network: hold their width while digits tick ------------------ */
+#custom-cpu,
+#custom-gpu {
+    color: @text;
+    min-width: 128px;
+}
+
+#custom-network {
+    min-width: 100px;
+}
+
+#custom-cpu.critical,
+#custom-gpu.critical {
+    background-color: @critical;
+    color: @text-bright;
+}
+
+#custom-gpu.unavailable {
+    background-color: @surface;
+    color: @text-dim;
+}
+
+/* --- Workspaces: a row of round bubbles ----------------------------------------- */
+#workspaces {
+    margin: 4px 8px 4px 6px;
+    padding: 0px;
+    border: none;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+#workspaces button {
+    font-size: 14px;
+    min-height: 28px;
+    min-width: 18px;
+    padding: 0px 6px;
+    margin: 0px 3px 0px 0px;
+    border: 1px solid @m-rim;
+    border-radius: 14px;
+    background-color: @surface;
+    background-image: linear-gradient(to bottom, @m-gloss 0%, rgba(255, 255, 255, 0.00) 51%);
+    box-shadow: 0 2px 4px @m-shade;
+    color: @text-dim;
+}
+
+#workspaces button:hover {
+    background-color: @surface-hover;
+    box-shadow: 0 0 6px alpha(@m-sakura, 0.75);
+}
+
+/* The shown one: filled with its screen's pastel (the generated
+   workspace-tint-active rules set the fill), plum number, a white rim. */
+#workspaces button.active {
+    border: 1px solid #ffffff;
+    color: @m-plum;
+}
+
+#workspaces button.active label {
+    font-weight: bold;
+    color: @m-plum;
+}
+
+/* --- The focused window's title: a wider bubble ------------------------------- */
+#window {
+    color: @text;
+    padding-left: 12px;
+    padding-right: 14px;
+}
+
+/* --- Toggles that are ON: a sakura bubble -------------------------------------- */
+#custom-toolbox.open,
+#custom-display.on {
+    background-color: @m-sakura;
+    color: @m-plum;
+    border-color: #ffffff;
+}
+
+#custom-fsstate.mode-a {
+    background-color: @m-lavender;
+    color: @m-plum;
+}
+
+/* --- Status as text, made into fills ------------------------------------------- */
+#custom-repos.dirty {
+    background-color: @warn;
+    color: @warn-fg;
+}
+
+#custom-repos.unpushed {
+    background-color: @bad;
+    color: @bad-fg;
+}
+
+#custom-player.error {
+    background-color: @warn;
+    color: @warn-fg;
+}
+
+/* --- Power: a bubble with the deep-rose glyph ----------------------------------- */
+#custom-power {
+    color: @m-rose;
+}
+
+#custom-power:hover {
+    background-color: @m-rosefill;
+    color: @m-plum;
+}
+
+/* --- Privacy and recording: solid pastel bubbles -------------------------------- */
+#custom-mic,
+#custom-camera,
+#custom-location,
+#custom-recording {
+    min-height: 28px;
+    border-radius: 14px;
+}
+
+#custom-mic.active      { background-color: @m-rosefill; color: @m-plum; }
+#custom-camera.active   { background-color: @critical; color: @text-bright; }
+#custom-location.active { background-color: @m-lemon; color: @m-plum; }
+#custom-recording.recording { background-color: @critical; color: @text-bright; }
+
+#custom-capture.recording,
+#custom-capture.recording:hover {
+    color: @critical;
+}
+
+/* --- Tray menu: a rounded pastel card -------------------------------------------- */
+#tray menu {
+    border: 1px solid @m-rim;
+    border-radius: 14px;
+    padding: 6px;
+    background-color: @surface-solid;
+    color: @text;
+}
+
+#tray menu menuitem {
+    border-radius: 10px;
+    padding: 4px 16px;
+}
+
+#tray menu menuitem:hover {
+    background-color: @m-sakura;
+    color: @m-plum;
+}
+
+/* --- The toolbox card (style-toolbox.css): a pastel glass card -------------------
+   Widths add up to the base card's 198px (scripts/toolbox_fit.py sizes the
+   toolbox layer to it): rows 150 + 2 x 15 padding + card 2 x 9 (the base's
+   1px border is kept here, inside that). */
+window#waybar.waybar-toolbox .modules-left {
+    padding: 6px 8px;
+    border: 1px solid @m-rim;
+    border-radius: 18px;
+    background-color: @surface-dense;
+    background-image: linear-gradient(to bottom, @m-gloss 0%, rgba(255, 255, 255, 0.00) 40%);
+    box-shadow: 0 4px 12px @m-shade;
+}
+
+window#waybar.waybar-toolbox #custom-fsstate,
+window#waybar.waybar-toolbox #custom-nightlight,
+window#waybar.waybar-toolbox #idle_inhibitor,
+window#waybar.waybar-toolbox #custom-display,
+window#waybar.waybar-toolbox #custom-keybinds,
+window#waybar.waybar-toolbox #custom-settings,
+window#waybar.waybar-toolbox #tray {
+    min-height: 26px;
+    margin: 0px 0px 4px 0px;
+    padding: 2px 14px;
+    border-radius: 13px;
+}
+
+window#waybar.waybar-toolbox #tray {
+    margin-bottom: 0px;
+    /* Tray icons are the apps' own (white Steam, black keyboard...): a
+       mid plum well keeps both visible (white 6.5:1, black 3.2:1). */
+    background-color: #8a6f84;
+    background-image: none;
+}

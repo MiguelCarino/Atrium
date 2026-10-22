@@ -1,0 +1,72 @@
+/* ===========================================================================
+   MOE (萌え) -- wofi (the SUPER+W window switcher; ~/.config/wofi/style.css).
+   Copied to waybar/generated/theme-wofi.css by theme.py, which also writes
+   `@define-color cyan` (the accent role: deep rose) above this text.
+
+   Kept in step with launcher.css: the round pastel card, the pastel rainbow
+   strip along its top -- still moving, as the base's does, but at half its
+   speed (8 s a pass: a drift, not a scroll) -- the search box a white-ish
+   pill, the selected row a sakura -> lavender bubble with plum text.
+   =========================================================================== */
+
+@define-color m-plum     #3d1f3b;
+@define-color m-sakura   #f78fb3;
+@define-color m-lavender #b8a4e3;
+@define-color m-rim      rgba(255, 255, 255, 0.60);
+
+@define-color magenta    #8c2457;
+@define-color violet     @m-lavender;
+@define-color mist       #63365a;
+@define-color sel-mid    #d79ccc;
+@define-color scan-1     #f78fb3;
+@define-color scan-2     #ffc9a8;
+@define-color scan-3     #f3d27a;
+@define-color scan-4     #9fdcb8;
+@define-color scan-5     #9fd3f5;
+@define-color surface    rgba(220, 182, 201, 0.94);
+@define-color groove     rgba(255, 255, 255, 0.50);
+@define-color edge       @m-rim;
+@define-color edge-lit   @m-sakura;
+@define-color text       @m-plum;
+@define-color text-dim   #63365a;
+@define-color text-bright @m-plum;
+@define-color ink        @m-plum;
+
+#outer-box {
+    border-radius: 24px;
+    border: 1px solid @m-rim;
+    border-bottom: 2px solid @m-sakura;
+    animation: scan 8s linear infinite;
+}
+
+#input {
+    border-radius: 20px;
+    border: 1px solid @m-rim;
+    border-bottom: 2px solid @m-sakura;
+    background-color: @groove;
+    caret-color: #8c2457;
+    color: @m-plum;
+}
+
+#entry {
+    border-radius: 14px;
+}
+
+#entry:hover {
+    background-color: rgba(255, 255, 255, 0.35);
+}
+
+#entry:selected {
+    background-color: @m-sakura;
+    background-image: linear-gradient(to right, @m-sakura 0%, @sel-mid 55%, @m-lavender 100%);
+    border: 1px solid #ffffff;
+    border-left: 1px solid #ffffff;
+}
+
+#entry:selected #text {
+    color: @m-plum;
+}
+
+scrollbar slider {
+    border-radius: 4px;
+}
