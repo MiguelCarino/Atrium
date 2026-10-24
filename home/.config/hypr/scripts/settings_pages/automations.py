@@ -20,7 +20,8 @@ Top to bottom:
 Every control runs automations.py (list --json, enable, disable, delete,
 add, add-from-text, test) in a thread and redraws from what it reports; the
 page keeps nothing of its own, and automations.json stays the one place
-the rules are (hand edits show up on the next refresh).
+the rules are (hand edits show up on the next refresh). The file, its
+Open button and the watched event names sit in a Details fold up top.
 """
 import json
 import os
@@ -30,7 +31,7 @@ import time
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 from gi.repository import GLib, Gtk, Pango  # noqa: F401,E402  (after common: it picks GTK 3)
 
-PAGE = {"id": "automations", "title": "Automations", "icon": "", "group": "System", "order": 65,
+PAGE = {"id": "automations", "title": "Automations", "icon": "", "group": "System", "order": 65, "parent": "startup", "tab": "Automations",
         "keywords": ["rules", "when", "trigger", "if this then that", "ifttt", "automatic", "automate",
                      "routines", "scenes", "on connect", "headphones", "wifi", "game starts", "app opens",
                      "schedule", "digest", "automatizaciones", "reglas"]}
@@ -55,9 +56,10 @@ ACTION_HINTS = {"sound-output": "part of its name: headphones, HDMI", "notify": 
 
 # -- words (pure: tests/test_automations.py) ------------------------------------------------
 def last_ran(epoch, now=None):
-    """"ran 5 min ago" / "ran yesterday 21:30" / "has not run since login"."""
+    """"ran 5 min ago" / "ran yesterday 21:30" / "not run yet" (since the
+    service started)."""
     if not epoch:
-        return "has not run since the service started"
+        return "not run yet"
     now = now if now is not None else time.time()
     delta = now - epoch
     if delta < 90:
@@ -75,7 +77,7 @@ def rule_sub(r, now=None):
         bits.append("built in")
     text = "\n".join(bits[:1]) + "\n" + "  ·  ".join(bits[1:])
     if r.get("paused"):
-        text += f"\nPaused: {r['paused']} -- switch it on to resume."
+        text += f"\nPaused: {r['paused']} -- switch on to resume."
     return text
 
 
@@ -124,23 +126,21 @@ class Page:
         w.pack_start(self.summary, False, False, 0)
         self.service_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         w.pack_start(self.service_box, False, False, 0)
-        w.pack_start(links_row(link("Open automations.json", lambda: spawn("xdg-open", RULES_FILE)),  # noqa: F405
-                               link("Check again", self.refresh)), False, False, 0)  # noqa: F405
+        w.pack_start(links_row(link("Check again", self.refresh)), False, False, 0)  # noqa: F405
+        self.file_note = wrapped("")
+        w.pack_start(details(self.file_note, links_row(  # noqa: F405
+            link("Open automations.json", lambda: spawn("xdg-open", RULES_FILE)))), False, False, 0)  # noqa: F405
         w.pack_start(sep(), False, False, 0)  # noqa: F405
 
         w.pack_start(heading("YOUR RULES"), False, False, 0)  # noqa: F405
-        w.pack_start(wrapped("Each one fires on a change (an app opening, Wi-Fi joining, a time arriving), "
-                             "never in a loop: it waits its cooldown, ignores what its own actions cause, and "
-                             "one that fires five times in two minutes pauses itself."), False, False, 0)
+        w.pack_start(wrapped("Each fires on a change; one that repeats too fast pauses itself."), False, False, 0)
         self.rules_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         w.pack_start(self.rules_box, False, False, 0)
         w.pack_start(sep(), False, False, 0)  # noqa: F405
 
         # -- plain words ------------------------------------------------------------
         w.pack_start(heading("IN PLAIN WORDS"), False, False, 0)  # noqa: F405
-        w.pack_start(wrapped("Say what should happen; the local model (Settings > AI & models, the quick one) "
-                             "writes the rule and you see it before anything is saved. Nothing leaves this "
-                             "computer: when the model cannot run (gamemode, the card is full) it says so."),
+        w.pack_start(wrapped("Describe it; the local model drafts a rule for you to check and save."),
                      False, False, 0)
         words = Gtk.Box(spacing=8)
         self.text = Gtk.Entry()
@@ -210,7 +210,8 @@ class Page:
             self.fill_pickers()
         if not data:
             clear(self.rules_box)  # noqa: F405
-            self.summary_sub.set_text(f"automations.py did not answer -- try it in a terminal: {AUTOMATIONS} list")
+            self.summary_sub.set_text("Could not read the rules")
+            self.file_note.set_text(f"Try it in a terminal: {AUTOMATIONS} list")
             self.widget.show_all()
             return
         self.updating = True
@@ -223,12 +224,12 @@ class Page:
         rules = data["rules"]
         on = sum(1 for r in rules if r["enabled"])
         watching = ", ".join(data.get("watching") or []) or "nothing"
-        self.summary_sub.set_text(f"{on} of {len(rules)} rule{'s' if len(rules) != 1 else ''} on  ·  "
-                                  f"watching: {watching}\n{data['file']}")
+        self.summary_sub.set_text(f"{on} of {len(rules)} rule{'s' if len(rules) != 1 else ''} on")
+        self.file_note.set_text(f"Watching: {watching}\n{data['file']}")
         clear(self.service_box)  # noqa: F405
         if active != "active":
             grid, _ = row(WARN, "Not running: no rule fires",  # noqa: F405
-                          f"automations.service is {active or 'unknown'}.",
+                          f"The service is {active or 'unknown'}.",
                           link("Start it", lambda: self.act("service", "systemctl", "--user", "enable", "--now",  # noqa: F405
                                                             "automations.service")))
             self.service_box.pack_start(grid, False, False, 0)
@@ -254,7 +255,7 @@ class Page:
             self.rules_box.pack_start(grid, False, False, 0)
         for b in data.get("broken", []):
             grid, _ = row(WARN, f"Not used: {b['rule']}", "; ".join(b["problems"]) +  # noqa: F405
-                          "\nFix it in automations.json (Open, above).")
+                          "\nFix it in automations.json (Details, above).")
             self.rules_box.pack_start(grid, False, False, 0)
         self.widget.show_all()
 
@@ -319,7 +320,7 @@ class Page:
         text = self.text.get_text().strip()
         if not text:
             return
-        self.show_preview(None, "asking the local model… (a first answer can take half a minute while it loads)")
+        self.show_preview(None, "asking the local model… (the first answer can take ~30 s)")
 
         def work():
             ok, out = call(AUTOMATIONS, "add-from-text", "--json", text, timeout=300)

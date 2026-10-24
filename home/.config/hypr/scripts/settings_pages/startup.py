@@ -19,8 +19,12 @@ Four lists, top to bottom in the order you are likely to touch them:
                        (GNOME-only, not installed, ...).
     Hyprland itself    the exec lines in lua/autostart.lua and the lua timers,
                        read-only: changing them is editing the config. Each
-                       has a readable title (exec_title) over its command,
-                       and one command run at two moments is one row.
+                       has a readable title (exec_title) over when it runs
+                       (the command, file and comment on hover), and one
+                       command run at two moments is one row.
+
+Sub lines stay short (state, schedule); unit names, memory, owners and
+commands are in each row's tooltip, the config file link in a Details fold.
 
 Every control runs startup.py (enable / disable / restart / run / autostart
 on|off) in a thread and then redraws from what it reports; the page keeps
@@ -35,7 +39,7 @@ import os  # noqa: E402
 import subprocess  # noqa: E402
 import time  # noqa: E402
 
-PAGE = {"id": "startup", "title": "Startup & background", "icon": "", "group": "System", "order": 60,
+PAGE = {"id": "startup", "title": "Startup & automations", "icon": "", "group": "System", "order": 60, "tab": "Startup",
         "keywords": ["autostart", "login", "startup apps", "start at login", "services", "systemd",
                      "background", "daemons", "timers", "boot", "inicio"]}
 
@@ -86,17 +90,25 @@ def when(epoch, now=None):
 
 
 def service_sub(s):
-    """The grey line under a service: its unit, what it is doing, for how
-    long, its memory, its restarts, whose unit it is."""
-    bits = [s["unit"], s["state"] + (f" for {duration(s['since_s'])}" if s.get("since_s") is not None
-                                      and s["state"] == "running" else "")]
-    if s.get("memory"):
-        bits.append(size(s["memory"]))
+    """The grey line under a service: what it is doing, for how long, its
+    restarts, and the last log line only when it is not running as it
+    should."""
+    bits = [s["state"] + (f" for {duration(s['since_s'])}" if s.get("since_s") is not None
+                          and s["state"] == "running" else "")]
     if s.get("restarts"):
         bits.append(f"restarted {s['restarts']}×")
     if not s["enabled"]:
-        bits.append("not started at login")
-    bits.append(s["owner"])
+        bits.append("off at login")
+    text = "  ·  ".join(b for b in bits if b)
+    if s.get("log") and not s.get("ok", True):
+        text += "\n" + short_why(s["log"], 70)
+    return text
+
+
+def service_tip(s):
+    """The hover text of a service row: its unit, memory, owner, why it is
+    essential, its last log line."""
+    bits = [s["unit"], size(s.get("memory")), s["owner"]]
     text = "  ·  ".join(b for b in bits if b)
     if s.get("essential"):
         text += f"\nEssential: {s['essential']}"
@@ -118,26 +130,30 @@ def timer_sub(t, now=None):
         bits.append("last " + when(t["last"], now) + ("" if result in ("", "success") else f" ({result})"))
     else:
         bits.append("not run yet")
-    text = "  ·  ".join(bits)
+    return "  ·  ".join(bits)
+
+
+def timer_tip(t):
+    """The hover text of a timer row: the job it runs, how it is switched,
+    its note."""
+    lines = []
     if t.get("job_title"):
-        text += f"\nRuns: {t['job_title']} ({t['job']})"
+        lines.append(f"Runs: {t['job_title']} ({t['job']})")
     if t.get("route"):
-        text += f"  ·  switched through {t['route']}"
+        lines.append(f"Switched through {t['route']}")
     if t.get("note"):
-        text += f"\n{t['note']}"
-    return text
+        lines.append(t["note"])
+    return "\n".join(lines)
 
 
 def autostart_sub(e):
-    bits = [e["id"], e["where"]]
     if e["on"]:
-        bits.append("running" if e.get("running") else "not running now")
-    elif e["reason"]:
-        bits.append(e["reason"])
-    text = "  ·  ".join(bits)
+        state = "running" if e.get("running") else "not running now"
+    else:
+        state = e["reason"] or "off"
     if e.get("comment") and e["comment"] != e["name"]:
-        text = e["comment"] + "\n" + text
-    return text
+        return short_why(e["comment"], 50) + "  ·  " + state
+    return state
 
 
 def short_why(text, limit=180):
@@ -267,20 +283,15 @@ class Page:
         self.sections = {}
         for key, title, note in (
                 ("services", "DESKTOP SERVICES",
-                 "Started at every login and restarted if they crash (systemd user services). Switching one "
-                 "off also stops it now; switching it on starts it. A lock marks the ones the desktop needs."),
+                 "Start at login, restart if they crash. A lock marks essential ones."),
                 ("timers", "TIMERS",
-                 "Jobs that run on a schedule while you are logged in. A timer that missed its time while the "
-                 "computer was off runs at the next login when it says so (the backup does)."),
+                 "Jobs that run on a schedule while you are logged in."),
                 ("autostart", "APPS AT LOGIN",
-                 "XDG autostart: apps that ask to start with every desktop. Off here means off in Hyprland "
-                 "only (a copy in ~/.config/autostart with NotShowIn=Hyprland); COSMIC still starts them."),
-                ("exec", "STARTED BY HYPRLAND ITSELF",
-                 "Read-only: these are lines in the Hyprland config (lua/). They run once per login, or on a "
-                 "Hyprland timer; to change one, edit the file named on its line."),
+                 "Off here means off in Hyprland only."),
+                ("exec", "STARTED BY HYPRLAND",
+                 "Read-only: lines in the Hyprland config."),
                 ("other", "THE REST OF THE SESSION",
-                 "Fedora's own background services and timers for your user (sound, portals, file "
-                 "systems, housekeeping). Shown so nothing runs unseen; they are not switched here.")):
+                 "Fedora's own background services, shown for reference.")):
             w.pack_start(heading(title), False, False, 0)
             w.pack_start(wrapped(note), False, False, 0)
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
@@ -309,8 +320,8 @@ class Page:
         if not data:
             for box in self.sections.values():
                 clear(box)
-            self.summary_sub.set_text("startup.py did not answer -- try it in a terminal: "
-                                      f"{STARTUP} list")
+            self.summary_sub.set_text("Could not read the startup list")
+            self.summary_sub.set_tooltip_text(f"Try it in a terminal: {STARTUP} list")
             self.widget.show_all()
             return
         self.updating = True
@@ -318,11 +329,10 @@ class Page:
         running = sum(1 for s in svc if s["state"] == "running")
         bad = [s for s in svc if not s["ok"]]
         apps_on = sum(1 for e in auto if e["on"])
-        summary = (f"{running} desktop services running ({sum(1 for s in svc if s['essential'])} essential)  ·  "
-                   f"{sum(1 for t in tim if t['on'])} of {len(tim)} timers on  ·  {apps_on} autostart "
-                   f"app{'s' if apps_on != 1 else ''}")
+        summary = (f"{running} services running  ·  {sum(1 for t in tim if t['on'])} of {len(tim)} timers on  ·  "
+                   f"{apps_on} login app{'s' if apps_on != 1 else ''}")
         if bad:
-            summary += f"\n{len(bad)} not running as it should: " + ", ".join(s["title"] for s in bad)
+            summary += f"\n{len(bad)} not running as expected (top of the list)"
         if self.error:
             summary += f"\nDid not work: {self.error}"
             self.error = ""
@@ -375,6 +385,7 @@ class Page:
                     restart = link("Restart", lambda u=s["unit"]: self.act(u, STARTUP, "restart", u))
             icon = WARN if not s["ok"] else (LOCK if s["essential"] else GEAR)
             grid, _ = row(icon, s["title"], service_sub(s), self.end_widget(restart, control))
+            grid.set_tooltip_text(service_tip(s))
             box.pack_start(grid, False, False, 0)
 
     def show_timers(self, rows, other):
@@ -386,12 +397,13 @@ class Page:
                 STARTUP, "enable" if on else "disable", u), t["unit"])
             run_now = link("Run now", lambda u=t["unit"]: self.act(u, STARTUP, "run", u))
             grid, _ = row(CLOCK, t["title"], timer_sub(t, now), self.end_widget(run_now, control))
+            if timer_tip(t):
+                grid.set_tooltip_text(timer_tip(t))
             box.pack_start(grid, False, False, 0)
         alarms = other.get("alarms", 0)
         if alarms:
-            box.pack_start(dp.label(f"Plus {alarms} timer{'s' if alarms != 1 else ''} / alarm"
-                                    f"{'s' if alarms != 1 else ''} you set yourself (the clock's timers).",
-                                    "ctl-sub"), False, False, 0)
+            box.pack_start(dp.label(f"Plus {alarms} clock timer{'s' if alarms != 1 else ''} / alarm"
+                                    f"{'s' if alarms != 1 else ''} you set.", "ctl-sub"), False, False, 0)
 
     def show_autostart(self, rows):
         box = self.sections["autostart"]
@@ -404,6 +416,7 @@ class Page:
             control = self.switch(e["on"], lambda on, i=e["id"]: call(
                 STARTUP, "autostart", "on" if on else "off", i), e["id"])
             grid, _ = row(ROCKET, e["name"], autostart_sub(e), control)
+            grid.set_tooltip_text(f"{e['id']}  ·  {e['where']}")
             box.pack_start(grid, False, False, 0)
         if rest:
             exp = Gtk.Expander(label=f"Not for this desktop ({len(rest)})")
@@ -419,12 +432,13 @@ class Page:
         box = self.sections["exec"]
         clear(box)
         for r in merge_exec([r for r in rows if not r["fallback"]]):
-            state = "running now" if r["running"] else "not running now (it finished, or ran and quit)"
-            sub = f"{r['cmd']}\n{r['when']}  ·  {state}  ·  {r['file']}"
-            if r["why"]:
-                sub += "\n" + short_why(r["why"])
-            grid, _ = row(TERMINAL, exec_title(r["cmd"]), sub)
+            state = "running now" if r["running"] else "not running now"
+            grid, _ = row(TERMINAL, exec_title(r["cmd"]), f"{r['when']}  ·  {state}")
+            tip = f"{r['cmd']}\n{r['file']}" + (f"\n{short_why(r['why'])}" if r["why"] else "")
+            grid.set_tooltip_text(tip)
             box.pack_start(grid, False, False, 0)
+        fold = details(links_row(link("Open lua/autostart.lua", lambda: spawn(
+            "xdg-open", os.path.expanduser("~/.config/hypr/lua/autostart.lua")))))
         fallback = [r["cmd"] for r in rows if r["fallback"]]
         if fallback:
             names = ", ".join(dict.fromkeys(exec_title(c).lower() for c in fallback))
@@ -433,9 +447,9 @@ class Page:
                     if uwsm else "IN USE NOW: this is a plain Hyprland session (no uwsm), so the services above "
                     "do not run and these do -- without restarts if one crashes."))
             grid, _ = row(TERMINAL, "Fallback daemons (plain Hyprland session only)", sub)
-            box.pack_start(grid, False, False, 0)
-        box.pack_start(links_row(link("Open lua/autostart.lua", lambda: spawn(
-            "xdg-open", os.path.expanduser("~/.config/hypr/lua/autostart.lua")))), False, False, 0)
+            # in use only without uwsm: then it matters and stays on the page
+            (fold.box.pack_start if uwsm else box.pack_start)(grid, False, False, 0)
+        box.pack_start(fold, False, False, 0)
 
     def show_other(self, other):
         box = self.sections["other"]

@@ -22,7 +22,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 gi.require_version("GtkLayerShell", "0.1")
-from gi.repository import Gdk, GLib, Gtk, GtkLayerShell  # noqa: E402
+from gi.repository import Gdk, GLib, GObject, Gtk, GtkLayerShell  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CSS_FILE = os.path.join(os.path.dirname(HERE), "panel.css")
@@ -94,6 +94,50 @@ def cursor_from_argv():
     return None
 
 
+WHEEL_TAKERS = (Gtk.ComboBox, Gtk.Scale, Gtk.SpinButton)
+
+
+def wheel_to_page(widget, event):
+    """The mouse wheel over a drop-down, slider or number box inside a page
+    that scrolls: scroll the page, not the control. GTK would otherwise
+    change its value -- and every control here applies at once, so turning
+    the wheel down a page picked another resolution. In a panel that does not
+    scroll (the audio panel's volume), the wheel still moves the control."""
+    page = widget.get_ancestor(Gtk.ScrolledWindow)
+    if page is None:
+        return False
+    if event.direction == Gdk.ScrollDirection.SMOOTH:
+        dy = event.delta_y
+    else:
+        dy = {Gdk.ScrollDirection.UP: -1, Gdk.ScrollDirection.DOWN: 1}.get(event.direction, 0)
+    adj = page.get_vadjustment()
+    step = adj.get_page_size() ** (2 / 3)        # GTK's own wheel step
+    adj.set_value(max(adj.get_lower(), min(adj.get_upper() - adj.get_page_size(),
+                                           adj.get_value() + dy * step)))
+    return True
+
+
+def _guard_one(widget):
+    if not getattr(widget, "_wheel_guarded", False):
+        widget._wheel_guarded = True
+        widget.connect("scroll-event", wheel_to_page)
+
+
+def guard_wheel(_widget=None):
+    """wheel_to_page for every such control this program ever shows: hooked
+    on their "map", so the rows a page rebuilds later are covered too. Once
+    per program; the argument is only for callers that pass their window."""
+    global _WHEEL_HOOKED
+    if _WHEEL_HOOKED:
+        return
+    _WHEEL_HOOKED = True
+    for kind in WHEEL_TAKERS:
+        GObject.add_emission_hook(kind, "map", lambda w, *_: (_guard_one(w), True)[1])
+
+
+_WHEEL_HOOKED = False
+
+
 class ClickCatcher(Gtk.Window):
     """An invisible sheet over one monitor, under the panel: a click that lands
     on it missed the card, so the panel closes. Exclusive zone 0 keeps it out
@@ -146,6 +190,7 @@ class Panel(Gtk.Window):
 
         self.setup()
         self.build()
+        guard_wheel(self.card)
         self.place()
         # Shown before the card so they stack beneath it on the same layer.
         self.catchers = [ClickCatcher(m, self.quit) for m in self.all_monitors()]

@@ -297,9 +297,9 @@ class PageText(unittest.TestCase):
 
     def test_kdeconnect_and_ssh_follow_the_firewall(self):
         ws = {"running": True, "services": ["ssh"], "ports": ["1025-65535/udp", "1025-65535/tcp"]}
-        self.assertIn("lets in", self.page.phone_sub([], True, ws))
-        self.assertIn("shuts out", self.page.phone_sub([], True, dict(ws, ports=[])))
-        self.assertIn("lets in", self.page.phone_sub([], True, {"running": False}))
+        self.assertIn("lets it in", self.page.phone_sub([], True, ws))
+        self.assertIn("shuts it out", self.page.phone_sub([], True, dict(ws, ports=[])))
+        self.assertIn("lets it in", self.page.phone_sub([], True, {"running": False}))
         ssh = {"installed": True, "active": True, "enabled": True}
         self.assertIn("no firewall", self.page.ssh_sub(ssh, {"running": False}))
         self.assertIn("does not let it in", self.page.ssh_sub(ssh, dict(ws, services=[])))

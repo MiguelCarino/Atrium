@@ -11,13 +11,14 @@ from gi.repository import GLib, Gtk  # noqa: F401
 
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 
-PAGE = {"id": "pip", "title": "Picture-in-picture", "icon": "", "group": "Look", "order": 55,
+PAGE = {"id": "pip", "title": "Picture-in-picture", "icon": "", "group": "Look", "order": 55, "parent": "windows", "tab": "Picture-in-picture",
         "keywords": ["pip", "mirror", "always on top", "floating video", "overlay", "opacity", "transparency",
                      "click through", "region", "watch a window", "imagen en imagen"]}
 
 PIP = os.path.join(HYPR, "pip.py")
 # Font Awesome 6 Solid, as escapes (see audio_panel.py on why).
 ICON_WINDOW, ICON_HAND = "", ""
+IDLE = "SUPER+CTRL+P: focused window  ·  SUPER+ALT+P: a region"
 CORNERS = [("bottom-right", "Bottom right"), ("bottom-left", "Bottom left"),
            ("top-right", "Top right"), ("top-left", "Top left")]
 
@@ -28,16 +29,14 @@ class Page:
         w = self.widget
         self.updating = False
         w.pack_start(heading("MIRROR"), False, False, 0)
-        grid, self.status = row(ICON_WINDOW, "A live copy of a window or part of the screen",
-                                "SUPER+CTRL+P mirrors the focused window (again closes it), SUPER+ALT+P a region "
-                                "you draw. The original stays where it is.")
+        grid, self.status = row(ICON_WINDOW, "Live copy of a window or region", IDLE)
         w.pack_start(grid, False, False, 0)
-        w.pack_start(links_row(link("Mirror a window (click it)", lambda: self.start("window", "--pick")),
+        w.pack_start(links_row(link("Mirror a window", lambda: self.start("window", "--pick")),
                                link("Mirror a region", lambda: self.start("region")),
-                               link("Close the mirror", lambda: self.start("close"))), False, False, 0)
+                               link("Close", lambda: self.start("close"))), False, False, 0)
         w.pack_start(sep(), False, False, 0)
         w.pack_start(heading("LOOK"), False, False, 0)
-        self.width = Slider("width", "Size (the long side)", 240, 1600, 20, " px", self.set)
+        self.width = Slider("width", "Size", 240, 1600, 20, " px", self.set)
         w.pack_start(self.width.widget, False, False, 0)
         self.opacity = Slider("opacity", "Opacity", 30, 100, 5, " %", self.set)
         w.pack_start(self.opacity.widget, False, False, 0)
@@ -47,21 +46,20 @@ class Page:
         self.passthrough = Gtk.Switch()
         self.passthrough.connect("state-set", lambda _s, state: self.switch(state))
         grid, _ = row(ICON_HAND, "Clicks go through it",
-                      "For a mirror you only watch. It then stays in its corner (no moving or resizing by "
-                      "hand) and shows on every workspace of its screen.", self.passthrough)
+                      "Watch-only: fixed in its corner, on every workspace", self.passthrough)
         w.pack_start(grid, False, False, 0)
         w.pack_start(sep(), False, False, 0)
         w.pack_start(heading("SMOOTHNESS"), False, False, 0)
-        self.fps = Slider("fps", "Frames a second, region (recorded on the graphics card)", 5, 60, 5, " fps", self.set)
+        self.fps = Slider("fps", "Region frame rate", 5, 60, 5, " fps", self.set)
         w.pack_start(self.fps.widget, False, False, 0)
-        self.window_fps = Slider("window_fps", "Frames a second, window (each frame is a copy of the whole "
-                                 "window: higher costs CPU)", 2, 30, 1, " fps", self.set)
+        self.window_fps = Slider("window_fps", "Window frame rate (higher costs CPU)", 2, 30, 1, " fps", self.set)
         w.pack_start(self.window_fps.widget, False, False, 0)
         note = dp.label("A window on another workspace can be mirrored too, but many apps stop drawing while "
-                        "hidden, so its copy may stand still until it is shown.", "ctl-sub")
+                        "hidden, so its copy may stand still until it is shown. Region frames are recorded "
+                        "on the graphics card; window frames are full copies of the window.", "ctl-sub")
         note.set_line_wrap(True)
         note.set_xalign(0)
-        w.pack_start(note, False, False, 0)
+        w.pack_start(details(note), False, False, 0)
 
     def refresh(self):
         background(lambda: (run_json(PIP, "get", "--json") or {}, run_json(PIP, "status", "--json")), self.show)
@@ -77,9 +75,7 @@ class Page:
         self.window_fps.show(int(values["window_fps"]))
         self.corner.set(CORNERS, values["corner"])
         self.passthrough.set_state(values["passthrough"] == "on")
-        self.status.set_text(f"Now mirroring the {live['mode']}: {live['title'][:70]}" if live else
-                             "SUPER+CTRL+P mirrors the focused window (again closes it), SUPER+ALT+P a region you "
-                             "draw. The original stays where it is.")
+        self.status.set_text(f"Mirroring the {live['mode']}: {live['title'][:50]}" if live else IDLE)
         self.widget.show_all()
         self.updating = False
 

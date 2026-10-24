@@ -3,7 +3,7 @@ from gi.repository import GLib, Gtk  # noqa: F401
 
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 
-PAGE = {"id": "alerts", "title": "Emergency alerts", "icon": "\uf071", "group": "Safety", "order": 10,
+PAGE = {"id": "alerts", "title": "Emergency alerts", "icon": "\uf071", "group": "System", "order": 10, "parent": "notifications", "tab": "Emergency alerts",
         "keywords": ["emergency", "earthquake", "early warning", "sismo", "alerta sismica", "tsunami",
                      "weather warnings", "civil protection", "siren", "drill", "your place", "location",
                      "country"]}
@@ -40,8 +40,7 @@ class Page:
         w.pack_start(links_row(link("Silent drill (red screens only)", lambda: spawn(EMERGENCY, "test", "--quiet")),
                                link("Full drill (siren and voice)", lambda: spawn(EMERGENCY, "test"))),
                      False, False, 0)
-        note = dp.label("These alerts come over the internet and can arrive late: the official sirens, radio "
-                        "and your phone's emergency alerts come first.", "ctl-sub")
+        note = dp.label("These can arrive late: official sirens and phone alerts come first.", "ctl-sub")
         note.set_line_wrap(True)
         w.pack_start(note, False, False, 0)
         self.updating = False
@@ -65,8 +64,7 @@ class Page:
         self.lat.set_text(conf.get("lat", ""))
         self.lon.set_text(conf.get("lon", ""))
         self.country.set_text(conf.get("country", ""))
-        self.place_sub.set_text(f"{conf.get('country', '?')}  ·  alarm language: {conf.get('lang', '?')}  ·  "
-                                "a new country switches to its own default sources")
+        self.place_sub.set_text(f"{conf.get('country', '?')}  ·  alarm language: {conf.get('lang', '?')}")
         clear(self.sources)
         for src in info["sources"]:
             sw = Gtk.Switch()
@@ -77,9 +75,9 @@ class Page:
             if src["on"]:
                 sub += f"  ·  checked {ago(st.get('last_ok_s_ago'))}"
                 if st.get("error"):
-                    sub += f"  ·  problem: {st['error'][:80]}"
+                    sub += f"  ·  problem: {st['error'][:50]}"
                 if st.get("last_alert"):
-                    sub += f"  ·  last alert: {st['last_alert']['headline'][:60]}"
+                    sub += f"  ·  last alert: {st['last_alert']['headline'][:40]}"
             grid, _ = row("", src["name"], sub, sw)
             self.sources.pack_start(grid, False, False, 0)
         clear(self.extra)

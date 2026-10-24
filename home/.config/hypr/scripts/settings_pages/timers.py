@@ -110,13 +110,13 @@ def work_note(work):
     """The line under the work-hours controls, from `workhours.py status
     --json`: what the pill says, and which holidays are free."""
     if not work.get("enabled", True):
-        return ("Off: no ~/.config/hypr/workhours.conf. On, the bar shows a lit pill with the time left "
-                "during work hours, and `workhours.py check` tells a git hook it is work time.")
+        return ("Off: no ~/.config/hypr/workhours.conf. On, the bar shows a pill with the time left during "
+                "work hours, and `workhours.py check` tells a git hook it is work time.")
     hol = {"mx": "Mexico's statutory rest days are free on their own"}.get(work.get("holidays") or "",
                                                                          "no public holidays are set")
     tz = f" Hours in {work['timezone']}." if work.get("timezone") else ""
-    return (f"During work hours the bar shows a lit \"{work.get('label') or 'Work'}\" pill with the time left, "
-            f"and `workhours.py check` tells a git hook it is work time; {hol} "
+    return (f"The bar shows a \"{work.get('label') or 'Work'}\" pill with the time left, and `workhours.py "
+            f"check` tells a git hook it is work time; {hol} "
             f"(label, time zone, holidays: {work.get('conf', 'workhours.conf')}).{tz}")
 
 
@@ -130,12 +130,10 @@ def days_arg(days, toggled):
 def calendar_sub(cal):
     """The line under the calendar alarms switch."""
     if not cal["on"]:
-        return "off: no calendar event rings (timers you set still do)"
+        return "off"
     if cal.get("timer_enabled") not in ("enabled", "static") or cal.get("timer_active") != "active":
-        return ("on, but timers-calendar.timer is not running, so nothing looks at the calendars: "
-                "systemctl --user enable --now timers-calendar.timer (or Startup > Timers)")
-    return (f"every 5 min it looks {cal['ahead_min']} min ahead in Evolution's calendars (the ones GNOME "
-            "Calendar shows) and sets an alarm for each timed event; all-day events never ring")
+        return "on, but its check is not running: turn it on in Startup > Timers"
+    return f"looks {cal['ahead_min']} min ahead for timed events (not all-day ones)"
 
 
 def attempt(*cmd, timeout=30):
@@ -192,10 +190,11 @@ class Page:
         w.pack_start(heading("SET NOW"), False, False, 0)
         self.items = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         w.pack_start(self.items, False, False, 0)
-        w.pack_start(wrap("Set them from the launcher (ALT+E): \"timer 5m tea\", \"alarm 7:30 weekdays\", "
-                          "\"remind me in 40 min to call the lab\", \"focus\", \"stopwatch\". They ring with "
-                          "every window closed and come back after a restart; the bar counts the next one "
-                          "down."), False, False, 0)
+        w.pack_start(wrap("Set them from the launcher (ALT+E): \"timer 5m tea\", \"alarm 7:30\"."),
+                     False, False, 0)
+        w.pack_start(details(wrap("Also \"alarm 7:30 weekdays\", \"remind me in 40 min to call the lab\", "
+                                  "\"focus\", \"stopwatch\". They ring with every window closed and come back "
+                                  "after a restart; the bar counts the next one down.")), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         # -- focus rounds ---------------------------------------------------------
@@ -203,9 +202,8 @@ class Page:
         self.chips, self.subs = {}, {}
         for key, icon, title, sub in (
                 ("focus_min", KIND_ICON["focus"], "Focus round",
-                 "how long \"focus\" runs when no length is given; Do Not Disturb is on while it does"),
-                ("break_min", KIND_ICON["break"], "Break", "starts on its own when a round ends, and rings when "
-                 "it is over with \"Focus again\""),
+                 "default length; Do Not Disturb while it runs"),
+                ("break_min", KIND_ICON["break"], "Break", "starts when a round ends"),
                 ("long_break_min", KIND_ICON["break"], "Long break", ""),
                 ("long_every", "", "Long break every", "")):
             grid, self.subs[key] = row(icon, title, sub)
@@ -293,7 +291,7 @@ class Page:
         grid, self.off_sub = row("", "Today is a day off", "", self.off_switch)
         w.pack_start(grid, False, False, 0)
         self.work_note = wrap("")
-        w.pack_start(self.work_note, False, False, 0)
+        w.pack_start(details(self.work_note), False, False, 0)
         w = outer
 
         GLib.timeout_add_seconds(1, self.tick)
@@ -417,7 +415,7 @@ class Page:
             box = Gtk.Box(spacing=6)
             box.pack_start(pause, False, False, 0)
             box.pack_start(reset, False, False, 0)
-            sub = ("running  ·  right-click the bar's pill to pause it" if sw["running"] else "paused")
+            sub = "running" if sw["running"] else "paused"
             grid, _sub = row(STOPWATCH_ICON, "", sub, box)
             lab = grid.get_child_at(1, 0)
             lab.set_text(f"Stopwatch  ·  {left_text(sw['elapsed'])}")
@@ -439,25 +437,20 @@ class Page:
         self.chips["long_break_min"].set(minute_chips(LONG_BREAK, v["long_break_min"]), str(v["long_break_min"]))
         self.chips["long_every"].set([(str(n), f"{n} rounds") for n in sorted(set(LONG_EVERY) | {v["long_every"]})],
                                      str(v["long_every"]))
-        self.subs["long_break_min"].set_text(f"instead of the {minutes(v['break_min'])} break, after every "
-                                             f"{nth(v['long_every'])} round of the day")
+        self.subs["long_break_min"].set_text(f"after every {nth(v['long_every'])} round")
         self.subs["long_every"].set_text(f"{v['long_every'] - 1} short break"
-                                         f"{'s' if v['long_every'] != 2 else ''}, then a long one, over and over")
+                                         f"{'s' if v['long_every'] != 2 else ''}, then a long one")
         self.chips["sound"].set(SOUNDS, v["sound"])
-        sub = {"theme": ("the theme's own alarm, low and round, over and over until you pick Snooze or Stop "
-                         "(a minute at most)" if data.get("theme_sound") else
-                         "this theme has no alarm sound of its own, so the system's alarm clock, over and over"),
-               "chime": "a short quiet chime every few seconds until you pick Snooze or Stop",
-               "none": "no sound: only the notification, which shows through Do Not Disturb"}[v["sound"]]
-        self.subs["sound"].set_text(sub + ("  ·  reminders and the end of a focus round chime once"
-                                           if v["sound"] != "none" else
-                                           "  ·  reminders and the end of a focus round are silent too"))
+        sub = {"theme": ("the theme's alarm, until Snooze or Stop" if data.get("theme_sound") else
+                         "the system alarm clock, until Snooze or Stop"),
+               "chime": "a quiet chime, until Snooze or Stop",
+               "none": "only the notification"}[v["sound"]]
+        self.subs["sound"].set_text(sub)
         self.volume.show(v["volume"])
         self.volume.widget.set_sensitive(v["sound"] != "none")
         self.try_sound.set_sensitive(v["sound"] != "none")
         self.chips["snooze_min"].set(minute_chips(SNOOZE, v["snooze_min"]), str(v["snooze_min"]))
-        self.subs["snooze_min"].set_text(f"\"Snooze {minutes(v['snooze_min'])}\" on a ringing timer or alarm; "
-                                         "reminders offer 5 min, 15 min and 1 hour")
+        self.subs["snooze_min"].set_text("for timers and alarms; reminders offer 5 min, 15 min, 1 h")
 
     def show_calendar(self, data):
         cal, v = data["calendar"], data["settings"]
@@ -467,16 +460,14 @@ class Page:
         self.chips["cal_lead_min"].set(minute_chips(LEAD, v["cal_lead_min"], zero="At the start"),
                                        str(v["cal_lead_min"]))
         self.subs["cal_lead_min"].set_text(
-            ("the alarm rings as the event starts" if not v["cal_lead_min"] else
-             f"the alarm rings {minutes(v['cal_lead_min'])} before, with \"Remind me at the start\"")
-            + "  ·  for events found from now on; one already set keeps its time")
+            "rings as the event starts" if not v["cal_lead_min"] else
+            f"rings {minutes(v['cal_lead_min'])} before the event")
         self.chips["cal_lead_min"].widget.set_sensitive(cal["on"])
         clear(self.cals)
         if cal.get("error"):
             self.cals.pack_start(wrap(f"Could not read the calendars: {cal['error']}"), False, False, 0)
         elif not cal["calendars"]:
-            self.cals.pack_start(wrap("No calendars: add an account in GNOME Settings > Online Accounts, or "
-                                      "events in GNOME Calendar."), False, False, 0)
+            self.cals.pack_start(wrap("No calendars: add one in GNOME Calendar."), False, False, 0)
         for c in cal["calendars"]:
             sw = Gtk.Switch()
             sw.set_state(c["enabled"] and c["used"])
@@ -487,7 +478,7 @@ class Page:
             sub = (c["account"] + "  ·  " if c["account"] else "") + (
                 "rings" if c["enabled"] and c["used"] else
                 "does not ring" if c["enabled"] else
-                "switched off in GNOME Calendar / Evolution, so it is never read")
+                "off in GNOME Calendar")
             grid, _s = row(KIND_ICON["calendar"], c["name"], sub, sw)
             grid.set_margin_start(36)
             self.cals.pack_start(grid, False, False, 0)
@@ -501,10 +492,10 @@ class Page:
         self.work_box.set_sensitive(on)
         self.work_note.set_text(work_note(work))
         if not on:
-            self.work_sub.set_text("off  ·  turn it on to keep an employer's hours apart from your own projects")
+            self.work_sub.set_text("off")
         elif work["working"] and work.get("until"):
             left = int(work["until"] - time.time()) // 60
-            state = f"work time now, until {work['end']} ({left // 60} h {left % 60:02d} min left)"
+            state = f"work time, {left // 60} h {left % 60:02d} min left"
         else:
             state = f"free now ({work['reason']})"
         days = work["days"]
@@ -514,16 +505,16 @@ class Page:
             self.work_sub.set_text(f"{state}  ·  {work['start']}–{work['end']}, {span}")
         self.start.set(clock_chips(STARTS, work["start"]), work["start"])
         self.end.set(clock_chips(ENDS, work["end"]), work["end"])
-        self.start_sub.set_text("when work time begins on a work day")
-        self.end_sub.set_text("when it ends, the same day (it has to be after the start)")
-        self.days_sub.set_text("click a day to add or take it away" if days else
+        self.start_sub.set_text("on a work day")
+        self.end_sub.set_text("the same day, after the start")
+        self.days_sub.set_text("click a day to toggle it" if days else
                                "none picked: work-hours mode never starts")
         for key, b in self.day_buttons.items():
             (b.get_style_context().add_class if key in days else b.get_style_context().remove_class)("active")
         self.off_switch.set_state(work["off_today"])
         self.off_switch.set_active(work["off_today"])
-        bits = ["free until midnight; it turns itself off tomorrow" if work["off_today"] else
-                "vacation, a sick day, a bridge holiday: free until midnight (also: right-click the pill)"]
+        bits = ["free until midnight" if work["off_today"] else
+                "free until midnight (also: right-click the pill)"]
         if work.get("holiday"):
             bits.append(f"today is a holiday anyway: {work['holiday']}")
         elif work.get("next_holiday"):

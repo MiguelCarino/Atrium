@@ -458,7 +458,7 @@ class PageWording(unittest.TestCase):
 
     def test_status(self):
         data = {"settings": values(), "plan": {"mood": "night", "why": "the night light's hours"}}
-        self.assertTrue(self.page.status_text(data).startswith("Off."))
+        self.assertTrue(self.page.status_text(data).startswith("Off"))
         data["settings"] = values(enabled="on")
         data["service"] = "active"
         self.assertEqual(self.page.status_text(data), "Night: the night light's hours")

@@ -13,7 +13,7 @@ import subprocess
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 from gi.repository import GLib, Gtk  # noqa: F401,E402  (after common: it picks GTK 3)
 
-PAGE = {"id": "brief", "title": "Daily brief & journal", "icon": "", "group": "Apps", "order": 22,
+PAGE = {"id": "brief", "title": "Daily brief & journal", "icon": "", "group": "Apps", "order": 45, "parent": "ai", "tab": "Daily brief",
         "keywords": ["brief", "morning", "good morning", "resumen", "journal", "diario", "end of day",
                      "time sheet", "timesheet", "work log", "what did i do", "yesterday", "where was i",
                      "commits"]}
@@ -27,14 +27,13 @@ DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 SECTION_ICONS = {"yesterday": "", "repos": "", "units": "", "health": "\uf0f1", "updates": "",
                  "weather": "", "calendar": "", "timers": "", "notifications": ""}
 SECTION_SUBS = {
-    "yesterday": "the last day's time by project and app, the window you ended on, the last session",
-    "repos": "repos in your projects folder with uncommitted, new or unpushed work (no fetch)",
-    "units": "failed systemd services and timers, yours and the system's",
-    "health": "the nightly checkup: what it fixed, what waits for your OK, problems explained "
-              "(Settings > Desktop health)",
+    "yesterday": "the last day's time by project and app, and where you ended",
+    "repos": "projects with uncommitted or unpushed work",
+    "units": "services and timers that failed",
+    "health": "the nightly checkup: what it fixed, what waits for your OK",
     "updates": "what the updates pill last found",
-    "weather": "today, from the bar's last forecast",
-    "calendar": "today's events still to come (Evolution's calendars)",
+    "weather": "today's forecast",
+    "calendar": "today's events still to come",
     "timers": "alarms, timers and reminders still to ring today",
     "notifications": "what came in that you have not opened",
 }
@@ -57,8 +56,7 @@ def toggled(current, section, on, order):
 def workhours_text(work):
     """When end-of-day comes, in words, from brief.py status's "workhours"."""
     if not work or not work.get("days"):
-        return ("Work hours are off or have no days set, so work-end never comes: write it from the launcher "
-                "(\"journal\") or add a time rule with the journal action in Automations.")
+        return "Work hours are off, so work-end never comes; write it from the launcher"
     days = work["days"]
     if days == list(range(5)):
         when = "weekdays"
@@ -66,7 +64,7 @@ def workhours_text(work):
         when = "every day"
     else:
         when = ", ".join(DAY_NAMES[d] for d in days)
-    return f"At the end of work hours: {work['end']}, {when} (Timers & alarms sets them), skipping holidays."
+    return f"At {work['end']}, {when}, skipping holidays"
 
 
 def call(*cmd):
@@ -103,9 +101,7 @@ class Page:
         # -- the morning brief ---------------------------------------------------------
         w.pack_start(heading("MORNING BRIEF"), False, False, 0)  # noqa: F405
         w.pack_start(self.switch_row("rule:daily-brief", "", "Show a brief each morning",
-                                     "Once a day: what you were in the middle of, loose ends and the day "
-                                     "ahead, as a notification -- click it for all of it. Everything is "
-                                     "read on this computer."), False, False, 0)
+                                     "Where you left off and the day ahead, once a day"), False, False, 0)
         self.mode = Chips(lambda k: self.change(BRIEF, "set", "morning", k))  # noqa: F405
         self.mode.widget.set_max_children_per_line(2)
         w.pack_start(dp.label("When", "ctl-sub"), False, False, 0)  # noqa: F405
@@ -128,24 +124,19 @@ class Page:
         w.pack_start(heading("END-OF-DAY JOURNAL"), False, False, 0)  # noqa: F405
         self.journal_row = self.switch_row(
             "rule:end-of-day", "", "Write a journal entry when work ends",
-            "What you worked on (time per project and app), today's commits across your projects folder and the loose "
-            "ends, summed up by the local model -- plain when it cannot run. Notes you add to the file "
-            "are kept when it is written again.")
+            "Today's work, commits and loose ends, summed up")
         w.pack_start(self.journal_row, False, False, 0)
         w.pack_start(self.switch_row("titles", "", "Window titles in the journal",
-                                     "Off: projects and apps only. The journal outlives the activity "
-                                     "history's kept days, and titles can say a lot."), False, False, 0)
+                                     "Off: projects and apps only"), False, False, 0)
         w.pack_start(self.switch_row("model", "", "Summary by the local model",
-                                     "The worker model (AI & models), never a cloud one; skipped in "
-                                     "gamemode or when the GPU is full."), False, False, 0)
+                                     "Local only; skipped in games or when the GPU is full"), False, False, 0)
         w.pack_start(self.switch_row("timesheet", "", "Draft time sheet",
-                                     "A CSV next to each entry: project, hours to the quarter -- a draft "
-                                     "from focus time, to check."), False, False, 0)
-        self.where = wrapped("")
-        w.pack_start(self.where, False, False, 0)
+                                     "A CSV of hours per project, to check"), False, False, 0)
         w.pack_start(links_row(link("Write today's entry now", lambda: spawn(BRIEF, "journal", "--notify")),  # noqa: F405
                                link("Open today's", lambda: spawn(BRIEF, "open")),  # noqa: F405
                                link("Journal folder", lambda: self.open_folder())), False, False, 0)  # noqa: F405
+        self.where = wrapped("")
+        w.pack_start(details(self.where), False, False, 0)  # noqa: F405
 
     # -- building ----------------------------------------------------------------------
     def switch_row(self, key, icon, title, sub):
@@ -214,13 +205,14 @@ class Page:
             self.draw_sections(data)
         finally:
             self.updating = False
-        self.journal_row.sub_label.set_text(
-            "What you worked on (time per project and app), today's commits across your projects folder and the loose ends, "
-            "summed up by the local model -- plain when it cannot run. " + workhours_text(data.get("workhours")))
+        self.journal_row.sub_label.set_text(workhours_text(data.get("workhours")))
         folder = data["journal_dir"].replace(os.path.expanduser("~"), "~")
         today = "today's is written" if data.get("journal_today") else "none for today yet"
         self.where.set_text(f"Entries go to {folder}/YYYY-MM-DD.md ({today}). Anything outside the "
-                            "generated part of a file is yours and kept.")
+                            "generated part of a file is yours and kept. The summary is by the worker model "
+                            "(AI & models), plain when it cannot run; work hours are set in Timers & alarms, "
+                            "and with none set the journal action can go in an Automations time rule. Window "
+                            "titles outlive the activity history's kept days.")
         self.widget.show_all()
 
     def draw_sections(self, data):

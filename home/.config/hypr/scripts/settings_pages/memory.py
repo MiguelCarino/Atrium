@@ -7,7 +7,7 @@ with its time so "remember ..." in the search bar can find it again
     SOURCES            window titles, copies, notifications, live captions,
                        screenshots + OCR: one switch each (privacy.conf
                        memory_<source>, the same switches as Settings >
-                       Privacy), how many memories each has, since when
+                       Privacy), how many memories each has
     HOW LONG           memories kept for, screenshots kept for, a screenshot
                        every ... minutes
     FORGET             a day (the last eight as chips), an app (and none of
@@ -26,7 +26,7 @@ from gi.repository import GLib, Gtk  # noqa: F401
 
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 
-PAGE = {"id": "memory", "title": "Desktop memory", "icon": "", "group": "Safety", "order": 22,
+PAGE = {"id": "memory", "title": "Desktop memory", "icon": "", "group": "Smart", "order": 23, "parent": "intelligence", "tab": "Memory",
         "keywords": ["memoria", "recuerda", "remember", "recall", "what did I see", "history", "historial",
                      "screenshots ocr", "notifications history", "captions log", "forget day", "forget app",
                      "wipe memory", "olvidar", "timeline"]}
@@ -35,18 +35,11 @@ MEMORY = os.path.join(HYPR, "desktop-memory.py")
 PRIVACY = os.path.join(HYPR, "privacy_settings.py")
 UNIT = "desktop-memory.service"
 SOURCES = [
-    ("activity", "", "Window titles", "which window had the focus and for how long (the activity "
-                                           "history on Settings > Privacy must be on too)"),
-    ("clipboard", "", "Copies", "new text you copy (the clipboard history must be on); passwords, "
-                                     "card numbers, keys and tokens are never kept"),
-    ("notifications", "", "Notifications", "what mako showed (low-urgency toasts left out); "
-                                                "one-time codes are never kept"),
-    ("captions", "", "Live captions", "the text of what live captions heard (SUPER+SHIFT+V), only "
-                                           "while this is on. Off as shipped"),
-    ("screen", "", "Screenshots + text", "every few minutes, the text on each screen (OCR) and a "
-                                              "small picture; never while locked, in a game, on battery, or "
-                                              "of a screen showing a password manager or a private window. "
-                                              "Off as shipped"),
+    ("activity", "", "Window titles", "focused windows; needs activity history on"),
+    ("clipboard", "", "Copies", "text you copy; never passwords or keys"),
+    ("notifications", "", "Notifications", "what was shown; never one-time codes"),
+    ("captions", "", "Live captions", "what live captions heard (SUPER+SHIFT+V)"),
+    ("screen", "", "Screenshots + text", "screen text (OCR) every few minutes; never private windows"),
 ]
 KEEP = [("7", "7 days"), ("30", "30 days"), ("90", "90 days"), ("365", "1 year")]
 SCREEN_KEEP = [("1", "1 day"), ("7", "7 days"), ("30", "30 days")]
@@ -142,11 +135,10 @@ class Page:
 
         w.pack_start(heading("FORGET"), False, False, 0)
         self.days = Chips(self.day_picked)
-        grid, _ = row("", "Forget a day", "everything from that day goes, and it is not taken in again "
-                      "from the activity history")
+        grid, _ = row("", "Forget a day", "everything from that day")
         w.pack_start(grid, False, False, 0)
         w.pack_start(chips_line(self.days), False, False, 0)
-        grid, _ = row("", "Forget an app", "its memories go, and nothing of it is kept from then on")
+        grid, _ = row("", "Forget an app", "and keep nothing of it from now on")
         w.pack_start(grid, False, False, 0)
         pick = Gtk.Box(spacing=8)
         pick.set_halign(Gtk.Align.END)
@@ -254,7 +246,7 @@ class Page:
     def show(self, result):
         data, apps = result
         if not data:
-            self.msg.set_text("desktop-memory.py did not answer (run it in a terminal to see why)")
+            self.msg.set_text("Desktop memory did not answer")
             return
         self.data = data
         self.updating = True
@@ -264,11 +256,9 @@ class Page:
             self.master.set_state(on)
             total = sum(s["count"] for s in data["sources"].values())
             self.master_sub.set_text(
-                (f"{total} memories, {size_text(data.get('bytes'))} on this computer  ·  last collect "
-                 f"{when_text(data.get('collected'))}  ·  type \"remember …\" or \"recuerda …\" in the search "
-                 "bar  ·  answered by a local model, nothing leaves the computer") if on else
-                "off: nothing new is kept" + (f"  ·  {total} memories from before stay until forgotten or "
-                                              "past their days" if total else ""))
+                (f"{total} memories, {size_text(data.get('bytes'))}  ·  last collect "
+                 f"{when_text(data.get('collected'))}  ·  ask with \"remember …\"") if on else
+                "off: nothing new is kept" + (f"  ·  {total} older memories kept" if total else ""))
             for key, src in data["sources"].items():
                 if key not in self.src_switch:
                     continue
@@ -276,23 +266,20 @@ class Page:
                 self.src_switch[key].set_state(src["switch"])
                 self.src_rows[key].set_sensitive(on)
                 about = next(a for k, _i, _t, a in SOURCES if k == key)
-                count = (f"{src['count']} {NOUN[key]} since {when_text(src['since'])}" if src["count"]
-                         else "nothing kept yet")
+                count = f"{src['count']} {NOUN[key]}" if src["count"] else "nothing kept yet"
                 if key == "screen" and src["count"]:
                     count += f" ({size_text(data.get('thumbs_bytes'))} of pictures)"
                 self.src_sub[key].set_text(f"{count}  ·  {about}")
             self.keep.set(KEEP, str(data["keep_days"]))
-            self.keep_sub.set_text(f"{data['keep_days']} days; older memories are deleted by themselves")
+            self.keep_sub.set_text(f"{data['keep_days']} days, then deleted")
             self.screen_keep.set(SCREEN_KEEP, str(data["screen_keep_days"]))
-            self.screen_keep_sub.set_text(f"{data['screen_keep_days']} days (the rest of the memory keeps "
-                                          f"its {data['keep_days']})")
+            self.screen_keep_sub.set_text(f"{data['screen_keep_days']} days")
             self.every.set(EVERY, str(data["screen_minutes"]))
-            self.every_sub.set_text(f"every {data['screen_minutes']} minutes while Screenshots is on; the same "
-                                    "text as last time is not kept twice")
+            self.every_sub.set_text(f"every {data['screen_minutes']} minutes while Screenshots is on")
             self.days.set(last_days(), None)
             clear(self.forgotten)
             for cls in data.get("exclude") or []:
-                grid, _ = row("", cls, "forgotten: nothing of it is kept",
+                grid, _ = row("", cls, "forgotten",
                               link("Remember again", lambda c=cls: self.privacy("memory", "include", c)))
                 self.forgotten.pack_start(grid, False, False, 0)
             self.app_entry.remove_all()

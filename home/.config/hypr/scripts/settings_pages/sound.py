@@ -253,8 +253,8 @@ class Page:
         self.meter.set_valign(Gtk.Align.CENTER)
         meter_row.pack_start(self.meter, True, True, 0)
         w.pack_start(meter_row, False, False, 0)
-        self.meter_sub = dp.label("Speak: the bar should move well into the middle without touching the end. "
-                                  "Nothing is recorded.", "ctl-sub")
+        self.meter_sub = dp.label("Speak: the bar should reach the middle, not the end. Nothing is recorded.",
+                                  "ctl-sub")
         self.meter_sub.set_line_wrap(True)
         w.pack_start(self.meter_sub, False, False, 0)
         self.recording = dp.label("", "ctl-sub")
@@ -265,6 +265,7 @@ class Page:
         w.pack_start(heading("APPLICATIONS"), False, False, 0)
         self.apps_note = dp.label("", "ctl-sub")
         self.apps_note.set_line_wrap(True)
+        self.apps_note.set_no_show_all(True)       # shown only while nothing plays
         w.pack_start(self.apps_note, False, False, 0)
         self.apps = Section()
         w.pack_start(self.apps.widget, False, False, 0)
@@ -285,10 +286,7 @@ class Page:
         grid, self.sounds_sub = row(ICON_BELL, "Theme sounds", "",
                                     link("Open Notifications", lambda: spawn(SETTINGS, "notifications")))
         w.pack_start(grid, False, False, 0)
-        note = dp.label("Timers and alarms always ring, with the theme's own alarm sound when it has one. "
-                        "Emergency alerts unmute and raise the output by themselves and ignore Do Not "
-                        "Disturb. Both play on the output in use, so pick the device you will hear.",
-                        "ctl-sub")
+        note = dp.label("Timers, alarms and emergency alerts play on the output in use.", "ctl-sub")
         note.set_line_wrap(True)
         w.pack_start(note, False, False, 0)
 
@@ -305,15 +303,12 @@ class Page:
         self.error.set_no_show_all(True)
         self.error_from_load = False
         w.pack_start(self.error, False, False, 0)
-        foot = dp.label("WirePlumber remembers every change here (devices, volumes, application levels, "
-                        "profiles) across reloads and logins. The volume keys change the output in use.",
-                        "ctl-sub")
-        foot.set_line_wrap(True)
-        w.pack_start(foot, False, False, 0)
-        links = [link("Full mixer (pavucontrol)", lambda: spawn("pavucontrol"))]
         if shutil.which("blueman-manager"):     # pairing lives there, when it is installed
-            links.append(link("Bluetooth devices", lambda: spawn("blueman-manager")))
-        w.pack_start(links_row(*links), False, False, 0)
+            w.pack_start(links_row(link("Bluetooth devices", lambda: spawn("blueman-manager"))), False, False, 0)
+        foot = dp.label("WirePlumber remembers every change here across reloads and logins.", "ctl-sub")
+        foot.set_line_wrap(True)
+        w.pack_start(details(foot, links_row(link("Full mixer (pavucontrol)", lambda: spawn("pavucontrol")))),
+                     False, False, 0)
         self.widget.connect("unmap", lambda _w: self.stop_meter())
 
     # -- reading ------------------------------------------------------------------------
@@ -343,8 +338,7 @@ class Page:
     def show(self, data):
         self.loading = False
         if not data:
-            self.error.set_text("sound-settings.py did not answer: is PipeWire running? "
-                                "(systemctl --user status pipewire-pulse)")
+            self.error.set_text("No answer from the sound system: is PipeWire running?")
             self.error.show()
             self.error_from_load = True
             return
@@ -377,14 +371,10 @@ class Page:
         self.show_apps(data["apps"], data["sinks"], cap)
         self.show_cards(data["cards"])
         self.boost.set_state(data["boost"])
-        self.boost_sub.set_text(
-            "On: sliders and volume keys go up to 150 %, software gain on top of the device's maximum. "
-            "Loud sound past 100 % distorts. Off brings anything above 100 % back down."
-            if data["boost"] else "Let volumes go past 100 % (up to 150 %) for quiet recordings or weak "
-            "speakers. Off: sliders and volume keys stop at 100 %.")
+        self.boost_sub.set_text("volumes go up to 150 %  ·  may distort past 100 %"
+                                if data["boost"] else "let volumes go past 100 %, up to 150 %")
         self.sounds_sub.set_text(("On" if data["theme_sounds"] != "off" else "Off")
-                                 + ": the desktop theme's notification and theme-switch sounds (silent for "
-                                 "low urgency and during Do Not Disturb). Switched on the Notifications page.")
+                                 + "  ·  set on the Notifications page")
         self.updating = False
 
     def show_devices(self, devices, pick, section, icons, cap):
@@ -409,10 +399,8 @@ class Page:
             section.widget.show_all()
 
     def show_apps(self, apps, sinks, cap):
-        self.apps_note.set_text("Nothing is playing right now. Applications show up here while they play, "
-                                "each with its own volume and output." if not apps else
-                                "Each application's own level, on top of the output's. WirePlumber "
-                                "remembers it for the next time that application plays.")
+        self.apps_note.set_text("Nothing is playing. Apps show up here while they play." if not apps else "")
+        self.apps_note.set_visible(not apps)
         # Keyed by the sink and the outputs offered too, so moving a stream or
         # an output coming / going rebuilds its "Play on" chips.
         offered = tuple(s["name"] for s in sinks if s["available"])
@@ -448,8 +436,7 @@ class Page:
         if bt:
             self.bt_box.pack_start(sep(), False, False, 0)
             self.bt_box.pack_start(heading("BLUETOOTH AUDIO"), False, False, 0)
-            note = dp.label("High quality (A2DP) is for listening and has no microphone. Headset (HFP) "
-                            "turns the microphone on, at phone-call quality for both directions.", "ctl-sub")
+            note = dp.label("High quality: no microphone  ·  Headset: microphone on, call quality", "ctl-sub")
             note.set_line_wrap(True)
             self.bt_box.pack_start(note, False, False, 0)
         for card in cards:
@@ -511,8 +498,7 @@ class Page:
             return
         self.meter_proc = proc
         self.meter_link.set_label("Stop the test")
-        self.meter_sub.set_text(f"Listening to {mic['label']} for {METER_S} s. Speak: the bar should move "
-                                "well into the middle without touching the end. Nothing is recorded.")
+        self.meter_sub.set_text(f"Listening to {mic['label']} for {METER_S} s. Speak; nothing is recorded.")
 
         def read():
             for line in proc.stdout:

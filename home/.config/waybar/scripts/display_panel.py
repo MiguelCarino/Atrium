@@ -402,10 +402,16 @@ def background(work, done):
     threading.Thread(target=go, daemon=True).start()
 
 
+# Shared with every panel and the Settings window (panelui does the work).
+wheel_to_page, guard_wheel = panelui.wheel_to_page, panelui.guard_wheel
+
+
 def combo(on_changed):
-    """A drop-down of (key, caption) items; on_changed(key) on a pick."""
+    """A drop-down of (key, caption) items; on_changed(key) on a pick. As
+    wide as its longest caption, not the row."""
     box = Gtk.ComboBoxText()
     box.set_can_focus(False)
+    box.set_halign(Gtk.Align.START)
     box.keys = []
     box.connect("changed", lambda b: b.get_active() >= 0 and on_changed(b.keys[b.get_active()]))
     return box
@@ -697,10 +703,13 @@ class Arrangement:
         # The rest only means something while the screen is on.
         self.details = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.widget.pack_start(self.details, False, False, 0)
+        # Resolution and scale side by side, both drop-downs.
         self.resolution = combo(lambda key: self.do("resolution", key))
-        self.details.pack_start(picker_row("Resolution", self.resolution), False, False, 0)
-        self.scales = Chips(lambda key: self.do("scale", key))
-        self.details.pack_start(picker_row("Scale", self.scales.widget), False, False, 0)
+        self.scales = combo(lambda key: self.do("scale", key))
+        mode = Gtk.Box(spacing=16)
+        mode.pack_start(picker_row("Resolution", self.resolution), False, False, 0)
+        mode.pack_start(picker_row("Scale", self.scales), False, False, 0)
+        self.details.pack_start(mode, False, False, 0)
         self.rotation = Chips(lambda key: self.do("rotate", key))
         self.details.pack_start(picker_row("Rotation", self.rotation.widget), False, False, 0)
 
@@ -819,7 +828,7 @@ class Arrangement:
         self.details.set_sensitive(on)
 
         fill_combo(self.resolution, [(r, r) for r in info.get("resolutions", [])], info["resolution"])
-        self.scales.set([(s, f"{round(float(s) * 100)}%") for s in info.get("scales", [])], info["scale"])
+        fill_combo(self.scales, [(s, f"{round(float(s) * 100)}%") for s in info.get("scales", [])], info["scale"])
         self.rotation.set(ROTATIONS, str(info.get("transform", 0)))
         self.pos_sub.set_text(f"now at {info.get('x', 0)}, {info.get('y', 0)}"
                               f"  ({info.get('w', 0)} x {info.get('h', 0)} on the desktop)")

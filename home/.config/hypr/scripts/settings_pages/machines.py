@@ -2,8 +2,8 @@
 peer on the local network (peers.py; its docstring has the pairing, the
 encryption and every rule about what is sent).
 
-    THIS MACHINE        its name as the others show it, its id, where it
-                        listens, and the master switch (off until a machine
+    THIS MACHINE        its name as the others show it, the master switch,
+                        its id and where it listens (folded) (off until a machine
                         is paired: pairing turns it on)
     PAIRED MACHINES     each one: last seen where, Ping, Send my windows /
                         Get its windows (an offer on the other side, never a
@@ -34,7 +34,7 @@ import subprocess  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
 
-PAGE = {"id": "machines", "title": "Machines", "icon": "", "group": "Hardware", "order": 95,
+PAGE = {"id": "machines", "title": "Machines", "icon": "", "group": "Hardware", "order": 95, "parent": "devices", "tab": "Machines",
         "keywords": ["other computer", "laptop", "pair", "peer", "lan", "multi machine", "share clipboard",
                      "send to computer", "send window", "keyboard and mouse", "kvm", "lan-mouse", "barrier",
                      "synergy", "input leap", "computadora", "otra máquina", "emparejar", "portapapeles"]}
@@ -46,17 +46,13 @@ SIZES = [("100", "100 MB"), ("500", "500 MB"), ("2000", "2 GB")]
 SIDES = [("left", "Left"), ("right", "Right"), ("top", "Above"), ("bottom", "Below")]
 SWITCHES = [
     ("clipboard", "\uf0ea", "Share the clipboard",
-     "text copies go to the paired machines and theirs come here; never a password manager's copy, a "
-     "private window's, or anything that looks like a key, token, card or code. Both sides must have it on"),
+     "copied text both ways, never passwords or keys  ·  both sides need it on"),
     ("sessions", "\uf2d2", "Sessions",
-     "send your windows to a machine, or get its windows here: the other side gets a Restore button, "
-     "nothing opens by itself; apps it does not have are left out"),
+     "send or get windows; the other side gets a Restore button"),
     ("send", "\uf019", "Receive files and links",
-     "\"send this window\" (the browser's page, the editor's or viewer's file) and any file or link; "
-     "files land in ~/Downloads"),
+     "pages, files and links  ·  files land in ~/Downloads"),
     ("memory", "\uf1da", "Let them ask this machine's desktop memory",
-     "a paired machine may ask a question (the launcher's \"remember ...\"); only the answer goes back, "
-     "never the memories. Off as shipped"),
+     "a paired machine may ask; only the answer goes back"),
 ]
 
 
@@ -88,11 +84,17 @@ def machine_text(data):
 
 def kvm_text(kvm):
     if not kvm.get("installed"):
-        return (f"lan-mouse {kvm.get('pinned')} is not installed. Install fetches its release from GitHub "
-                "(checked against a fixed checksum) into ~/.local/share/peers; nothing system-wide changes.")
-    state = "on" if kvm.get("on") else "off"
-    return (f"lan-mouse {kvm.get('version') or '?'}, {state} ({kvm.get('service')}). Its own encrypted link; "
-            "move the pointer past the edge below to cross over, hold Ctrl+Shift+Super+Alt to come back.")
+        return f"lan-mouse {kvm.get('pinned')} is not installed"
+    return ("on  ·  cross at the screen edge, Ctrl+Shift+Super+Alt comes back" if kvm.get("on") else "off")
+
+
+def kvm_details(kvm):
+    """The kvm fold's text: what Install does, or the version and service."""
+    if not kvm.get("installed"):
+        return ("Install fetches lan-mouse's release from GitHub (checked against a fixed checksum) into "
+                "~/.local/share/peers; nothing system-wide changes.")
+    return (f"lan-mouse {kvm.get('version') or '?'} ({kvm.get('service')}), its own encrypted link. Move the "
+            "pointer past the edge set below to cross over.")
 
 
 class Page:
@@ -114,13 +116,14 @@ class Page:
         box.pack_start(self.name, True, True, 0)
         box.pack_start(link("Rename", self.rename), False, False, 0)
         w.pack_start(box, False, False, 0)
-        self.me = dp.label("", "ctl-sub")
-        self.me.set_line_wrap(True)
-        w.pack_start(self.me, False, False, 0)
         self.master = Gtk.Switch()
         self.master.connect("state-set", lambda _s, on: self.set("enabled", "on" if on else "off"))
         grid, self.master_sub = row("\uf0e8", "Share with the paired machines", "", self.master)
         w.pack_start(grid, False, False, 0)
+        self.me = dp.label("", "ctl-sub")
+        self.me.set_line_wrap(True)
+        self.me.set_selectable(True)
+        w.pack_start(details(self.me), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("PAIRED MACHINES"), False, False, 0)
@@ -132,14 +135,13 @@ class Page:
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("PAIR A MACHINE"), False, False, 0)
-        note = dp.label("On one machine Show a code, on the other Join. Both screens show the same six digits: "
-                        "press \"The codes match\" on both. Only machines on this network, nothing in between.",
+        note = dp.label("Show a code on one machine, Join on the other, then confirm the digits match.",
                         "ctl-sub")
         note.set_line_wrap(True)
         w.pack_start(note, False, False, 0)
         box = Gtk.Box(spacing=8)
         self.address = Gtk.Entry()
-        self.address.set_placeholder_text("address:port to join (empty: the one showing a code on this network)")
+        self.address.set_placeholder_text("address:port to join (empty: find it on this network)")
         self.address.set_hexpand(True)
         box.pack_start(self.address, True, True, 0)
         w.pack_start(box, False, False, 0)
@@ -168,8 +170,7 @@ class Page:
             w.pack_start(grid, False, False, 0)
         self.context = Chips(lambda key: self.set("context", key))
         grid, _ = row("\uf542", "Project context",
-                      "entering a project here: Ask offers the same on the other machine, Follow does it there "
-                      "(when it has that project or its repo at the same place)", None)
+                      "entering a project here: Ask offers it there, Follow opens it there", None)
         w.pack_start(grid, False, False, 0)
         w.pack_start(self.context.widget, False, False, 0)
         self.links = Chips(lambda key: self.set("links", key))
@@ -177,7 +178,7 @@ class Page:
         w.pack_start(grid, False, False, 0)
         w.pack_start(self.links.widget, False, False, 0)
         self.sizes = Chips(lambda key: self.set("max_mb", key))
-        grid, _ = row("\uf15b", "Largest file accepted", "bigger ones are refused before they are sent", None)
+        grid, _ = row("\uf15b", "Largest file accepted", "bigger ones are refused", None)
         w.pack_start(grid, False, False, 0)
         w.pack_start(self.sizes.widget, False, False, 0)
         w.pack_start(sep(), False, False, 0)
@@ -192,13 +193,14 @@ class Page:
         w.pack_start(self.kvm_install, False, False, 0)
         self.sides = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         w.pack_start(self.sides, False, False, 0)
+        self.kvm_more = dp.label("", "ctl-sub")
+        self.kvm_more.set_line_wrap(True)
+        w.pack_start(details(self.kvm_more), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("KEYS"), False, False, 0)
-        keys = dp.label("SUPER+ALT+M sends the focused window's page or file to the other machine, "
-                        "SUPER+ALT+SHIFT+M sends the clipboard's text now, SUPER+ALT+SHIFT+K turns the shared "
-                        "keyboard and mouse on or off. The launcher's \"remember ...\" can ask a paired "
-                        "machine's memory too.", "ctl-sub")
+        keys = dp.label("SUPER+ALT+M send this window  ·  SUPER+ALT+SHIFT+M send the clipboard  ·  "
+                        "SUPER+ALT+SHIFT+K shared keyboard and mouse", "ctl-sub")
         keys.set_line_wrap(True)
         w.pack_start(keys, False, False, 0)
 
@@ -312,8 +314,7 @@ class Page:
         kind = e.get("event")
         if kind == "waiting":
             where = ", ".join(f"{a}:{e['port']}" for a in e.get("addresses") or []) or f"port {e['port']}"
-            self.pair_sub.set_text(f"Waiting for the other machine (3 minutes): Settings > Machines > Join there, "
-                                   f"or type {where} in its box.")
+            self.pair_sub.set_text(f"Waiting 3 min: press Join on the other machine, or type {where} there.")
         elif kind == "code":
             self.code.set_markup(f"<span size='xx-large' weight='bold'>{GLib.markup_escape_text(e['code'])}</span>")
             self.pair_sub.set_text(f"Is this the code on {e.get('peer')}'s screen too?")
@@ -353,7 +354,7 @@ class Page:
 
     def draw(self, data):
         if not data:
-            self.me.set_text("peers.py did not answer")
+            self.master_sub.set_text("could not read the status")
             return
         self.data = data
         self.updating = True
@@ -363,9 +364,9 @@ class Page:
         peers = data.get("peers") or []
         self.master.set_active(bool(data.get("enabled")))
         self.master.set_sensitive(bool(peers))
-        self.master_sub.set_text("off until a machine is paired: pairing turns it on" if not peers else
-                                 "off: nothing listens or is shared; the pairings stay" if not data.get("enabled")
-                                 else "listening for the paired machines only (mutual TLS)")
+        self.master_sub.set_text("turns on when a machine is paired" if not peers else
+                                 "off: nothing shared; the pairings stay" if not data.get("enabled")
+                                 else "on, for the paired machines only")
         clear(self.rows)
         for p in peers:
             forget = Gtk.Button(label="Forget")
@@ -380,8 +381,7 @@ class Page:
                 forget))
             self.rows.pack_start(grid, False, False, 0)
         if not peers:
-            self.rows.pack_start(dp.label("None yet. Pair one below: everything here stays off until then.",
-                                          "ctl-sub"), False, False, 0)
+            self.rows.pack_start(dp.label("None yet: pair one below.", "ctl-sub"), False, False, 0)
         f = data.get("features") or {}
         for key, sw in self.switches.items():
             sw.set_active(bool(f.get(key)))
@@ -393,15 +393,15 @@ class Page:
         self.kvm.set_active(bool(kvm.get("on")))
         self.kvm.set_sensitive(bool(kvm.get("installed")) and bool(peers) and bool(data.get("enabled")))
         self.kvm_sub.set_text(kvm_text(kvm))
+        self.kvm_more.set_text(kvm_details(kvm))
         self.kvm_install.set_visible(not kvm.get("installed"))
         clear(self.sides)
         if kvm.get("installed"):
             for p in peers:
                 chips = Chips(lambda key, pid=p["id"]: self.side(pid, key))
                 chips.set(SIDES, p.get("kvm_side") or "")
-                grid, _ = row("\uf245", f"{p['name']} is", "the side of this screen its screen is on; it is told the "
-                              "opposite" + ("" if p.get("kvm_fp") else ". Its lan-mouse key arrives when it turns "
-                                            "this on too"), None)
+                grid, _ = row("\uf245", f"{p['name']} is", "which side of this screen" + (
+                              "" if p.get("kvm_fp") else "  ·  waits for it to turn this on too"), None)
                 self.sides.pack_start(grid, False, False, 0)
                 self.sides.pack_start(chips.widget, False, False, 0)
         self.widget.show_all()

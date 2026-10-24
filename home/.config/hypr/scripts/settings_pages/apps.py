@@ -3,7 +3,7 @@
 What opens a web link, a mail address, a folder, a text file, a picture, a
 video, a song, a PDF, an office file, an archive, a calendar invitation --
 and which terminal ALT+Q starts. Each role is a row (what it opens now,
-what the system would pick on its own) over a row of chips, one per
+what the system would pick) over a row of chips, one per
 installed app that can do it, with its icon; a click makes that app the
 default for every type of the role at once (default-apps.py set), "Reset"
 puts the system's own choice back (default-apps.py reset). "Open links in"
@@ -11,7 +11,8 @@ does the same for the other link types the installed apps register
 (magnet:, ssh:, tel:, steam:...): a type with more than one app to choose
 from gets a row, one that only one app can open folds away under "Other
 link types (one app each)" -- named or not. A type default-apps.py has no
-name for gets a readable one here (link_title).
+name for gets a readable one here (link_title). The kitty notes, the
+mimeapps.list button and "Check again" sit in a Details fold under Keys.
 
 Nothing is kept here: default-apps.py writes ~/.config/mimeapps.list (and
 $XDG_STATE_HOME/hypr/default-apps.conf for the terminal) and the page
@@ -101,18 +102,16 @@ def role_sub(role):
     if not cur:
         text = "nothing installed opens these" if not role["candidates"] else "not set: pick one below"
     elif role.get("user_set") and system and system["id"] != cur["id"]:
-        text = f"{cur['name']}  ·  your choice (the system would use {system['name']})"
+        text = f"{cur['name']}  ·  your choice (system would use {system['name']})"
     elif role.get("user_set"):
-        text = f"{cur['name']}  ·  your choice (also the system default)"
+        text = f"{cur['name']}  ·  your choice"
     else:
         text = f"{cur['name']}  ·  system default"
     if role.get("what"):
         text += f"  ·  {role['what']}"
     mixed = role.get("mixed") or []
     if mixed:
-        short = ", ".join(type_name(t) for t in mixed[:3]) + ("…" if len(mixed) > 3 else "")
-        text += (f"  ·  {len(mixed)} of its file type{'s' if len(mixed) != 1 else ''} still open in another app "
-                 f"({short}): pick it again to bring them along")
+        text += f"  ·  {len(mixed)} type{'s' if len(mixed) != 1 else ''} open elsewhere: pick again"
     return text
 
 
@@ -188,12 +187,7 @@ class Page:
         self.widget = page_box()
         w = self.widget
         w.pack_start(heading("DEFAULT APPS"), False, False, 0)
-        intro = dp.label("What opens a link, a folder or a file -- from a double-click, xdg-open, a browser's "
-                         "downloads or the launcher -- and what the keys start. Saved in ~/.config/mimeapps.list, "
-                         "the file every app reads.", "ctl-sub")
-        intro.set_line_wrap(True)
-        intro.set_max_width_chars(90)
-        w.pack_start(intro, False, False, 0)
+        w.pack_start(dp.label("What opens links, folders and files.", "ctl-sub"), False, False, 0)
         self.status = dp.label("", "ctl-sub")
         self.status.set_line_wrap(True)
         w.pack_start(self.status, False, False, 0)
@@ -201,24 +195,23 @@ class Page:
         w.pack_start(self.roles, False, False, 0)
         w.pack_start(sep(), False, False, 0)
         w.pack_start(heading("OPEN LINKS IN"), False, False, 0)
-        note = dp.label("Links other than web pages and mail (those follow Web browser and Mail above).", "ctl-sub")
-        note.set_line_wrap(True)
-        w.pack_start(note, False, False, 0)
+        w.pack_start(dp.label("Other link types (web and mail follow the rows above).", "ctl-sub"), False, False, 0)
         self.links = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         w.pack_start(self.links, False, False, 0)
         w.pack_start(sep(), False, False, 0)
         w.pack_start(heading("KEYS"), False, False, 0)
         self.keys_row, self.keys_sub = row("", "Keys that follow these choices", "")
         w.pack_start(self.keys_row, False, False, 0)
-        kitty = dp.label("Still kitty on purpose, since they need its options: the drop-down terminal "
-                         "(scratchpad), the launcher's Run and chat tiles, the snapshot undo window. The "
-                         "Hyprland/Waybar config keys open COSMIC Text Editor.", "ctl-sub")
+        kitty = dp.label("Always kitty (they need its options): the drop-down terminal, the launcher's Run and "
+                         "chat tiles, the snapshot undo window. The Hyprland/Waybar config keys open COSMIC Text "
+                         "Editor. The terminal also runs apps that need one (Terminal=true). Choices are saved "
+                         "in ~/.config/mimeapps.list, the file every app reads.", "ctl-sub")
         kitty.set_line_wrap(True)
         kitty.set_max_width_chars(90)
-        w.pack_start(kitty, False, False, 0)
-        w.pack_start(links_row(link("Open mimeapps.list", lambda: spawn(DEFAULT_APPS, "run", "editor",
-                                                                        os.path.expanduser("~/.config/mimeapps.list"))),
-                               link("Check again", self.refresh)), False, False, 0)
+        w.pack_start(details(kitty, links_row(
+            link("Open mimeapps.list", lambda: spawn(DEFAULT_APPS, "run", "editor",
+                                                     os.path.expanduser("~/.config/mimeapps.list"))),
+            link("Check again", self.refresh))), False, False, 0)
         self.other_open = False
         self.busy = False
 
@@ -249,8 +242,7 @@ class Page:
         roles, links, binds = data
         clear(self.roles)
         if not roles:
-            self.roles.pack_start(dp.label("default-apps.py did not answer (run it in a terminal to see why)",
-                                           "ctl-sub"), False, False, 0)
+            self.roles.pack_start(dp.label("Could not list the apps", "ctl-sub"), False, False, 0)
         group = None
         for role in roles or []:
             if role["group"] != group:
@@ -280,10 +272,7 @@ class Page:
         if links is not None and not links:
             self.links.pack_start(dp.label("No other link types are registered.", "ctl-sub"), False, False, 0)
         keys = keys_text(binds)
-        self.keys_sub.set_text(keys + "  ·  the terminal also runs apps that need one (Terminal=true)" if keys else
-                               "Not loaded yet: lua/binds.lua routes ALT+Q (terminal) and ALT+W (file manager) "
-                               "through default-apps.py from the next Hyprland reload (`hyprctl reload`, or "
-                               "the next login).")
+        self.keys_sub.set_text(keys or "ALT+Q terminal, ALT+W files: active after the next Hyprland reload")
         self.widget.show_all()
 
     def add_choice(self, box, role, glyph):
@@ -292,7 +281,9 @@ class Page:
             reset = link("Reset", lambda r=role: self.change("reset", r["id"], what=f"{r['title']}: resetting"))
             reset.set_tooltip_text("Back to the system default" + (f" ({role['system']['name']})"
                                                                    if role.get("system") else ""))
-        grid, _ = row(glyph, role["title"], role_sub(role), reset)
+        grid, sub = row(glyph, role["title"], role_sub(role), reset)
+        if role.get("mixed"):
+            sub.set_tooltip_text("Still open in another app: " + ", ".join(type_name(t) for t in role["mixed"]))
         box.pack_start(grid, False, False, 0)
         apps = role["candidates"]
         if len(apps) > 1 or (apps and not role.get("current")):

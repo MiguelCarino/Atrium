@@ -60,8 +60,7 @@ def fs_title(fs):
 
 
 def fs_sub(fs):
-    bits = [f"{human(fs['used'])} of {human(fs['size'])} used", f"{human(fs['avail'])} free",
-            f"{fs['fstype']} on {os.path.basename(fs['device'])}"]
+    bits = [f"{human(fs['used'])} of {human(fs['size'])} used", f"{human(fs['avail'])} free"]
     if fs["level"] == "critical":
         bits.insert(0, "nearly full")
     return "  ·  ".join(bits)
@@ -73,8 +72,7 @@ def full_warning(filesystems):
     if not full:
         return ""
     names = ", ".join(f"{' and '.join(f['targets'])} ({f['percent']} %, {human(f['avail'])} left)" for f in full)
-    return (f"!  Nearly full: {names}. Past about 95 % writes slow down, and btrfs can refuse them before it "
-            "reaches 100 %: empty that disk's trash below, or move something off it.")
+    return f"!  Nearly full: {names}. Empty its trash below or move something off it."
 
 
 def trash_title(t):
@@ -91,8 +89,7 @@ def scanned_sub(data, now=None):
     if not data:
         return "not scanned yet"
     age = int((now or time.time()) - data.get("time", 0))
-    return (f"{human(data['total'])} in all  ·  scanned {ago(age)} (took {data.get('took', '?')} s)  ·  "
-            "folders on other disks (links to /mnt) are not counted here")
+    return f"{human(data['total'])} in all  ·  scanned {ago(age)}  ·  other disks not counted"
 
 
 def day_chips(current):
@@ -104,9 +101,9 @@ def cleanup_sub(auto, timer, last):
     if not (auto["trash"] or auto["temp"]):
         return "nothing is deleted on its own"
     what = " and ".join(w for w, on in (("trash", auto["trash"]), ("your temporary files", auto["temp"])) if on)
-    bits = [f"{what} older than {auto['days']} days are deleted once a day"]
+    bits = [f"{what} older than {auto['days']} days, deleted daily"]
     if not timer.get("enabled"):
-        bits.append("!  but storage-cleanup.timer is off -- flip a switch off and on again to start it")
+        bits.append("!  its timer is off: flip a switch off and on")
     if last:
         bits.append(f"last run {ago(int(time.time() - last['time']))}: {last['removed']} removed, "
                     f"{human(last['freed'])} freed" + (f", {len(last['problems'])} could not be"
@@ -118,18 +115,30 @@ def cleanup_sub(auto, timer, last):
 
 def snapshot_sub(snaps):
     if not snaps.get("set_up"):
-        return ("snapper is not set up, so there are no system snapshots taking space. The Maintenance "
-                "page says how to set it up (one root step).")
+        return "not set up, so none take space (see Maintenance)"
     parts = []
     for name, c in (snaps.get("configs") or {}).items():
         if c is None:
-            parts.append(f"{name}: snapper did not answer (it may need root to list)")
+            parts.append(f"{name}: snapper did not answer")
         elif c["used"] is None:
-            parts.append(f"{name}: {c['count']} snapshots; their own space is not measured (btrfs quotas are "
-                         "off: sudo snapper -c " + name + " setup-quota)")
+            parts.append(f"{name}: {c['count']} snapshots, size not measured")
         else:
-            parts.append(f"{name}: {c['count']} snapshots holding {human(c['used'])} of their own")
+            parts.append(f"{name}: {c['count']} snapshots holding {human(c['used'])}")
     return "  ·  ".join(parts) or "no snapper configs"
+
+
+def snapshot_details(snaps):
+    """The why and the root steps behind snapshot_sub, for its fold."""
+    if not snaps.get("set_up"):
+        return "The Maintenance page says how to set snapper up (one root step)."
+    lines = []
+    for name, c in (snaps.get("configs") or {}).items():
+        if c is None:
+            lines.append(f"{name}: snapper may need root to list it.")
+        elif c["used"] is None:
+            lines.append(f"{name}: btrfs quotas are off, so their own space is not measured: "
+                         f"sudo snapper -c {name} setup-quota")
+    return "\n".join(lines) or "Sizes are each snapshot's own space (btrfs quotas)."
 
 
 def attempt(*cmd, timeout=1800):
@@ -186,7 +195,7 @@ class Page:
                                link("Disk Usage Analyzer", lambda: spawn("baobab"))), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
-        w.pack_start(heading("WHAT IS BIG IN YOUR HOME FOLDER"), False, False, 0)
+        w.pack_start(heading("BIGGEST IN YOUR HOME FOLDER"), False, False, 0)
         self.home_sub = wrapped("checking…")
         w.pack_start(self.home_sub, False, False, 0)
         self.home = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
@@ -208,19 +217,20 @@ class Page:
         w.pack_start(heading("CACHES"), False, False, 0)
         self.cache = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         w.pack_start(self.cache, False, False, 0)
-        w.pack_start(wrapped("A cache only saves time: whatever is cleared is downloaded or worked out again "
-                             "when it is next needed (the first start of a game or a browser is slower, a "
-                             "downloaded model or package is fetched again). A folder a running program has "
-                             "open is left alone, and the program named."), False, False, 0)
+        w.pack_start(wrapped("Safe to clear: it is rebuilt when needed."), False, False, 0)
+        w.pack_start(details(wrapped(
+            "A cache only saves time: whatever is cleared is downloaded or worked out again when it is next "
+            "needed (the first start of a game or a browser is slower, a downloaded model or package is "
+            "fetched again). A folder a running program has open is left alone, and the program named.")),
+            False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("AUTOMATIC CLEAN-UP"), False, False, 0)
         self.switches = {}
         for key, icon, title, sub in (
-                ("trash", "\uf1f8", "Empty old trash", "delete what has been in the trash longer than the age below"),
+                ("trash", "\uf1f8", "Empty old trash", "trash older than the age below"),
                 ("temp", "\uf254", "Delete old temporary files",
-                 "your own files in /tmp and /var/tmp not touched for that long (the system already clears "
-                 "/tmp after 10 days and /var/tmp after 30)")):
+                 "your files in /tmp and /var/tmp unused that long")):
             sw = Gtk.Switch()
             sw.connect("state-set", lambda _s, state, k=key: self.switched(
                 lambda: self.do(STORAGE, "auto", k, "on" if state else "off"), state))
@@ -240,8 +250,8 @@ class Page:
         self.usb = {}
         for key, icon, title, sub in (
                 ("mount", "\uf287", "Mount drives when they are plugged in",
-                 "when off, a drive stays unmounted until you pick Open on its notification or open it in Files"),
-                ("open", "\uf07c", "Open them in Files", "a window on the drive as soon as it is mounted")):
+                 "when off, a drive waits until you open it"),
+                ("open", "\uf07c", "Open them in Files", "a window on the drive once mounted")):
             sw = Gtk.Switch()
             sw.connect("state-set", lambda _s, state, k=key: self.switched(
                 lambda: self.do(AUTOMOUNT, "set", k, "on" if state else "off"), state))
@@ -256,6 +266,9 @@ class Page:
         grid, self.snap_sub = row("\uf1da", "System snapshots", "checking…")
         w.pack_start(grid, False, False, 0)
         w.pack_start(links_row(link("Open Maintenance", lambda: spawn(SETTINGS, "system"))), False, False, 0)
+        self.snap_more = wrapped("")
+        self.snap_more.set_selectable(True)
+        w.pack_start(details(self.snap_more), False, False, 0)
 
     # -- actions ---------------------------------------------------------------------
     def switched(self, act, _state):
@@ -267,7 +280,7 @@ class Page:
         # Emptying a big trash or clearing a big cache takes a while: say it
         # has started, so a second click does not look needed.
         if cmd[1:2] in (("empty-trash",), ("clear-cache",), ("clear-thumbnails",)):
-            self.message.set_text("working… (the page updates when it is done)")
+            self.message.set_text("working…")
             self.message.set_visible(True)
         background(lambda: attempt(*cmd), self.done)
 
@@ -299,7 +312,7 @@ class Page:
             return
         self.scanning = True
         self.rescan.set_sensitive(False)
-        self.home_sub.set_text("scanning your home folder… (about a minute, at the lowest priority)")
+        self.home_sub.set_text("scanning… (about a minute)")
         args = ("--max-age", "0") if force else ("--max-age", str(HOME_MAX_AGE))
         background(lambda: run_json(STORAGE, "home", "--json", *args, timeout=1800), self.scanned)
 
@@ -363,6 +376,7 @@ class Page:
             value = dp.label(f"{fs['percent']} %", "ctl-value")
             grid, _ = row("\uf0a0" if fs["level"] != "critical" else "\uf071", fs_title(fs), fs_sub(fs), value)
             grid.attach(bar(fs["percent"], fs["level"]), 1, 2, 2, 1)
+            grid.set_tooltip_text(f"{fs['fstype']} on {os.path.basename(fs['device'])}")
             self.disks.pack_start(grid, False, False, 0)
         self.disks.show_all()
 
@@ -382,10 +396,11 @@ class Page:
             # notification mounts and opens in one go anyway.
             self.usb["open"][0].set_sensitive(usb["mount"])
             if not usb["mount"]:
-                self.usb["open"][1].set_text("only when drives are mounted when plugged in, which is off")
+                self.usb["open"][1].set_text("needs mounting on plug-in (off)")
         else:
             self.usb["mount"][1].set_text("automount.py did not answer")
         self.snap_sub.set_text(snapshot_sub(status["snapshots"]))
+        self.snap_more.set_text(snapshot_details(status["snapshots"]))
         self.updating = False
 
     def show_sizes(self, data):
@@ -398,16 +413,15 @@ class Page:
         for t in data["trash"]:
             grid, _ = row("\uf1f8", trash_title(t), trash_sub(t), dp.label(human(t["size"]), "ctl-value"))
             self.trash.pack_start(grid, False, False, 0)
-        self.trash.pack_start(wrapped("Files keeps a trash on each disk, so deleting on a big disk frees space "
-                                      "there only once the trash is emptied."), False, False, 0)
+        self.trash.pack_start(wrapped("Each disk has its own trash; space frees once it is emptied."),
+                              False, False, 0)
         self.trash.show_all()
 
         c = data["cache"]
-        grid, _ = row("\uf1c0", "~/.cache", f"{human(c['total'])} in all: what programs keep to start and load "
-                      "faster", dp.label(human(c["total"]), "ctl-value"))
+        grid, _ = row("\uf1c0", "~/.cache", "kept by programs to load faster", dp.label(human(c["total"]), "ctl-value"))
         self.cache.pack_start(grid, False, False, 0)
         self.cache_row("thumbnails", "Thumbnails", c["thumbnails"],
-                       "the small pictures Files and the file pickers show; drawn again as folders are opened",
+                       "previews in Files; redrawn as needed",
                        ("clear-thumbnails",))
         for entry in [e for e in c["top"] if e["name"] != "thumbnails"][:CACHE_ROWS]:
             self.cache_row(entry["name"], f"~/.cache/{entry['name']}", entry["size"], "",

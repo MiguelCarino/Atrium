@@ -36,9 +36,9 @@ NOTIFY = os.path.join(HYPR, "notify-settings.py")
 SETTINGS = os.path.join(HYPR, "settings.py")
 
 FORMATS = [("png", "PNG"), ("jpg", "JPEG"), ("webp", "WebP")]
-FORMAT_SUB = {"png": "lossless, the sharpest text; the biggest files",
-              "jpg": "a fraction of the size, opens everywhere; fine detail softens a little",
-              "webp": "smaller still at the same look; most apps and every browser open it"}
+FORMAT_SUB = {"png": "lossless; the biggest files",
+              "jpg": "much smaller, opens everywhere; detail softens a little",
+              "webp": "smaller still; most apps and every browser open it"}
 RANGES = [("sdr", "SDR"), ("hdr", "HDR")]
 AUDIO = [("desktop", "Desktop sound"), ("both", "Desktop + microphone"), ("mic", "Microphone only"),
          ("none", "No sound")]
@@ -47,9 +47,9 @@ REPLAY = ["15", "30", "60", "120", "300"]
 REPLAY_MBIT = 80        # record.sh's replay bitrate (REPLAY_QUALITY): what the RAM estimate uses
 # (key, icon, title, what switching it on does) -- lua/gamemode.lua's list
 STRIP = [("gamemode_blur", "\uf0d0", "Turn blur off",
-          "the frosted glass behind bars and popups, redrawn by the GPU every frame"),
+          "the frosted glass behind bars and popups"),
          ("gamemode_shadow", "\uf042", "Turn shadows off", "the soft shadow under each window"),
-         ("gamemode_rounding", "\uf096", "Square corners", "rounded corners are cut by a shader on every window"),
+         ("gamemode_rounding", "\uf096", "Square corners", "no rounded window corners"),
          ("gamemode_gaps", "\uf0db", "No gaps", "windows fill the screen edge to edge"),
          ("gamemode_borders", "\uf0c8", "Thin borders", "window borders go down to 1 pixel")]
 # Tesseract's names for the languages someone is likeliest to want, for the
@@ -148,8 +148,7 @@ class Page:
         w.pack_start(self.format.widget, False, False, 0)
         self.switches = {}
         self.switch_row(w, "shot_copy", "\uf0ea", "Also copy to the clipboard",
-                        "a shot that is saved goes on the clipboard too, ready to paste; SUPER+S always "
-                        "copies only, without saving")
+                        "saved shots go on the clipboard too")
         self.binds_note = dp.label("", "ctl-sub")
         self.binds_note.set_line_wrap(True)
         self.binds_note.set_xalign(0)
@@ -159,7 +158,7 @@ class Page:
                         "framed for a README  ·  SUPER+O the text in a region", "ctl-sub")
         keys.set_line_wrap(True)
         keys.set_xalign(0)
-        w.pack_start(keys, False, False, 0)
+        w.pack_start(details(keys, label="Keys"), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         # -- recording --
@@ -190,7 +189,7 @@ class Page:
                         "ctl-sub")
         keys.set_line_wrap(True)
         keys.set_xalign(0)
-        w.pack_start(keys, False, False, 0)
+        w.pack_start(details(keys, label="Keys"), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         # -- screen actions --
@@ -209,6 +208,11 @@ class Page:
         w.pack_start(grid, False, False, 0)
         self.search = self.make_chips(lambda k: self.set("search", k))
         w.pack_start(self.search.widget, False, False, 0)
+        self.ocr_more = dp.label("", "ctl-sub")
+        self.ocr_more.set_line_wrap(True)
+        self.ocr_more.set_xalign(0)
+        self.ocr_more.set_selectable(True)
+        w.pack_start(details(self.ocr_more), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         # -- gamemode --
@@ -218,20 +222,22 @@ class Page:
         for key, icon, title, sub in STRIP:
             self.switch_row(w, key, icon, title, sub)
         self.switch_row(w, "gamemode_auto", "\uf144", "Turn on by itself for Steam games",
-                        "on when a game's window opens, off again a few seconds after the last one closes -- "
-                        "unless you pressed ALT+SHIFT+G in between, which always wins")
+                        "on when a game opens, off after the last one closes")
         self.switch_row(w, "gamemode_hide_steam", "\uf070", "Hide Steam while a game runs",
-                        "the Steam windows step aside while you play and come back to workspace 5 after; "
-                        "ALT+CTRL+G peeks at them")
+                        "back on workspace 5 after; ALT+CTRL+G peeks")
         self.dnd_row, self.dnd_sub = row("\uf1f6", "Do Not Disturb while a game runs", "",
                                          link("Open Notifications", lambda: spawn(SETTINGS, "notifications")))
         w.pack_start(self.dnd_row, False, False, 0)
+        gm_note = dp.label("Animations always go off (that is how the desktop knows gamemode is on); the switches "
+                           "above are yours to keep. A change applies the next time it turns on. ALT+SHIFT+G "
+                           "always wins over the automatic switch.", "ctl-sub")
+        gm_note.set_line_wrap(True)
+        gm_note.set_xalign(0)
+        w.pack_start(details(gm_note), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("GAME PROFILES"), False, False, 0)
-        intro = dp.label("Each Steam game can remember its own screen, refresh rates, HDR, volume and screen "
-                         "brightness / warmth, and gets them back when it starts; when it closes, what it "
-                         "changed is put back.", "ctl-sub")
+        intro = dp.label("Each Steam game's own screen, refresh rate, HDR and volume.", "ctl-sub")
         intro.set_line_wrap(True)
         intro.set_xalign(0)
         w.pack_start(intro, False, False, 0)
@@ -346,45 +352,40 @@ class Page:
         if v["shot_format"] != "png":
             fmt_sub += "  ·  drawn-on shots (SUPER+SHIFT+S) stay PNG"
             if not tools["magick"]:
-                fmt_sub += "  ·  needs ImageMagick (sudo dnf install ImageMagick); PNG until then"
+                fmt_sub += "  ·  needs ImageMagick; PNG until then"
         self.format_sub.set_text(fmt_sub)
         if data["shot_binds_follow"]:
             self.binds_note.set_text("")
             self.binds_note.hide()
         else:
-            self.binds_note.set_text("!  The ALT+S keys still run hyprshot on their own, so they save PNG into "
-                                     "~/Pictures/Screenshots and always copy too, whatever is set here; the "
-                                     "SUPER keys follow these settings.")
+            self.binds_note.set_text("!  The ALT+S keys ignore these settings; the SUPER keys follow them.")
 
         if not tools["gpu-screen-recorder"]:
-            self.rec_sub.set_text("gpu-screen-recorder is not installed: sudo dnf install gpu-screen-recorder")
+            self.rec_sub.set_text("not installed: sudo dnf install gpu-screen-recorder")
         else:
             running = [t for t, on in (("recording", data["recording"]), ("instant replay", data["replay"])) if on]
-            self.rec_sub.set_text(("Running now: " + " and ".join(running) + ". Changes apply to the next one."
-                                   if running else "Nothing is being recorded.")
-                                  + "  ·  gpu-screen-recorder on the graphics card's encoder (NVENC)")
+            self.rec_sub.set_text("Running: " + " and ".join(running) + "; changes apply to the next one"
+                                  if running else "Not recording")
         self.range.set(RANGES, data["range"])
         hdr = data["hdr_screens"]
         self.range_sub.set_text(
-            ("HEVC HDR10: only looks right in an HDR player on an HDR screen. " +
-             (f"In HDR now: {', '.join(hdr)}; any other screen records in SDR."
-              if hdr else "No screen is in HDR now, so recordings come out SDR until one is."))
+            ("HDR10, for HDR players  ·  " +
+             (f"HDR now: {', '.join(hdr)}" if hdr else "no screen in HDR, so SDR for now"))
             if data["range"] == "hdr" else
-            "h264: plays in every browser, chat and phone; an HDR screen is tone-mapped down")
+            "plays everywhere; HDR screens are tone-mapped down")
         self.audio.set(AUDIO, v["rec_audio"])
         self.audio_sub.set_text({"desktop": "what you hear, without the microphone",
-                                 "both": "what you hear and the default microphone, mixed into one track",
-                                 "mic": "only the default microphone (Sound page picks which one)",
+                                 "both": "what you hear and the default microphone",
+                                 "mic": "only the default microphone",
                                  "none": "silent video"}[v["rec_audio"]])
         self.fps.set(FPS, v["rec_fps"])
-        self.fps_sub.set_text("frames per second in recordings and the replay; above 60 only helps on a "
-                              "screen that runs that fast, and the files grow with it")
+        self.fps_sub.set_text("for recordings and the replay; higher means bigger files")
         self.replay.set([(s, seconds_text(s)) for s in REPLAY], v["replay_seconds"])
-        sub = (f"ALT+F10 saves the last {seconds_text(v['replay_seconds'])}; the buffer holds "
-               f"{replay_ram(v['replay_seconds'])} of memory while it is on")
+        sub = (f"ALT+F10 saves the last {seconds_text(v['replay_seconds'])}  ·  "
+               f"{replay_ram(v['replay_seconds'])} of memory while on")
         clear(self.replay_links)
         if data["replay"]:
-            sub += "  ·  it is on now, with the length it started with"
+            sub += "  ·  on now"
             self.replay_links.pack_start(links_row(
                 link("Restart the replay (drops what it holds)", self.restart_replay),
                 link("Turn the replay off", lambda: self.do(RECORD, "toggle-replay"))), True, True, 0)
@@ -395,23 +396,19 @@ class Page:
 
         self.draw_langs(data)
         self.search.set(sorted(data["engines"].items(), key=lambda kv: kv[0] != "duckduckgo"), v["search"])
-        self.search_sub.set_text("SUPER+SHIFT+T reads a region, SUPER+ALT+T takes the selected text; \"Look "
-                                 "it up\" opens this in the default browser")
+        self.search_sub.set_text("SUPER+SHIFT+T a region, SUPER+ALT+T the selected text")
 
         on = data["gamemode_on"]
         self.gm_sub.set_text(("ON now" if on else "off now" if on is not None else "state unknown") +
-                             "  ·  ALT+SHIFT+G switches it  ·  animations always go off (that is how the "
-                             "desktop knows gamemode is on); the ones below are yours to keep. A change "
-                             "applies the next time it turns on.")
+                             "  ·  ALT+SHIFT+G switches it")
         for key, sw in self.switches.items():
             state = v[key] == "on"
             sw.set_state(state)
             sw.set_active(state)
         settings = (notify or {}).get("settings") or {}
         if "dnd_games" in settings:
-            self.dnd_sub.set_text(("on: notifications wait until the game closes"
-                                   if settings["dnd_games"] else "off: notifications show during games")
-                                  + "  ·  set on the Notifications page")
+            self.dnd_sub.set_text("on: notifications wait until the game closes"
+                                  if settings["dnd_games"] else "off: notifications show during games")
         else:
             self.dnd_sub.set_text("set on the Notifications page")
 
@@ -431,8 +428,7 @@ class Page:
         clear(self.games)
         profiles = (self.data or {}).get("profiles") or {}
         if not profiles:
-            lab = dp.label("No profiles yet. While a game runs, set it up the way you like and press Save "
-                           "below, or search \"Save game profile\".", "ctl-sub")
+            lab = dp.label("No profiles yet: set a running game up and press Save.", "ctl-sub")
             lab.set_line_wrap(True)
             lab.set_xalign(0)
             self.games.pack_start(lab, False, False, 0)
@@ -442,7 +438,7 @@ class Page:
                 ask.pack_start(link("Yes, forget it", lambda a=appid: self.forget(a)), False, False, 0)
                 ask.pack_start(link("Cancel", lambda: self.ask_forget(None)), False, False, 0)
                 grid, _ = row("\uf11b", prof.get("name") or appid,
-                              "Forget this profile? The game then starts with whatever is set at the time.", ask)
+                              "Forget this profile?", ask)
             else:
                 grid, _ = row("\uf11b", prof.get("name") or appid, profile_sub(prof),
                               link("Forget", lambda a=appid: self.ask_forget(a)))
@@ -463,8 +459,8 @@ class Page:
         have = data["tesseract"]
         chosen = data["values"]["ocr_langs"].split("+")
         if have is None:
-            self.ocr_sub.set_text("tesseract is not installed: sudo dnf install tesseract "
-                                  "tesseract-langpack-eng tesseract-langpack-spa")
+            self.ocr_sub.set_text("tesseract is not installed")
+            self.ocr_more.set_text("sudo dnf install tesseract tesseract-langpack-eng tesseract-langpack-spa")
             return
         for lang in sorted(set(have) | set(chosen), key=lambda l: (l not in chosen, lang_name(l))):
             b = Gtk.Button(label=lang_name(lang) + ("" if lang in have else "  (not installed)"))
@@ -476,14 +472,15 @@ class Page:
             self.langs.add(b)
         self.langs.set_min_children_per_line(max(1, min(len(set(have) | set(chosen)), 7)))
         missing = [l for l in chosen if l not in have]
-        sub = ("the text in a region is read in " + " + ".join(lang_name(l) for l in chosen if l in have)
+        sub = ("reads " + " + ".join(lang_name(l) for l in chosen if l in have) + " (SUPER+O)"
                if any(l in have for l in chosen) else "none of the chosen languages is installed")
-        sub += " (SUPER+O, SUPER+SHIFT+T); fewer languages read faster and guess less"
+        more = "Text recognition (SUPER+O, SUPER+SHIFT+T): fewer languages read faster and guess less."
         if missing:
-            sub += ("  ·  to add " + ", ".join(lang_name(l) for l in missing) + ": sudo dnf install " +
-                    " ".join(f"tesseract-langpack-{l}" for l in missing))
+            sub += "  ·  " + ", ".join(lang_name(l) for l in missing) + " not installed"
+            more += (" To add " + ", ".join(lang_name(l) for l in missing) + ": sudo dnf install " +
+                     " ".join(f"tesseract-langpack-{l}" for l in missing))
         else:
-            sub += ("  ·  for another one: sudo dnf install tesseract-langpack-<code> (fra, deu, por, "
-                    "jpn…), and it shows up here to pick")
+            more += (" For another one: sudo dnf install tesseract-langpack-<code> (fra, deu, por, "
+                     "jpn…), and it shows up here to pick.")
         self.ocr_sub.set_text(sub)
-        self.ocr_sub.set_selectable(True)
+        self.ocr_more.set_text(more)

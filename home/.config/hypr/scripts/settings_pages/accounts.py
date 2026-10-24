@@ -24,7 +24,7 @@ import subprocess  # noqa: E402
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import GdkPixbuf  # noqa: E402
 
-PAGE = {"id": "accounts", "title": "Users, sharing & printers", "icon": "", "group": "System", "order": 40,
+PAGE = {"id": "accounts", "title": "Users & sharing", "icon": "", "group": "System", "order": 40,
         "keywords": ["user", "usuario", "account", "cuenta", "name", "picture", "avatar", "password",
                      "contraseña", "login screen", "automatic login", "autologin", "online accounts",
                      "sharing", "security", "firewall", "ssh", "remote login", "kde connect", "secure boot",
@@ -46,14 +46,13 @@ CAREFUL = {
 }
 # What each firewalld zone means, for the zone chips' explanation.
 ZONES = {
-    "FedoraWorkstation": "Fedora's desktop default: everything from port 1025 up is open (so games, KDE Connect "
-                         "and local sharing just work), the system ports below only for the services listed",
+    "FedoraWorkstation": "ports 1025 and up open, below that only the services listed",
     "FedoraServer": "only the services listed get in",
-    "public": "an untrusted network (a café): only the services listed get in",
-    "home": "a home network: the services listed, plus local discovery",
+    "public": "untrusted network: only the services listed",
+    "home": "home network: the services listed, plus discovery",
     "work": "a work network: the services listed",
     "internal": "a trusted internal network",
-    "trusted": "everything gets in -- only for a network you fully control",
+    "trusted": "everything gets in",
     "block": "nothing gets in; answers with a refusal",
     "drop": "nothing gets in, not even an answer",
     "external": "for a router doing NAT",
@@ -67,17 +66,43 @@ def short_home(path):
 
 
 def user_sub(u):
-    """The line under your name: login, account type, password age, groups."""
-    bits = [f"login {u['login']}", "administrator (can use sudo)" if u["admin"] else "standard account"]
+    """The line under your name: login, account type, password age (the
+    groups are in the fold, you_details())."""
+    bits = [f"login {u['login']}", "administrator" if u["admin"] else "standard account"]
     if u.get("password_changed"):
-        bits.append(f"password last changed {u['password_changed']}")
-    extra = [g for g in u.get("groups", []) if g not in (u["login"], "wheel")]
-    if extra:
-        bits.append("also in " + ", ".join(extra))
+        bits.append(f"password changed {u['password_changed']}")
     return "  ·  ".join(bits)
 
 
 def picture_sub(u):
+    if not u.get("picture"):
+        where = "no picture yet"
+    elif u.get("accounts_icon"):
+        where = "picture shown on the login screen"
+    else:
+        where = "picture not on the login screen"
+    return where + ("  ·  Undo puts the old one back" if u.get("undo") else "")
+
+
+def you_details(u, lg):
+    """The YOU fold: where the picture lives, git's name, the password, the
+    automatic login's config, the groups."""
+    lines = ["Picture: " + picture_where(u),
+             "Full name: git keeps its own (git config user.name).",
+             "Change password opens passwd in your terminal: it asks for the current password, then the new "
+             "one twice. The same password unlocks the screen, sudo and the keyring (the keyring follows only "
+             "when changed this way while logged in)."]
+    if lg.get("config"):
+        lines.append(f"Automatic login is set in {lg['config']}.")
+    extra = [g for g in u.get("groups", []) if g not in (u["login"], "wheel")]
+    if u.get("admin"):
+        lines.append("Administrator: in wheel, can use sudo.")
+    if extra:
+        lines.append("Also in the groups " + ", ".join(extra) + ".")
+    return "\n".join(lines)
+
+
+def picture_where(u):
     if not u.get("picture"):
         where = "no picture yet"
     elif u.get("accounts_icon") and u.get("face"):
@@ -86,7 +111,7 @@ def picture_sub(u):
         where = "shown on the login screen (AccountsService); ~/.face is not set, a change writes both"
     else:
         where = "~/.face only; the login screen has none"
-    return where + ("  ·  the one you had before is kept: Undo puts it back" if u.get("undo") else "")
+    return where
 
 
 def autologin_sub(lg):
@@ -95,24 +120,30 @@ def autologin_sub(lg):
     if not lg.get("kind"):
         return f"login screen: {dm}, which this page does not know how to read"
     if not lg.get("readable"):
-        return f"login screen: {dm}  ·  its config ({lg.get('config')}) is not readable without root"
+        return f"login screen: {dm}  ·  its config is not readable without root"
     if lg.get("autologin"):
         who = "you" if lg.get("mine") else lg["autologin"]
-        return (f"ON: at boot {dm} logs {who} straight in, no password  ·  anyone at the keyboard gets the "
-                "desktop, and the keyring (saved Wi-Fi and browser passwords) stays locked until you type the "
-                f"password once  ·  set in {lg['config']}")
-    return f"off: {dm} asks for your password at every start  ·  set in {lg['config']}"
+        return f"ON: {dm} logs {who} in with no password; the keyring stays locked"
+    return f"off: {dm} asks for your password"
 
 
 def firewall_sub(fw):
     if not fw.get("installed"):
-        return "firewalld is not installed: nothing filters what comes in from the network"
+        return "firewalld is not installed: nothing filters what comes in"
     if not fw.get("running"):
-        return ("NOT running: every port a program opens can be reached from the network"
-                + ("  ·  it is set to start at boot" if fw.get("enabled") else "  ·  and it does not start at boot"))
-    bits = [f"on  ·  zone {fw.get('zone')}" + (f" for {', '.join(fw['interfaces'])}" if fw.get("interfaces") else "")]
+        return ("NOT running: open ports are reachable"
+                + ("  ·  starts at boot" if fw.get("enabled") else "  ·  not at boot either"))
+    bits = [f"on  ·  zone {fw.get('zone')}"]
     if fw.get("zone") in ZONES:
         bits.append(ZONES[fw["zone"]])
+    return "  ·  ".join(bits)
+
+
+def firewall_details(fw):
+    """The firewall fold's first line: interfaces and open ports."""
+    bits = []
+    if fw.get("interfaces"):
+        bits.append("zone for " + ", ".join(fw["interfaces"]))
     if fw.get("ports"):
         bits.append("open ports: " + ", ".join(fw["ports"]))
     return "  ·  ".join(bits)
@@ -120,17 +151,16 @@ def firewall_sub(fw):
 
 def ssh_sub(ssh, fw):
     if not ssh.get("installed"):
-        return "the SSH server is not installed (sudo dnf install openssh-server)"
-    state = "ON: you can log in to this computer from another one" if ssh["active"] else \
-        "off: nobody can log in to this computer over the network"
-    bits = [state, "starts at boot" if ssh["enabled"] else "does not start at boot"]
+        return "not installed (openssh-server)"
+    state = "ON: others can log in over the network" if ssh["active"] else "off: no logins over the network"
+    bits = [state, "starts at boot" if ssh["enabled"] else "not at boot"]
     if not fw.get("running"):
         if ssh["active"]:
-            bits.append("no firewall is running, so it can be reached from the network")
+            bits.append("no firewall running: reachable")
     elif ssh["active"] and "ssh" not in (fw.get("services") or []):
-        bits.append("the firewall does not let it in, though")
+        bits.append("the firewall does not let it in")
     elif not ssh["active"] and "ssh" in (fw.get("services") or []):
-        bits.append("the firewall's ssh opening is unused while it is off")
+        bits.append("the firewall still lets ssh in")
     return "  ·  ".join(bits)
 
 
@@ -150,11 +180,11 @@ def phone_sub(phones, installed, fw=None):
     if phones is None:
         return "KDE Connect is not running"
     if not phones:
-        return "running, no phone paired  ·  it talks on ports 1714-1764, which " + (
-            "the firewall lets in" if kdeconnect_let_in(fw or {}) else
-            "the firewall shuts out: click kdeconnect under \"Let in\" above")
+        return "no phone paired  ·  " + (
+            "the firewall lets it in" if kdeconnect_let_in(fw or {}) else
+            "the firewall shuts it out: let kdeconnect in above")
     names = ", ".join(f"{p['name']} ({'here' if p['reachable'] else 'away'})" for p in phones)
-    return f"paired: {names}  ·  it can share files, the clipboard and notifications"
+    return f"paired: {names}"
 
 
 def disks_sub(disks):
@@ -163,20 +193,19 @@ def disks_sub(disks):
     locked = [d["mount"] for d in disks if d["encrypted"]]
     plain = [d["mount"] for d in disks if not d["encrypted"]]
     if not plain:
-        return "every disk is encrypted (LUKS): a stolen disk cannot be read without the password"
+        return "every disk is encrypted (LUKS)"
     text = f"not encrypted: {', '.join(plain)}"
     if locked:
-        text += f"  ·  encrypted (LUKS): {', '.join(locked)}"
-    return text + ("  ·  anyone with the disk in hand can read it. Encrypting means reinstalling (or a careful "
-                   "offline conversion): it is chosen in the installer")
+        text += f"  ·  encrypted: {', '.join(locked)}"
+    return text
 
 
 def selinux_sub(sec):
     mode, conf = sec.get("selinux"), sec.get("selinux_config")
     if not mode:
         return "SELinux is not available"
-    text = {"Enforcing": "enforcing: each service is held to what it is meant to touch",
-            "Permissive": "PERMISSIVE: rule breaks are only logged, not stopped",
+    text = {"Enforcing": "enforcing",
+            "Permissive": "PERMISSIVE: breaches only logged, not stopped",
             "Disabled": "DISABLED"}.get(mode, mode)
     if conf and conf.lower() != mode.lower():
         text += f"  ·  set to {conf} from the next boot"
@@ -185,21 +214,19 @@ def selinux_sub(sec):
 
 def secure_boot_sub(sb):
     if sb is None:
-        return "unknown: this computer did not start through UEFI"
+        return "unknown: not started through UEFI"
     if sb:
-        return "on: the firmware only starts a signed boot loader and kernel"
-    return ("off: the firmware starts any boot loader. The NVIDIA driver is an unsigned kernel module, which "
-            "Secure Boot would refuse until it is signed (a key enrolled with mokutil) -- turn it on in the "
-            "firmware settings only after that")
+        return "on: only a signed boot loader and kernel start"
+    return "off: any boot loader starts"
 
 
 def abrt_sub(ab):
     if not ab.get("installed"):
-        return "ABRT is not installed: crashes are only in the journal (coredumpctl list)"
+        return "ABRT is not installed: crashes only in the journal (coredumpctl list)"
     bits = [f"{ab['problems']} crash report{'s' if ab['problems'] != 1 else ''} kept" if ab["problems"]
             else "no crash reports kept",
-            "collecting" if ab["running"] else "NOT collecting (abrtd is stopped)",
-            "sent to Fedora automatically" if ab["auto"] else "nothing is sent unless you report one yourself"]
+            "collecting" if ab["running"] else "NOT collecting",
+            "sent to Fedora automatically" if ab["auto"] else "sent only when you report one"]
     return "  ·  ".join(bits)
 
 
@@ -217,9 +244,6 @@ def printer_sub(p, default):
         bits.append(p["location"])
     if p["name"] == default:
         bits.append("default")
-    if p["state"] == "disabled":
-        bits.append("CUPS pauses a printer that was unplugged or off when something was sent; once it is back, "
-                    "Resume copies the command that takes it back into use")
     return "  ·  ".join(bits)
 
 
@@ -276,18 +300,17 @@ class Page:
         box = Gtk.Box(spacing=6)
         box.pack_start(self.name_entry, False, False, 0)
         box.pack_start(link("Save", self.save_name), False, False, 0)
-        grid, self.name_sub = row(USER, "Full name", "shown on the login screen, the lock screen and in apps "
-                                  "that ask who you are (git keeps its own: git config user.name)", box)
+        grid, self.name_sub = row(USER, "Full name", "shown on the login and lock screens and in apps", box)
         w.pack_start(grid, False, False, 0)
-        grid, self.pw_sub = row(KEY, "Password", "Change password opens passwd in your terminal: it asks for the "
-                                "current password, then the new one twice. The same password unlocks the screen, "
-                                "sudo and the keyring (the keyring follows only when changed this way while "
-                                "logged in)")
+        grid, self.pw_sub = row(KEY, "Password", "also unlocks the screen, sudo and the keyring")
         w.pack_start(grid, False, False, 0)
         self.auto_link = link("Copy the command", lambda: self.copy(self.auto_what))
         grid, self.auto_sub = row(LOGIN, "Automatic login", "", self.auto_link)
         self.auto_what = "autologin-on"
         w.pack_start(grid, False, False, 0)
+        self.you_more = small("")
+        self.you_more.set_selectable(True)
+        w.pack_start(details(self.you_more), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("ONLINE ACCOUNTS"), False, False, 0)
@@ -303,18 +326,23 @@ class Page:
         self.fw_what = "firewall-off"
         grid, self.fw_sub = row(SHIELD, "Firewall", "", self.fw_link)
         w.pack_start(grid, False, False, 0)
+        # What it lets in and its zone: folded, they are for the few who
+        # know what a service name means.
+        self.fw_more = small("")
+        self.fw_fold = details(self.fw_more, label="Services and zone")
+        w.pack_start(self.fw_fold, False, False, 0)
         self.services_label = small("")
-        w.pack_start(self.services_label, False, False, 0)
+        self.fw_fold.box.pack_start(self.services_label, False, False, 0)
         self.services = self.make_chips(lambda s: self.copy("firewall-close", s))
-        w.pack_start(self.services.widget, False, False, 0)
-        self.offer_label = small("Let in (copies the command):")
-        w.pack_start(self.offer_label, False, False, 0)
+        self.fw_fold.box.pack_start(self.services.widget, False, False, 0)
+        self.offer_label = small("Let in:")
+        self.fw_fold.box.pack_start(self.offer_label, False, False, 0)
         self.offer = self.make_chips(lambda s: self.copy("firewall-open", s))
-        w.pack_start(self.offer.widget, False, False, 0)
-        self.zone_label = small("Default zone (copies the command):")
-        w.pack_start(self.zone_label, False, False, 0)
+        self.fw_fold.box.pack_start(self.offer.widget, False, False, 0)
+        self.zone_label = small("Default zone:")
+        self.fw_fold.box.pack_start(self.zone_label, False, False, 0)
         self.zones = self.make_chips(lambda z: self.copy("firewall-zone", z))
-        w.pack_start(self.zones.widget, False, False, 0)
+        self.fw_fold.box.pack_start(self.zones.widget, False, False, 0)
         self.ssh_link = link("Copy: turn it on", lambda: self.copy(self.ssh_what))
         self.ssh_what = "ssh-on"
         grid, self.ssh_sub = row(SSH, "SSH server", "", self.ssh_link)
@@ -334,9 +362,15 @@ class Page:
         grid, self.abrt_sub = row(BUG, "Problem reporting (ABRT)", "")
         w.pack_start(grid, False, False, 0)
         w.pack_start(links_row(self.abrt_open, self.abrt_link), False, False, 0)
-        w.pack_start(small("Every change marked \"Copy\" needs root: the command goes to the clipboard -- paste it "
-                           "into a terminal and type your password. This page shows the result on its next look "
-                           "(Check again)."), False, False, 0)
+        w.pack_start(small("\"Copy\" buttons copy a root command to paste into a terminal."), False, False, 0)
+        w.pack_start(details(small(
+            "Every change marked \"Copy\" needs root: the command goes to the clipboard -- paste it into a "
+            "terminal and type your password. This page shows the result on its next look (Check again).\n"
+            "Secure Boot: the NVIDIA driver is an unsigned kernel module, which Secure Boot would refuse until "
+            "it is signed (a key enrolled with mokutil) -- turn it on in the firmware settings only after "
+            "that.\nDisk encryption: anyone with an unencrypted disk in hand can read it. Encrypting means "
+            "reinstalling (or a careful offline conversion): it is chosen in the installer.")),
+            False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("PRINTERS"), False, False, 0)
@@ -345,13 +379,18 @@ class Page:
         self.jobs = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         w.pack_start(self.jobs, False, False, 0)
         self.gnome_printers = link("Add a printer…", lambda: self.do("printers"))
-        w.pack_start(links_row(link("Open the CUPS page", lambda: self.do("cups")), self.gnome_printers,
-                               link("Check again", self.refresh)), False, False, 0)
-        w.pack_start(small("Adding a printer: most network and USB printers made in the last ten years print "
-                           "without any setup (driverless IPP) and show up above on their own. For an older one, "
-                           "Add a printer opens GNOME's printer settings; the CUPS page (Administration > Add "
-                           "Printer) does the same in the browser and asks for your login and password."),
-                     False, False, 0)
+        w.pack_start(links_row(self.gnome_printers, link("Check again", self.refresh)), False, False, 0)
+        self.print_more = small("")
+        self.print_more.set_selectable(True)
+        w.pack_start(details(
+            small("Most network and USB printers from the last ten years print without any setup "
+                  "(driverless IPP) and show up above on their own. For an older one, Add a printer opens "
+                  "GNOME's printer settings; the CUPS page (Administration > Add Printer) does the same in "
+                  "the browser and asks for your login and password. CUPS pauses a printer that was "
+                  "unplugged or off when something was sent; once it is back, Resume copies the command "
+                  "that takes it back into use."),
+            self.print_more,
+            links_row(link("Open the CUPS page", lambda: self.do("cups")))), False, False, 0)
         self.updating = False
 
     @staticmethod
@@ -381,8 +420,8 @@ class Page:
             ok, text = res
             if ok:
                 warn = CAREFUL.get((what, arg), "")
-                self.say("Copied " + text.removeprefix("copied: ") + "\n-- paste it into a terminal; it asks "
-                         "for your password there." + (f"\nCareful: {warn}" if warn else ""))
+                self.say("Copied " + text.removeprefix("copied: ") + "\n-- paste it into a terminal."
+                         + (f"\nCareful: {warn}" if warn else ""))
             else:
                 self.say("!  " + text)
         background(lambda: cli("copy", what, *([arg] if arg else [])), done)
@@ -446,6 +485,7 @@ class Page:
 
         lg = data["login"]
         self.auto_sub.set_text(autologin_sub(lg))
+        self.you_more.set_text(you_details(u, lg))
         self.auto_what = "autologin-off" if lg.get("autologin") else "autologin-on"
         self.auto_link.set_label("Copy: turn it off" if lg.get("autologin") else "Copy: turn it on")
         self.auto_link.set_visible(bool(lg.get("kind")) and lg.get("readable", False))
@@ -455,27 +495,26 @@ class Page:
         if not on["daemon"]:
             self.online_sub.set_text("gnome-online-accounts is not running: no accounts are shared with apps")
         elif not on["accounts"]:
-            self.online_sub.set_text("none  ·  an account added here (Google, Microsoft, Nextcloud...) shows its "
-                                     "mail, calendar, contacts and files in the GNOME apps and in Files")
+            self.online_sub.set_text("none  ·  Google, Microsoft, Nextcloud… for the GNOME apps")
         else:
             self.online_sub.set_text(f"{len(on['accounts'])} account{'s' if len(on['accounts']) != 1 else ''}, "
-                                     "shared with the GNOME apps (Calendar, Contacts, Files)")
+                                     "shared with the GNOME apps")
             for a in on["accounts"]:
                 self.online_list.pack_start(small(f"    {a['provider']}" + (f"  ·  {a['identity']}"
                                                                            if a["identity"] else "")),
                                             False, False, 0)
         if not on["panel"]:
-            self.online_sub.set_text(self.online_sub.get_text() + "  ·  adding one needs GNOME Settings: "
-                                     "sudo dnf install gnome-control-center")
+            self.online_sub.set_text(self.online_sub.get_text() + "  ·  adding one needs gnome-control-center")
 
         fw = data["firewall"]
         self.fw_sub.set_text(firewall_sub(fw))
+        self.fw_more.set_text(firewall_details(fw))
         running = fw.get("installed") and fw.get("running")
         self.fw_what = "firewall-off" if running else "firewall-on"
         self.fw_link.set_label("Copy: turn it off" if running else "Copy: turn it on")
         self.fw_link.set_visible(bool(fw.get("installed")))
         services = fw.get("services") or []
-        self.services_label.set_text(("Services let in -- click one to copy the command that shuts it out:"
+        self.services_label.set_text(("Let in now (click one to shut it out):"
                                       if services else "No services are let in by name.") if running else "")
         self.services.set([(s, f"{s}  ✕") for s in services], None)
         self.offer.set([(s, s) for s in fw.get("offer", []) if s not in services], None)
@@ -505,8 +544,9 @@ class Page:
         self.auto_link.set_visible(bool(lg.get("kind")) and lg.get("readable", False))
         self.fw_link.set_visible(bool(fw.get("installed")))
         for widget in (self.services_label, self.services.widget, self.offer_label, self.offer.widget,
-                       self.zone_label, self.zones.widget):
+                       self.zone_label, self.zones.widget, self.fw_fold):
             widget.set_visible(bool(running))
+        self.fw_more.set_visible(bool(self.fw_more.get_text()))
         self.ssh_link.set_visible(bool(ssh.get("installed")))
         self.abrt_open.set_visible(bool(ab.get("viewer")))
         self.abrt_link.set_visible(bool(ab.get("installed")))
@@ -527,12 +567,12 @@ class Page:
         clear(self.printers)
         clear(self.jobs)
         if not pr.get("installed"):
-            self.printers.pack_start(small("CUPS is not installed: sudo dnf install cups && sudo systemctl enable "
-                                           "--now cups"), False, False, 0)
+            self.printers.pack_start(small("CUPS is not installed (see Details)"), False, False, 0)
+            self.print_more.set_text("To install it: sudo dnf install cups && sudo systemctl enable --now cups")
             return
+        self.print_more.set_text("" if pr["running"] else "To start CUPS now: sudo systemctl start cups")
         if not pr["running"]:
-            self.printers.pack_start(small("The printing service (CUPS) is not running; it starts by itself when "
-                                           "something prints. To start it now: sudo systemctl start cups"),
+            self.printers.pack_start(small("Printing service not running; it starts when something prints"),
                                      False, False, 0)
         if not pr["printers"]:
             self.printers.pack_start(small("No printers set up."), False, False, 0)

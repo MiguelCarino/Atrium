@@ -205,7 +205,7 @@ def state(on_=None, kind="off", text="", extras=None, can_toggle=True, uses=None
 
 
 def no_answer(what):
-    return state(None, "error", f"{what} did not answer (run it in a terminal to see why)", can_toggle=False)
+    return state(None, "error", f"{what} did not answer", can_toggle=False)
 
 
 def plural(n, word, many=None):
@@ -234,13 +234,13 @@ def st_assistant(p):
     s = d.get("settings") or {}
     is_on = s.get("enabled", "on") != "off"
     if not is_on:
-        return state(False, "off", "off: its key only says it is turned off")
+        return state(False, "off", "off")
     model = s.get("model", "auto")
     role = (d.get("roles") or {}).get("default" if model == "auto" else model) or {}
     text = "on: answers with " + (role.get("name") or "the local model") + (" (automatic)" if model == "auto" else "")
     uses = []
     if on(s.get("tool_screen", "on")):
-        uses.append(("screen", "Assistant: looks at the screen when you ask it to",
+        uses.append(("screen", "Assistant",
                      [ASSISTANT, "set", "tool_screen", "off"]))
     return state(True, "demand", text, uses=uses)
 
@@ -250,19 +250,18 @@ def st_voice(p):
     if not d:
         return no_answer("voice.py")
     if not d.get("installed", True):
-        return state(bool(d.get("captions")), "setup", "needs setup: the speech model is not installed "
-                     "(Settings > Voice typing)")
+        return state(bool(d.get("captions")), "setup", "needs setup: no speech model")
     uses, busy = [], d.get("state") not in (None, "", "idle", "off")
     if d.get("state") == "recording":
-        uses.append(("mic", "Voice typing: dictating now", [VOICE, "cancel"]))
+        uses.append(("mic", "Voice typing (now)", [VOICE, "cancel"]))
     if d.get("captions"):
-        uses.append(("mic", "Live captions: listening to what the computer plays", [VOICE, "captions", "off"]))
+        uses.append(("mic", "Live captions", [VOICE, "captions", "off"]))
     if d.get("captions"):
         text, kind = "captions on" + (", dictating now" if busy else ""), "running"
     elif busy:
         text, kind = f"{d.get('state')} now", "running"
     else:
-        text, kind = "ready: dictation listens only while you hold or press its key; captions off", "demand"
+        text, kind = "ready; captions off", "demand"
     return state(bool(d.get("captions")), kind, text, uses=uses)
 
 
@@ -274,9 +273,9 @@ def st_voice_commands(p):
     is_on = on(s.get("commands", "on"))
     extras = [("confirm", "Ask before doing anything", on(s.get("command_confirm", "off")), is_on)]
     if not is_on:
-        return state(False, "off", "off: the command key does nothing", extras)
-    return state(True, "demand", "on: press the key, say it in Spanish or English", extras,
-                 uses=[("mic", "Voice commands: only while you press their key", [VOICE, "set", "commands", "off"])])
+        return state(False, "off", "off", extras)
+    return state(True, "demand", "on: press the key and speak", extras,
+                 uses=[("mic", "Voice commands", [VOICE, "set", "commands", "off"])])
 
 
 def st_tts(p):
@@ -288,7 +287,7 @@ def st_tts(p):
     if not is_on:
         return state(False, "off", "off: nothing is read aloud")
     if not d.get("installed", True):
-        return state(True, "setup", "needs setup: no voice installed (Settings > Spoken replies)")
+        return state(True, "setup", "needs setup: no voice installed")
     what = [w for k, w in (("speak_brief", "the brief"), ("speak_commands", "voice commands' answers"),
                            ("speak_selection", "the highlighted text")) if on(s.get(k))]
     text = ("speaking now" if d.get("speaking") else "on: reads " + (", ".join(what) if what else "nothing yet"))
@@ -304,13 +303,13 @@ def st_phone_ask(p):
     is_on = bool(d.get("on"))
     extras = [("screen", "Answers may describe the screen", bool(d.get("screen")), is_on)]
     if not is_on:
-        return state(False, "off", "off: questions from the phone are not answered", extras)
-    uses = [("screen", "Ask from the phone: describing the screen", [PHONE_ASK, "screen", "off"])] \
+        return state(False, "off", "off", extras)
+    uses = [("screen", "Ask from the phone", [PHONE_ASK, "screen", "off"])] \
         if d.get("screen") else []
     if not d.get("devices"):
         return state(True, "setup", "needs setup: pair a phone in KDE Connect", extras, uses=uses)
     if not d.get("listener"):
-        return state(True, "error", "on, but its listener is not running (phone-ask.service)", extras, uses=uses)
+        return state(True, "error", "on, but not listening", extras, uses=uses)
     reach = [x["name"] for x in d["devices"] if x.get("reachable")]
     return state(True, "running", "listening" + (f" to {', '.join(reach)}" if reach else ": no phone in reach now"),
                  extras, uses=uses)
@@ -322,10 +321,10 @@ def st_memory(p):
         return no_answer("privacy.conf")
     is_on = on(conf.get("memory"))
     ask = on(conf.get("ask"))
-    extras = [("ask", "Ask your desktop (search bar \"remember ...\")", ask, True)]
+    extras = [("ask", "Ask your desktop", ask, True)]
     uses = []
     if ask and on(conf.get("ask_clipboard")):
-        uses.append(("clipboard", "Ask your desktop: searches the clipboard history",
+        uses.append(("clipboard", "Ask your desktop",
                      [PRIVACY, "ask", "clipboard", "off"]))
     if not is_on:
         return state(False, "off", "off: nothing new is remembered", extras, uses=uses)
@@ -333,13 +332,11 @@ def st_memory(p):
              "captions": "captions", "screen": "screenshots"}
     sources = [names[s] for s in privacy_settings.MEMORY_SOURCES if on(conf.get(f"memory_{s}"))]
     if on(conf.get("memory_screen")):
-        uses.append(("screen", "Desktop memory: a screenshot's text every "
-                     f"{conf.get('memory_screen_minutes', '15')} min", [PRIVACY, "memory", "screen", "off"]))
+        uses.append(("screen", "Desktop memory", [PRIVACY, "memory", "screen", "off"]))
     if on(conf.get("memory_clipboard")):
-        uses.append(("clipboard", "Desktop memory: keeps text copies", [PRIVACY, "memory", "clipboard", "off"]))
+        uses.append(("clipboard", "Desktop memory", [PRIVACY, "memory", "clipboard", "off"]))
     timer = unit(p, "desktop-memory.timer").get("active")
-    text = "remembering " + (", ".join(sources) if sources else "nothing (every source is off)")
-    text += f"  ·  kept {conf.get('memory_keep_days', '30')} days"
+    text = "remembering " + (", ".join(sources) if sources else "nothing")
     if timer and timer != "active":
         return state(True, "error", text + "  ·  its timer is " + timer, extras, uses=uses)
     return state(True, "running", text, extras, uses=uses)
@@ -352,7 +349,7 @@ def st_screen_ask(p):
     if not d.get("model"):
         return state(None, "setup", "needs setup: " + (d.get("why") or "no local vision model in LM Studio"))
     return state(None, "demand", f"ready: {d['model'].split('/')[-1]} answers" +
-                 (" (loaded)" if d.get("loaded") else " (loaded when you ask)"))
+                 (" (loaded)" if d.get("loaded") else ""))
 
 
 def st_presence(p):
@@ -361,13 +358,13 @@ def st_presence(p):
         return no_answer("presence.py")
     is_on = bool(d.get("on"))
     if not all((d.get("installed") or {}).values()):
-        return state(is_on, "setup", "needs setup: the face detector is not installed (Settings > Presence)")
+        return state(is_on, "setup", "needs setup: no face detector")
     if not is_on:
-        return state(False, "off", "off: the camera is never opened")
-    uses = [("camera", "Presence: looks 1-2 times a second (in memory only)", [PRIVACY, "presence", "off"])]
+        return state(False, "off", "off")
+    uses = [("camera", "Presence", [PRIVACY, "presence", "off"])]
     svc = d.get("service", "")
     if svc != "active":
-        return state(True, "error", f"on, but presence.service is {svc or 'not running'}", uses=uses)
+        return state(True, "error", f"on, but the camera service is {svc or 'not running'}", uses=uses)
     live = d.get("live") or {}
     text = "watching" + (f": {live['state']}" if isinstance(live, dict) and live.get("state") else "")
     return state(True, "running", text, uses=uses)
@@ -384,14 +381,14 @@ def st_gestures(p):
     if g:
         uses.append(("camera", "Hand gestures", [PRIVACY, "gestures", "off"]))
     if z:
-        uses.append(("camera", "Gaze (which monitor you look at)", [PRIVACY, "gaze", "off"]))
+        uses.append(("camera", "Gaze", [PRIVACY, "gaze", "off"]))
     if not all((d.get("installed") or {}).values()):
-        return state(g, "setup", "needs setup: the hand models are not installed (Settings > Gestures & gaze)",
+        return state(g, "setup", "needs setup: no hand models",
                      extras, uses=uses)
     if not (g or z):
-        return state(False, "off", "off: the camera is never opened for them", extras)
+        return state(False, "off", "off", extras)
     if d.get("service") != "active":
-        return state(g, "error", f"on, but presence.service is {d.get('service') or 'not running'}"
+        return state(g, "error", f"on, but the camera service is {d.get('service') or 'not running'}"
                      + (f": {d['why']}" if d.get("why") else ""), extras, uses=uses)
     return state(g, "running", "watching for " + " and ".join(w for w, v in (("gestures", g), ("gaze", z)) if v),
                  extras, uses=uses)
@@ -407,8 +404,8 @@ def st_suggest(p):
         return state(False, "off", "off: nothing is offered")
     uses = []
     if on((d.get("values") or {}).get("clipboard")):
-        uses.append(("clipboard", "Live suggestions: what you copy", [SUGGEST, "set", "clipboard", "off"]))
-    text = f"on: {plural(len(kinds), 'kind')} ({', '.join(kinds).lower()})" if kinds else "on, but every kind is off"
+        uses.append(("clipboard", "Live suggestions", [SUGGEST, "set", "clipboard", "off"]))
+    text = f"on: {plural(len(kinds), 'kind')}" if kinds else "on, but every kind is off"
     if d.get("on") != d.get("enabled"):
         text += "  ·  not started at login"
     return state(True, "running", text, uses=uses)
@@ -422,11 +419,11 @@ def st_smartclip(p):
         return state(False, "off", "off: copies are left alone")
     n = sum(1 for k in d.get("kinds") or [] if k.get("on"))
     return state(True, "running", f"on: recognises {plural(n, 'kind')} of copy",
-                 uses=[("clipboard", "Smart clipboard: looks at each copy", [SMARTCLIP, "set", "off"])])
+                 uses=[("clipboard", "Smart clipboard", [SMARTCLIP, "set", "off"])])
 
 
-LAYOUT_MODE = {"off": "off", "learn": "learning where you put apps (not placing them)",
-               "on": "learning and placing apps when they open"}
+LAYOUT_MODE = {"off": "off", "learn": "learning",
+               "on": "learning and placing"}
 
 
 def st_layout(p):
@@ -434,14 +431,14 @@ def st_layout(p):
     if not d:
         return no_answer("smartlayout.py")
     mode = (d.get("settings") or {}).get("mode", "learn")
-    extras = [("place", "Put new windows where they usually go", mode == "on", mode != "off")]
+    extras = [("place", "Place new windows", mode == "on", mode != "off")]
     if mode == "off":
         return state(False, "off", "off: nothing is learned or moved", extras)
     n = len(d.get("apps") or [])
     text = f"{LAYOUT_MODE.get(mode, mode)}  ·  {plural(n, 'app')} learned"
     svc = unit(p, "smartlayout.service").get("active")
     if svc and svc != "active":
-        return state(True, "error", text + f"  ·  smartlayout.service is {svc}", extras)
+        return state(True, "error", text + f"  ·  the service is {svc}", extras)
     return state(True, "running", text, extras)
 
 
@@ -455,7 +452,7 @@ def st_contexts(p):
         return state(None, "running", f"in {cur} now")
     if not names:
         return state(None, "setup", "needs setup: make a context for a repo")
-    return state(None, "demand", f"{plural(len(names), 'context')} ({', '.join(names[:4])}); in none now")
+    return state(None, "demand", f"{plural(len(names), 'context')}; in none now")
 
 
 def st_focus(p):
@@ -467,7 +464,7 @@ def st_focus(p):
     watch = on(conf.get("focus_watch"))
     extras = [("detect", "Offer a block when I am scattered", watch, is_on)]
     if not is_on:
-        return state(False, "off", "off: no focus blocks of its own", extras)
+        return state(False, "off", "off", extras)
     block = (d.get("live") or {}).get("block")
     if block:
         return state(True, "running", "in a focus block now", extras)
@@ -481,10 +478,10 @@ def st_tasks(p):
         return no_answer("tasks.py")
     is_on = bool((d.get("settings") or {}).get("enabled"))
     if not is_on:
-        return state(False, "off", "off: the daemon idles, nothing is watched")
+        return state(False, "off", "off")
     daemon = d.get("daemon") or {}
     if not daemon.get("pid"):
-        return state(True, "error", "on, but tasks.service is not running")
+        return state(True, "error", "on, but the service is not running")
     running = len(daemon.get("running") or [])
     text = f"on: {plural(running, 'job')} running" if running else "on: waiting for work"
     if d.get("attention"):
@@ -509,10 +506,10 @@ def st_brief(p):
     b, j = bool(brief and brief["enabled"]), bool(journal and journal["enabled"])
     extras = [("journal", "Write the journal when work hours end", j, True)]
     if not (b or j):
-        return state(False, "off", "off: no brief in the morning, no journal", extras)
-    text = " and ".join(w for w, v in (("morning brief", b), ("end-of-day journal", j)) if v) + " on"
+        return state(False, "off", "off", extras)
+    text = " and ".join(w for w, v in (("brief", b), ("journal", j)) if v) + " on"
     if not d.get("running"):
-        return state(b, "error", text + ", but automations.service is not running", extras)
+        return state(b, "error", text + ", but the service is not running", extras)
     return state(b, "running", text, extras)
 
 
@@ -538,13 +535,12 @@ def st_automations(p):
     rules = d.get("rules") or []
     n_on = sum(1 for r in rules if r.get("enabled") and not r.get("paused"))
     if not is_on:
-        return state(False, "off", f"off: no rule runs (the brief, the journal and the digest neither)  ·  "
-                     f"{plural(len(rules), 'rule')}")
+        return state(False, "off", f"off  ·  {plural(len(rules), 'rule')}")
     text = f"{n_on} of {plural(len(rules), 'rule')} on"
     if d.get("broken"):
         text += f"  ·  {plural(len(d['broken']), 'rule')} with a problem"
     if u.get("active") != "active":
-        return state(True, "error", text + f"  ·  automations.service is {u.get('active') or 'stopped'}")
+        return state(True, "error", text + f"  ·  the service is {u.get('active') or 'stopped'}")
     return state(True, "error" if d.get("broken") else "running", text)
 
 
@@ -554,12 +550,12 @@ def st_digest(p):
         return no_answer("automations.py")
     r = rule(p, "dnd-digest")
     if not r:
-        return state(None, "setup", "needs setup: automations.json has no dnd-digest rule", can_toggle=False)
+        return state(None, "setup", "needs setup: no digest rule", can_toggle=False)
     if not r["enabled"]:
-        return state(False, "off", "off: Do Not Disturb ends quietly")
+        return state(False, "off", "off")
     return state(True, "running" if d.get("running") else "error",
-                 "on: one summary when Do Not Disturb ends" if d.get("running")
-                 else "on, but automations.service is not running")
+                 "on" if d.get("running")
+                 else "on, but the service is not running")
 
 
 def st_pip(p):
@@ -567,9 +563,9 @@ def st_pip(p):
     if d is None:
         return no_answer("pip.py")
     if d.get("none") or not d.get("mode"):
-        return state(None, "demand", "no mirror up: press its key on a window or a region")
+        return state(None, "demand", "no mirror up")
     return state(None, "running", f"mirroring a {d['mode']}: {d.get('title', '')}".rstrip(": "),
-                 uses=[("screen", f"Picture-in-picture: mirroring a {d['mode']}", [PIP, "close"])])
+                 uses=[("screen", "Picture-in-picture", [PIP, "close"])])
 
 
 def st_ambient(p):
@@ -579,11 +575,11 @@ def st_ambient(p):
     is_on = on((d.get("settings") or {}).get("enabled"))
     svc = d.get("service", "")
     if not is_on:
-        return state(False, "off", "off: the desktop looks as you set it")
+        return state(False, "off", "off")
     if svc != "active":
-        return state(True, "error", f"on, but ambient.service is {svc or 'not running'}")
+        return state(True, "error", f"on, but the service is {svc or 'not running'}")
     mood = (d.get("plan") or {}).get("mood") if isinstance(d.get("plan"), dict) else None
-    return state(True, "running", "following time, weather and focus" + (f": {mood}" if mood else ""))
+    return state(True, "running", "on" + (f": {mood}" if mood else ""))
 
 
 def st_health(p):
@@ -592,16 +588,16 @@ def st_health(p):
         return no_answer("health.py")
     task = d.get("task") or {}
     if not task.get("exists"):
-        return state(False, "setup", "needs setup: the nightly checkup task is missing (Settings > Desktop health)")
+        return state(False, "setup", "needs setup: no checkup task")
     findings = (d.get("report") or {}).get("findings") or []
     bad = sum(1 for f in findings if f.get("level") in ("fail", "warn"))
-    last = f"  ·  last checkup: {plural(bad, 'thing')} to look at" if d.get("report") else ""
+    last = f"  ·  {plural(bad, 'thing')} to look at" if d.get("report") else ""
     if not task.get("enabled"):
-        return state(False, "off", "off: no nightly checkup" + last)
+        return state(False, "off", "off" + last)
     if not (d.get("tasks") or {}).get("enabled", True):
-        return state(True, "error", "on, but Background tasks is off, so the checkup never runs")
+        return state(True, "error", "on, but Background tasks is off")
     return state(True, "error" if task.get("last_result") not in (None, "ok") else "running",
-                 f"checks every night ({task.get('schedule', 'daily')})" + last)
+                 f"nightly ({task.get('schedule', 'daily')})" + last)
 
 
 def st_phone(p):
@@ -609,14 +605,14 @@ def st_phone(p):
     u = unit(p, "phone-handoff.service")
     is_on = u.get("enabled") == "enabled" or u.get("active") == "active"
     if not d:
-        return state(is_on, "error", "phone.py did not answer (run it in a terminal to see why)")
-    extras = [("codes", "Offer sign-in codes from the phone's notifications", bool(d.get("codes")), is_on)]
+        return state(is_on, "error", "phone.py did not answer")
+    extras = [("codes", "Offer sign-in codes from the phone", bool(d.get("codes")), is_on)]
     if not d.get("kdeconnect"):
-        return state(is_on, "setup", "needs setup: KDE Connect is not installed (Settings > Devices)", extras)
+        return state(is_on, "setup", "needs setup: KDE Connect is missing", extras)
     if not is_on:
-        return state(False, "off", "off: nothing from the phone is followed", extras)
+        return state(False, "off", "off", extras)
     if u.get("active") != "active":
-        return state(True, "error", f"on, but phone-handoff.service is {u.get('active') or 'stopped'}", extras)
+        return state(True, "error", f"on, but the service is {u.get('active') or 'stopped'}", extras)
     return state(True, "running", f"on: {d['phone']} in reach" if d.get("phone") else "on: no phone in reach now",
                  extras)
 
@@ -631,16 +627,16 @@ def st_machines(p):
     extras = [("kvm", "Shared keyboard and mouse", bool(kvm.get("on")), is_on and bool(kvm.get("installed")))]
     uses = []
     if is_on and on(conf.get("machines_clipboard")):
-        uses.append(("clipboard", "Machines: copies go to the paired machines",
+        uses.append(("clipboard", "Machines",
                      [PRIVACY, "machines", "clipboard", "off"]))
     if not peers:
-        return state(is_on, "setup", "needs setup: pair a machine first (Settings > Machines)", extras,
+        return state(is_on, "setup", "needs setup: pair a machine first", extras,
                      can_toggle=is_on, uses=uses)
     if not is_on:
         return state(False, "off", f"off  ·  {plural(len(peers), 'machine')} paired", extras)
     svc = str(d.get("service", ""))
     if not svc.startswith("active"):
-        return state(True, "error", f"on, but peers.service is {svc or 'stopped'}", extras, uses=uses)
+        return state(True, "error", f"on, but the service is {svc or 'stopped'}", extras, uses=uses)
     now = time.time()
     up = [x.get("name", "?") for x in peers if x.get("seen") and now - x["seen"] < SEEN_S]
     return state(True, "running", f"{plural(len(peers), 'machine')} paired" + (f", {', '.join(up)} online" if up else ""),
@@ -652,13 +648,13 @@ def st_ai(p):
     if not d:
         return no_answer("llm-gpu.py")
     gpu = d.get("gpu") or {}
-    card = (f"  ·  card {gpu['used'] / GIB:.0f} of {gpu['total'] / GIB:.0f} GB used"
+    card = (f"  ·  GPU {gpu['used'] / GIB:.0f}/{gpu['total'] / GIB:.0f} GB"
             if gpu.get("total") else "")
     if not d.get("running"):
-        return state(None, "off", "LM Studio is not running: the smart features wait or fall back" + card)
+        return state(None, "off", "LM Studio is not running" + card)
     loaded = [m.get("alias") or m.get("key", "?").split("/")[-1] for m in d.get("loaded") or []]
     return state(None, "running" if loaded else "demand",
-                 ("loaded: " + ", ".join(loaded) if loaded else "no model loaded: loaded when one is needed") + card)
+                 ("loaded: " + ", ".join(loaded) if loaded else "no model loaded") + card)
 
 
 # -- the cards' switches ---------------------------------------------------------------------
@@ -673,119 +669,119 @@ def extra_layout(key, value):
 FEATURES = [
     # Assistant & voice
     {"id": "assistant", "group": "Assistant & voice", "title": "Desktop assistant", "icon": "",
-     "line": "A chat that knows this desktop: ask in Spanish or English, the local model answers.",
+     "line": "A local chat that knows this desktop.",
      "page": "assistant", "probes": ["assistant"], "keys": ["Assistant:"], "state": st_assistant,
      "switch": lambda v: [[ASSISTANT, "set", "enabled", onoff(v)]]},
     {"id": "voice", "group": "Assistant & voice", "title": "Voice typing & live captions", "icon": "",
-     "line": "Dictate into any window; captions of what the computer plays. The switch is the captions.",
+     "line": "Dictate anywhere; the switch is captions.",
      "page": "voice", "probes": ["voice"], "keys": ["Tools: Voice typing", "Tools: Live captions"],
      "state": st_voice, "switch": lambda v: [[VOICE, "captions", onoff(v)]]},
     {"id": "voice-commands", "group": "Assistant & voice", "title": "Voice commands", "icon": "",
-     "line": "Say what the desktop should do; it says what it understood, then does it.",
+     "line": "Say what the desktop should do.",
      "page": "voice", "probes": ["voice"], "keys": ["Tools: Voice command"], "state": st_voice_commands,
      "switch": lambda v: [[VOICE, "set", "commands", onoff(v)]],
      "extra": lambda k, v: [[VOICE, "set", "command_confirm", onoff(v)]]},
     {"id": "speech", "group": "Assistant & voice", "title": "Spoken replies", "icon": "",
-     "line": "Reads the brief, answers and the highlighted text aloud, in a local voice.",
+     "line": "Reads answers and text aloud.",
      "page": "speech", "probes": ["tts"], "keys": ["Speech:"], "state": st_tts,
      "switch": lambda v: [[TTS, "set", "enabled", onoff(v)]]},
     # Awareness
     {"id": "memory", "group": "Awareness", "title": "Desktop memory", "icon": "",
-     "line": "Remembers what went past -- windows, copies, notifications -- so you can ask for it again.",
+     "line": "Remembers what went past, to ask later.",
      "page": "memory", "probes": ["privacy", "units"], "keys": ["Tools: Desktop memory"], "state": st_memory,
      "switch": lambda v: [[PRIVACY, "memory", onoff(v)]],
      "extra": lambda k, v: [[PRIVACY, "ask", onoff(v)]]},
     {"id": "screen-ask", "group": "Awareness", "title": "Ask about the screen", "icon": "",
-     "line": "Point at a region or a window and ask what it is; a local vision model answers.",
+     "line": "Ask what a window or region shows.",
      "page": "smartclip", "probes": ["screenask"], "keys": ["Screen: Ask a local vision model"],
      "state": st_screen_ask, "switch": None},
     {"id": "presence", "group": "Awareness", "title": "Presence", "icon": "",
-     "line": "The webcam tells whether you are at the desk: lock when you go, wake when you are back.",
+     "line": "Locks when you leave, wakes when back.",
      "page": "presence", "probes": ["presence"], "keys": ["Privacy: Pause / resume presence"],
      "state": st_presence, "switch": lambda v: [[PRIVACY, "presence", onoff(v)]]},
     {"id": "gestures", "group": "Awareness", "title": "Gestures & gaze", "icon": "",
-     "line": "Hand gestures to the webcam, and focus that follows the monitor you look at.",
+     "line": "Hand gestures; focus follows your gaze.",
      "page": "gestures", "probes": ["gestures"], "keys": ["Camera:"], "state": st_gestures,
      "switch": lambda v: [[PRIVACY, "gestures", onoff(v)]],
      "extra": lambda k, v: [[PRIVACY, "gaze", onoff(v)]]},
     {"id": "suggestions", "group": "Awareness", "title": "Live suggestions", "icon": "",
-     "line": "A quiet strip offers the next step -- a commit message, where you left off.",
+     "line": "Offers the next step as you work.",
      "page": "suggestions", "probes": ["suggest"], "keys": ["Suggestions:"], "state": st_suggest,
      "switch": lambda v: [[SUGGEST, "set", onoff(v)]]},
     {"id": "smartclip", "group": "Awareness", "title": "Smart clipboard", "icon": "",
-     "line": "Copy an address, a parcel number or JSON: a small card offers what to do with it.",
+     "line": "Offers actions for what you copy.",
      "page": "smartclip", "probes": ["smartclip"], "keys": [], "state": st_smartclip,
      "switch": lambda v: [[SMARTCLIP, "set", onoff(v)]]},
-    {"id": "layout", "group": "Awareness", "title": "Smart window layout", "icon": "",
-     "line": "Learns where you put each app and can put it there when it opens.",
+    {"id": "layout", "group": "Desktop", "title": "Smart window layout", "icon": "",
+     "line": "Learns where each app goes.",
      "page": "layout", "probes": ["layout", "units"], "keys": ["Windows: Arrange this workspace"],
      "state": st_layout, "switch": lambda v: [[LAYOUT, "set", "mode", "learn" if v else "off"]],
      "extra": extra_layout},
     # Work
     {"id": "contexts", "group": "Work", "title": "Project contexts", "icon": "",
-     "line": "One key puts you in a project: its windows, terminal, editor and only its notifications.",
+     "line": "One key opens a whole project.",
      "page": "contexts", "probes": ["contexts"], "keys": ["Projects:"], "state": st_contexts, "switch": None},
     {"id": "focus", "group": "Work", "title": "Focus guard", "icon": "",
-     "line": "Focus blocks that quiet notifications and dim distractions, and notice when you are scattered.",
+     "line": "Focus blocks that quiet distractions.",
      "page": "focus", "probes": ["focus", "privacy"], "keys": ["Focus:"], "state": st_focus,
      "switch": lambda v: [[FOCUS, "set", onoff(v)]],
      "extra": lambda k, v: [[FOCUS, "set", "detect", onoff(v)]]},
     {"id": "tasks", "group": "Work", "title": "Background tasks", "icon": "",
-     "line": "Jobs that watch and wait for you: a build to finish, a page to change, a nightly check.",
+     "line": "Jobs that watch and wait for you.",
      "page": "tasks", "probes": ["tasks"], "keys": ["Tasks:"], "state": st_tasks,
      "switch": lambda v: [[TASKS, onoff(v)]]},
     {"id": "brief", "group": "Work", "title": "Daily brief & journal", "icon": "",
-     "line": "What you need to start the day when you sit down; a journal entry when work ends.",
+     "line": "A morning brief and an evening journal.",
      "page": "brief", "probes": ["automations"], "keys": ["Tools: Daily brief", "Tools: Write today's journal"],
      "state": st_brief, "switch": lambda v: [[AUTOMATIONS, "enable" if v else "disable", "daily-brief"]],
      "extra": lambda k, v: [[AUTOMATIONS, "enable" if v else "disable", "end-of-day"]]},
     {"id": "sessions", "group": "Work", "title": "Workspace sessions", "icon": "",
-     "line": "Saves the open windows every few minutes and brings them back after a login.",
+     "line": "Saves and restores your open windows.",
      "page": "sessions", "probes": ["sessions"],
      "keys": ["Windows: Restore the last session", "Windows: Reopen the last closed window"],
      "state": st_sessions, "switch": lambda v: [[SESSIONS, "set", "autosave", onoff(v)]],
      "extra": lambda k, v: [[SESSIONS, "set", "offer", onoff(v)]]},
     {"id": "automations", "group": "Work", "title": "Automations", "icon": "",
-     "line": "\"When X, do Y\" rules: headphones for games, Do Not Disturb in a meeting.",
+     "line": "\"When X, do Y\" rules.",
      "page": "automations", "probes": ["automations", "units"], "keys": [], "state": st_automations,
      "switch": lambda v: unit_switch("automations.service", v)},
     {"id": "digest", "group": "Work", "title": "Notification digest", "icon": "",
-     "line": "What Do Not Disturb held back, in one notification when it ends.",
+     "line": "One summary when Do Not Disturb ends.",
      "page": "notifications", "probes": ["automations"], "keys": ["Notifications: Do not disturb"],
      "state": st_digest, "switch": lambda v: [[AUTOMATIONS, "enable" if v else "disable", "dnd-digest"]]},
-    {"id": "pip", "group": "Work", "title": "Picture-in-picture", "icon": "",
-     "line": "A small always-on-top live copy of a window or a piece of the screen.",
+    {"id": "pip", "group": "Desktop", "title": "Picture-in-picture", "icon": "",
+     "line": "A live always-on-top window copy.",
      "page": "pip", "probes": ["pip"], "keys": ["Windows: Live mirror"], "state": st_pip, "switch": None},
-    # Environment
-    {"id": "ambient", "group": "Environment", "title": "Ambient desktop", "icon": "",
-     "line": "The wallpaper, accent, night light and sound follow the time, the weather and your focus.",
+    # Desktop
+    {"id": "ambient", "group": "Desktop", "title": "Ambient desktop", "icon": "",
+     "line": "Look and sound follow time and weather.",
      "page": "ambient", "probes": ["ambient"], "keys": ["Ambient:"], "state": st_ambient,
      "switch": lambda v: [[AMBIENT, "set", onoff(v)]]},
-    {"id": "health", "group": "Environment", "title": "Desktop health", "icon": "",
-     "line": "A checkup every night: what failed, in plain words, and fixes for you to approve.",
+    {"id": "health", "group": "Desktop", "title": "Desktop health", "icon": "",
+     "line": "A nightly checkup with fixes to approve.",
      "page": "health", "probes": ["health"], "keys": ["Health:"], "state": st_health,
      "switch": lambda v: [[HEALTH, "set", "enabled", onoff(v)]]},
     # Devices
-    {"id": "phone", "group": "Devices", "title": "Phone handoff", "icon": "",
-     "line": "Pages and files go to the phone; what the phone shares lands here (KDE Connect).",
+    {"id": "phone", "group": "Devices & models", "title": "Phone handoff", "icon": "",
+     "line": "Send pages and files to and from the phone.",
      "page": "devices", "probes": ["phone", "units"], "keys": ["Phone:"], "state": st_phone,
      "switch": lambda v: unit_switch("phone-handoff.service", v),
      "extra": lambda k, v: [[PHONE, "codes", onoff(v)]]},
-    {"id": "phone-ask", "group": "Devices", "title": "Ask from the phone", "icon": "",
-     "line": "Send the desktop a question from the phone; the answer comes back to it.",
+    {"id": "phone-ask", "group": "Devices & models", "title": "Ask from the phone", "icon": "",
+     "line": "Ask the desktop from your phone.",
      "page": "devices", "probes": ["phoneask"], "keys": [], "state": st_phone_ask,
      "switch": lambda v: [[PHONE_ASK, onoff(v)]], "extra": extra_phone_ask},
-    {"id": "machines", "group": "Devices", "title": "Machines", "icon": "",
-     "line": "Several computers as one desktop: send windows, share copies, one keyboard and mouse.",
+    {"id": "machines", "group": "Devices & models", "title": "Machines", "icon": "",
+     "line": "Several computers as one desktop.",
      "page": "machines", "probes": ["peers", "privacy"], "keys": ["Machines:"], "state": st_machines,
      "switch": lambda v: [[PEERS, "set", "enabled", onoff(v)]],
      "extra": lambda k, v: [[PEERS, "kvm", onoff(v)]]},
     # Models
-    {"id": "ai", "group": "Models", "title": "AI & models", "icon": "",
-     "line": "The local models every feature above uses, and what is on the graphics card. Never the cloud.",
+    {"id": "ai", "group": "Devices & models", "title": "AI & models", "icon": "",
+     "line": "The local models every feature uses.",
      "page": "ai", "probes": ["llm"], "keys": [], "state": st_ai, "switch": None},
 ]
-GROUP_ORDER = ["Assistant & voice", "Awareness", "Work", "Environment", "Devices", "Models"]
+GROUP_ORDER = ["Assistant & voice", "Awareness", "Work", "Desktop", "Devices & models"]
 BY_ID = {f["id"]: f for f in FEATURES}
 
 
@@ -848,7 +844,7 @@ def privacy_view(states, p):
                 view[sense]["items"].append((label, off, f["id"]))
     clip = unit(p, "cliphist@text.service")
     if clip.get("active") == "active" or clip.get("enabled") == "enabled":
-        view["clipboard"]["items"].insert(0, ("Clipboard history (cliphist)", [PRIVACY, "clipboard", "off"],
+        view["clipboard"]["items"].insert(0, ("Clipboard history", [PRIVACY, "clipboard", "off"],
                                               "privacy"))
     view["camera"]["now"] = now_using(p.get("camera_now"))
     view["mic"]["now"] = now_using(p.get("mic_now"))
@@ -861,7 +857,7 @@ def sense_summary(sense, entry):
     if now:
         head = "in use now: " + ", ".join(now)
     elif not items:
-        return "nothing here may use it on its own"
+        return "nothing may use it"
     else:
         head = "not in use now" if sense in ("camera", "mic") else ""
     may = f"{plural(len(items), 'feature')} may use it" if items else "no smart feature may use it"

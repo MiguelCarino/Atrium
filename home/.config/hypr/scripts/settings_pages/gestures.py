@@ -22,7 +22,7 @@ from gi.repository import GLib, Gtk  # noqa: E402,F401
 
 import os  # noqa: E402
 
-PAGE = {"id": "gestures", "title": "Gestures & gaze", "icon": "", "group": "Safety", "order": 23,
+PAGE = {"id": "gestures", "title": "Gestures & gaze", "icon": "", "group": "Smart", "order": 23, "parent": "intelligence", "tab": "Gestures & gaze",
         "keywords": ["gesture", "hand", "swipe", "thumbs up", "palm", "webcam", "camera", "gaze", "look at",
                      "head tracking", "eye tracking", "monitor focus", "gestos", "mirada", "mano"]}
 
@@ -44,20 +44,17 @@ def status_text(data):
     """The status line under the switches."""
     sw = data.get("switches") or {}
     if not (sw.get("gestures") or sw.get("gaze")):
-        return ("Off. Nothing reads hands or head turns until you switch one on here; the camera stays "
-                "presence's alone (Settings > Presence).")
+        return "Off. Nothing reads hands or head turns."
     if not all((data.get("installed") or {}).values()):
-        return "On, but the hand models are missing: ~/.local/share/presence (see gestures.py's docstring)."
+        return "On, but the hand models are not installed"
     live = data.get("live")
     if data.get("service") != "active" or not live:
-        return f"On, but the camera service is {data.get('service') or 'not running'} (journalctl --user -u presence)."
+        return f"On, but the camera service is {data.get('service') or 'not running'}"
     if live.get("error") and sw.get("gestures"):
-        return f"Gestures stopped: {live['error']} (switch them off and on to try again)."
+        return f"Gestures stopped: {live['error']}"
     if not data.get("camera"):
-        return f"Waiting: the camera is closed ({data.get('why') or 'between looks'})."
+        return f"Waiting: camera closed ({data.get('why') or 'between looks'})"
     bits = [f"{live.get('fps')} looks a second"]
-    if live.get("cpu_ms"):
-        bits.append(f"{live['cpu_ms']:.0f} ms of CPU each")
     if sw.get("gestures"):
         hold = live.get("holding")
         bits.append(f"holding {hold[0].replace('_', ' ')} {int(hold[1] * 100)} %" if hold else
@@ -70,7 +67,7 @@ def status_text(data):
 def calibration_text(monitor, calibration):
     c = (calibration or {}).get(monitor)
     if not c:
-        return "not calibrated: look at it and press Calibrate"
+        return "not calibrated"
     return f"calibrated ({c.get('n', '?')} looks)"
 
 
@@ -78,7 +75,7 @@ def gaze_hint(monitors, calibration):
     done = [m for m in monitors if m in (calibration or {})]
     if len(done) >= 2:
         return f"{len(done)} of {len(monitors)} monitors calibrated"
-    return "calibrate at least two monitors: sit as you usually do, look at the middle of one, press its button"
+    return "calibrate at least two monitors: look at the middle, press Calibrate"
 
 
 def last_events(live):
@@ -98,8 +95,8 @@ class Page:
         w.pack_start(heading("STATUS"), False, False, 0)
         self.master = {}
         for key, icon, title, sub in (
-                ("gestures", "", "Hand gestures", "swipe, open palm, thumbs up ... to the webcam"),
-                ("gaze", "", "Notice which monitor you look at", "from how your head is turned")):
+                ("gestures", "", "Hand gestures", "swipe, palm, thumbs up to the webcam"),
+                ("gaze", "", "Notice which monitor you look at", "from your head's turn")):
             sw = Gtk.Switch()
             sw.connect("state-set", lambda _s, state, k=key: self.switch(k, state))
             grid, _ = row(icon, title, sub, sw)
@@ -126,18 +123,18 @@ class Page:
             grid, _ = row(ICONS[g], g.replace("_", " ").capitalize(), "", combo)
             self.maps[g] = combo
             w.pack_start(grid, False, False, 0)
-        grid, _ = row("", "Hold a pose for", "a pose fires once it has been held this long, still")
+        grid, _ = row("", "Hold a pose for", "before a pose fires")
         w.pack_start(grid, False, False, 0)
         self.hold = Chips(lambda key: self.run(GESTURES_PY, "set", "hold_ms", key))
         w.pack_start(self.hold.widget, False, False, 0)
-        grid, _ = row("", "Swipe length", "how far across the camera's picture a swipe has to go")
+        grid, _ = row("", "Swipe length", "how far a swipe must go")
         w.pack_start(grid, False, False, 0)
         self.swipe = Chips(lambda key: self.run(GESTURES_PY, "set", "swipe", key))
         w.pack_start(self.swipe.widget, False, False, 0)
         self.toggles = {}
         for key, icon, title, sub in (
-                ("swap", "", "Swap left and right", "for a camera that mirrors its picture"),
-                ("feedback", "", "Say what fired", "a small bubble: \"Thumbs up: Confirm\"")):
+                ("swap", "", "Swap left and right", "for a mirroring camera"),
+                ("feedback", "", "Say what fired", "a small bubble")):
             sw = Gtk.Switch()
             sw.connect("state-set", lambda _s, state, k=key: self.toggle(k, state))
             grid, _ = row(icon, title, sub, sw)
@@ -153,28 +150,30 @@ class Page:
         self.monitor_rows = {}
         w.pack_start(links_row(link("Forget every calibration", lambda: self.run(GESTURES_PY, "forget", "all"))),
                      False, False, 0)
-        grid, _ = row("", "Look for", "a monitor counts as looked at after this long")
+        grid, _ = row("", "Look for", "before a monitor counts as looked at")
         w.pack_start(grid, False, False, 0)
         self.dwell = Chips(lambda key: self.run(GESTURES_PY, "set", "dwell_ms", key))
         w.pack_start(self.dwell.widget, False, False, 0)
         sw = Gtk.Switch()
         sw.connect("state-set", lambda _s, state: self.toggle("gaze_focus", state))
         grid, _ = row("", "Focus the monitor you look at",
-                      "its last-used window; never while a window is fullscreen or the screen is locked", sw)
+                      "its last-used window; never fullscreen or locked", sw)
         self.toggles["gaze_focus"] = sw
         w.pack_start(grid, False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("SPEED"), False, False, 0)
-        grid, _ = row("", "Looks a second", "only while gestures or gaze is on; presence alone looks once or twice")
+        grid, _ = row("", "Looks a second", "while gestures or gaze is on")
         w.pack_start(grid, False, False, 0)
         self.fps = Chips(lambda key: self.run(GESTURES_PY, "set", "fps", key))
         w.pack_start(self.fps.widget, False, False, 0)
-        grid, _ = row("", "CPU limit", "the looks a second go down (to 3) to stay under it")
+        grid, _ = row("", "CPU limit", "fewer looks to stay under it")
         w.pack_start(grid, False, False, 0)
         self.cpu = Chips(lambda key: self.run(GESTURES_PY, "set", "cpu", key))
         w.pack_start(self.cpu.widget, False, False, 0)
-        note = dp.label("What it keeps: nothing but these settings and, per monitor, a few numbers for how your "
+        w.pack_start(dp.label("Nothing is saved or sent; gestures never click or type.", "ctl-sub"),
+                     False, False, 0)
+        note = dp.label("What it keeps: these settings and, per monitor, a few numbers for how your "
                         "head is turned when you look at it. The pictures are presence's: looked at in memory "
                         "and dropped, never saved or sent. Only while one of the switches above is on does the "
                         "camera look 8-15 times a second (the CPU limit can hold it lower); it is released in "
@@ -184,7 +183,7 @@ class Page:
                         "only run the fixed actions listed here -- nothing clicks or types.", "ctl-sub")
         note.set_line_wrap(True)
         note.set_max_width_chars(90)
-        w.pack_start(note, False, False, 0)
+        w.pack_start(details(note, label="How it works"), False, False, 0)
         self.msg = dp.label("", "ctl-sub")
         self.msg.set_line_wrap(True)
         w.pack_start(self.msg, False, False, 0)
@@ -246,7 +245,7 @@ class Page:
 
     def draw(self, data):
         if not data:
-            self.msg.set_text("gestures.py did not answer (run it in a terminal to see why)")
+            self.msg.set_text("Gestures did not answer")
             return
         self.updating = True
         try:

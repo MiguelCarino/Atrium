@@ -123,6 +123,23 @@ class ReadingSources(unittest.TestCase):
                             ("dark mode", "theme"), ("keybinds", "shortcuts")):
             self.assertEqual(C.resolve(pages, words), page, words)
 
+    def test_tabs_follow_their_page(self):
+        pages = C.read_pages()
+        order = [p["id"] for p in pages]
+        self.assertEqual(order[order.index("ai") + 1:order.index("ai") + 3], ["voice", "speech"])
+        self.assertEqual(C.host_of(pages, "voice"), "ai")
+        self.assertEqual(C.host_of(pages, "ai"), "ai")
+        self.assertEqual(C.tabs(pages, "theme")[:2], [("theme", "Theme"), ("ambient", "Ambient")])
+        self.assertEqual(C.tabs(pages, "about"), [])
+        top = [p for p in pages if not p.get("parent")]
+        self.assertLessEqual(len(top), 26)
+
+    def test_a_parent_that_is_gone_makes_an_ordinary_page(self):
+        pages = C.arrange([{"id": "a", "title": "A", "group": "Look"},
+                           {"id": "b", "title": "B", "group": "Look", "parent": "zzz"}])
+        self.assertEqual(C.host_of(pages, "b"), "b")
+        self.assertEqual(C.tabs(pages, "a"), [])
+
 
 class LauncherSettings(unittest.TestCase):
     def setUp(self):
@@ -135,7 +152,7 @@ class LauncherSettings(unittest.TestCase):
 
     def test_one_item_per_matching_page(self):
         items = L.settings_items("tap to click")
-        self.assertEqual([i.name for i in items], ["Settings: Keyboard, mouse & touchpad"])
+        self.assertEqual([i.name for i in items], ["Settings: Keyboard & mouse"])
         self.assertIn("tap to click", items[0].sub)
         items[0].run()
         self.assertEqual(self.spawned, [[L.SETTINGS, "input"]])

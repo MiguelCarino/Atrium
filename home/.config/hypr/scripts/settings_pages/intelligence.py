@@ -11,14 +11,14 @@ doing, its keys and a link to its own page.
     ASSISTANT & VOICE     assistant, voice typing & captions, voice commands,
                           spoken replies
     AWARENESS             desktop memory, ask about the screen, presence,
-                          gestures & gaze, live suggestions, smart clipboard,
-                          smart window layout
+                          gestures & gaze, live suggestions, smart clipboard
     WORK                  project contexts, focus guard, background tasks,
                           brief & journal, workspace sessions, automations,
-                          notification digest, picture-in-picture
-    ENVIRONMENT           ambient desktop, desktop health
-    DEVICES               phone handoff, ask from the phone, machines
-    MODELS                AI & models
+                          notification digest
+    DESKTOP               ambient desktop, desktop health, smart window
+                          layout, picture-in-picture
+    DEVICES & MODELS      phone handoff, ask from the phone, machines,
+                          AI & models
 
 The list, the reading and the switching are settings_pages/_smart.py's (no
 GTK, tested): each card reads the same CLI its own page reads and its switch
@@ -35,7 +35,7 @@ from gi.repository import GLib, Gtk  # noqa: F401
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 from . import _smart as smart
 
-PAGE = {"id": "intelligence", "title": "Smart desktop", "icon": "", "group": "Smart", "order": 10,
+PAGE = {"id": "intelligence", "title": "Smart desktop", "icon": "", "group": "Smart", "order": 10, "tab": "Overview",
         "keywords": ["smart features", "funciones inteligentes", "inteligencia", "ai features", "ia",
                      "control panel", "panel de control", "hub", "overview", "resumen", "all features",
                      "assistant", "asistente", "voice typing", "dictation", "dictado", "captions", "subtitulos",
@@ -66,7 +66,7 @@ def wrapped(text, cls="ctl-sub"):
 
 class Card:
     """One feature: title and switch, the plain-words line, the status, its
-    second switches, its keys, Open settings."""
+    second switches, its keys beside Open settings."""
 
     def __init__(self, page, feature):
         self.page, self.f = page, feature
@@ -93,11 +93,17 @@ class Card:
         self.extras_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         self.box.pack_start(self.extras_box, False, False, 0)
         self.extras = {}            # key -> (switch, label)
+        foot = Gtk.Box(spacing=8)           # its keys and Open settings share one line
         self.keys = wrapped("", "ctl-sub")
+        self.keys.set_max_width_chars(28)
+        self.keys.set_hexpand(True)
+        self.keys.set_valign(Gtk.Align.CENTER)
         self.keys.set_no_show_all(True)
-        self.box.pack_start(self.keys, False, False, 0)
-        self.box.pack_start(links_row(link("Open settings", lambda: spawn(SETTINGS, feature["page"]))),
-                            False, False, 0)
+        foot.pack_start(self.keys, True, True, 0)
+        opener = link("Open settings", lambda: spawn(SETTINGS, feature["page"]))
+        opener.set_valign(Gtk.Align.CENTER)
+        foot.pack_end(opener, False, False, 0)
+        self.box.pack_start(foot, False, False, 0)
         self.error = ""
 
     def show(self, st, keys):
@@ -129,7 +135,7 @@ class Card:
             sw.set_state(bool(value))
             sw.set_sensitive(bool(sensitive))
             lab.set_sensitive(bool(sensitive))
-        self.keys.set_text("Keys: " + "  ·  ".join(keys) if keys else "")
+        self.keys.set_text("  ·  ".join(keys) if keys else "")
         self.keys.set_visible(bool(keys))
 
     def busy(self, words):
@@ -151,9 +157,7 @@ class Page:
         self.generation = 0
         self.view = {}
 
-        intro = dp.label("Everything that watches, listens or thinks for you, in one place: switch each one "
-                         "on or off here, see how it is doing, open its own page for the details. All of it "
-                         "runs on this computer; no cloud model is ever asked.", "ctl-sub")
+        intro = dp.label("Every smart feature, on this computer only. No cloud.", "ctl-sub")
         intro.set_line_wrap(True)
         intro.set_xalign(0)
         w.pack_start(intro, False, False, 0)
@@ -163,28 +167,32 @@ class Page:
         strip.get_style_context().add_class("ctl-group")
         strip.pack_start(heading("PRIVACY AT A GLANCE"), False, False, 0)
         self.senses = {}
-        for sense in smart.SENSES:
+        senses = Gtk.Grid(column_spacing=10, row_spacing=4, column_homogeneous=True)
+        for i, sense in enumerate(smart.SENSES):         # two senses a line
             icon, title = smart.SENSE_TEXT[sense]
             all_off = link("Turn all off", lambda s=sense: self.all_off_sense(s))
             grid, sub = row(icon, title, "reading…", all_off)
             chips = Gtk.FlowBox()
             chips.set_selection_mode(Gtk.SelectionMode.NONE)
-            chips.set_max_children_per_line(3)
+            chips.set_min_children_per_line(2)
+            chips.set_max_children_per_line(2)
             chips.set_column_spacing(4)
             chips.set_row_spacing(4)
-            chips.set_margin_start(44)          # under the title, past the icon
+            chips.set_margin_start(16)          # under the row, a little in
             chips.set_halign(Gtk.Align.START)
-            strip.pack_start(grid, False, False, 0)
-            strip.pack_start(chips, False, False, 0)
+            block = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            block.pack_start(grid, False, False, 0)
+            block.pack_start(chips, False, False, 0)
+            senses.attach(block, i % 2, i // 2, 1, 1)
             self.senses[sense] = (sub, chips, all_off)
-        note = dp.label("A chip is something allowed to use it now; clicking it turns exactly that off. Keys "
-                        "you press yourself (voice typing, ask about the screen, a mirror) use them only "
-                        "while you do. Turning things on is each card's own switch below.", "ctl-sub")
-        note.set_line_wrap(True)
+        strip.pack_start(senses, False, False, 0)
+        foot = Gtk.Box(spacing=8)           # the hint and the links share one line
+        note = dp.label("Click a chip to turn that one off.", "ctl-sub")
         note.set_xalign(0)
-        strip.pack_start(note, False, False, 0)
-        strip.pack_start(links_row(link("Folder access for AI", lambda: spawn(SETTINGS, "folders")),
-                                   link("Open Privacy", lambda: spawn(SETTINGS, "privacy"))), False, False, 0)
+        foot.pack_start(note, True, True, 0)
+        foot.pack_end(links_row(link("Folder access for AI", lambda: spawn(SETTINGS, "folders")),
+                                link("Open Privacy", lambda: spawn(SETTINGS, "privacy"))), False, False, 0)
+        strip.pack_start(foot, False, False, 0)
         w.pack_start(strip, False, False, 0)
         self.msg = dp.label("", "ctl-sub")
         self.msg.set_line_wrap(True)

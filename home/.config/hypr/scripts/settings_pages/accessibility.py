@@ -29,7 +29,7 @@ from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 import os  # noqa: E402
 import subprocess  # noqa: E402
 
-PAGE = {"id": "accessibility", "title": "Accessibility", "icon": "", "group": "Look", "order": 60,
+PAGE = {"id": "accessibility", "title": "Accessibility", "icon": "", "group": "Look", "order": 60, "parent": "fonts", "tab": "Accessibility",
         # Words the search bar matches this page by.
         "keywords": ["accessibility", "a11y", "magnifier", "zoom", "screen reader", "orca", "high contrast",
                      "contrast", "reduce motion", "animations", "reduce transparency", "transparency", "blur",
@@ -40,9 +40,7 @@ A11Y = os.path.join(HYPR, "accessibility.py")
 SETTINGS = os.path.join(HYPR, "settings.py")
 ZOOMS = [(1.0, "Off"), (1.5, "1.5×"), (2.0, "2×"), (3.0, "3×"), (4.0, "4×")]
 POINTERS = [(24, "Default"), (32, "32 px"), (48, "48 px"), (64, "64 px"), (96, "96 px")]
-CONTRAST_SUB = ("stronger borders and plainer colours in GTK4 / libadwaita apps (Files, Text Editor and the "
-                "like), through the same setting GNOME uses; the bar and the panels follow the desktop theme "
-                "instead")
+CONTRAST_SUB = "stronger borders and plainer colours in GTK4 apps"
 
 
 def attempt(*cmd, timeout=40):
@@ -63,26 +61,18 @@ def zoom_text(factor):
 
 
 def motion_sub(m):
-    """What reduce motion is made of, and which parts are not still yet."""
-    parts = [("the calm animations (only fades)", m.get("anim") == "calm"),
-             ("no moving wallpaper", m.get("wallpaper") is not True),
-             ("the wallpaper not reacting to the CPU, time and weather", m.get("react") is not True),
-             ("no animations inside apps", m.get("apps") is not True)]
+    """What reduce motion does, and the animation preset when it is not calm."""
     if m.get("on"):
-        return "on: " + ", ".join(p for p, _ in parts) + ". Off puts back what you had"
-    done = [p for p, ok in parts if ok]
-    text = "everything that moves on its own, at once: " + ", ".join(p for p, _ in parts)
-    if done:
-        text += f"  ·  already: {', '.join(done)}"
+        return "on: fades only, still wallpaper, no app animations"
+    text = "calmer animations, a still wallpaper, no app animations"
     if m.get("anim") and m.get("anim") != "calm":
-        text += f"  ·  the animations are \"{m['anim']}\" now"
+        text += f"  ·  now \"{m['anim']}\""
     return text
 
 
 def transparency_sub(t):
     if t.get("on"):
-        return ("on: windows opaque (the glass of the " + (t.get("theme") or "current") + " theme at 0), no blur "
-                "behind the bar and windows, unfocused windows solid. Off puts back what you had")
+        return "on: solid windows, no blur"
     bits = []
     if t.get("glass") not in (0, None):
         bits.append(f"window glass {t['glass']}%")
@@ -93,20 +83,17 @@ def transparency_sub(t):
             bits.append(f"unfocused windows at {float(t['inactive_opacity']):.0%}")
     except ValueError:
         pass
-    return ("solid windows and no frosted glass, for text that never sits on a busy background"
-            + (f"  ·  now: {', '.join(bits)}" if bits else ""))
+    return "solid windows, no frosted glass" + (f"  ·  now: {', '.join(bits)}" if bits else "")
 
 
 def alerts_sub(a):
     if not a.get("wired"):
-        flash = ("the flash for each notification is not connected yet (theme-sound.sh, which mako runs for "
-                 "every notification, does not hand it on); Test the flash shows what it will look like")
+        flash = "flash not connected yet"
     else:
-        flash = "the screens flash white for a moment for each notification (not in Do Not Disturb)"
+        flash = "screens flash for each notification"
     if a.get("on"):
-        return f"on: the theme's sounds are off  ·  {flash}"
-    return (f"see alerts instead of hearing them: the theme's sounds off  ·  {flash}  ·  the theme's sounds "
-            f"are {a.get('sounds', 'on')} now")
+        return f"on: sounds off  ·  {flash}"
+    return f"flash instead of sound  ·  sounds {a.get('sounds', 'on')} now"
 
 
 class Page:
@@ -122,8 +109,7 @@ class Page:
 
         # -- SEEING ------------------------------------------------------------------
         w.pack_start(heading("SEEING"), False, False, 0)
-        grid, self.zoom_sub = row("", "Magnifier",
-                                  "enlarges the screen the pointer is on, around the pointer, and follows it")
+        grid, self.zoom_sub = row("", "Magnifier", "zooms around the pointer")
         w.pack_start(grid, False, False, 0)
         self.zoom_chips = self.make_chips(lambda k: self.do(A11Y, "zoom", k))
         w.pack_start(self.zoom_chips.widget, False, False, 0)
@@ -131,6 +117,10 @@ class Page:
                                   lambda _k, v: self.do(A11Y, "zoom", f"{v / 100:g}"))
         self.zoom_slider.widget.set_margin_start(36)
         w.pack_start(self.zoom_slider.widget, False, False, 0)
+        self.zoom_more = dp.label("", "ctl-sub")
+        self.zoom_more.set_line_wrap(True)
+        self.zoom_more.set_max_width_chars(90)
+        w.pack_start(details(self.zoom_more, label="Zoom keys"), False, False, 0)
 
         self.switches = {}
         self.switch_row(w, "contrast", "", "High contrast in apps", CONTRAST_SUB)
@@ -171,6 +161,10 @@ class Page:
         w.pack_start(grid, False, False, 0)
         w.pack_start(links_row(link("Open Input", lambda: self.open_page("input"))),
                      False, False, 0)
+        self.keys_more = dp.label("", "ctl-sub")
+        self.keys_more.set_line_wrap(True)
+        self.keys_more.set_max_width_chars(90)
+        w.pack_start(details(self.keys_more, label="Why"), False, False, 0)
 
     # -- building blocks -------------------------------------------------------------
     @staticmethod
@@ -233,7 +227,7 @@ class Page:
 
     def show(self, data):
         if not data:
-            self.zoom_sub.set_text("accessibility.py did not answer")
+            self.zoom_sub.set_text("Accessibility settings did not answer")
             return
         self.data = data
         self.updating = True
@@ -247,11 +241,14 @@ class Page:
         self.zoom_slider.show(min(500, factor * 100))
         # The keys that run `accessibility.py zoom`, as Hyprland has them bound.
         keys = ", ".join(f"{k['keys']} {k['what']}" for k in z.get("keys", []))
-        sub = f"{zoom_text(factor)}  ·  enlarges the screen the pointer is on, around the pointer, and follows it"
+        sub = f"{zoom_text(factor)}  ·  zooms around the pointer"
+        more = ""
         if z.get("live") is not None and abs(z["live"] - factor) > 0.005:
-            sub += f"  ·  Hyprland has {z['live']:g}× now (gamemode or a hand-set option); a reload puts yours back"
-        sub += f"  ·  {keys}" if keys else "  ·  up to 10× from the search bar: accessibility.py zoom in / out"
+            sub += f"  ·  {z['live']:g}× now"
+            more = f"Hyprland has {z['live']:g}× now (gamemode or a hand-set option); a reload puts yours back. "
+        more += keys if keys else "Up to 10× from the search bar: accessibility.py zoom in / out"
         self.zoom_sub.set_text(sub)
+        self.zoom_more.set_text(more)
 
         self.set_switch("contrast", data.get("contrast"), CONTRAST_SUB)
         self.set_switch("transparency", data["transparency"].get("on"), transparency_sub(data["transparency"]))
@@ -262,34 +259,30 @@ class Page:
         if size not in [s for s, _ in POINTERS]:
             items = sorted(items + [(str(size), f"{size} px")], key=lambda i: int(i[0]))
         self.pointer.set(items, str(size))
-        self.pointer_sub.set_text(f"{size} px, {p.get('theme') or 'the theme’s'} pointer  ·  everywhere at once, "
-                                  "and kept for the next login; its theme is on Fonts, text & pointer")
+        self.pointer_sub.set_text(f"{size} px, {p.get('theme') or 'the theme’s'} pointer")
 
         scale = data.get("text_scale") or 1.0
-        self.text_sub.set_text(f"{scale:.0%} of normal in apps  ·  set the size, the fonts and how text is "
-                               "drawn on Fonts, text & pointer")
+        self.text_sub.set_text(f"{scale:.0%} of normal  ·  set on Fonts")
         f = data["filter"]
         self.filter_sub.set_text((f"on: {f['label']}" if f.get("name") else "none on") +
-                                 "  ·  grayscale, reading (warmer, softer) and corrections for protanopia, "
-                                 "deuteranopia and tritanopia, over every screen: Effects")
+                                 "  ·  grayscale, reading, colour-blind  ·  set on Effects")
 
         r = data["reader"]
         if not r.get("installed"):
             sub = "Orca is not installed: sudo dnf install orca"
         elif r.get("enabled"):
-            sub = ("on: Orca speaks what has the focus in GTK, Qt, Firefox and Chrome apps"
-                   + ("" if r.get("running") else "  ·  but it is NOT running: switch it off and on again")
-                   + "  ·  Insert is its key; Insert + S stops the speech, Insert + Q quits")
+            sub = ("on" + ("" if r.get("running") else ", but NOT running: switch it off and on")
+                   + "  ·  Insert+S stops speech, Insert+Q quits")
         else:
-            sub = ("reads out the focused window, menus and text. Starts speaking at once; it comes back at the "
-                   "next login until you switch it off here")
+            sub = "reads out the focused window, menus and text"
         self.set_switch("reader", r.get("enabled"), sub)
         self.switches["reader"][0].set_sensitive(bool(r.get("installed")))
         self.set_switch("alerts", data["alerts"].get("on"), alerts_sub(data["alerts"]))
 
         self.set_switch("motion", data["motion"].get("on"), motion_sub(data["motion"]))
 
-        self.keys_sub.set_text(data["keys"]["note"] + "  So there is no switch for them here. What there is: a "
+        self.keys_sub.set_text("not in Hyprland  ·  see Input for key repeat")
+        self.keys_more.set_text(data["keys"]["note"] + "  So there is no switch for them here. What there is: a "
                                "longer key-repeat delay (or repeat off) for keys that stick, on Keyboard, mouse "
                                "& touchpad; and every desktop shortcut also runs from the search bar, without "
                                "holding keys together.")

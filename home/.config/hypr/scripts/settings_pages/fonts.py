@@ -18,6 +18,8 @@ docstring has the full map) and read back from there on every redraw:
                        or the theme's
   POINTER              cursor theme and size (gsettings, hyprctl setcursor,
                        and lua/env.lua / uwsm's env at the next login)
+  MORE                 fonts folder, rescan, reset; where each choice went
+                       (in a Details fold, as are the longer notes)
 
 A font picker lists the INSTALLED families (fc-list, through font-settings.py
 families) with a search entry; each one is drawn in its own face, so the
@@ -31,7 +33,7 @@ from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 import os  # noqa: E402
 import subprocess  # noqa: E402
 
-PAGE = {"id": "fonts", "title": "Fonts, text & pointer", "icon": "", "group": "Look", "order": 30,
+PAGE = {"id": "fonts", "title": "Text & pointer", "icon": "", "group": "Look", "order": 30, "tab": "Fonts & text",
         # Words the search bar matches this page by (the cursor lives here, not on Accessibility).
         "keywords": ["font", "text", "size", "dpi", "hinting", "antialiasing", "cursor", "pointer",
                      "mouse pointer", "cursor size", "cursor theme", "terminal font", "fuente", "typeface",
@@ -261,19 +263,18 @@ class Page:
         }
         for key in ("interface", "document", "monospace", "serif"):
             w.pack_start(self.rows[key].widget, False, False, 0)
-        w.pack_start(wrap("Interface: menus, buttons and labels in GTK, libadwaita, Qt and COSMIC apps, and "
+        w.pack_start(details(wrap("Interface: menus, buttons and labels in GTK, libadwaita, Qt and COSMIC apps, and "
                           "the sans-serif default for everything else (Hyprland's own messages, web pages "
                           "that ask for sans-serif). Document: the text libadwaita and GNOME apps show for "
                           "reading. Monospace: code and terminals inside apps, and the monospace default. "
                           "Serif: what web pages and documents that ask for \"serif\" get. Sizes are in "
                           "points. Apps that are open follow at once (GTK, libadwaita) or when they next "
-                          "start (Qt, COSMIC, most others)."), False, False, 0)
+                          "start (Qt, COSMIC, most others).")), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         # -- text size and rendering ---------------------------------------------
         w.pack_start(heading("TEXT SIZE AND RENDERING"), False, False, 0)
-        self.scale = Slider("scale", "Text scaling (GTK and libadwaita scale everything; Qt's fonts are "
-                            "sized up to match)", 50, 300, 5, "%",
+        self.scale = Slider("scale", "Text scaling", 50, 300, 5, "%",
                             lambda _k, v: self.do("scale", f"{v / 100:.2f}"))
         w.pack_start(self.scale.widget, False, False, 0)
         self.scale_chips = Chips(lambda v: self.do("scale", f"{v / 100:.2f}"))
@@ -293,10 +294,10 @@ class Page:
             chips.items = items
             self.render_rows[key] = (chips, sub)
             w.pack_start(grid, False, False, 0)
-        self.render_sub = wrap("")
-        w.pack_start(self.render_sub, False, False, 0)
         w.pack_start(links_row(link("Back to automatic rendering", lambda: self.do("rendering", "default"))),
                      False, False, 0)
+        self.render_sub = wrap("")
+        w.pack_start(details(self.render_sub), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         # -- the desktop's own text ---------------------------------------------
@@ -316,10 +317,10 @@ class Page:
         }
         for key in ("font", "mono", "term"):
             w.pack_start(self.desk[key].widget, False, False, 0)
-        self.desk_sub = wrap("")
-        w.pack_start(self.desk_sub, False, False, 0)
         w.pack_start(links_row(link("Use the theme's fonts", lambda: self.do("desktop", "theme")),
                                link("Same as the apps", lambda: self.do("desktop", "apps"))), False, False, 0)
+        self.desk_sub = wrap("")
+        w.pack_start(details(self.desk_sub), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         # -- pointer -----------------------------------------------------------------
@@ -333,20 +334,20 @@ class Page:
         self.size_chips.widget.set_max_children_per_line(8)
         self.size_row.attach(self.size_chips.widget, 1, 2, 2, 1)
         w.pack_start(self.size_row, False, False, 0)
-        w.pack_start(wrap("Set live in Hyprland (hyprctl setcursor), GTK apps (gsettings) and XWayland, and "
+        w.pack_start(details(wrap("Set live in Hyprland (hyprctl setcursor), GTK apps (gsettings) and XWayland, and "
                           "kept for the next login (lua/env.lua and ~/.config/uwsm/env read the same choice for "
                           "XCURSOR_THEME / XCURSOR_SIZE). Apps that draw their own pointer pick a new size up "
-                          "when they next start."), False, False, 0)
+                          "when they next start.")), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         # -- where it went -----------------------------------------------------------
-        w.pack_start(heading("WHERE IT GOES"), False, False, 0)
-        self.where = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        w.pack_start(self.where, False, False, 0)
+        w.pack_start(heading("MORE"), False, False, 0)
         self.reset_all = link(RESET_LABEL, self.on_reset)
         w.pack_start(links_row(link("Open the fonts folder", self.open_fonts),
                                link("Rescan installed fonts", self.rescan),
                                self.reset_all), False, False, 0)
+        self.where = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        w.pack_start(details(self.where, label="Where it goes"), False, False, 0)
 
     # -- talking to font-settings.py ---------------------------------------------------
     def do(self, *args):
@@ -421,30 +422,26 @@ class Page:
         if fams:
             self.fams = fams
         if not status:
-            self.status.set_text("font-settings.py did not answer (run it in a terminal to see why)")
+            self.status.set_text("Font settings did not answer")
             return
         self.data = status
         fams = self.fams or {"all": [], "mono": []}
         last = getattr(self, "last", "")
         if not self.busy:
             self.status.set_text(last if last else
-                                 "Every change applies at once and is kept across reloads and logins.")
+                                 "Changes apply at once and are kept.")
 
         roles, fc = status["roles"], status["fontconfig"]
         qt = status.get("qt") or {}
         cos = status.get("cosmic") or {}
         for key in ("interface", "document", "monospace"):
             r = roles[key]
-            where = {"interface": "GTK, Qt, COSMIC, fontconfig sans-serif",
-                     "document": "GTK and libadwaita reading text",
-                     "monospace": "GTK, Qt, COSMIC, fontconfig monospace"}[key]
-            sub = f"{r['family']} {r['size']:g} pt" + ("  ·  the default" if r["default"] else "") + f"  ·  {where}"
+            sub = f"{r['family']} {r['size']:g} pt" + ("  ·  the default" if r["default"] else "")
             self.rows[key].show(r["family"], r["size"], sub, fams)
         serif = roles["serif"]
         self.rows["serif"].show(serif["family"], None,
                                 f"{serif['family'] or '?'}" + ("  ·  the system's choice" if serif["default"]
-                                                                else "  ·  your choice")
-                                + "  ·  fontconfig serif (web pages, documents)", fams)
+                                                                else "  ·  your choice"), fams)
 
         # rendering
         self.scale.show(round(status["scale"] * 100))
@@ -459,22 +456,22 @@ class Page:
         for key, (chips, sub) in self.render_rows.items():
             chips.set(chips.items, rend[key] if manual else None)
             if key == "subpixel":
-                sub.set_text(("only used with subpixel antialiasing; " if rend["antialias"] != "rgba" else "")
-                             + "the order of the colour stripes in your screen's pixels (most are RGB; "
-                             "OLED panels often are not -- grayscale is the safe choice there)")
+                sub.set_text("only used with subpixel antialiasing" if rend["antialias"] != "rgba" else
+                             "your screen's colour stripes (most are RGB)")
             elif key == "antialias":
                 sub.set_text(f"now: {rend['antialias']}" if manual else
-                             f"automatic: each toolkit decides (gsettings says {rend['antialias']})")
+                             f"automatic (now {rend['antialias']})")
             else:
                 sub.set_text(f"now: {rend['hinting']}" if manual else
-                             f"automatic (gsettings says {rend['hinting']})")
+                             f"automatic (now {rend['hinting']})")
         self.render_sub.set_text(
             ("Your rendering choices go to GTK (font-rendering=manual), libadwaita and fontconfig (Qt, kitty, "
              "Chrome, Firefox's pages)." if manual else
              "Automatic: GTK 4 picks rendering for each screen by itself (and ignores the three rows "
              "above until you choose one), Qt and the rest use fontconfig's system defaults.")
             + " A light stroke on a high-DPI screen suits slight hinting; at 1440p grayscale with slight "
-            "hinting is the usual best.")
+            "hinting is the usual best. Subpixel order: OLED panels often are not RGB -- grayscale is the "
+            "safe choice there.")
 
         # the desktop's own text
         desk = status["desktop"]

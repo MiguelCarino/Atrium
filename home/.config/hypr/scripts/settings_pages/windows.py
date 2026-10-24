@@ -31,7 +31,7 @@ import os  # noqa: E402
 import subprocess  # noqa: E402
 import threading  # noqa: E402
 
-PAGE = {"id": "windows", "title": "Windows & workspaces", "icon": "\uf2d2", "group": "Look", "order": 50,
+PAGE = {"id": "windows", "title": "Windows", "icon": "\uf2d2", "group": "Look", "order": 40, "tab": "Windows & workspaces",
         "keywords": ["window", "ventanas", "gaps", "borders", "border size", "rounded corners", "rounding",
                      "blur", "shadow", "dim inactive", "inactive opacity", "transparency", "tiling", "layout",
                      "dwindle", "master", "scrolling", "new windows", "resize", "snap", "workspaces"]}
@@ -55,11 +55,9 @@ CHOICES = {
     "orientation": [("left", "Left"), ("right", "Right"), ("top", "Top"), ("bottom", "Bottom"), ("center", "Centre")],
 }
 LAYOUT_TEXT = {
-    "dwindle": "Each new window splits the focused one in two, alternating sideways and down. "
-               "ALT+R flips a split.",
-    "master": "One big master window and a stack of the others beside it -- good on the wide screen.",
-    "scrolling": "Every window is a column and the workspace scrolls sideways, so windows never shrink "
-                 "to make room.",
+    "dwindle": "New windows split the focused one  ·  ALT+R flips a split",
+    "master": "One big master window, the others stacked beside it",
+    "scrolling": "Windows are columns; the workspace scrolls sideways",
 }
 # Row icons (Font Awesome 6) for the on / off keys.
 ICONS = {"blur": "\uf043", "shadow": "\uf5fd", "dim_inactive": "\uf186",
@@ -108,19 +106,18 @@ def workspace_lines(data):
         sub = "  ·  ".join(f"{p['key']} {p['title'].lower() or p['name']}"
                            + (f" ({plural(p['windows'], 'window')})" if p.get("windows") else "")
                            for p in pads)
-        lines.append(("\uf2d0", "Scratchpads (special workspaces)",
-                      sub + "  ·  an overlay on any monitor; the key shows and hides it"))
+        lines.append(("\uf2d0", "Scratchpads", sub))
     for p in data.get("plugins") or []:
         if p.get("loaded"):
             state = "on"
         elif not p.get("built"):
             state = f"off: not built (run {p['build']})"
         elif not p.get("required"):
-            state = "off: its require line in hyprland.lua is commented out"
+            state = "off: turned off in hyprland.lua"
         elif p.get("loaded") is None:
             state = "Hyprland did not say"
         else:
-            state = f"off: built but not loaded (a Hyprland update? run {p['build']})"
+            state = f"off: not loaded (rebuild: {p['build']})"
         lines.append(("\uf009" if p["id"] == "overview" else "\uf1b2", p["title"], f"{state}  ·  {p['keys']}"))
     return lines
 
@@ -149,17 +146,16 @@ class Page:
         w.pack_start(heading("GAPS AND BORDERS"), False, False, 0)
         for key, caption in (("gaps_in", "Gaps between windows"), ("gaps_out", "Gaps at the screen edges"),
                              ("border_size", "Border width"), ("rounding", "Corner rounding"),
-                             ("rounding_power", "Corner shape: 2 is round, higher is squarer (a squircle)")):
+                             ("rounding_power", "Corner shape (higher is squarer)")):
             w.pack_start(self.slider(key, caption), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("BLUR AND SHADOWS"), False, False, 0)
-        w.pack_start(self.switch("blur", "Blur", "frosted glass behind see-through windows, the bar and "
-                                 "the panels"), False, False, 0)
+        w.pack_start(self.switch("blur", "Blur", "frosted glass behind see-through windows"), False, False, 0)
         w.pack_start(self.slider("blur_size", "Blur strength"), False, False, 0)
-        w.pack_start(self.slider("blur_passes", "Blur passes: smoother, and more work for the GPU"),
+        w.pack_start(self.slider("blur_passes", "Blur passes (smoother, more GPU)"),
                      False, False, 0)
-        w.pack_start(self.switch("shadow", "Shadows", "a soft shadow (or glow) around the windows"),
+        w.pack_start(self.switch("shadow", "Shadows", "a soft shadow around windows"),
                      False, False, 0)
         w.pack_start(self.slider("shadow_range", "Shadow size"), False, False, 0)
         w.pack_start(sep(), False, False, 0)
@@ -168,12 +164,12 @@ class Page:
         w.pack_start(self.switch("dim_inactive", "Dim them", "so the focused window stands out"),
                      False, False, 0)
         w.pack_start(self.slider("dim_strength", "How much to dim"), False, False, 0)
-        w.pack_start(self.slider("inactive_opacity", "Opacity: below 100% you see through them"),
+        w.pack_start(self.slider("inactive_opacity", "Opacity"),
                      False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("TILING"), False, False, 0)
-        w.pack_start(self.choice("layout", "Layout: how windows share a workspace"), False, False, 0)
+        w.pack_start(self.choice("layout", "Layout"), False, False, 0)
         self.layout_text = dp.label("", "ctl-sub")
         self.layout_text.set_line_wrap(True)
         w.pack_start(self.layout_text, False, False, 0)
@@ -187,9 +183,9 @@ class Page:
 
         w.pack_start(heading("MOVING AND RESIZING"), False, False, 0)
         w.pack_start(self.switch("resize_on_border", "Resize by dragging a border",
-                                 "grab any window's edge with the mouse, no key held"), False, False, 0)
+                                 "grab a window's edge, no key held"), False, False, 0)
         w.pack_start(self.switch("snap", "Snap floating windows",
-                                 "to the screen edges and to each other while you drag them"), False, False, 0)
+                                 "to screen edges and each other"), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("WORKSPACES"), False, False, 0)
@@ -198,10 +194,7 @@ class Page:
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("ELSEWHERE"), False, False, 0)
-        hint = dp.label("Focus follows the mouse is on the Input page. The animations are in Effects: the "
-                        "workspace slide has no switch of its own, it comes with the animation preset there "
-                        "(Calm cross-fades instead of sliding). The border colours and the accent come with "
-                        "the theme.", "ctl-sub")
+        hint = dp.label("Focus follows mouse: Input  ·  animations: Effects  ·  border colours: Theme", "ctl-sub")
         hint.set_line_wrap(True)
         w.pack_start(hint, False, False, 0)
         w.pack_start(links_row(link("Open Input", lambda: spawn(SETTINGS, "input")),
@@ -301,6 +294,7 @@ class Page:
         fails says why on stderr (a value it refused, or Hyprland's own
         complaint); that goes into the note instead of being lost."""
         self.note.set_text("applying…")
+        self.note.set_visible(True)
 
         def work():
             with CALLS:
@@ -327,7 +321,7 @@ class Page:
         box = self.workspaces
         clear(box)
         if not data:
-            box.pack_start(dp.label("window-look.py did not answer", "ctl-sub"), False, False, 0)
+            box.pack_start(dp.label("Workspaces did not answer", "ctl-sub"), False, False, 0)
             box.show_all()
             return
         for line in workspace_lines(data):
@@ -338,14 +332,16 @@ class Page:
                         "The scratchpad keys are in lua/binds.lua. The plugins have no switch: they load "
                         "whenever they are built, and are turned off by commenting out their require line in "
                         "hyprland.lua (or deleting the .so in ~/.local/lib/hyprland). A Hyprland update needs "
-                        "them rebuilt.", "ctl-sub")
+                        "them rebuilt. Scratchpads are overlays on any monitor; the key shows and hides one. "
+                        "The workspace slide comes with the animation preset in Effects (Calm cross-fades).",
+                        "ctl-sub")
         note.set_line_wrap(True)
-        box.pack_start(note, False, False, 0)
+        box.pack_start(details(note), False, False, 0)
         box.show_all()
 
     def show(self, data):
         if not data:
-            self.summary.set_text("window-look.py did not answer -- is Hyprland running?")
+            self.summary.set_text("Window settings did not answer (is Hyprland running?)")
             self.note.set_text("")
             return
         self.rows = {r["key"]: r for r in data["keys"]}
@@ -354,19 +350,19 @@ class Page:
                               + (f"{len(mine)} change{'s' if len(mine) != 1 else ''} of yours on top: "
                                  + ", ".join(r["label"].lower() for r in mine[:4])
                                  + ("…" if len(mine) > 4 else "")
-                                 if mine else "no changes of yours, everything is the theme's"))
-        notes = ["Your changes stay when you switch themes, and through a reload or a re-login."]
+                                 if mine else "no changes of yours"))
+        notes = []
         if data.get("gamemode"):
-            notes.insert(0, "Gamemode is on: gaps, borders, rounding, blur and shadows are switched off "
-                            "for it. What you change here is saved and shows when gamemode ends (ALT+SHIFT+G).")
+            notes.insert(0, "Gamemode is on: effects are off until it ends (ALT+SHIFT+G).")
         off = [r for r in data["keys"] if r["live"] and r["live"] != r["value"] and not r["held_by_gamemode"]]
         if off:
             notes.append("Not in effect yet: " + ", ".join(r["label"].lower() for r in off)
-                         + " -- something else changed it since; Apply again puts yours back.")
+                         + "  ·  Apply again puts yours back.")
         if self.error:
             notes.insert(0, f"That did not work: {self.error}")
             self.error = ""       # said once; the next redraw is clean
         self.note.set_text("  ".join(notes))
+        self.note.set_visible(bool(notes))
         self.updating = True
         for key, r in self.rows.items():
             self.show_row(key, r)

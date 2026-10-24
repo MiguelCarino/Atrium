@@ -2,10 +2,11 @@
 offers the next step for what you are doing.
 
     LIVE SUGGESTIONS   the switch (suggest.service), what it is doing now,
-                       Pause for an hour / Resume, Show a sample
+                       Pause for an hour / Resume, Show a sample; the
+                       quiet rules (folded)
     KINDS              each kind on / off, with what you did with it so far
-                       (shown, used, sent away) and when a dismissed kind
-                       comes back; Forget what it learned
+                       (used of shown) and when a dismissed kind comes
+                       back; Forget what it learned; how it learns (folded)
     WHERE AND HOW OFTEN  the corner, at most one every N minutes, how long a
                        card stays
     TIMING             what counts as away (resume), how old changes are
@@ -22,7 +23,7 @@ from gi.repository import GLib, Gtk  # noqa: F401
 
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 
-PAGE = {"id": "suggestions", "title": "Live suggestions", "icon": "\uf0eb", "group": "Apps", "order": 38,
+PAGE = {"id": "suggestions", "title": "Live suggestions", "icon": "\uf0eb", "group": "Apps", "order": 38, "parent": "ai", "tab": "Suggestions",
         "keywords": ["suggestions", "next step", "hints", "commit message", "git commit", "pick up where you left off",
                      "welcome back", "strip", "sugerencias", "proactive", "meeting soon", "focus round",
                      "smart clipboard strip", "dismiss", "snooze suggestions"]}
@@ -37,14 +38,31 @@ QUIET = ("Never during a fullscreen window, a game (gamemode), Do Not Disturb, s
          "screen, and never more than one at a time. Everything stays on this computer: nothing is sent "
          "anywhere, and the local model only runs when you click \"Draft a commit message\". Private windows "
          "(the Privacy page's list, password managers, private browsing) are never looked into.")
+WHAT = {"commit": "Changes sat a while: draft the message (never commits)",
+        "resume": "After a lock or sleep: back to the window you had",
+        "clipboard": "Copy actions here instead of their own card",
+        "context": "Entering a project context: start a focus round",
+        "meeting": "An event starts soon: Do Not Disturb or the calendar",
+        "focus": "Lots of switching: start a focus block (needs Focus noticing)"}     # short lines over suggest.py's own
+LEARNS = ("It learns from the x: a kind you send away rests for half an hour, then longer each time in a row "
+          "(up to a day); using one brings it back to normal. When two wait at once, the kind you use more "
+          "goes first. A build failing in the terminal is not offered: COSMIC Terminal has no way to tell.")
+
+
+def note(text):
+    """A wrapped sub-styled paragraph, for the details folds."""
+    label = dp.label(text, "ctl-sub")
+    label.set_line_wrap(True)
+    label.set_xalign(0)
+    return label
 
 
 def kind_sub(k, now=None):
     """The line under a kind: what it does, and what you did with it."""
     now = now or datetime.datetime.now().timestamp()
-    parts = [k["what"]]
+    parts = [WHAT.get(k["kind"], k["what"])]
     if k["shown"]:
-        parts.append(f"shown {k['shown']}, used {k['acted']}, sent away {k['dismissed']}")
+        parts.append(f"used {k['acted']} of {k['shown']}")
     if k.get("resting_until", 0) > now:
         parts.append("resting until " + datetime.datetime.fromtimestamp(k["resting_until"]).strftime("%H:%M"))
     return "  ·  ".join(parts)
@@ -52,18 +70,18 @@ def kind_sub(k, now=None):
 
 def live_text(data, now=None):
     if not data.get("on"):
-        sub = "off: nothing is watched"
+        sub = "Off"
     else:
         live = data.get("live") or {}
         now = now or datetime.datetime.now().timestamp()
         if live.get("snooze_until", 0) > now:
             sub = "paused until " + datetime.datetime.fromtimestamp(live["snooze_until"]).strftime("%H:%M")
         elif live.get("showing"):
-            sub = "on: a card is up now"
+            sub = "On: a card is up now"
         elif live.get("quiet"):
-            sub = f"on, quiet now ({live['quiet']})"
+            sub = f"On, quiet now ({live['quiet']})"
         else:
-            sub = "on: a card comes when there is a next step"
+            sub = "On"
     if data.get("on") != data.get("enabled"):
         sub += "  ·  " + ("not started at login" if data.get("on") else "starts again at the next login")
     return sub
@@ -80,29 +98,23 @@ class Page:
         w.pack_start(heading("LIVE SUGGESTIONS"), False, False, 0)
         self.main_switch = self.switch(lambda on: self.act("set", "on" if on else "off"))
         grid, self.main_sub = row("\uf0eb", "Suggest the next step",
-                                  "A small strip offers one thing to do next; one click does it, the x sends it "
-                                  "away.", self.main_switch)
+                                  "A small strip offers what to do next", self.main_switch)
         w.pack_start(grid, False, False, 0)
         self.snooze_link = link("Pause for an hour", self.toggle_snooze)
         w.pack_start(links_row(self.snooze_link, link("Show a sample", lambda: self.act("sample", "commit"))),
                      False, False, 0)
-        grid, _ = row("\uf1f6", "Quiet by design", QUIET)
+        grid, _ = row("\uf1f6", "Quiet by design", "Never in fullscreen, games or Do Not Disturb; all local")
         w.pack_start(grid, False, False, 0)
+        w.pack_start(details(note(QUIET)), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("KINDS"), False, False, 0)
         self.kinds_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         w.pack_start(self.kinds_box, False, False, 0)
-        note = dp.label("It learns from the x: a kind you send away rests for half an hour, then longer each time "
-                        "in a row (up to a day); using one brings it back to normal. When two wait at once, the "
-                        "kind you use more goes first. A build failing in the terminal is not offered: COSMIC "
-                        "Terminal has no way to tell.", "ctl-sub")
-        note.set_line_wrap(True)
-        note.set_xalign(0)
-        w.pack_start(note, False, False, 0)
         w.pack_start(links_row(link("Forget what it learned", lambda: self.act("forget")),
                                link("Open Smart clipboard", lambda: spawn(SETTINGS, "smartclip"))),
                      False, False, 0)
+        w.pack_start(details(note(LEARNS), label="How it learns"), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("WHERE AND HOW OFTEN"), False, False, 0)
@@ -111,20 +123,20 @@ class Page:
         self.position.widget.set_max_children_per_line(3)      # the top row over the bottom one
         self.position.widget.set_min_children_per_line(3)
         w.pack_start(self.position.widget, False, False, 0)
-        self.gap = Slider("gap_min", "At most one every (your own copies do not wait)", 1, 120, 1, " min", self.set)
+        self.gap = Slider("gap_min", "At most one every", 1, 120, 1, " min", self.set)
         w.pack_start(self.gap.widget, False, False, 0)
-        self.show_s = Slider("show_s", "A card stays (longer while the pointer is on it)", 5, 60, 1, " s", self.set)
+        self.show_s = Slider("show_s", "A card stays", 5, 60, 1, " s", self.set)
         w.pack_start(self.show_s.widget, False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("TIMING"), False, False, 0)
-        self.away = Slider("away_min", "Pick up where you left off: after being away at least", 3, 240, 1, " min",
+        self.away = Slider("away_min", "Welcome back: away at least", 3, 240, 1, " min",
                            self.set)
         w.pack_start(self.away.widget, False, False, 0)
-        self.commit_after = Slider("commit_after_min", "Commit message: changes at least this old", 0, 240, 5,
+        self.commit_after = Slider("commit_after_min", "Commit message: changes older than", 0, 240, 5,
                                    " min", self.set)
         w.pack_start(self.commit_after.widget, False, False, 0)
-        self.lead = Slider("meeting_lead_min", "Meetings: this long before they start", 2, 60, 1, " min", self.set)
+        self.lead = Slider("meeting_lead_min", "Meetings: before start", 2, 60, 1, " min", self.set)
         w.pack_start(self.lead.widget, False, False, 0)
         self.msg = dp.label("", "ctl-sub")
         self.msg.set_line_wrap(True)

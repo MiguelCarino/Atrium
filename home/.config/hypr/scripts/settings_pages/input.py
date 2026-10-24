@@ -24,7 +24,7 @@ from gi.repository import GLib, Gtk  # noqa: F401
 
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 
-PAGE = {"id": "input", "title": "Keyboard, mouse & touchpad", "icon": "", "group": "Hardware", "order": 30,
+PAGE = {"id": "input", "title": "Keyboard & mouse", "icon": "", "group": "Hardware", "order": 30, "tab": "Keyboard & mouse",
         "keywords": ["keyboard", "teclado", "keyboard layout", "language", "xkb", "key repeat", "caps lock",
                      "compose key", "numlock", "mouse", "raton", "pointer speed", "acceleration",
                      "sensitivity", "scrolling", "natural scrolling", "left handed", "touchpad",
@@ -45,9 +45,9 @@ COMPOSE_CHIPS = [("", "None"), ("compose:menu", "Menu key"), ("compose:rctrl", "
                  ("compose:rwin", "Right Super"), ("compose:sclk", "Scroll Lock"), ("compose:prsc", "PrtSc")]
 ACCEL_CHIPS = [("adaptive", "Adaptive"), ("flat", "Flat")]
 FOCUS_CHIPS = [("1", "Follows the mouse"), ("2", "Click; scroll follows the mouse"), ("0", "Click to focus")]
-FOCUS_SUB = {"1": "The window under the pointer gets the keyboard as soon as the pointer moves onto it.",
-             "2": "Clicking a window focuses it; the scroll wheel works on whatever is under the pointer.",
-             "0": "Only clicking a window (or a key) focuses it; moving the pointer never does."}
+FOCUS_SUB = {"1": "The window under the pointer gets the keyboard.",
+             "2": "A click focuses; the wheel scrolls whatever is under the pointer.",
+             "0": "Only a click (or a key) focuses a window."}
 
 
 def backend():
@@ -90,13 +90,12 @@ class Page:
 
         # -- keyboard layouts ---------------------------------------------------
         w.pack_start(heading("KEYBOARD LAYOUTS"), False, False, 0)
-        w.pack_start(wrapped("The layouts the keys type in, in switching order; the first is the one at login. "
-                             "xkb holds up to four."), False, False, 0)
+        w.pack_start(wrapped("In switching order; the first is used at login (up to four)."), False, False, 0)
         self.layouts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         w.pack_start(self.layouts, False, False, 0)
         add = Gtk.Box(spacing=8)
         self.search = Gtk.Entry()
-        self.search.set_placeholder_text("Add a layout: type a language, country or code (german, colemak, de)")
+        self.search.set_placeholder_text("Add a layout: language, country or code (german, colemak, de)")
         self.search.set_hexpand(True)
         self.search.connect("changed", lambda _e: self.search_soon())
         add.pack_start(self.search, True, True, 0)
@@ -136,7 +135,7 @@ class Page:
         self.try_entry.set_placeholder_text("Hold a key here to try the repeat")
         w.pack_start(self.try_entry, False, False, 0)
         self.switch_row("numlock", "", "Num Lock on at start",
-                        "Turns Num Lock on for each keyboard as it connects (and at login).")
+                        "on at login and for each keyboard that connects")
         w.pack_start(dp.label("Caps Lock key", "ctl-title"), False, False, 0)
         self.caps_chips = Chips(lambda key: self.set("caps", key))
         self.caps_chips.widget.set_max_children_per_line(6)
@@ -145,9 +144,7 @@ class Page:
         self.compose_chips = Chips(lambda key: self.set("compose", key))
         self.compose_chips.widget.set_max_children_per_line(6)
         w.pack_start(self.compose_chips.widget, False, False, 0)
-        w.pack_start(wrapped("Compose, then two keys, types one character: Compose ' e gives é, Compose o c "
-                             "gives ©. Right Alt is not offered: on Spanish layouts it is AltGr (@ [ ] { })."),
-                     False, False, 0)
+        w.pack_start(wrapped("Compose ' e types é, Compose o c types ©."), False, False, 0)
 
         # -- mouse ----------------------------------------------------------------
         w.pack_start(sep(), False, False, 0)
@@ -160,13 +157,13 @@ class Page:
         w.pack_start(self.accel_sub, False, False, 0)
         self.slider("scroll_factor", "Scroll speed", 10, 500, 10, " %", scale=100)
         self.switch_row("natural_scroll", "", "Natural scrolling",
-                        "The content follows the wheel, as on a phone: rolling down moves the page up.")
+                        "rolling down moves the page up, as on a phone")
         self.switch_row("left_handed", "", "Left-handed",
-                        "Swaps the left and right buttons.")
+                        "swaps the left and right buttons")
         self.switch_row("middle_click_paste", "", "Middle-click paste",
-                        "The middle button pastes the last selected text (the primary selection).")
+                        "the middle button pastes the last selected text")
         self.switch_row("hide_on_typing", "", "Hide the pointer while typing",
-                        "It comes back as soon as the mouse moves.")
+                        "back as soon as the mouse moves")
 
         # -- touchpad (only when there is one) --------------------------------------
         self.touch = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -175,18 +172,16 @@ class Page:
         self.touch.pack_start(sep(), False, False, 0)
         self.touch.pack_start(heading("TOUCHPAD"), False, False, 0)
         self.switch_row("touchpad.tap_to_click", "", "Tap to click",
-                        "One finger taps a left click, two a right click, three a middle click.", self.touch)
+                        "one finger left-clicks, two right-click, three middle-click", self.touch)
         self.switch_row("touchpad.natural_scroll", "", "Natural scrolling",
-                        "Two fingers move the content, as on a phone.", self.touch)
+                        "two fingers move the content, as on a phone", self.touch)
         self.switch_row("touchpad.disable_while_typing", "", "Off while typing",
-                        "Ignores the touchpad for a moment after each key, so a palm does not move the cursor.",
-                        self.touch)
+                        "so a palm does not move the cursor", self.touch)
         self.switch_row("touchpad.clickfinger", "", "Click with fingers, not zones",
-                        "A two-finger press is a right click, three a middle click, instead of the pad's "
-                        "bottom corners.", self.touch)
+                        "two-finger press right-clicks, three middle-click", self.touch)
         self.slider("touchpad.scroll_factor", "Two-finger scroll speed", 10, 500, 10, " %", scale=100,
                     box=self.touch)
-        self.no_touch = wrapped("No touchpad found: its settings appear here when one is connected.")
+        self.no_touch = wrapped("No touchpad found.")
         w.pack_start(self.no_touch, False, False, 0)
 
         # -- focus ----------------------------------------------------------------
@@ -213,6 +208,8 @@ class Page:
         self.confirm.pack_start(link("Cancel", self.hide_confirm), False, False, 0)
         self.confirm.set_no_show_all(True)
         w.pack_start(self.confirm, False, False, 0)
+        self.state_file = wrapped("")
+        w.pack_start(details(self.state_file), False, False, 0)
 
     # -- building blocks ------------------------------------------------------------
     def slider(self, key, caption, lo, hi, step, unit, scale=1, box=None):
@@ -309,7 +306,7 @@ class Page:
 
     def show(self, st):
         if not st:
-            self.show_problem("input-settings.py did not answer: the settings below may be out of date.")
+            self.show_problem("Could not read the settings: they may be out of date.")
             return
         self.status = st
         val = {k: v["value"] for k, v in st["settings"].items()}
@@ -342,14 +339,12 @@ class Page:
         if not switch:
             self.switch_combo.set_active(-1)
         warn = st.get("switch_warning", "")
-        self.switch_sub.set_text(
-            (f"{st['switch_label']} switches to the next layout. " if st.get("switch_label") else "")
-            + (warn or "An xkb key, not a Hyprland shortcut: it works in every app and is not in the "
-                       "shortcuts list."))
+        self.switch_sub.set_text((
+            (f"{st['switch_label']} switches to the next layout, in every app. " if st.get("switch_label") else "")
+            + warn).strip())
         ims = st.get("input_methods") or []
         self.im_sub.set_text(("  ·  ".join(m["label"] + (" (on)" if m["active"] else "") for m in ims)
-                              + "  ·  Ctrl+Space switches. Separate from the layouts: Mozc reads what the "
-                                "layout types.") if ims else "fcitx5 has no input methods set up.")
+                              + "  ·  Ctrl+Space switches") if ims else "none set up")
         # typing
         for key, s in self.sliders.items():
             try:
@@ -369,11 +364,9 @@ class Page:
         self.compose_chips.set(compose, val["compose"])
         # mouse
         self.accel_chips.set(ACCEL_CHIPS, val["accel"])
-        self.accel_sub.set_text("Adaptive: faster movements carry the pointer further (the usual). "
-                                "Flat: the same distance at any speed, what many games want."
+        self.accel_sub.set_text("Faster movements carry the pointer further."
                                 if val["accel"] == "adaptive" else
-                                "Flat: the pointer moves the same distance however fast the mouse goes. "
-                                "Adaptive makes quick flicks go further.")
+                                "The same distance at any speed (what many games want).")
         # touchpad
         if st.get("touchpad"):
             self.touch.set_no_show_all(False)
@@ -388,12 +381,11 @@ class Page:
         # reset
         changed = [k for k, v in st["settings"].items() if v["changed"]]
         self.reset_link.set_sensitive(bool(changed))
-        self.reset_sub.set_text((f"{len(changed)} setting{'s' if len(changed) != 1 else ''} changed from the "
-                                 "defaults" if changed else "Everything is at its default")
-                                + f"  ·  saved in {st['state_file'].replace(os.path.expanduser('~'), '~')}")
+        self.reset_sub.set_text(f"{len(changed)} setting{'s' if len(changed) != 1 else ''} changed"
+                                if changed else "everything is at its default")
+        self.state_file.set_text(f"Saved in {st['state_file'].replace(os.path.expanduser('~'), '~')}")
         if not st.get("in_sync"):
-            self.show_problem(f"Hyprland is using the layouts {st['live'].get('kb_layout')!r}, not the saved "
-                              "ones: something else changed them. Any change here applies the saved settings "
-                              "again.")
+            self.show_problem(f"Hyprland is using {st['live'].get('kb_layout')!r}, not the saved layouts: "
+                              "any change here reapplies them.")
         self.layouts.show_all()
         self.updating = False

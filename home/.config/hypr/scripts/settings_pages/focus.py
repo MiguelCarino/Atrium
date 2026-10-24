@@ -27,7 +27,7 @@ from gi.repository import GLib, Gtk  # noqa: F401
 
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 
-PAGE = {"id": "focus", "title": "Focus", "icon": "", "group": "Apps", "order": 39,
+PAGE = {"id": "focus", "title": "Focus", "icon": "", "group": "Apps", "order": 39, "parent": "sessions", "tab": "Focus",
         "keywords": ["focus guard", "focus block", "pomodoro", "concentration", "concentrarse", "enfoque",
                      "distractions", "distracting apps", "distracting sites", "scattered", "context switching",
                      "dim apps", "delay apps", "still want this", "breaks", "deep work", "focus minutes",
@@ -39,17 +39,12 @@ SENSITIVITY_TEXT = {"low": "Low (only a real scramble)", "medium": "Medium", "hi
 WHEN_TEXT = {"always": "Any time", "work": "Work hours only", "free": "Free time only"}
 QUIET_TEXT = {"dnd": "Do Not Disturb", "project": "Project's own filter", "none": "Leave notifications"}
 STYLE_TEXT = {"dim": "Dim them", "delay": "Make them wait", "both": "Both"}
-QUIET_SUB = {"dnd": "Notifications go quietly to the history (urgent ones still show); the digest at the end "
-                    "says what came.",
-             "project": "Inside a project context, only notifications that name the project (and the apps it "
-                        "allows) pop up -- its own filter (Settings > Project contexts). Outside one: Do Not "
-                        "Disturb.",
+QUIET_SUB = {"dnd": "Held in the history (urgent ones still show).",
+             "project": "Only the project's own notifications; outside one, Do Not Disturb.",
              "none": "Notifications as usual."}
-STYLE_SUB = {"dim": "Their windows go see-through while the block runs. Nothing is closed or blocked.",
-             "delay": "A newly opened one waits out of sight behind \"Still want it?\"; Open it unlocks after the "
-                      "wait. Not now keeps it there until the block ends. A browser on a listed site gets the "
-                      "same question.",
-             "both": "Dimmed, and newly opened ones wait behind \"Still want it?\"."}
+STYLE_SUB = {"dim": "Their windows go see-through. Nothing is closed or blocked.",
+             "delay": "New ones wait behind \"Still want it?\" until the delay passes.",
+             "both": "Dimmed, and new ones wait behind \"Still want it?\"."}
 BARS = " ▁▂▃▄▅▆▇█"
 
 
@@ -61,20 +56,19 @@ def minutes_text(m):
 def live_text(data, now=None):
     """The line under the main switch: off / in a block / noticing / idle."""
     if not data.get("on"):
-        sub = "off: no focus blocks of its own (the launcher's \"focus\" is a plain focus round)"
+        sub = "off"
     else:
         live = data.get("live") or {}
         block = live.get("block")
         now = now or datetime.datetime.now().timestamp()
         if block:
             left = max(0, int((block["due"] - now) // 60))
-            sub = (f"in a focus block: {left} min left  ·  {block['dimmed']} distracting window"
-                   f"{'s' if block['dimmed'] != 1 else ''}" + (f", {block['waiting']} waiting" if block["waiting"]
-                                                               else ""))
+            sub = (f"in a block: {left} min left  ·  {block['dimmed']} dimmed"
+                   + (f", {block['waiting']} waiting" if block["waiting"] else ""))
         elif data.get("watching"):
             sub = "on, noticing" + (f" (quiet now: {live['quiet']})" if live.get("quiet") else "")
         else:
-            sub = "on; noticing is off, so it only runs the blocks you start"
+            sub = "on; runs the blocks you start"
     if data.get("on") != data.get("enabled"):
         sub += "  ·  " + ("not started at login" if data.get("on") else "starts again at the next login")
     return sub
@@ -86,10 +80,9 @@ def numbers_text(n):
     watched = n.get("watching_s", 0) // 60
     mins = n.get("window_s", 1200) // 60
     head = (f"Last {mins} min: {n['switches']} switches between {n['groups']} things "
-            f"(it offers a block at {n['need']} switches among {n['need_groups']}+ things; a switch to a "
-            "distraction counts twice)")
+            f"(offers at {n['need']} among {n['need_groups']}+)")
     if watched < mins:
-        head += f"  ·  watching for {watched} min so far"
+        head += f"  ·  watched {watched} min so far"
     return head
 
 
@@ -115,8 +108,7 @@ class Page:
         w.pack_start(heading("FOCUS GUARD"), False, False, 0)
         self.main_switch = self.switch(lambda on: self.act("set", "on" if on else "off"))
         grid, self.main_sub = row("", "Focus blocks with a guard",
-                                  "A focus block quiets the notifications, dims the distracting apps (never "
-                                  "blocks them) and ends with what you did. The bar's timer counts it down.",
+                                  "Quiet notifications, dimmed distractions, a summary at the end",
                                   self.main_switch)
         w.pack_start(grid, False, False, 0)
         self.start_link = link("Start a focus block", self.start_stop)
@@ -127,9 +119,7 @@ class Page:
         w.pack_start(heading("NOTICING"), False, False, 0)
         self.watch_switch = self.switch(lambda on: self.act("set", "detect", "on" if on else "off"))
         grid, self.watch_sub = row("", "Offer a block when I am scattered",
-                                   "Follows which window has the focus, on this computer only: each one is "
-                                   "reduced at once to its project or app, titles are not kept, private windows "
-                                   "are not looked into. Also on the Privacy page.", self.watch_switch)
+                                   "Watches window switches, on this computer only", self.watch_switch)
         w.pack_start(grid, False, False, 0)
         w.pack_start(dp.label("How sensitive", "ctl-sub"), False, False, 0)
         self.sensitivity = Chips(lambda key: self.set("sensitivity", key))
@@ -145,16 +135,18 @@ class Page:
         self.numbers.set_line_wrap(True)
         self.numbers.set_xalign(0)
         w.pack_start(self.numbers, False, False, 0)
-        note = dp.label("Unrelated means a different project or app: an editor and a terminal on the same repo are "
+        note = dp.label("Each window is reduced at once to its project or app; titles are not kept and private "
+                        "windows are not looked into (also on the Privacy page). "
+                        "Unrelated means a different project or app: an editor and a terminal on the same repo are "
                         "one thing, and so is everything of the project context you are in. The offer is a "
                         "notification, or a card in the live suggestions strip when its \"Scattered? A focus "
                         "block\" kind is on there; never during a fullscreen window, a game, Do Not Disturb or a "
                         "block.", "ctl-sub")
         note.set_line_wrap(True)
         note.set_xalign(0)
-        w.pack_start(note, False, False, 0)
-        w.pack_start(links_row(link("Open Live suggestions", lambda: spawn(SETTINGS, "suggestions")),
-                               link("Open Privacy", lambda: spawn(SETTINGS, "privacy"))), False, False, 0)
+        w.pack_start(details(note, links_row(link("Open Live suggestions", lambda: spawn(SETTINGS, "suggestions")),
+                                             link("Open Privacy", lambda: spawn(SETTINGS, "privacy")))),
+                     False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("THE BLOCK"), False, False, 0)
@@ -168,12 +160,12 @@ class Page:
         self.quiet_sub.set_xalign(0)
         w.pack_start(self.quiet_sub, False, False, 0)
         self.digest_switch = self.switch(lambda on: self.set("digest", "on" if on else "off"))
-        grid, _ = row("", "Digest at the end", "What was held back, in one notification (with Do Not "
-                      "Disturb this is the Notifications page's own digest).", self.digest_switch)
+        grid, _ = row("", "Digest at the end", "What was held back, in one notification",
+                      self.digest_switch)
         w.pack_start(grid, False, False, 0)
         self.summary_switch = self.switch(lambda on: self.set("summary", "on" if on else "off"))
-        grid, _ = row("", "\"What you did\" at the end", "Where the time went (from the activity history), "
-                      "how much you switched, your commits in the block.", self.summary_switch)
+        grid, _ = row("", "\"What you did\" at the end", "Where the time went, switches and commits",
+                      self.summary_switch)
         w.pack_start(grid, False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
@@ -188,8 +180,7 @@ class Page:
         w.pack_start(self.dim.widget, False, False, 0)
         self.delay = Slider("delay_s", "\"Open it\" unlocks after", 3, 30, 1, " s", self.set)
         w.pack_start(self.delay.widget, False, False, 0)
-        grid, _ = row("", "Apps", "Window classes (discord, steam, org.telegram.desktop); the last part of "
-                      "a dotted class is enough.")
+        grid, _ = row("", "Apps", "Window classes, e.g. discord, steam")
         w.pack_start(grid, False, False, 0)
         self.apps_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         w.pack_start(self.apps_box, False, False, 0)
@@ -198,8 +189,7 @@ class Page:
         self.app_entry.get_child().set_width_chars(30)
         self.app_entry.get_child().connect("activate", lambda _e: self.add("apps", self.app_entry))
         w.pack_start(self.adder(self.app_entry, lambda: self.add("apps", self.app_entry)), False, False, 0)
-        grid, _ = row("", "Sites", "A word in a browser window's title (youtube, reddit): while that tab is "
-                      "showing, the window counts as a distraction.")
+        grid, _ = row("", "Sites", "A word in the browser tab's title, e.g. youtube")
         w.pack_start(grid, False, False, 0)
         self.sites_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         w.pack_start(self.sites_box, False, False, 0)
@@ -215,8 +205,8 @@ class Page:
 
         w.pack_start(heading("BREAKS"), False, False, 0)
         self.breaks_switch = self.switch(lambda on: self.set("breaks", "on" if on else "off"))
-        grid, _ = row("", "Pomodoro rhythm", "A break starts by itself after each block, a longer one every "
-                      "few; off: the block just ends, with \"Focus again\".", self.breaks_switch)
+        grid, _ = row("", "Pomodoro rhythm", "A break after each block, a longer one every few",
+                      self.breaks_switch)
         w.pack_start(grid, False, False, 0)
         self.brk = Slider("break_min", "A break", 1, 30, 1, " min", self.set)
         w.pack_start(self.brk.widget, False, False, 0)
@@ -231,11 +221,7 @@ class Page:
         w.pack_start(grid, False, False, 0)
         self.week_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         w.pack_start(self.week_box, False, False, 0)
-        note = dp.label("Counts only (minutes, blocks, offers), kept 120 days; the daily brief and the journal show "
-                        "the focus minutes.", "ctl-sub")
-        note.set_line_wrap(True)
-        note.set_xalign(0)
-        w.pack_start(note, False, False, 0)
+        w.pack_start(dp.label("Counts only, kept 120 days.", "ctl-sub"), False, False, 0)
         self.msg = dp.label("", "ctl-sub")
         self.msg.set_line_wrap(True)
         w.pack_start(self.msg, False, False, 0)
@@ -304,7 +290,7 @@ class Page:
 
     def show(self, data):
         if not data:
-            self.msg.set_text("focus-guard.py did not answer (run it in a terminal to see why)")
+            self.msg.set_text("Focus guard did not answer")
             return
         self.data = data
         v, t = data["values"], data["timers"]
@@ -325,7 +311,7 @@ class Page:
             self.window.show(int(v["window_min"]))
             self.cooldown.show(int(v["cooldown_min"]))
             self.numbers.set_text(numbers_text(live.get("numbers")) if data["watching"] and data["on"] else
-                                  ("Turn on the guard and noticing to see the numbers it looks at."))
+                                  ("Numbers show while noticing is on."))
             self.length.show(int(t["minutes"]))
             self.quiet.set([(k, QUIET_TEXT[k]) for k in data["choices"]["quiet"]], v["quiet"])
             self.quiet_sub.set_text(QUIET_SUB[v["quiet"]])
@@ -342,10 +328,10 @@ class Page:
                 slider.show(int(t[key]))
                 slider.widget.set_sensitive(v["breaks"] == "on")
             today = data["today"]
-            self.today_sub.set_text(f"{minutes_text(today['minutes'])} in focus blocks"
+            self.today_sub.set_text(f"{minutes_text(today['minutes'])} in focus"
                                     f"  ·  {int(today['blocks'])} block{'s' if today['blocks'] != 1 else ''}"
                                     f"  ·  offered {int(today['offered'])}, taken {int(today['taken'])}"
-                                    + (f"  ·  {int(today['waited'])} waited, {int(today['opened'])} opened anyway"
+                                    + (f"  ·  {int(today['waited'])} waited, {int(today['opened'])} opened"
                                        if today["waited"] or today["opened"] else ""))
             clear(self.week_box)
             for day, bar, text in week_lines(data["week"]):

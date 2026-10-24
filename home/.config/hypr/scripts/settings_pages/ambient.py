@@ -28,7 +28,7 @@ from gi.repository import GLib, Gtk  # noqa: E402,F401
 
 import os  # noqa: E402
 
-PAGE = {"id": "ambient", "title": "Ambient", "icon": "\uf185", "group": "Look", "order": 20,
+PAGE = {"id": "ambient", "title": "Ambient", "icon": "\uf185", "group": "Look", "order": 20, "parent": "theme", "tab": "Ambient",
         "keywords": ["ambience", "ambiente", "mood", "weather", "time of day", "soundscape", "rain sound",
                      "brown noise", "white noise", "cafe", "focus music", "smart lights", "philips hue", "hue",
                      "home assistant", "luces", "lights", "scene", "warm", "calm animations",
@@ -39,22 +39,20 @@ SETTINGS = os.path.join(HYPR, "settings.py")
 
 LOOK = [
     ("wallpaper", "\uf03e", "Veil the wallpaper",
-     "a few % of warm colour in the evening, darker at night, a cool grey on a grey day, darker in a "
-     "focus block -- not over a moving wallpaper, which follows the light itself"),
+     "warm in the evening, darker at night and in focus, grey on grey days"),
     ("accent", "\uf53f", "Warm the accent",
-     "the bar, notifications and the window border a few degrees towards amber at night, towards blue "
-     "in a focus block"),
+     "amber at night, bluer in a focus block"),
     ("nightlight", "\uf186", "Night light strength",
-     "warmer late at night, a little cooler in a focus block (the schedule's; SUPER+N stays yours)"),
-    ("animations", "\uf1ce", "Calmer animations", "slower, gentler moves -- back to your preset afterwards"),
+     "warmer late at night, cooler in a focus block"),
+    ("animations", "\uf1ce", "Calmer animations", "slower, gentler moves, then back to your preset"),
 ]
 SOUND = [
     ("notify", "\uf0f3", "Quieter notification sounds", "in a focus block and at night"),
-    ("soundscape", "\uf001", "Soundscape", "rain, a cafe or brown noise, made on this PC, played softly"),
+    ("soundscape", "\uf001", "Soundscape", "rain, a cafe or brown noise, played softly"),
 ]
 MORE = [
     ("dnd_focus", "\uf140", "Do Not Disturb counts as focus", "not only a focus block"),
-    ("away_lock", "\uf023", "A locked screen counts as away", "besides Presence saying you have gone"),
+    ("away_lock", "\uf023", "A locked screen counts as away", "as well as Presence"),
 ]
 MOOD_NAMES = {"day": "Day", "relax": "Evening", "focus": "Focus", "night": "Night", "away": "Away"}
 STRENGTH = [("subtle", "Subtle"), ("medium", "Noticeable")]
@@ -72,10 +70,9 @@ def status_text(data):
     s, plan = data.get("settings") or {}, data.get("plan") or {}
     mood = MOOD_NAMES.get(plan.get("mood"), plan.get("mood", "?"))
     if s.get("enabled") != "on":
-        return (f"Off. Right now it would be \"{mood}\" ({plan.get('why', '')}). Everything stays on this PC; "
-                "smart lights only on your own network.")
+        return f"Off  ·  now it would be {mood}"
     if data.get("service") != "active":
-        return f"On, but the service is {data.get('service') or 'not running'} (journalctl --user -u ambient)."
+        return "On, but not running"
     held = " -- held: gamemode" if (data.get("inputs") or {}).get("gamemode") else ""
     return f"{mood}: {plan.get('why', '')}{held}"
 
@@ -84,14 +81,14 @@ def lights_text(data):
     s, paired = data.get("settings") or {}, data.get("paired") or {}
     if s.get("lights") == "hue":
         if not s.get("hue_bridge"):
-            return "No bridge yet: Find on my network, or type its address."
+            return "No bridge yet: find it or type its address"
         return f"Bridge {s['hue_bridge']}: " + ("paired" if paired.get("hue") else
-                                                 "not paired -- press its round button, then Pair")
+                                                 "not paired: press its button, then Pair")
     if s.get("lights") == "ha":
         missing = [n for n, ok in (("the address", s.get("ha_url")), ("a token", paired.get("ha")),
                                    ("lights or scenes", s.get("ha_lights") or s.get("ha_scenes"))) if not ok]
-        return ("Needs " + ", ".join(missing) + ".") if missing else f"{s['ha_url']}: ready"
-    return "Off. The lights are never touched."
+        return ("Needs " + ", ".join(missing)) if missing else f"{s['ha_url']}: ready"
+    return "Off  ·  lights are never touched"
 
 
 def theme_items(themes):
@@ -114,8 +111,8 @@ class Page:
         w.pack_start(grid, False, False, 0)
         self.now = dp.label("", "ctl-sub")
         self.now.set_line_wrap(True)
-        w.pack_start(self.now, False, False, 0)
-        w.pack_start(dp.label("Preview a mood (a dry run: nothing changes)", "ctl-sub"), False, False, 0)
+        w.pack_start(details(self.now, label="What it is doing now"), False, False, 0)
+        w.pack_start(dp.label("Preview a mood (changes nothing)", "ctl-sub"), False, False, 0)
         self.preview = Chips(self.show_preview, mark=False)
         w.pack_start(self.preview.widget, False, False, 0)
         self.preview_text = dp.label("", "ctl-sub")
@@ -142,8 +139,7 @@ class Page:
         # THEME
         w.pack_start(heading("THEME"), False, False, 0)
         self.add_switches([("theme", "\uf1fc", "Theme follows ambience",
-                            "the theme schedule's day / evening / night theme, and the one below in a "
-                            "focus block. Off: the theme is never switched by this")])
+                            "day / evening / night themes, and the one below in focus")])
         w.pack_start(dp.label("Theme for focus blocks", "ctl-sub"), False, False, 0)
         self.focus_theme = Chips(lambda k: self.run(AMBIENT, "set", "focus_theme", k))
         w.pack_start(self.focus_theme.widget, False, False, 0)
@@ -185,7 +181,7 @@ class Page:
                                link("Pair the Hue bridge", self.pair),
                                link("Test Home Assistant", lambda: self.run(AMBIENT, "lights", "ha", "test",
                                                                             ok="Home Assistant answered")),
-                               link("Try the focus scene (dry run)", self.try_scene)), False, False, 0)
+                               link("Try focus scene", self.try_scene)), False, False, 0)
         self.found = Chips(self.pick_found, mark=False)
         w.pack_start(self.found.widget, False, False, 0)
         self.groups = Chips(lambda k: self.run(AMBIENT, "set", "hue_group", k))
@@ -220,7 +216,7 @@ class Page:
             self.light_sliders[mood] = sl
             w.pack_start(sl.widget, False, False, 0)
         self.add_switches([("lights_away", "\uf0eb", "Lights off when you are away",
-                            "Presence (or a locked screen, below); they come back with the next mood")])
+                            "back on with the next mood")])
         w.pack_start(sep(), False, False, 0)
 
         # MORE
@@ -234,7 +230,7 @@ class Page:
                         "ctl-sub")
         note.set_line_wrap(True)
         note.set_max_width_chars(90)
-        w.pack_start(note, False, False, 0)
+        w.pack_start(details(note, label="What it reads"), False, False, 0)
         self.msg = dp.label("", "ctl-sub")
         self.msg.set_line_wrap(True)
         w.pack_start(self.msg, False, False, 0)
@@ -299,7 +295,7 @@ class Page:
             self.run(AMBIENT, "set", key, text, ok="saved")
 
     def discover(self):
-        self.msg.set_text("Looking on your network (mDNS and SSDP, a few seconds)...")
+        self.msg.set_text("Looking on your network...")
 
         def work():
             return run_json(AMBIENT, "lights", "discover", "--json", timeout=30) or {}
@@ -309,7 +305,7 @@ class Page:
                 [(f"ha:{h['url']}", f"Home Assistant: {h['name']}") for h in found.get("ha", [])]
             self.found.set(items, None)
             self.msg.set_text("Found: pick one." if items else
-                              "Nothing found. Type the address instead (the router's list of devices has it).")
+                              "Nothing found: type the address instead")
             self.widget.show_all()
         background(work, done)
 
@@ -345,7 +341,7 @@ class Page:
 
     def draw(self, data):
         if not data:
-            self.msg.set_text("ambient.py did not answer (run it in a terminal to see why)")
+            self.msg.set_text("Ambient did not answer")
             return
         self.data = data
         self.updating = True
@@ -373,8 +369,7 @@ class Page:
             made = [k for k, v in (data.get("sounds") or {}).items() if v]
             self.sound_sub.set_text(
                 "Needs ffmpeg and mpv." if not (tools.get("ffmpeg") and tools.get("mpv")) else
-                f"Made: {', '.join(made)}." if made else "The sounds are made the first time they play (ffmpeg, "
-                                                         "a few seconds; ~1 MB each).")
+                f"Made: {', '.join(made)}" if made else "Sounds are made the first time they play")
             self.provider.set(PROVIDERS, s["lights"])
             self.lights_sub.set_text(lights_text(data))
             kind = s["lights"]

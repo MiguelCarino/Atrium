@@ -22,7 +22,7 @@ from gi.repository import GLib, Gtk  # noqa: E402,F401
 
 import os  # noqa: E402
 
-PAGE = {"id": "layout", "title": "Window layout", "icon": "", "group": "Apps", "order": 16,
+PAGE = {"id": "layout", "title": "Window layout", "icon": "", "group": "Look", "order": 16, "parent": "windows", "tab": "Layout",
         "keywords": ["smart layout", "window placement", "remember where windows go", "auto place",
                      "learn", "arrange", "side by side", "pairs", "workspace per app", "app workspace",
                      "colocar ventanas", "diseño de ventanas"]}
@@ -30,11 +30,9 @@ PAGE = {"id": "layout", "title": "Window layout", "icon": "", "group": "Apps"
 SMARTLAYOUT = os.path.join(HYPR, "smartlayout.py")
 MODES = [("off", "Off"), ("learn", "Learn only"), ("on", "Learn and place")]
 MODE_TEXT = {
-    "off": "Nothing is watched and nothing is moved. What was learned stays until you forget it.",
-    "learn": "Watching where you put each app (a place counts after it stays {stay} s). Nothing is moved: "
-             "turn on \"Learn and place\" when the list below looks right.",
-    "on": "When an app's first window opens, it goes where you usually put it -- once a place has "
-          "{n} votes and {conf} % of them. Move it right away and that counts against the place.",
+    "off": "Off  ·  what was learned is kept",
+    "learn": "Learning where you put apps; nothing is moved yet",
+    "on": "New windows go to their usual place ({n}+ times, {conf} %)",
 }
 EVIDENCE = [("2", "2"), ("3", "3"), ("5", "5"), ("8", "8"), ("12", "12")]
 ICON_GRID, ICON_LOCK, ICON_PAIR, ICON_EYE = "", "", "", ""
@@ -81,14 +79,14 @@ class Page:
         self.mode = Chips(lambda key: self.run("set", "mode", key))
         w.pack_start(self.mode.widget, False, False, 0)
         grid, _ = row(ICON_EYE, "Times before a place is used",
-                      "how many windows of an app must have stayed there (30 s or more)")
+                      "Windows that stayed there 30 s or more")
         w.pack_start(grid, False, False, 0)
         self.evidence = Chips(lambda key: self.run("set", "evidence", key))
         w.pack_start(self.evidence.widget, False, False, 0)
         self.follow = Gtk.Switch()
         self.follow.connect("state-set", lambda _s, state: self.toggle_follow(state))
         grid, _ = row("", "Go along with a window it moves",
-                      "on: an app you just opened takes you to its workspace; off: it goes there quietly",
+                      "Switch to the workspace an app was placed on",
                       self.follow)
         w.pack_start(grid, False, False, 0)
         w.pack_start(sep(), False, False, 0)
@@ -99,9 +97,7 @@ class Page:
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("SIDE BY SIDE"), False, False, 0)
-        note = dp.label("Apps you keep next to each other on one workspace. SUPER+CTRL+R arranges the focused "
-                        "workspace as usual: the partner of an app there is brought over (if it is open) and "
-                        "the two go on their usual sides. Nothing is ever started for you.", "ctl-sub")
+        note = dp.label("Apps you keep together. SUPER+CTRL+R arranges them as usual.", "ctl-sub")
         note.set_line_wrap(True)
         note.set_max_width_chars(90)
         w.pack_start(note, False, False, 0)
@@ -113,7 +109,12 @@ class Page:
                            "private in Settings > Privacy are never learned.", "ctl-sub")
         privacy.set_line_wrap(True)
         privacy.set_max_width_chars(90)
-        w.pack_start(privacy, False, False, 0)
+        how = dp.label("SUPER+CTRL+R brings an app's partner over if it is open and puts the two on their usual "
+                       "sides; nothing is ever started for you. A placed window you move right away counts "
+                       "against its place.", "ctl-sub")
+        how.set_line_wrap(True)
+        how.set_max_width_chars(90)
+        w.pack_start(details(privacy, how, label="Privacy and details"), False, False, 0)
         self.forget_all = Gtk.Box(spacing=6)
         self.forget_all.set_halign(Gtk.Align.END)
         w.pack_start(self.forget_all, False, False, 0)
@@ -155,7 +156,7 @@ class Page:
     # -- drawing --------------------------------------------------------------------------
     def draw(self, data):
         if not data:
-            self.msg.set_text("smartlayout.py did not answer (run it in a terminal to see why)")
+            self.msg.set_text("Smart layout did not answer")
             return
         self.updating = True
         s = data["settings"]
@@ -171,8 +172,7 @@ class Page:
         for app in data.get("apps") or []:
             self.rows.pack_start(self.app_row(app, s["evidence"]), False, False, 0)
         if not data.get("apps"):
-            self.rows.pack_start(dp.label("Nothing learned yet: use your apps as usual. A place counts once a "
-                                          "window has stayed there half a minute.", "ctl-sub"), False, False, 0)
+            self.rows.pack_start(dp.label("Nothing learned yet  ·  use your apps as usual", "ctl-sub"), False, False, 0)
         clear(self.pairs)
         for pair in data.get("pairs") or []:
             grid, _ = row(ICON_PAIR, f"{pair['a']} + {pair['b']}", pair_sub(pair),

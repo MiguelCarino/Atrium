@@ -11,8 +11,8 @@ Top to bottom:
                     a notification when a command succeeds (notify_ok), heavy
                     work waits for gamemode to end (gamemode_pause), web checks
                     allowed (web) and how often at most (url_min_minutes)
-    YOUR TASKS      each task in words, its status and last run, what it may
-                    touch (its permissions), what needs you; Run, Stop (a
+    YOUR TASKS      each task in words, its status and last run, what needs
+                    you, what it may touch (its permissions, in a fold); Run, Stop (a
                     running command), Log (its own log, inline), a switch
                     (pause / resume), Delete (asks first). A tidy plan waiting
                     is listed with Approve / Discard; Undo puts the last
@@ -26,7 +26,8 @@ Top to bottom:
                     to type a command for watch-command.
 
 Every control runs tasks.py in a thread and redraws from what it reports
-(list --json); tasks.json stays the one place the tasks are.
+(list --json); tasks.json stays the one place the tasks are (its path and
+Open button are in the Details fold up top).
 """
 import json
 import os
@@ -36,7 +37,7 @@ import time
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 from gi.repository import GLib, Gtk, Pango  # noqa: F401,E402  (after common: it picks GTK 3)
 
-PAGE = {"id": "tasks", "title": "Background tasks", "icon": "\uf0ae", "group": "System", "order": 66,
+PAGE = {"id": "tasks", "title": "Background tasks", "icon": "\uf0ae", "group": "System", "order": 66, "parent": "startup", "tab": "Background tasks",
         "keywords": ["tasks", "agents", "background", "jobs", "watch build", "build failed", "log",
                      "price", "price drop", "web page", "tidy", "downloads", "organise", "organize",
                      "summarise", "summary", "monitor", "unit", "tareas", "agentes", "vigilar"]}
@@ -55,12 +56,10 @@ KIND_WORDS = {"watch-command": "Run a command and tell me if it fails",
               "organise-folder": "Tidy a folder (a plan you approve first)",
               "summarise-folder": "Sum up a folder of logs"}
 OPTIONS = [("explain", "Explain with the local model",
-            "The worker model reads the last lines of a failure and says why, and sums up folders. "
-            "Off: the plain error lines and counts."),
-           ("notify_ok", "Tell me when a command succeeds", "A watched command that ends well says so too."),
-           ("gamemode_pause", "Wait for gamemode to end",
-            "Heavy scheduled work (a command, a summary, a tidy plan) waits while a game runs."),
-           ("web", "Web checks", "watch-url tasks may fetch their page.")]
+            "Says why a job failed and sums up folders."),
+           ("notify_ok", "Tell me when a command succeeds", "Not only when it fails."),
+           ("gamemode_pause", "Wait for gamemode to end", "Heavy work waits while a game runs."),
+           ("web", "Web checks", "Tasks may fetch the web pages they watch.")]
 URL_MINUTES = [(5, "5 min"), (15, "15 min"), (30, "30 min"), (60, "1 hour")]
 
 
@@ -87,9 +86,12 @@ def task_sub(t, now=None):
         bits.append(when_text(t.get("last_run"), now))
     if t.get("last_summary"):
         bits.append(t["last_summary"])
-    text = f"{first}\n" + "  ·  ".join(bits)
-    text += "\nMay: " + "; ".join(t["permissions"])
-    return text
+    return f"{first}\n" + "  ·  ".join(bits)
+
+
+def task_may(t):
+    """What a task may touch (its permissions), for the fold under its row."""
+    return "May: " + "; ".join(t["permissions"])
 
 
 def hand_task(kind, values, schedule, name):
@@ -147,8 +149,10 @@ class Page:
         w.pack_start(self.summary, False, False, 0)
         self.service_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         w.pack_start(self.service_box, False, False, 0)
-        w.pack_start(links_row(link("Open tasks.json", lambda: spawn("xdg-open", TASKS_FILE)),  # noqa: F405
-                               link("Check again", self.refresh)), False, False, 0)  # noqa: F405
+        w.pack_start(links_row(link("Check again", self.refresh)), False, False, 0)  # noqa: F405
+        self.file_note = wrapped("")
+        w.pack_start(details(self.file_note, links_row(  # noqa: F405
+            link("Open tasks.json", lambda: spawn("xdg-open", TASKS_FILE)))), False, False, 0)  # noqa: F405
         w.pack_start(sep(), False, False, 0)  # noqa: F405
 
         # -- options ------------------------------------------------------------------
@@ -167,9 +171,7 @@ class Page:
 
         # -- the tasks ----------------------------------------------------------------
         w.pack_start(heading("YOUR TASKS"), False, False, 0)  # noqa: F405
-        w.pack_start(wrapped("Each one does only what its type allows and touches only what it lists under "
-                             "“May”. Nothing it runs comes from a model: a command is one you typed. "
-                             "SUPER+ALT+W in a terminal: tell me when the job running there ends."),
+        w.pack_start(wrapped("Each touches only what it may. SUPER+ALT+W in a terminal: watch the job there."),
                      False, False, 0)
         self.tasks_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         w.pack_start(self.tasks_box, False, False, 0)
@@ -177,10 +179,8 @@ class Page:
 
         # -- plain words --------------------------------------------------------------
         w.pack_start(heading("IN PLAIN WORDS"), False, False, 0)  # noqa: F405
-        w.pack_start(wrapped("Say what to watch or do; the local model (Settings > AI & models, the quick one) "
-                             "writes the task and you see it, with what it may touch, before anything is "
-                             "saved. A command or web address is kept only when it is in your sentence, "
-                             "exactly. Nothing leaves this computer."), False, False, 0)
+        w.pack_start(wrapped("Describe it; the local model drafts a task for you to check and save."),
+                     False, False, 0)
         words = Gtk.Box(spacing=8)
         self.text = Gtk.Entry()
         self.text.set_placeholder_text("check https://… every hour and tell me if the price drops")
@@ -239,7 +239,8 @@ class Page:
             self.kind.set_active_id("watch-command")
         if not data:
             clear(self.tasks_box)  # noqa: F405
-            self.summary_sub.set_text(f"tasks.py did not answer -- try it in a terminal: {TASKS} list")
+            self.summary_sub.set_text("Could not read the tasks")
+            self.file_note.set_text(f"Try it in a terminal: {TASKS} list")
             self.widget.show_all()
             return
         self.updating = True
@@ -259,12 +260,12 @@ class Page:
         self.summary_sub.set_text(
             (f"{len(tasks)} task{'s' if len(tasks) != 1 else ''}" + (f", {need} need you" if need else "")
              if conf["enabled"] else "Off: nothing runs, nothing is watched")
-            + ("  ·  gamemode: heavy work waits" if data.get("gamemode") and conf["gamemode_pause"] else "")
-            + f"\n{data['file']}")
+            + ("  ·  gamemode: heavy work waits" if data.get("gamemode") and conf["gamemode_pause"] else ""))
+        self.file_note.set_text(data["file"])
         clear(self.service_box)  # noqa: F405
         if active != "active":
             grid, _ = row(WARN, "Not running: no task runs",  # noqa: F405
-                          f"tasks.service is {active or 'unknown'}.",
+                          f"The service is {active or 'unknown'}.",
                           link("Start it", lambda: self.act("service", "systemctl", "--user", "enable", "--now",  # noqa: F405
                                                             "tasks.service")))
             self.service_box.pack_start(grid, False, False, 0)
@@ -277,7 +278,7 @@ class Page:
             self.tasks_box.pack_start(self.task_row(t, now), False, False, 0)
         for b in data.get("broken", []):
             grid, _ = row(WARN, f"Not used: {b['task']}", "; ".join(b["problems"]) +  # noqa: F405
-                          "\nFix it in tasks.json (Open, above).")
+                          "\nFix it in tasks.json (Details, above).")
             self.tasks_box.pack_start(grid, False, False, 0)
         self.widget.show_all()
 
@@ -306,6 +307,7 @@ class Page:
         icon = WARN if t.get("attention") else PAUSE if not t["enabled"] else TYPE_ICONS.get(t["type"], GEAR)
         grid, _ = row(icon, t["name"], task_sub(t, now), right)  # noqa: F405
         box.pack_start(grid, False, False, 0)
+        box.pack_start(details(wrapped(task_may(t)), label="What it may do"), False, False, 0)  # noqa: F405
 
         extra = []
         att = t.get("attention")
@@ -316,7 +318,7 @@ class Page:
             lines = "\n".join(f"{m['from']}  →  {m['to']}" for m in moves[:12])
             more = f"\n… and {len(moves) - 12} more" if len(moves) > 12 else ""
             extra.append((f"A tidy plan waits for your OK: {len(moves)} move{'s' if len(moves) != 1 else ''} "
-                          "(nothing is deleted or overwritten; Undo puts them back)",
+                          "(nothing deleted; Undo puts them back)",
                           [("Approve", lambda: self.act(tid, TASKS, "approve", tid)),  # noqa: F405
                            ("Discard", lambda: self.act(tid, TASKS, "discard", tid))]))  # noqa: F405
             extra.append((None, lines + more))
@@ -397,7 +399,7 @@ class Page:
         text = self.text.get_text().strip()
         if not text:
             return
-        self.show_preview(None, "asking the local model… (a first answer can take half a minute while it loads)")
+        self.show_preview(None, "asking the local model… (the first answer can take ~30 s)")
 
         def work():
             ok, out = call(TASKS, "add-from-text", "--json", text, timeout=300)

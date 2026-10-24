@@ -29,6 +29,10 @@ The look comes from the panels' stylesheet (waybar/panel.css and the
 desktop theme), so use its classes: kb-heading, ctl-row / ctl-title /
 ctl-sub / ctl-icon / ctl-value, ctl-link, dev-pick (+ .active), ctl-slider,
 ctl-sep -- the helpers below do.
+
+Keep a page short: a row's sub line says in a few words what it does or what
+it is set to now (not how it works); anything technical -- paths, services,
+commands, explanations -- goes in a details() fold at the end of its section.
 """
 import json
 import os
@@ -124,6 +128,21 @@ def row(icon, title, sub="", widget=None):
         widget.set_valign(Gtk.Align.CENTER)
         grid.attach(widget, 2, 0, 1, 2)
     return grid, sub_label
+
+
+def details(*widgets, label="Details"):
+    """A closed fold for what most people never need on a page -- file paths,
+    service names, how it works, maintenance buttons -- so the page itself
+    stays short. Returns the Gtk.Expander; pack it where the details belong
+    and add more with expander.box.pack_start(...)."""
+    fold = Gtk.Expander(label=label)
+    fold.get_style_context().add_class("ctl-details")
+    fold.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+    fold.box.set_margin_top(4)
+    for widget in widgets:
+        fold.box.pack_start(widget, False, False, 0)
+    fold.add(fold.box)
+    return fold
 
 
 def links_row(*buttons):

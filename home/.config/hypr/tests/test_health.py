@@ -696,12 +696,17 @@ class Page(unittest.TestCase):
         self.assertIn("No checkup", p.report_summary({}, ""))
         s = {"findings": 3, "problems": 1, "fixed": 1, "proposed": 1, "noise": 4}
         self.assertEqual(p.report_summary({"summary": s}, "Checked now"),
-                         "Checked now: 1 problem, 1 fixed, 1 fix to approve (3 findings). "
-                         "4 harmless known lines left out.")
+                         "Checked now: 1 problem, 1 fixed, 1 fix to approve (3 findings, "
+                         "4 harmless lines hidden).")
         sub = p.finding_sub({"words": "w", "by": "gemma, local",
                              "remedy": {"status": "proposed", "note": "camera"}})
-        self.assertIn("(gemma, local)", sub)
+        self.assertNotIn("(gemma, local)", sub)               # who wrote it is in the fold
         self.assertIn("camera", sub)
+        long = {"words": "First one. " + "More words. " * 10, "by": "gemma, local"}
+        self.assertEqual(p.finding_sub(long), "First one.")
+        self.assertIn("More words.", p.finding_more(long))
+        self.assertIn("(gemma, local)", p.finding_more(long))
+        self.assertEqual(p.finding_more({"words": "short", "by": "catalog"}), "")
         self.assertEqual(p.toggled("units,repos", "health", True, ["repos", "units", "health"]),
                          "repos,units,health")
 

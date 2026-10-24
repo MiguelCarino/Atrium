@@ -34,7 +34,7 @@ from datetime import datetime  # noqa: E402
 
 import region as rg  # noqa: E402  (scripts/region.py: its pure helpers, for the live examples)
 
-PAGE = {"id": "region", "title": "Date, time & region", "icon": "", "group": "System", "order": 50,
+PAGE = {"id": "region", "title": "Date & region", "icon": "", "group": "System", "order": 50,
         "keywords": ["date", "fecha", "time", "hora", "clock", "reloj", "time zone", "timezone", "ntp",
                      "network time", "12 hour", "24 hour", "am pm", "seconds", "date format", "calendar",
                      "first day of week", "weather", "units", "metric", "imperial", "celsius", "fahrenheit",
@@ -75,13 +75,12 @@ class Page:
         self.suggest_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         w.pack_start(self.suggest_box, False, False, 0)
         self.search = Gtk.SearchEntry()
-        self.search.set_placeholder_text("Search time zones: a city or a region, e.g. madrid, tokyo, pacific")
+        self.search.set_placeholder_text("Search time zones: a city or a region")
         self.search.connect("search-changed", lambda _e: self.show_matches())
         w.pack_start(self.search, False, False, 0)
         self.matches = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         w.pack_start(self.matches, False, False, 0)
-        self.zone_msg = wrapped("Setting a time zone asks for your password (polkit): it changes the "
-                                "system's clock for every program and the logs, not just the bar.")
+        self.zone_msg = wrapped("Setting a time zone asks for your password; it applies system-wide.")
         w.pack_start(self.zone_msg, False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
@@ -93,6 +92,9 @@ class Page:
         w.pack_start(self.ntp_row, False, False, 0)
         self.rtc_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         w.pack_start(self.rtc_box, False, False, 0)
+        self.ntp_more = wrapped("")
+        self.ntp_more.set_selectable(True)
+        w.pack_start(details(self.ntp_more), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         # -- the bar's clock ------------------------------------------------
@@ -113,8 +115,7 @@ class Page:
         w.pack_start(dp.label("Weeks start on", "ctl-sub"), False, False, 0)
         self.week_chips = Chips(lambda v: self.set_pref("week", v))
         w.pack_start(self.week_chips.widget, False, False, 0)
-        w.pack_start(wrapped("The calendar panel opens from the date in the bar; its footer's week number "
-                             "stays the ISO one (Monday-based)."), False, False, 0)
+        w.pack_start(wrapped("Opens from the date in the bar; week numbers stay ISO."), False, False, 0)
         w.pack_start(links_row(link("Open the calendar", lambda: spawn(PANEL, "toggle", "calendar"))),
                      False, False, 0)
         w.pack_start(sep(), False, False, 0)
@@ -123,7 +124,7 @@ class Page:
         w.pack_start(heading("WEATHER"), False, False, 0)
         place = Gtk.Box(spacing=8)
         self.place = Gtk.Entry()
-        self.place.set_placeholder_text("a city, an airport code, ~a landmark or lat,lon; empty = by internet address")
+        self.place.set_placeholder_text("a city, airport code, ~landmark or lat,lon; empty = by IP address")
         self.place.set_hexpand(True)
         self.place.connect("activate", lambda _e: self.save_place())
         place.pack_start(self.place, True, True, 0)
@@ -150,6 +151,8 @@ class Page:
         self.alerts_actions = links_row()
         w.pack_start(self.alerts_actions, False, False, 0)
         self.alerts_links()
+        self.alerts_more = wrapped("")
+        w.pack_start(details(self.alerts_more), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         # -- language -------------------------------------------------------
@@ -158,8 +161,11 @@ class Page:
         w.pack_start(self.lang_row, False, False, 0)
         self.locale_row, self.locale_sub = row("", "…", "")
         w.pack_start(self.locale_row, False, False, 0)
+        self.lang_more = wrapped("")
+        self.lang_more.set_selectable(True)
         self.conf_note = wrapped("")
-        w.pack_start(self.conf_note, False, False, 0)
+        self.conf_note.set_selectable(True)
+        w.pack_start(details(self.lang_more, self.conf_note), False, False, 0)
 
     # -- reading ------------------------------------------------------------------
     def refresh(self):
@@ -183,7 +189,7 @@ class Page:
         title = self.zone_row.get_child_at(1, 0)
         title.set_text(st["timezone"].replace("_", " "))
         now = datetime.fromisoformat(st["now"])
-        sub = f"{st['abbrev']}  ·  {st['offset']}  ·  now {st['date_now']}, {st['clock_now']}"
+        sub = f"{st['abbrev']}  ·  {st['offset']}"
         change = st.get("next_change")
         if change:
             when = datetime.fromisoformat(change["local"])
@@ -191,7 +197,7 @@ class Page:
                     f"{rg.time_text(when, dict(p, seconds='off'))} "
                     f"to {change['offset']}")
         else:
-            sub += "  ·  no summer time: the offset stays the same all year"
+            sub += "  ·  no summer time"
         self.zone_sub.set_text(sub)
         clear(self.suggest_box)
         guess = st.get("suggested_zone")
@@ -208,29 +214,29 @@ class Page:
         if not st.get("can_ntp", True):
             self.ntp_sub.set_text("no time service installed (chrony or systemd-timesyncd)")
         elif not st["ntp"]:
-            self.ntp_sub.set_text("off: the clock runs on its own and drifts. Turning it on asks for your "
-                                  "password (polkit).")
+            self.ntp_sub.set_text("off: the clock drifts; turning it on asks for your password")
         else:
             sync = st.get("sync") or {}
             text = "synchronised" if st["ntp_synced"] else "on, not synchronised yet (no server reached)"
-            if sync.get("server"):
-                text += f" with {sync['server']}"
-            if sync.get("stratum"):
-                text += f" (stratum {sync['stratum']})"
             if "offset_s" in sync:
                 off = sync["offset_s"]
-                text += f"  ·  this clock is {self.duration(abs(off))} {'ahead' if off > 0 else 'behind'}"
-            self.ntp_sub.set_text(text + "  ·  by chronyd, the system's time service")
+                text += f"  ·  {self.duration(abs(off))} {'ahead' if off > 0 else 'behind'}"
+            self.ntp_sub.set_text(text)
+        sync = st.get("sync") or {}
+        more = "Kept by chronyd, the system's time service."
+        if sync.get("server"):
+            more += f" Server: {sync['server']}" + (f" (stratum {sync['stratum']})." if sync.get("stratum") else ".")
         if self.ntp_error:          # the polkit dialog cancelled, timedatectl refused...
             self.ntp_sub.set_text(f"Not changed: {self.ntp_error}")
             self.ntp_error = ""
         clear(self.rtc_box)
         if st.get("local_rtc"):
             self.rtc_box.pack_start(wrapped(
-                "! The hardware clock keeps local time (what Windows does on a dual boot). Linux expects UTC: "
-                "summer-time changes and a second system can shift the clock by hours. `timedatectl "
-                "set-local-rtc 0` in a terminal switches it (asks for the password); Windows then needs "
-                "RealTimeIsUniversal=1 in its registry."), False, False, 0)
+                "! The hardware clock keeps local time (as Windows does); Linux expects UTC."), False, False, 0)
+            more += ("\nThe hardware clock: summer-time changes and a second system can shift the clock by "
+                     "hours. `timedatectl set-local-rtc 0` in a terminal switches it to UTC (asks for the "
+                     "password); Windows then needs RealTimeIsUniversal=1 in its registry.")
+        self.ntp_more.set_text(more)
         self.rtc_box.show_all()
 
         # the bar's clock -- the captions are the real look, from region.py's own formatter
@@ -238,9 +244,9 @@ class Page:
                               ("12", f"12-hour  ({rg.time_text(now, dict(p, clock='12'))})")], p["clock"])
         set_chips(self.seconds_chips, [("on", "Show"), ("off", "Hide")], p["seconds"])
         set_chips(self.date_chips, [(key, rg.date_text(now, {"date": key})) for key in rg.CHOICES["date"]], p["date"])
-        note = "Click the time in the bar to cycle local → UTC → epoch; the date opens the calendar."
+        note = "Click the time in the bar to cycle local → UTC → epoch."
         if st.get("lang") == "ja":
-            note += " This theme speaks Japanese, so the bar writes the date as 10月20日 (火) whatever is picked here."
+            note += " A Japanese theme always writes 10月20日 (火)."
         self.clock_note.set_text(note)
 
         # calendar
@@ -252,33 +258,31 @@ class Page:
         area = st.get("weather_area")
         place = p["weather"] or "wherever your internet address says you are"
         if area:
-            self.place_sub.set_text(f"wttr.in reads \"{place}\" as {area}. The pill refreshes every 30 minutes; "
-                                    "a new place is fetched right away.")
+            self.place_sub.set_text(f"\"{place}\" is {area}  ·  refreshed every 30 min")
         else:
-            self.place_sub.set_text(f"\"{place}\": not fetched yet -- the pill asks wttr.in on its next run "
-                                    "(right away after Save). If it shows the wrong town, add the country: "
-                                    "\"Paris, France\".")
+            self.place_sub.set_text(f"\"{place}\": not fetched yet  ·  wrong town? add the country")
         ap = st.get("alerts_place") or {}
         here = (f"{ap['lat']}, {ap['lon']}" + (f" ({ap['country']})" if ap.get("country") else "")
                 if ap.get("lat") and ap.get("lon") else "not set")
         wp = st.get("weather_place")
-        self.alerts_sub.set_text(
-            f"Now {here}. Earthquake, tsunami and severe-weather alerts use their own place, kept by the "
-            "Alerts page. " + (f"Use my weather place sets it to {wp['area']} ({wp['lat']:g}, {wp['lon']:g})."
-                               if wp else "Use my weather place works once the weather pill has fetched "
-                               "its place.") + (f"\n{self.alerts_note}" if self.alerts_note else ""))
+        self.alerts_sub.set_text(f"now {here}" + (f"\n{self.alerts_note}" if self.alerts_note else ""))
+        self.alerts_more.set_text(
+            "Earthquake, tsunami and severe-weather alerts use their own place, kept by the Alerts page. "
+            + (f"Use my weather place sets it to {wp['area']} ({wp['lat']:g}, {wp['lon']:g})."
+               if wp else "Use my weather place works once the weather pill has fetched its place."))
         set_chips(self.units_chips, [("metric", "Metric  (°C, km/h)"), ("imperial", "Imperial  (°F, mph)")], p["units"])
 
         # language
         lang = {"en": "English", "ja": "Japanese (日本語)"}.get(st.get("lang"), st.get("lang") or "?")
         self.lang_row.get_child_at(1, 0).set_text(f"Desktop: {lang}")
-        self.lang_sub.set_text(f"The desktop's own words -- the bar's date, the workspace numbers, the launcher's "
-                               f"prompt -- come from the theme ({st.get('theme') or '?'}: lang={st.get('lang')} in "
-                               "its theme.conf, en or ja). Pick another theme, or edit its lang=, to change them.")
+        self.lang_sub.set_text(f"set by the theme ({st.get('theme') or '?'})")
+        self.lang_more.set_text(
+            f"The desktop's own words -- the bar's date, the workspace numbers, the launcher's prompt -- come "
+            f"from the theme ({st.get('theme') or '?'}: lang={st.get('lang')} in its theme.conf, en or ja). Pick "
+            "another theme, or edit its lang=, to change them.\nApps: the system locale (localectl set-locale "
+            "LANG=…, asks for the password), from the next login.")
         self.locale_row.get_child_at(1, 0).set_text(f"Apps: {st.get('locale') or 'unknown'}")
-        self.locale_sub.set_text("The system locale: the language and formats apps use. It is the system's "
-                                 "(localectl set-locale LANG=…, asks for the password) and applies from the "
-                                 "next login.")
+        self.locale_sub.set_text("the language and formats apps use")
         self.conf_note.set_text(f"These bar preferences live in {st.get('conf')} (region.py's docstring "
                                 "lists them), so they survive a reload and a new login.")
         self.widget.show_all()

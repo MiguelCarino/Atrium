@@ -789,6 +789,7 @@ class Item:
         self.name, self.sub = name, sub
         self.icon, self.glyph, self._run = icon, glyph, run
         self.alt = alt          # Shift+Enter, where there is a second action
+        self.row = False        # drawn as a full-width row, not a tile (clipboard text)
         self.key = "item:" + name   # what a pick of it is learned as (learned_order)
         self.lname = name.lower()
         self.extra = (sub + " " + extra).lower()
@@ -1443,8 +1444,11 @@ def clip_items(rows, text):
     if len(text.strip()) < 3 or not words:
         return []       # one letter is in every entry
     hits = [(line, preview) for line, preview in rows if all(w in preview.lower() for w in words)]
-    return [Item(preview[:80], f"clipboard history   --   Enter copies it ({len(preview)} characters)",
-                 "edit-paste", lambda l=line: clip_copy(l)) for line, preview in hits[:CLIP_LIMIT]]
+    items = [Item(preview[:300], f"clipboard history   --   Enter copies it ({len(preview)} characters)",
+                  "edit-paste", lambda l=line: clip_copy(l)) for line, preview in hits[:CLIP_LIMIT]]
+    for item in items:
+        item.row = True
+    return items
 
 
 def inline_emoji(text):
@@ -4714,21 +4718,17 @@ class Launcher(Gtk.Window):
         self.empty.set_no_show_all(True)
         card.pack_start(self.empty, False, False, 0)
 
-        # Tiles: everything else.
-        self.grid = Gtk.FlowBox()
-        self.grid.set_name("tiles")
-        self.grid.set_min_children_per_line(COLUMNS)
-        self.grid.set_max_children_per_line(COLUMNS)
-        self.grid.set_homogeneous(True)
-        self.grid.set_selection_mode(Gtk.SelectionMode.NONE)
-        self.grid.set_valign(Gtk.Align.START)
-        self.grid.set_can_focus(False)
+        # Everything else, in order: runs of tiles, and full-width rows for
+        # the results that read better as a line (clipboard text).
+        self.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.list.set_name("tiles")
+        self.list.set_valign(Gtk.Align.START)
         scroll = Gtk.ScrolledWindow()
         scroll.set_name("tiles-scroll")
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.set_overlay_scrolling(True)
         scroll.set_can_focus(False)
-        scroll.add(self.grid)
+        scroll.add(self.list)
         self.scroll = scroll
         card.pack_start(scroll, True, True, 0)
 
@@ -4988,15 +4988,74 @@ class Launcher(Gtk.Window):
             self.hero_answer.set_visible(answer)
             (self.hero_answer if answer else self.hero_name).set_text(top.name)
             self.hero_sub.set_text(top.subtitle())
-        for child in self.grid.get_children():
+        for child in self.list.get_children():
             child.destroy()
-        self.tiles = []
+        self.tiles, grid = [], None
         for index, app in enumerate(self.results[1:], start=1):
-            self.tiles.append(self.make_tile(app, index))
-        self.grid.show_all()
+            if getattr(app, "row", False):
+                grid = None
+                self.tiles.append(self.make_row(app, index))
+                continue
+            if grid is None:
+                grid = self.make_grid()
+            self.tiles.append(self.make_tile(app, index, grid))
+        self.list.show_all()
         self.paint_selection()
 
-    def make_tile(self, app, index):
+    def make_grid(self):
+        grid = Gtk.FlowBox()
+        grid.set_min_children_per_line(COLUMNS)
+        grid.set_max_children_per_line(COLUMNS)
+        grid.set_homogeneous(True)
+        grid.set_selection_mode(Gtk.SelectionMode.NONE)
+        grid.set_valign(Gtk.Align.START)
+        grid.set_can_focus(False)
+        self.list.pack_start(grid, False, False, 0)
+        return grid
+
+    def make_row(self, app, index):
+        box = Gtk.Box(spacing=12)
+        box.set_margin_start(14)
+        box.set_margin_end(14)
+        box.set_margin_top(7)
+        box.set_margin_bottom(7)
+        box.pack_start(app_icon(app, 20), False, False, 0)
+        name = styled(Gtk.Label(label=app.name, xalign=0), "clip-text")
+        name.set_ellipsize(Pango.EllipsizeMode.END)
+        name.set_single_line_mode(True)
+        box.pack_start(name, True, True, 0)
+        tile = styled(Gtk.EventBox(), "tile", "clip-row")
+        tile.add(box)
+        tile.set_tooltip_text(app.subtitle())
+        tile.connect("button-release-event", lambda *_: self.activate(index))
+        tile.connect("enter-notify-event", lambda *_: self.hover(index))
+        for side in ("start", "end", "top", "bottom"):
+            getattr(tile, f"set_margin_{side}")(4 if side in ("start", "end") else 3)
+        self.list.pack_start(tile, False, False, 0)
+        return tile
+
+    def where(self, index):
+        """(x, y, width, height) of a tile or row inside the list."""
+        tile = self.tiles[index - 1]
+        alloc = tile.get_allocation()
+        x, y = tile.translate_coordinates(self.list, 0, 0) or (alloc.x, alloc.y)
+        return x, y, alloc.width, alloc.height
+
+    def step(self, down):
+        """The tile or row straight above or below the selected one: on the
+        nearest line in that direction, the one closest across."""
+        x, y, w, h = self.where(self.selected)
+        middle = x + w / 2
+        best = None
+        for index in range(1, len(self.tiles) + 1):
+            ox, oy, ow, oh = self.where(index)
+            if (oy >= y + h) if down else (oy + oh <= y):
+                score = (abs(oy - y), abs(ox + ow / 2 - middle))
+                if best is None or score < best[0]:
+                    best = (score, index)
+        return best[1] if best else None
+
+    def make_tile(self, app, index, grid):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         box.set_halign(Gtk.Align.CENTER)
         box.set_valign(Gtk.Align.CENTER)
@@ -5016,25 +5075,25 @@ class Launcher(Gtk.Window):
         child = Gtk.FlowBoxChild()
         child.set_can_focus(False)
         child.add(tile)
-        self.grid.add(child)
-        return child
+        grid.add(child)
+        return tile
 
     def paint_selection(self):
         hero_style = self.hero.get_style_context()
         (hero_style.add_class if self.selected == 0 else hero_style.remove_class)("selected")
-        for index, child in enumerate(self.tiles, start=1):
-            style = child.get_child().get_style_context()
+        for index, tile in enumerate(self.tiles, start=1):
+            style = tile.get_style_context()
             (style.add_class if index == self.selected else style.remove_class)("selected")
         if self.selected:
-            self.scroll_to(self.tiles[self.selected - 1])
+            self.scroll_to(self.selected)
 
-    def scroll_to(self, child):
-        alloc = child.get_allocation()
+    def scroll_to(self, index):
+        _x, y, _w, height = self.where(index)
         adj = self.scroll.get_vadjustment()
-        if alloc.y < adj.get_value():
-            adj.set_value(alloc.y)
-        elif alloc.y + alloc.height > adj.get_value() + adj.get_page_size():
-            adj.set_value(alloc.y + alloc.height - adj.get_page_size())
+        if y < adj.get_value():
+            adj.set_value(y)
+        elif y + height > adj.get_value() + adj.get_page_size():
+            adj.set_value(y + height - adj.get_page_size())
 
     def hover(self, index):
         self.selected = index
@@ -5066,9 +5125,9 @@ class Launcher(Gtk.Window):
             return True
         sel = self.selected
         if key in (Gdk.KEY_Down, Gdk.KEY_KP_Down):
-            sel = 1 if sel == 0 else sel + COLUMNS
+            sel = 1 if sel == 0 else (self.step(True) or sel)
         elif key in (Gdk.KEY_Up, Gdk.KEY_KP_Up):
-            sel = 0 if sel <= COLUMNS else sel - COLUMNS
+            sel = 0 if sel == 0 else (self.step(False) or 0)
         elif key == Gdk.KEY_Right and sel > 0:
             sel += 1
         elif key == Gdk.KEY_Left and sel > 0:

@@ -21,7 +21,7 @@ read it (privacy_settings.py, which also explains where each setting lives).
     PRESENCE (WEBCAM)      presence.py on / off (OFF as shipped): may the camera
                            tell whether you are at the desk; its page has the rest
     IN USE RIGHT NOW       screen sharing, microphone, camera, location -- the
-                           bar's own indicators, and what each one means
+                           bar's own indicators (what each means is folded)
     YOUR LOCATION          what the weather and the emergency alerts are told,
                            with links to those pages
 
@@ -35,7 +35,7 @@ from gi.repository import GLib, Gtk  # noqa: F401
 
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 
-PAGE = {"id": "privacy", "title": "Privacy", "icon": "\uf505", "group": "Safety", "order": 20,
+PAGE = {"id": "privacy", "title": "Privacy", "icon": "\uf505", "group": "System", "order": 15,
         "keywords": ["privacidad", "activity history", "clipboard history", "cliphist", "recent files",
                      "recently used", "ask your desktop", "local model", "camera", "microphone in use",
                      "screen sharing", "location", "forget history", "search index", "search by meaning",
@@ -57,19 +57,17 @@ CLIP_CHOICES = [("50", "50"), ("100", "100"), ("500", "500"), ("1000", "1000")]
 AGE_CHOICES = [("1", "1 day"), ("7", "7 days"), ("30", "30 days"), ("-1", "Never")]
 SOURCE_ICON = {"files": "\uf15b", "clipboard": "\uf328", "activity": "\uf1da"}
 SOURCE_TEXT = {
-    "files": ("Files", "file names and dates under your home folder (no hidden folders), and the first "
-                       "lines of the top PDFs and text files"),
-    "clipboard": ("Clipboard", "the text entries of the clipboard history"),
-    "activity": ("Activity", "the activity history above: which app and window had the focus, and when"),
+    "files": ("Files", "file names, dates and first lines in your home folder"),
+    "clipboard": ("Clipboard", "the clipboard history's text"),
+    "activity": ("Activity", "the activity history above"),
 }
 # desktop-memory.py's sources (privacy.conf memory_<source>); its own page has the rest.
 MEMORY_TEXT = {
     "activity": ("", "Window titles over time", "from the activity history above"),
-    "clipboard": ("", "Copies", "new text copies; passwords, cards, keys and tokens never"),
-    "notifications": ("", "Notifications", "what mako showed; one-time codes never"),
-    "captions": ("", "Live captions", "the text of what live captions heard. Off as shipped"),
-    "screen": ("", "Screenshots + text", "the text on screen every few minutes and a small picture; "
-                                               "never of private windows, locked or in games. Off as shipped"),
+    "clipboard": ("", "Copies", "text you copy; never passwords or keys"),
+    "notifications": ("", "Notifications", "what was shown; never one-time codes"),
+    "captions": ("", "Live captions", "what live captions heard"),
+    "screen": ("", "Screenshots + text", "screen text every few minutes; never private windows"),
 }
 
 
@@ -95,20 +93,6 @@ def chips_line(chips):
     chips.widget.set_halign(Gtk.Align.START)
     chips.widget.set_margin_start(52)
     return chips.widget
-
-
-def since_text(epoch, now=None):
-    """'since 02:05 today' / 'since yesterday 23:10' / 'since Mon 14 Oct'."""
-    if not epoch:
-        return "nothing logged yet"
-    now = now or datetime.datetime.now()
-    then = datetime.datetime.fromtimestamp(epoch)
-    days = (now.date() - then.date()).days
-    if days == 0:
-        return f"since {then:%H:%M} today"
-    if days == 1:
-        return f"since yesterday {then:%H:%M}"
-    return f"since {then:%a %d %b}"
 
 
 def in_use_text(users, what):
@@ -141,11 +125,9 @@ def age_text(days):
 
 def presence_text(p):
     if not p.get("on"):
-        return ("off: nothing opens the camera. On, it looks once or twice a second (in memory, nothing "
-                "saved or sent) to lock when you leave and wake the screens when you are back")
+        return "off: nothing opens the camera"
     running = "running" if p.get("service") == "active" else f"the service is {p.get('service') or 'stopped'}"
-    return (f"on, {running}  ·  frames are looked at in memory and dropped; the bar's camera icon says "
-            "\"presence\" while the camera is open")
+    return f"on, {running}  ·  nothing saved or sent"
 
 
 class Page:
@@ -164,9 +146,7 @@ class Page:
         grid, self.keep_sub = row("\uf017", "Keep it for", "")
         w.pack_start(grid, False, False, 0)
         w.pack_start(chips_line(self.keep), False, False, 0)
-        grid, _ = row("\uf070", "Private apps", "KeePassXC and private / incognito browser windows are always "
-                      "logged as \"private\": the time is kept, not the app or what was in it. Apps you add "
-                      "here are logged the same way, and their past entries are made private too.")
+        grid, _ = row("\uf070", "Private apps", "only the time is logged; KeePassXC and private windows always")
         w.pack_start(grid, False, False, 0)
         self.private = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         w.pack_start(self.private, False, False, 0)
@@ -202,17 +182,14 @@ class Page:
         self.clip_links()
         # smart-clipboard.py: its own page has the switch and each kind
         grid, _ = row("", "Suggestions when you copy",
-                      "The smart clipboard looks at each copy on this computer (fast rules, no model) to offer "
-                      "an action; never at passwords, secrets or copies from private windows.")
+                      "offers an action for a copy; never for passwords")
         w.pack_start(grid, False, False, 0)
         w.pack_start(links_row(link("Open Smart clipboard", lambda: spawn(SETTINGS, "smartclip"))),
                      False, False, 0)
         # suggest.py (Live suggestions): this switch is its unit; its own page has each kind
         self.suggest_switch = self.switch(lambda on: self.suggest_set("on" if on else "off"))
         grid, self.suggest_sub = row("", "Live suggestions",
-                                     "Looks at which window has the focus (and the git state of a terminal's or "
-                                     "editor's folder), the lock and sleep, on this computer only, to offer a "
-                                     "next step; never into private windows, and window titles are not kept.",
+                                     "offers a next step from the focused window",
                                      self.suggest_switch)
         w.pack_start(grid, False, False, 0)
         w.pack_start(links_row(link("Open Live suggestions", lambda: spawn(SETTINGS, "suggestions"))),
@@ -220,9 +197,7 @@ class Page:
         # focus-guard.py: noticing scattered switching (privacy.conf focus_watch; off as shipped)
         self.focus_switch = self.switch(lambda on: self.act("focus", "watch", "on" if on else "off"))
         grid, _ = row("", "Focus guard: notice scattered switching",
-                      "Follows which window has the focus, on this computer only, to offer a focus block when "
-                      "you hop between unrelated windows. Each window is reduced at once to its project or app; "
-                      "titles are not kept and private windows are not looked into. Off as shipped.",
+                      "offers a focus block when you hop between windows",
                       self.focus_switch)
         w.pack_start(grid, False, False, 0)
         w.pack_start(links_row(link("Open Focus", lambda: spawn(SETTINGS, "focus"))), False, False, 0)
@@ -240,9 +215,7 @@ class Page:
             self.source_switches[key], self.source_rows[key] = sw, grid
             w.pack_start(grid, False, False, 0)
         grid, _ = row("\uf07c", "Folder access for AI",
-                      "Which folders the assistant, the LLM chat window, the local worker, Ask your desktop, background "
-                      "tasks and the phone may read files in. A folder nobody opened yet is asked about first "
-                      "(Deny / Allow once / Always allow); secret folders are never read.",
+                      "which folders AI may read files in",
                       link("Open Folder access", lambda: spawn(SETTINGS, "folders")))
         w.pack_start(grid, False, False, 0)
         w.pack_start(sep(), False, False, 0)
@@ -253,7 +226,7 @@ class Page:
         grid, self.index_sub = row("\uf002", "Search inside your documents by meaning", "", self.index_switch)
         self.index_row = grid
         w.pack_start(grid, False, False, 0)
-        grid, _ = row("\uf07c", "Folders it reads", INDEX_FOLDERS)
+        grid, _ = row("\uf07c", "Folders it reads", "Documents, Downloads, Desktop and your git repos")
         w.pack_start(grid, False, False, 0)
         grid, self.index_state = row("\uf1c0", "The index", "")
         w.pack_start(grid, False, False, 0)
@@ -261,6 +234,10 @@ class Page:
         self.index_confirm.set_halign(Gtk.Align.END)
         w.pack_start(self.index_confirm, False, False, 0)
         self.index_links()
+        folders = dp.label(INDEX_FOLDERS, "ctl-sub")
+        folders.set_line_wrap(True)
+        folders.set_max_width_chars(90)
+        w.pack_start(details(folders, label="What it reads"), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         # -- desktop memory (desktop-memory.py; Settings > Desktop memory has the rest) --
@@ -274,7 +251,7 @@ class Page:
             grid, _ = row(icon, title, sub, sw)
             self.mem_switches[key], self.mem_rows[key] = sw, grid
             w.pack_start(grid, False, False, 0)
-        w.pack_start(links_row(link("Open Desktop memory (forget a day, an app, wipe)",
+        w.pack_start(links_row(link("Open Desktop memory",
                                     lambda: spawn(SETTINGS, "memory"))), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
@@ -310,19 +287,18 @@ class Page:
             grid, sub = row(icon, title, "checking…")
             self.live[key] = sub
             w.pack_start(grid, False, False, 0)
-        note = dp.label("The top bar shows an icon while any of these is in use, and hides it when nothing "
-                        "is: click the microphone or camera icon to go to the app using it. Sharing the "
-                        "screen through the portal (calls, OBS) always asks which screen or window first. "
-                        "Screenshots and the screen recorder (record.sh) are your own and do "
-                        "not go through the portal: the recorder shows its own pill while it runs.",
-                        "ctl-sub")
-        note.set_line_wrap(True)
-        note.set_max_width_chars(90)
-        w.pack_start(note, False, False, 0)
         self.share_note = dp.label("", "ctl-sub")
         self.share_note.set_line_wrap(True)
         self.share_note.set_max_width_chars(90)
         w.pack_start(self.share_note, False, False, 0)
+        note = dp.label("The top bar shows an icon while any of these is in use: click the microphone or "
+                        "camera icon to go to the app using it. Sharing the screen through the portal (calls, "
+                        "OBS) always asks which screen or window first. Screenshots and the screen recorder "
+                        "(record.sh) do not go through the portal: the recorder shows its own pill while it "
+                        "runs.", "ctl-sub")
+        note.set_line_wrap(True)
+        note.set_max_width_chars(90)
+        w.pack_start(details(note), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         # -- location -------------------------------------------------------------
@@ -332,9 +308,7 @@ class Page:
         grid, self.alerts_sub = row("\uf071", "Emergency alerts", "",
                                     link("Open Alerts", lambda: spawn(SETTINGS, "alerts")))
         w.pack_start(grid, False, False, 0)
-        note = dp.label("Nothing here reads your position from the system's location service: the weather "
-                        "and the alerts use the place you typed in. Apps that ask the location service "
-                        "show up above while they do.", "ctl-sub")
+        note = dp.label("Both use the place you typed in, never the location service.", "ctl-sub")
         note.set_line_wrap(True)
         note.set_max_width_chars(90)
         w.pack_start(note, False, False, 0)
@@ -509,7 +483,7 @@ class Page:
     # -- drawing -------------------------------------------------------------------
     def show(self, data):
         if not data:
-            self.msg.set_text("privacy_settings.py did not answer (run it in a terminal to see why)")
+            self.msg.set_text("Privacy settings did not answer")
             return
         self.data = data
         self.updating = True
@@ -532,17 +506,16 @@ class Page:
         running = a["service"] == "active"
         show_switch(self.act_switch, running)
         if running:
-            sub = (f"{plural(a.get('entries') or 0, 'entry', 'entries')} {since_text(a.get('since'))}, "
-                   f"{size_text(a.get('bytes'))}  ·  stays on this computer; only Ask your desktop reads it")
+            sub = (f"{plural(a.get('entries') or 0, 'entry', 'entries')}, "
+                   f"{size_text(a.get('bytes'))}  ·  stays on this computer")
         else:
-            sub = ("off: nothing new is logged" + (f"  ·  {plural(a['entries'], 'entry', 'entries')} from before are "
-                                                    "still kept until you forget them or they age out"
-                                                    if a.get("entries") else ""))
+            sub = ("off: nothing new is logged" + (f"  ·  {plural(a['entries'], 'older entry', 'older entries')} "
+                                                    "kept" if a.get("entries") else ""))
         if running != a["enabled"]:
-            sub += "  ·  " + ("not started at login" if running else "starts again at the next login")
+            sub += "  ·  " + ("not started at login" if running else "back on at the next login")
         self.act_sub.set_text(sub)
         self.keep.set(KEEP_CHOICES, str(a["keep_days"]))
-        self.keep_sub.set_text(f"{plural(a['keep_days'], 'day')}; older entries are deleted by themselves")
+        self.keep_sub.set_text(f"{plural(a['keep_days'], 'day')}, then deleted")
         clear(self.private)
         for cls in a["exclude"]:
             grid, _ = row("\uf070", cls, "logged as private", link("Remove", lambda c=cls: self.act(
@@ -558,34 +531,30 @@ class Page:
         if c["on"]:
             items = c.get("items")
             sub = (f"{plural(items, 'copy', 'copies') if items is not None else '?'} saved "
-                   f"({size_text(c.get('db_bytes'))})  ·  SUPER+V picks one to paste again")
+                   f"({size_text(c.get('db_bytes'))})  ·  SUPER+V to paste one")
         else:
             sub = "off: new copies are not saved" + (
-                f"  ·  {plural(c['items'], 'copy', 'copies')} from before are still there" if c.get("items") else "")
+                f"  ·  {plural(c['items'], 'older copy', 'older copies')} kept" if c.get("items") else "")
         if c["on"] != c["enabled"]:
-            sub += "  ·  " + ("not started at login" if c["on"] else "starts again at the next login")
+            sub += "  ·  " + ("not started at login" if c["on"] else "back on at the next login")
         self.clip_sub.set_text(sub)
         self.clip_max.set(CLIP_CHOICES, str(c["max_items"]))
-        self.clip_max_sub.set_text(f"the newest {c['max_items']}; older ones go when you copy the next thing")
+        self.clip_max_sub.set_text(f"the newest {c['max_items']}")
         if c.get("skips_sensitive"):
-            self.sensitive_sub.set_text("KeePassXC (and any app that marks a copy as sensitive) is skipped: "
-                                        "those copies never reach the history. Other password managers "
-                                        "need to mark their copies the same way.")
+            self.sensitive_sub.set_text("KeePassXC and copies marked sensitive are skipped")
         else:
-            self.sensitive_sub.set_text(f"cliphist {c.get('version') or '(not found)'} does not skip copies "
-                                        "marked sensitive; 0.6 or newer does (sudo dnf upgrade cliphist).")
+            self.sensitive_sub.set_text(f"cliphist {c.get('version') or '(not found)'} keeps them: "
+                                        "upgrade to 0.6 or newer")
 
     def show_ask(self, k):
         show_switch(self.ask_switch, k["on"])
         allowed = [SOURCE_TEXT[s][0].lower() for s, on in k["sources"].items() if on]
         if not k["on"]:
-            sub = "off: \"ask …\" in the search bar answers that it is turned off"
+            sub = "off"
         elif not allowed:
             sub = "on, but it may not read anything: turn on a source below"
         else:
-            sub = ("type \"ask …\" in the search bar, e.g. \"ask what was I working on yesterday at 3pm\"  ·  "
-                   "answered by a local model in LM Studio: nothing leaves the computer  ·  reads "
-                   + ", ".join(allowed))
+            sub = "type \"ask …\" in the search bar  ·  reads " + ", ".join(allowed)
         self.ask_sub.set_text(sub)
         for key, sw in self.source_switches.items():
             show_switch(sw, k["sources"].get(key, True))
@@ -596,25 +565,23 @@ class Page:
         show_switch(self.index_switch, k.get("index", True))
         self.index_row.set_sensitive(files_on)
         if not files_on:
-            sub = "off while Ask your desktop or its Files are off: nothing is indexed or searched"
+            sub = "off while Ask your desktop or its Files are off"
         elif not k.get("index", True):
-            sub = "off: nothing new is indexed and Ask does not search it"
+            sub = "off: nothing new is indexed"
         else:
-            sub = ("Ask your desktop finds files by what they say, not only their names  ·  "
-                   "updated every hour (not in game mode or on battery)  ·  stays on this computer")
+            sub = "finds files by what they say  ·  updated hourly"
         if idx and idx.get("exists") and not (files_on and k.get("index", True)):
-            sub += "  ·  the index from before is kept until you delete it"
+            sub += "  ·  old index kept until deleted"
         self.index_sub.set_text(sub)
         if idx is None:
-            self.index_state.set_text("desktop-index.py did not answer")
+            self.index_state.set_text("the index did not answer")
         elif not idx.get("exists"):
             self.index_state.set_text("not built yet" + ("  ·  building now…" if idx.get("running") else ""))
         else:
             when = (datetime.datetime.fromtimestamp(idx["updated"]).strftime("%a %d %b %H:%M")
                     if idx.get("updated") else "not finished yet")
-            text = (f"{plural(idx.get('files') or 0, 'file')}, {plural(idx.get('chunks') or 0, 'piece')}, "
-                    f"{size_text(idx.get('bytes'))}  ·  last update {when}  ·  "
-                    + (f"meaning: {idx['model']}" if idx.get("model") else "keyword only (no embedding model)"))
+            text = (f"{plural(idx.get('files') or 0, 'file')}, {size_text(idx.get('bytes'))}  ·  updated {when}"
+                    + ("" if idx.get("model") else "  ·  keyword only"))
             if idx.get("model") and idx.get("embedded", 0) < idx.get("chunks", 0) and not idx.get("running"):
                 text += f" ({idx['embedded']} of {idx['chunks']} done)"
             if idx.get("running"):
@@ -623,16 +590,15 @@ class Page:
 
     def show_memory(self, m):
         if not m:
-            self.mem_sub.set_text("privacy_settings.py gave no desktop memory status")
+            self.mem_sub.set_text("no desktop memory status")
             return
         show_switch(self.mem_switch, m["on"])
         store = m.get("store") or {}
         total = sum((s or {}).get("count", 0) for s in (store.get("sources") or {}).values())
         sub = (f"{plural(total, 'memory', 'memories')}, {size_text(store.get('bytes'))}, kept "
-               f"{store.get('keep_days', '?')} days  ·  \"remember …\" in the search bar asks it  ·  "
-               "stays on this computer") if m["on"] else (
-            "off: nothing new is kept" + (f"  ·  {plural(total, 'memory', 'memories')} from before stay "
-                                          "until forgotten" if total else ""))
+               f"{store.get('keep_days', '?')} days  ·  \"remember …\" asks it") if m["on"] else (
+            "off: nothing new is kept" + (f"  ·  {plural(total, 'older memory', 'older memories')} kept"
+                                          if total else ""))
         self.mem_sub.set_text(sub)
         for key, sw in self.mem_switches.items():
             show_switch(sw, m["sources"].get(key, False))
@@ -643,16 +609,15 @@ class Page:
         show_switch(self.recent_switch, bool(on))
         self.recent_switch.set_sensitive(on is not None)
         if on is None:
-            sub = "GSettings (org.gnome.desktop.privacy) did not answer"
+            sub = "the setting did not answer"
         else:
-            sub = (f"{plural(r.get('items') or 0, 'file')} in the list  ·  the Recent place in file pickers "
-                   "and Files  ·  turning it off empties the list" if on else
+            sub = (f"{plural(r.get('items') or 0, 'file')} in the list  ·  turning it off empties it" if on else
                    "off: apps stop adding to the list") + (
                 "" if on else (f"  ·  {plural(r['items'], 'file')} still listed" if r.get("items") else ""))
         self.recent_sub.set_text(sub)
         age = r.get("max_age")
         self.recent_age.set(AGE_CHOICES, "-1" if age is None or age < 0 else str(age))
-        self.recent_age_sub.set_text(age_text(age) + "  ·  a shorter time deletes the older entries")
+        self.recent_age_sub.set_text(age_text(age))
 
     def show_presence(self, p):
         p = p or {}
@@ -661,7 +626,7 @@ class Page:
 
     def show_live(self, live):
         screen = live.get("screen")
-        self.live["screen"].set_text("could not check (pw-dump)" if screen is None else
+        self.live["screen"].set_text("could not check" if screen is None else
                                      "your screen is being shared right now" if screen else "not shared")
         self.live["mic"].set_text(in_use_text(live.get("mic"), "microphone"))
         self.live["camera"].set_text(in_use_text(live.get("camera"), "camera"))
@@ -669,10 +634,8 @@ class Page:
         dnd = live.get("share_dnd")
         self.share_note.set_text(
             "" if dnd is None else
-            "While the screen is shared, Do Not Disturb turns itself on, so notifications do not show "
-            "up on the call (Settings > Notifications)." if dnd else
-            "Do Not Disturb does not turn itself on while the screen is shared: notifications can show "
-            "up on a call (Settings > Notifications can change that).")
+            "Do Not Disturb turns on while the screen is shared." if dnd else
+            "Notifications can show while the screen is shared (Settings > Notifications).")
 
     def show_location(self, loc):
         place = loc.get("weather")
@@ -682,18 +645,17 @@ class Page:
             text = "wttr.in guesses it from your internet address"
         else:
             text = f"wttr.in is asked about \"{place}\" every half hour"
-        self.weather_sub.set_text(text + "  ·  the forecast in the top bar")
+        self.weather_sub.set_text(text)
         al = loc.get("alerts")
         if al:
             sent = al.get("sent_place")
             if sent is None:
                 who = "could not check which sources are on"
             elif not sent:
-                who = "no source is sent it: the feeds are downloaded whole and matched here"
+                who = "sent to no one; matched here"
             else:
-                who = ("sent to " + " and ".join(sent) + " to ask about it; the other feeds are downloaded "
-                       "whole and matched here")
+                who = "sent to " + " and ".join(sent)
             self.alerts_sub.set_text(f"your place: {al.get('lat')}, {al.get('lon')} ({al.get('country')})  ·  "
                                      + who)
         else:
-            self.alerts_sub.set_text("emergency-alerts.py did not answer")
+            self.alerts_sub.set_text("alerts did not answer")

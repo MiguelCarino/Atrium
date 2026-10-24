@@ -66,5 +66,6 @@ require("lua.binds")
 require("lua.overview")
 require("lua.cube")
 require("lua.gamemode")
+require("lua.edgejump")     -- the cursor crosses gaps between screens
 require("lua.nightlight")
 require("lua.autostart")

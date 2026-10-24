@@ -232,6 +232,12 @@ label.clip-hero-text {
     padding-bottom: 10px;
 }
 
+/* Text entries: one line each, full width, in the tiles' colours (their
+   spacing is set in clipboard.py: an event box takes no CSS padding). */
+.tile.clip-row {
+    min-height: 0;
+}
+
 label.clip-text {
     font-family: "IBM Plex Sans", sans-serif;
     font-weight: normal;

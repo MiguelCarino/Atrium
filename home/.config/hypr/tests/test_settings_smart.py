@@ -118,7 +118,7 @@ class States(unittest.TestCase):
         st = S.st_gestures({"gestures": d})
         self.assertFalse(st["on"])
         self.assertEqual(st["kind"], "running")
-        self.assertEqual(st["uses"], [("camera", "Gaze (which monitor you look at)", [S.PRIVACY, "gaze", "off"])])
+        self.assertEqual(st["uses"], [("camera", "Gaze", [S.PRIVACY, "gaze", "off"])])
 
     def test_layout_modes(self):
         for mode, on, place in (("off", False, False), ("learn", True, False), ("on", True, True)):
@@ -159,7 +159,7 @@ class States(unittest.TestCase):
         st = S.st_pip({"pip": {"none": True}})
         self.assertEqual((st["on"], st["kind"]), (None, "demand"))
         st = S.st_pip({"pip": {"mode": "window", "title": "Firefox"}})
-        self.assertEqual(st["uses"][0], ("screen", "Picture-in-picture: mirroring a window", [S.PIP, "close"]))
+        self.assertEqual(st["uses"][0], ("screen", "Picture-in-picture", [S.PIP, "close"]))
         self.assertEqual(S.st_contexts({"contexts": {"contexts": [{"name": "Atlas"}],
                                                      "current": {"name": "Atlas"}}})["text"], "in Atlas now")
         self.assertEqual(S.st_screen_ask({"screenask": {"model": None, "why": "none"}})["kind"], "setup")
@@ -246,10 +246,10 @@ class Privacy(unittest.TestCase):
         p = {"units": {"cliphist@text.service": {"active": "active", "enabled": "enabled"}},
              "camera_now": {"class": "active", "tooltip": "Camera\npresence.py"}, "mic_now": {"class": "idle"}}
         view = S.privacy_view(states, p)
-        self.assertEqual([i[0] for i in view["clipboard"]["items"]], ["Clipboard history (cliphist)", "Smart"])
+        self.assertEqual([i[0] for i in view["clipboard"]["items"]], ["Clipboard history", "Smart"])
         self.assertEqual(view["camera"]["now"], ["presence.py"])
         self.assertIn("in use now: presence.py", S.sense_summary("camera", view["camera"]))
-        self.assertEqual(S.sense_summary("mic", view["mic"]), "nothing here may use it on its own")
+        self.assertEqual(S.sense_summary("mic", view["mic"]), "nothing may use it")
 
 
 class PageEntry(unittest.TestCase):

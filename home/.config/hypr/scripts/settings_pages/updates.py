@@ -2,12 +2,14 @@
 
     UPDATES               what is waiting: packages (security ones first and
                           marked with their severity), flatpaks, when the
-                          last check ran; Check now, Update now
+                          last check ran; Check now, Update now (the package
+                          list itself in a closed fold)
     RESTART               reboot needed?, the NVIDIA module for the newest
                           kernel, what the last safe-upgrade.sh run said
     HISTORY               the last update and the latest dnf transactions,
                           each with what it changed
-    SNAPSHOTS             whether snapper snapshots every update (status only:
+    SNAPSHOTS             whether snapper snapshots every update (status only,
+                          the fallback snapshots' details folded;
                           setting it up, Snapshot now and Undo are on the
                           Maintenance page -- Open Maintenance)
     FIRMWARE              fwupd's pending firmware, listed only
@@ -30,7 +32,7 @@ import os  # noqa: E402
 import subprocess  # noqa: E402
 import time  # noqa: E402
 
-PAGE = {"id": "updates", "title": "Software updates", "icon": "\uf49e", "group": "System", "order": 70,
+PAGE = {"id": "updates", "title": "Updates & maintenance", "icon": "\uf49e", "group": "System", "order": 70, "tab": "Updates",
         "keywords": ["update", "upgrade", "actualizaciones", "dnf", "packages", "flatpak", "security updates",
                      "reboot needed", "kernel", "nvidia module", "firmware", "fwupd", "dnf history", "snapper",
                      "check for updates"]}
@@ -105,10 +107,7 @@ class Page:
         self.check_btn = link("Check now", self.check)
         w.pack_start(links_row(self.check_btn, link("Update now…", lambda: spawn(BACKEND, "upgrade"))),
                      False, False, 0)
-        self.upgrade_note = small("Update now opens safe-upgrade.sh in a terminal: a snapshot of the system, "
-                                  "dnf upgrade (it asks for your password), the NVIDIA module built and checked "
-                                  "for the new kernel, flatpaks, then a firmware listing and whether a reboot "
-                                  "is safe.")
+        self.upgrade_note = small("Update now runs in a terminal: snapshot, upgrade, NVIDIA check, reboot verdict.")
         w.pack_start(self.upgrade_note, False, False, 0)
         self.pending = vbox()
         w.pack_start(self.pending, False, False, 0)
@@ -126,7 +125,7 @@ class Page:
         w.pack_start(self.history, False, False, 0)
 
         w.pack_start(sep(), False, False, 0)
-        w.pack_start(heading("SNAPSHOTS BEFORE UPDATES"), False, False, 0)
+        w.pack_start(heading("SNAPSHOTS"), False, False, 0)
         self.snaps = vbox()
         w.pack_start(self.snaps, False, False, 0)
 
@@ -142,9 +141,7 @@ class Page:
         self.chips = Chips(self.set_interval)
         self.chips.widget.set_max_children_per_line(len(INTERVAL_CHIPS))
         w.pack_start(self.chips.widget, False, False, 0)
-        w.pack_start(small("Checks only download the package lists (as you, no password) and never install "
-                           "anything; they run at the lowest CPU and disk priority. Updates are installed only "
-                           "when you press Update now."), False, False, 0)
+        w.pack_start(small("Checks never install anything; only Update now does."), False, False, 0)
 
     # -- loading -----------------------------------------------------------------
     def refresh(self):
@@ -170,7 +167,7 @@ class Page:
             self.cache_mtime = 0
         self.checking_since = time.time()
         self.check_btn.set_sensitive(False)
-        self.summary_sub.set_text("checking now… (a slow mirror can take a couple of minutes)")
+        self.summary_sub.set_text("checking now… (a slow mirror can take minutes)")
         background(lambda: run(BACKEND, "check", timeout=10), lambda _r: None)
         GLib.timeout_add(1000, self.watch_check)
 
@@ -200,7 +197,7 @@ class Page:
         until the next change, instead of silently showing the old value)."""
         self.interval_busy = False
         if not out:
-            self.interval_error = "could not save it: run `software-updates.py interval` in a terminal to see why"
+            self.interval_error = "could not save it: run `software-updates.py interval` to see why"
         background(lambda: run_json(BACKEND, "system", "--json", timeout=90), self.show_system)
 
     # -- drawing -----------------------------------------------------------------
@@ -216,7 +213,7 @@ class Page:
         title = self.summary_row.get_child_at(1, 0)
         if not p["cache"]:
             title.set_text("Not checked yet")
-            self.summary_sub.set_text("no check since you logged in -- Check now runs one")
+            self.summary_sub.set_text("no check since you logged in")
             self.pending.show_all()
             return
         pkgs, flatpaks = p["pkgs"], p["flatpaks"]
@@ -240,8 +237,9 @@ class Page:
         self.show_summary()
 
         if p["kernel"]:
-            self.pending.pack_start(small("Includes a new kernel: Update now builds and checks the NVIDIA module "
-                                          "for it and says whether a reboot is safe."), False, False, 0)
+            self.pending.pack_start(small("Includes a new kernel (Update now readies the NVIDIA module)."),
+                                    False, False, 0)
+        listing = details(label="Show the list")
         if pkgs:
             ordered = sorted(pkgs, key=lambda x: (SEVERITY_ORDER.get(x["security"], 8) if x["security"] else 9,
                                                   x["name"]))
@@ -257,13 +255,15 @@ class Page:
                 grid.attach(dp.label(f"security · {pkg['security']}" if pkg["security"] else "", "ctl-value"),
                             1, i, 1, 1)
                 grid.attach(dp.label(pkg["version"], "sn-label", 1.0), 2, i, 1, 1)
-            self.pending.pack_start(grid, False, False, 0)
+            listing.box.pack_start(grid, False, False, 0)
             if len(ordered) > LIST_MAX:
-                self.pending.pack_start(small(f"… and {len(ordered) - LIST_MAX} more"), False, False, 0)
+                listing.box.pack_start(small(f"… and {len(ordered) - LIST_MAX} more"), False, False, 0)
         if flatpaks:
             fl = small("Flatpaks:  " + ",  ".join(flatpaks))
             fl.set_margin_start(32)
-            self.pending.pack_start(fl, False, False, 0)
+            listing.box.pack_start(fl, False, False, 0)
+        if total:
+            self.pending.pack_start(listing, False, False, 0)
         self.pending.show_all()
 
     def show_summary(self):
@@ -276,7 +276,7 @@ class Page:
         parts = list(self.summary_parts)
         checked = self.last_pending["checked"]
         if isinstance(self.interval, int) and checked and checked + self.interval > time.time():
-            parts.append(f"next automatic check by {time.strftime('%H:%M', time.localtime(checked + self.interval))}")
+            parts.append(f"next check by {time.strftime('%H:%M', time.localtime(checked + self.interval))}")
         line = "  ·  ".join(parts)
         if self.checking_since:
             line = "checking now…  ·  " + line
@@ -314,12 +314,10 @@ class Page:
                            f"driver {n['driver']}  ·  module {n['module']} built for {n['kernel']}"
                            + ("  ·  safe to reboot into it" if s["newest_kernel"] != s["running_kernel"] else "")),
                     "missing": ("Do not reboot yet: no NVIDIA module for the newest kernel",
-                                f"driver {n['driver']}, kernel {n['kernel']}: run Update now (it builds the "
-                                f"module) or `sudo akmods --force --kernels {n['kernel']}`; the running kernel "
-                                "still works"),
+                                f"driver {n['driver']}: Update now builds it; this kernel still works"),
                     "mismatch": ("Do not reboot yet: the NVIDIA module is older than the driver",
-                                 f"module {n['module']} for {n['kernel']}, driver {n['driver']}: run "
-                                 f"`sudo akmods --force --kernels {n['kernel']}`")}[n["verdict"]]
+                                 f"module {n['module']}, driver {n['driver']}: rebuild it (copy the command)")
+                    }[n["verdict"]]
             loaded = f"  ·  loaded now: {n['loaded']}" if n["loaded"] and n["loaded"] != n["driver"] else ""
             grid, _ = row("\uf26c", text[0], text[1] + loaded)
             self.restart.pack_start(grid, False, False, 0)
@@ -340,9 +338,7 @@ class Page:
                           "  ·  ".join(x for x in (verdict, nv, kern, dnf) if x))
             self.restart.pack_start(grid, False, False, 0)
         if s.get("upgrade_running"):
-            self.restart.pack_start(small("An update (safe-upgrade.sh) is running in a terminal now: "
-                                          "this section is redrawn when you come back to the page."),
-                                    False, False, 0)
+            self.restart.pack_start(small("An update is running in a terminal now."), False, False, 0)
         self.restart.show_all()
 
     def show_last(self, upd):
@@ -350,8 +346,7 @@ class Page:
         an update (not an install), which the five rows below may not hold."""
         if upd:
             grid, _ = row("\uf46c", f"Last updated {when(upd.get('end_time'))}",
-                          f"{plural(upd.get('altered_count', 0), 'package')}  ·  {describe_cmd(upd)}  ·  "
-                          f"transaction {upd.get('id')}")
+                          f"{plural(upd.get('altered_count', 0), 'package')}  ·  {describe_cmd(upd)}")
         else:
             grid, _ = row("\uf46c", "No update in dnf history", "nothing has run dnf upgrade on this system yet")
         self.last.pack_start(grid, False, False, 0)
@@ -361,19 +356,21 @@ class Page:
         """Status only: the controls (Snapshot now, Undo, the one-time setup
         command) live on the Maintenance page, so there is one of each."""
         if snap["snapper"]:
-            grid, _ = row("\uf030", "Snapper takes a snapshot before and after every update",
-                          f"{snap['status']}  ·  / only: your files in /home are never rolled back  ·  "
-                          "undo an update from Maintenance")
+            grid, _ = row("\uf030", "Snapshot before and after every update",
+                          f"{snap['status']}  ·  /home is never rolled back")
         else:
             grid, _ = row("\uf030", "Snapshots before updates",
-                          "Snapper is not set up yet: Update now still takes a read-only btrfs snapshot "
-                          "of / first (the last 3 are kept in /.snapshots-pre-upgrade). One-click undo "
-                          "needs snapper, set up once as root from Maintenance.")
+                          "Snapper not set up: Update now still snapshots the system first")
         self.snaps.pack_start(grid, False, False, 0)
-        if not snap["snapper"] and snap["pre_upgrade"]:
-            self.snaps.pack_start(small("Kept: " + ",  ".join(snap["pre_upgrade"][:3])), False, False, 0)
         self.snaps.pack_start(links_row(link("Open Maintenance", lambda: spawn(SETTINGS, "system"))),
                               False, False, 0)
+        if not snap["snapper"]:
+            fold = details(small("A read-only btrfs snapshot of /; the last 3 are kept in "
+                                 "/.snapshots-pre-upgrade. One-click undo needs snapper, set up once as "
+                                 "root from Maintenance."))
+            if snap["pre_upgrade"]:
+                fold.box.pack_start(small("Kept: " + ",  ".join(snap["pre_upgrade"][:3])), False, False, 0)
+            self.snaps.pack_start(fold, False, False, 0)
         self.snaps.show_all()
 
     def show_interval(self, value):
@@ -384,8 +381,7 @@ class Page:
         if self.interval_error:
             self.interval_sub.set_text(self.interval_error)
         elif key == "login":
-            self.interval_sub.set_text("once each time the bar starts (at login), then only when you press "
-                                       "Check now or right-click the pill")
+            self.interval_sub.set_text("at login, then only when you press Check now")
         elif key:
             self.interval_sub.set_text("every hour" if value == 3600 else "once a day" if value == 86400
                                        else f"every {value // 3600} hours")
@@ -416,17 +412,15 @@ class Page:
             self.firmware.pack_start(grid, False, False, 0)
         elif not fw["devices"]:
             grid, _ = row("\uf2db", "Firmware is up to date" if not fw.get("error") else "Firmware: could not tell",
-                          "from the LVFS metadata fwupd last downloaded  ·  devices whose makers publish "
-                          "to LVFS only (often the SSD, the mouse, the monitor; rarely the BIOS)")
+                          "for devices whose makers publish to LVFS")
             self.firmware.pack_start(grid, False, False, 0)
         else:
             for d in fw["devices"]:
                 grid, _ = row("\uf2db", d["device"], f"{d['current']} → {d['new']}"
                               + (f"  ·  {d['summary']}" if d["summary"] else ""))
                 self.firmware.pack_start(grid, False, False, 0)
-            self.firmware.pack_start(small("Listed only, never flashed from here: install them with "
-                                           "`fwupdmgr update` in a terminal; most "
-                                           "devices install on the next reboot."), False, False, 0)
+            self.firmware.pack_start(small("Listed only: install with `fwupdmgr update` in a terminal."),
+                                     False, False, 0)
             self.firmware.pack_start(links_row(link("Copy the command", lambda: copy("fwupdmgr update"))),
                                      False, False, 0)
         self.firmware.show_all()

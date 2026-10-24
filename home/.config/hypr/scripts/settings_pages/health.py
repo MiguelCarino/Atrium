@@ -9,15 +9,17 @@ Top to bottom:
                      full report, Mark seen, Undo the last fixes
     FIX BY ITSELF    one switch per remedy of the fixed catalog (auto_*: off
                      as shipped -- off means proposed, with an Apply button
-                     below), and the sizes that count as "big" for a cache
+                     below; a short line each, health.py's words on hover),
+                     and the sizes that count as "big" for a cache
                      and a log
     OPTIONS          the local model explains what is not known (explain, at
                      most explain_max a night), the system journal too
                      (system_journal), a notification after a checkup that
                      found something (notify), the Health section of the
                      morning brief (brief.py's sections)
-    LAST CHECKUP     every finding: what, in plain words (and by whom), the
-                     raw lines under "Lines", and Apply for a proposed fix --
+    LAST CHECKUP     every finding: what, in its first sentence; the rest of
+                     the words, by whom and the raw lines in its Details
+                     fold, and Apply for a proposed fix --
                      it says exactly what it will do, and asks once more
 
 The page keeps nothing itself: every control runs health.py (or brief.py)
@@ -30,7 +32,7 @@ import time
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 from gi.repository import GLib, Gtk, Pango  # noqa: F401,E402  (after common: it picks GTK 3)
 
-PAGE = {"id": "health", "title": "Desktop health", "icon": "", "group": "System", "order": 82,
+PAGE = {"id": "health", "title": "Desktop health", "icon": "", "group": "System", "order": 82, "parent": "updates", "tab": "Health",
         "keywords": ["health", "self-healing", "self healing", "checkup", "check-up", "nightly", "doctor",
                      "journal", "errors", "crashes", "coredump", "failed services", "restart", "cache",
                      "pip cache", "shader cache", "logs", "rotate", "auto fix", "repair", "salud",
@@ -46,13 +48,16 @@ LEVEL_ICONS = {"fail": "", "warn": "", "info": ""}
 REMEDY_ICONS = {"restart-unit": "", "trash-cache": "", "rotate-log": "",
                 "regen-config": ""}
 OPTIONS = [("explain", "", "Explain with the local model",
-            "The worker model (AI & models) reads the raw lines of what is not already known and says what "
-            "it means and what to do -- never a cloud model; skipped in gamemode or when the GPU is full. "
-            "Off: the plain lines."),
+            "Explains unknown errors; never a cloud model."),
            ("system_journal", "", "Read the system journal too",
-            "Errors from the system's services and the kernel, as far as you may read them without sudo."),
+            "System services and kernel errors, without sudo."),
            ("notify", "", "Tell me after a checkup",
-            "A notification when it fixed something, has a fix for you to approve, or found a new problem.")]
+            "When it fixed something, needs you, or found a new problem.")]
+# The short line under each remedy's switch (health.py's full words are its tooltip).
+REMEDY_SUBS = {"restart-unit": "Desktop services only, at most once a day each",
+               "trash-cache": "To the trash, so it can be restored",
+               "rotate-log": "The old copy is kept; nothing is lost",
+               "regen-config": "Rewrites missing theme files"}
 
 
 # -- words (pure: tests/test_health.py) ------------------------------------------------------------
@@ -66,17 +71,17 @@ def task_text(data):
     """The switch row's sub line: when, and whether it can run at all."""
     t, d = data.get("task") or {}, data.get("tasks") or {}
     if not t.get("exists"):
-        return "Not set up yet: switching it on makes the checkup task (Background tasks)."
+        return "Not set up yet: switching it on makes the checkup task."
     when = t.get("schedule") or "?"
-    bits = [f"Runs {('every day at ' + schedule_time(when)) if schedule_time(when) else when}; "
-            "a time missed while the computer was off runs when it is back; waits for gamemode to end."]
+    bits = [f"Runs {('every day at ' + schedule_time(when)) if schedule_time(when) else when}"]
     if t.get("status"):
-        bits.append(f"Now: {t['status']}.")
+        bits.append(t["status"])
+    text = "  ·  ".join(bits)
     if d and not d.get("enabled", True):
-        bits.append("Background tasks are switched off, so it does not run (Settings > Background tasks).")
+        text += "\nBackground tasks are switched off, so it does not run."
     elif d and not d.get("running", True):
-        bits.append("tasks.service is not running, so it does not run.")
-    return " ".join(bits)
+        text += "\nThe tasks service is not running, so it does not run."
+    return text
 
 
 def report_summary(rep, when_text):
@@ -91,15 +96,23 @@ def report_summary(rep, when_text):
     if s["proposed"]:
         bits.append(f"{s['proposed']} fix{'es' if s['proposed'] != 1 else ''} to approve")
     head = ", ".join(bits) or "nothing needs you"
-    noise = f" {s['noise']} harmless known lines left out." if s.get("noise") else ""
-    return f"{when_text}: {head} ({s['findings']} finding{'s' if s['findings'] != 1 else ''}).{noise}"
+    noise = f", {s['noise']} harmless lines hidden" if s.get("noise") else ""
+    return f"{when_text}: {head} ({s['findings']} finding{'s' if s['findings'] != 1 else ''}{noise})."
+
+
+def first_sentence(text, limit=80):
+    """The opening sentence of a finding's words (or its first `limit`
+    characters, cut at a word): the rest goes in the finding's fold."""
+    text = " ".join(text.split())
+    stop = text.find(". ")
+    if 0 < stop < limit:
+        return text[:stop + 1]
+    return text if len(text) <= limit else text[:limit].rsplit(" ", 1)[0] + "…"
 
 
 def finding_sub(f):
-    """A finding's words, who wrote them, and its fix's state."""
-    out = (f.get("words") or "").strip()
-    if f.get("by") and f["by"] != "catalog":
-        out += f"\n({f['by']})"
+    """A finding's first sentence and its fix's state."""
+    out = first_sentence((f.get("words") or "").strip())
     rem = f.get("remedy") or {}
     if rem.get("status") == "applied":
         out += f"\nFixed: {rem.get('result', '')}"
@@ -107,6 +120,16 @@ def finding_sub(f):
         out += f"\nThe fix did not work: {rem.get('result', '')}"
     elif rem.get("status") == "proposed" and rem.get("note"):
         out += f"\nNot fixed by itself: {rem['note']}"
+    return out
+
+
+def finding_more(f):
+    """What the fold under a finding says: its full words when the sub line
+    cut them, and who wrote them."""
+    words = (f.get("words") or "").strip()
+    out = words if first_sentence(words) != " ".join(words.split()) else ""
+    if f.get("by") and f["by"] != "catalog":
+        out += ("\n" if out else "") + f"({f['by']})"
     return out
 
 
@@ -155,9 +178,7 @@ class Page:
         w.pack_start(heading("NIGHTLY CHECKUP"), False, False, 0)  # noqa: F405
         self.task_row = self.switch_row(
             "enabled", "", "Check the desktop every night",
-            "Reads what went wrong since the last checkup -- your journal and the system's, failed "
-            "services, crashes, disk, caches, the desktop's logs and generated files -- fixes what it "
-            "knows how to (below) and explains the rest.")
+            "Fixes what it knows how to, explains the rest.")
         w.pack_start(self.task_row, False, False, 0)
         w.pack_start(dp.label("At", "ctl-sub"), False, False, 0)  # noqa: F405
         self.time_chips = Chips(lambda k: self.change(HEALTH, "set", "schedule", f"daily {k}"))  # noqa: F405
@@ -174,9 +195,7 @@ class Page:
         # -- the remedies -----------------------------------------------------------------------
         w.pack_start(sep(), False, False, 0)  # noqa: F405
         w.pack_start(heading("FIX BY ITSELF"), False, False, 0)  # noqa: F405
-        w.pack_start(wrapped("Each fix is from a fixed list and can be undone: things go to the trash, never "
-                             "deleted, and no system file or sudo is ever involved. Off: the checkup proposes "
-                             "the fix and you apply it from the list below."), False, False, 0)
+        w.pack_start(wrapped("Undoable, never sudo. Off: proposed for you to apply below."), False, False, 0)
         self.remedy_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         w.pack_start(self.remedy_box, False, False, 0)
         w.pack_start(dp.label("A cache counts as big over", "ctl-sub"), False, False, 0)  # noqa: F405
@@ -198,8 +217,7 @@ class Page:
         self.max_chips.widget.set_max_children_per_line(4)
         w.pack_start(self.max_chips.widget, False, False, 0)
         w.pack_start(self.switch_row("brief", "", "In the morning brief",
-                                     "A Health section: what the checkup fixed, what waits for you, the worst "
-                                     "problems in a line each (Daily brief & journal)."), False, False, 0)
+                                     "A Health section in the daily brief."), False, False, 0)
 
         # -- the last report --------------------------------------------------------------------
         w.pack_start(sep(), False, False, 0)  # noqa: F405
@@ -250,7 +268,7 @@ class Page:
         if self.busy:
             return
         self.busy = True
-        self.run_link.set_label("Checking… (a minute or two with the model)")
+        self.run_link.set_label("Checking… (a minute or two)")
 
         def done(result):
             self.busy = False
@@ -281,7 +299,8 @@ class Page:
     def show(self, result):
         data, brief = result
         if not data:
-            self.problem.set_text(f"health.py status did not answer -- try it in a terminal: {HEALTH} status")
+            self.problem.set_text("Could not read the health status")
+            self.problem.set_tooltip_text(f"Try it in a terminal: {HEALTH} status")
             self.problem.set_visible(True)
             self.widget.show_all()
             return
@@ -319,7 +338,9 @@ class Page:
         if not self.remedy_box.get_children():
             for rid, r in data["remedies"].items():
                 self.remedy_box.pack_start(self.switch_row(r["setting"], REMEDY_ICONS.get(rid, ""),
-                                                           r["title"], r["words"]), False, False, 0)
+                                                           r["title"], REMEDY_SUBS.get(rid, r["words"])),
+                                           False, False, 0)
+                self.remedy_box.get_children()[-1].set_tooltip_text(r["words"])
         for r in data["remedies"].values():
             put(self.switches[r["setting"]], data["settings"][r["setting"]])
 
@@ -337,11 +358,17 @@ class Page:
             self.findings_box.pack_start(grid, False, False, 0)
             if rem.get("status") in ("proposed", "failed"):
                 self.findings_box.pack_start(wrapped(f"Fix: {rem['label']}"), False, False, 0)
-            if f.get("raw"):
-                exp = Gtk.Expander(label=f"Lines ({len(f['raw'])})")
-                raw = wrapped("\n".join(f["raw"]))
-                raw.set_selectable(True)
-                raw.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
-                raw.get_style_context().add_class("monospace")
-                exp.add(raw)
-                self.findings_box.pack_start(exp, False, False, 0)
+            more = finding_more(f)
+            if more or f.get("raw"):
+                fold = details(label=f"Details ({len(f['raw'])} line{'s' if len(f['raw']) != 1 else ''})" if f.get("raw") else "Details")  # noqa: F405
+                if more:
+                    words = wrapped(more)
+                    words.set_selectable(True)
+                    fold.box.pack_start(words, False, False, 0)
+                if f.get("raw"):
+                    raw = wrapped("\n".join(f["raw"]))
+                    raw.set_selectable(True)
+                    raw.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+                    raw.get_style_context().add_class("monospace")
+                    fold.box.pack_start(raw, False, False, 0)
+                self.findings_box.pack_start(fold, False, False, 0)

@@ -1,8 +1,8 @@
 """Settings page: Network & Bluetooth (network-settings.py).
 
 Top to bottom: whether this computer is online and through what, its name on
-the network, airplane mode; the wired link with its addresses, gateway, DNS,
-speed and traffic since boot; Wi-Fi -- the radio, the networks in range
+the network, airplane mode; the wired link (its addresses, gateway, DNS and
+traffic since boot in a fold); Wi-Fi -- the radio, the networks in range
 (Connect asks for the password right in the list), a hidden network, the
 saved networks with auto-connect and Forget; VPN connections (on / off,
 import an .ovpn or WireGuard .conf, edit); and Bluetooth -- power, visible
@@ -25,7 +25,11 @@ import json
 import subprocess
 import time
 
-from gi.repository import GLib, Gtk  # noqa: F401
+import gi
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+from gi.repository import GLib, Gtk  # noqa: F401,E402
 
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 
@@ -48,11 +52,11 @@ BT_ICONS = {"audio-headset": "", "audio-headphones": "", "audio-card": "�
             "camera-photo": "", "printer": "", "multimedia-player": ""}
 VPN_KINDS = {"openvpn": "OpenVPN", "openconnect": "OpenConnect (Cisco AnyConnect and friends)", "vpnc": "Cisco VPNC",
              "pptp": "PPTP", "l2tp": "L2TP", "fortisslvpn": "Fortinet SSL", "libreswan": "IPsec", "strongswan": "IPsec"}
-CONNECTIVITY = {"full": ("Online", "the internet is reachable"),
-                "limited": ("Connected, but no internet", "the local network answers, the internet does not"),
-                "portal": ("A sign-in page is in the way", "hotel / café Wi-Fi: open the sign-in page to get online"),
+CONNECTIVITY = {"full": ("Online", "internet reachable"),
+                "limited": ("Connected, but no internet", "local network only"),
+                "portal": ("A sign-in page is in the way", "open the sign-in page to get online"),
                 "none": ("Offline", "no network connection"),
-                "unknown": ("Connection state unknown", "NetworkManager has not checked yet")}
+                "unknown": ("Connection state unknown", "not checked yet")}
 
 
 def wifi_sub(net):
@@ -122,7 +126,7 @@ def switch(state, on_change):
     return sw
 
 
-def details(pairs):
+def addr_grid(pairs):
     """A key / value grid (the network panel's sn-label / ns-value look);
     values are selectable so an address can be copied."""
     grid = Gtk.Grid()
@@ -173,6 +177,7 @@ class Page:
         self.poll = self.scan_poll = None
         self.scan_until = 0
         self.traffic = {}                          # wired device -> its "since boot" label
+        self.open_folds = {}                       # fold key -> expanded, kept across rebuilds
 
         # Kept across redraws so typing survives the poll.
         self.pw = Gtk.Entry()
@@ -191,9 +196,7 @@ class Page:
 
         self.link_rows = {}                         # section -> its row of links (Wi-Fi's hide with the radio)
         for key, title, links in (
-                ("top", "CONNECTION", [link("Live traffic", lambda: spawn(PANEL, "toggle", "network")),  # noqa: F405
-                                       link("Advanced (nmtui)", lambda: spawn(DEFAULT_APPS, "run", "terminal", "--", "nmtui")),  # noqa: F405
-                                       link("Connection editor", lambda: spawn("nm-connection-editor"))]),  # noqa: F405
+                ("top", "CONNECTION", [link("Live traffic", lambda: spawn(PANEL, "toggle", "network"))]),  # noqa: F405
                 ("wired", "WIRED", []),
                 ("wifi", "WI-FI", [link("Rescan", lambda: self.load_wifi(True)),  # noqa: F405
                                    link("Hidden network…", self.toggle_hidden)]),  # noqa: F405
@@ -221,9 +224,12 @@ class Page:
             if links:
                 self.link_rows[key] = links_row(*links)  # noqa: F405
                 w.pack_start(self.link_rows[key], False, False, 0)
-        tip = note("Pairing needs nothing typed here: put the device in pairing mode (usually a long press "
-                   "of its power or Bluetooth button), Look for devices, then Pair. Paired devices are "
-                   "trusted, so they reconnect by themselves.")
+            if key == "top":                       # the power tools, folded
+                w.pack_start(details(links_row(  # noqa: F405
+                    link("Advanced (nmtui)", lambda: spawn(DEFAULT_APPS, "run", "terminal", "--", "nmtui")),  # noqa: F405
+                    link("Connection editor", lambda: spawn("nm-connection-editor"))),  # noqa: F405
+                    label="Advanced"), False, False, 0)
+        tip = note("Put the device in pairing mode, then Look for devices and Pair.")
         tip.set_no_show_all(False)
         w.pack_start(tip, False, False, 0)
         for key in self.boxes:
@@ -321,9 +327,9 @@ class Page:
         title, sub = CONNECTIVITY.get(st["connectivity"], CONNECTIVITY["unknown"])
         via = self.active_names(st)
         if not st["networking"]:
-            title, sub = "Networking is off", "NetworkManager has networking disabled (nmcli networking on)"
+            title, sub = "Networking is off", "all networking is disabled"
         elif via:
-            sub += "  ·  through " + ", ".join(via)
+            sub += "  ·  via " + ", ".join(via)
         grid, _ = row(ICON_GLOBE, title, sub,  # noqa: F405
                       link("Open the sign-in page", lambda: spawn("xdg-open", "http://neverssl.com"))  # noqa: F405
                       if st["connectivity"] == "portal" else None)
@@ -339,13 +345,11 @@ class Page:
         name = Gtk.Box(spacing=6)
         name.pack_start(self.host, False, False, 0)
         name.pack_start(link("Rename", self.rename), False, False, 0)  # noqa: F405
-        grid, _ = row(ICON_PC, "This computer's name", "how other computers, phones and Bluetooth devices "  # noqa: F405
-                      "see it  ·  renaming asks for your password", name)
+        grid, _ = row(ICON_PC, "This computer's name", "how other devices see it", name)  # noqa: F405
         box.pack_start(grid, False, False, 0)
 
-        grid, _ = row(ICON_PLANE, "Airplane mode", "every radio is off: Wi-Fi and Bluetooth  ·  the cable "  # noqa: F405
-                      "keeps working" if st["airplane"] else "turns Wi-Fi and Bluetooth off, the cable keeps "
-                      "working; off again brings back the radios that were on",
+        grid, _ = row(ICON_PLANE, "Airplane mode", "Wi-Fi and Bluetooth off  ·  the cable still works"  # noqa: F405
+                      if st["airplane"] else "turns Wi-Fi and Bluetooth off",
                       switch(st["airplane"], lambda on: self.act("top", "airplane mode…", "airplane",
                                                                  "on" if on else "off")))
         if st["airplane"]:
@@ -360,7 +364,7 @@ class Page:
         for c in st["connections"]:
             if c["active"] and c["type"] not in ("loopback",):
                 kind = {"802-3-ethernet": "cable", "802-11-wireless": "Wi-Fi"}.get(c["type"], "VPN")
-                out.append(f"{c['name']} ({kind}{', ' + c['device'] if c['device'] else ''})")
+                out.append(f"{c['name']} ({kind})")
         return out
 
     def rename(self):
@@ -368,7 +372,7 @@ class Page:
         if self.status and new == self.status.get("hostname"):
             self.say("top", "that is already its name")
             return
-        self.act("top", "renaming… (type your password in the box that opens)", "hostname", new)
+        self.act("top", "renaming… (asks for your password)", "hostname", new)
 
     # -- wired -----------------------------------------------------------------------
     def show_wired(self, st):
@@ -392,15 +396,15 @@ class Page:
             else:
                 button = link("Connect", lambda n=d["name"]: self.act(  # noqa: F405
                     "wired", "connecting…", "device-connect", n))
-            sub = "  ·  ".join(x for x in (d["name"], d["speed"], "cable unplugged" if d["state"] == "unavailable"
+            sub = "  ·  ".join(x for x in (d["speed"], "cable unplugged" if d["state"] == "unavailable"
                                            else d["state"]) if x)
             grid, _ = row(ICON_ETHERNET, d["connection"] or "Wired", sub, button)  # noqa: F405
             if up:
                 grid.get_style_context().add_class("on")
             box.pack_start(grid, False, False, 0)
             if up:
-                grid = details(self.addr_pairs(d))
-                box.pack_start(grid, False, False, 0)
+                grid = addr_grid(self.addr_pairs(d))
+                box.pack_start(self.fold("wired-" + d["name"], grid, "Addresses"), False, False, 0)
                 self.traffic[d["name"]] = next((c for c in grid.get_children()
                                                 if c.get_text().startswith("↓")), None)
         box.show_all()
@@ -411,6 +415,13 @@ class Page:
                 ("Gateway", "  ·  ".join(g for g in (d["gateway"], d["gateway6"]) if g)),
                 ("DNS", "  ·  ".join(d["dns"])), ("MAC", d["mac"]),
                 ("Since boot", f"↓ {d['rx']}   ↑ {d['tx']}" if d.get("rx") else "")]
+
+    def fold(self, key, widget, label):
+        """A details() fold that stays open across the section's rebuilds."""
+        fold = details(widget, label=label)  # noqa: F405
+        fold.set_expanded(self.open_folds.get(key, False))
+        fold.connect("notify::expanded", lambda f, _p: self.open_folds.__setitem__(key, f.get_expanded()))
+        return fold
 
     def update_traffic(self, devs):
         """Only the byte counters moved: patch that one value in place."""
@@ -472,15 +483,14 @@ class Page:
             grid.get_style_context().add_class("on")
         box.pack_start(grid, False, False, 0)
         if dev and dev["state"] == "connected":
-            box.pack_start(details(self.addr_pairs(dev)), False, False, 0)
+            box.pack_start(self.fold("wifi", addr_grid(self.addr_pairs(dev)), "Addresses"), False, False, 0)
         if not radio:
             box.show_all()
             return
         if self.wifi_nets is None:
             box.pack_start(dp.label("looking for networks…", "ctl-sub"), False, False, 0)  # noqa: F405
         elif not self.wifi_nets:
-            box.pack_start(dp.label("No networks in range. Rescan, or join a hidden one.",  # noqa: F405
-                                    "ctl-sub"), False, False, 0)
+            box.pack_start(dp.label("No networks in range.", "ctl-sub"), False, False, 0)  # noqa: F405
         for net in (self.wifi_nets or [])[:20]:
             if net["in_use"]:
                 uuid = next((c["uuid"] for c in st["connections"] if c["active"] and c.get("ssid") == net["ssid"]),
@@ -567,8 +577,7 @@ class Page:
         box = self.boxes["saved"]
         clear(box)  # noqa: F405
         if not saved:
-            box.pack_start(dp.label("None yet: networks you join are saved here.", "ctl-sub"),  # noqa: F405
-                           False, False, 0)
+            box.pack_start(dp.label("None yet.", "ctl-sub"), False, False, 0)  # noqa: F405
         for c in saved:
             end = Gtk.Box(spacing=8)
             end.pack_start(dp.label("auto-connect", "ctl-sub"), False, False, 0)  # noqa: F405
@@ -590,9 +599,7 @@ class Page:
         box = self.boxes["vpn"]
         clear(box)  # noqa: F405
         if not vpns:
-            lab = dp.label("No VPN set up. Your VPN provider gives you a file for Linux: an OpenVPN .ovpn "  # noqa: F405
-                           "or a WireGuard .conf -- Import it below. Other kinds (OpenConnect, Cisco, "
-                           "Fortinet...) go through Add another kind.", "ctl-sub")
+            lab = dp.label("No VPN yet: import your provider's .ovpn or WireGuard .conf.", "ctl-sub")  # noqa: F405
             lab.set_line_wrap(True)
             box.pack_start(lab, False, False, 0)
         for c in vpns:
@@ -657,13 +664,12 @@ class Page:
         box = self.boxes["bt"]
         clear(box)  # noqa: F405
         if not bt.get("service"):
-            box.pack_start(dp.label("The Bluetooth service is not running (systemctl status bluetooth).",  # noqa: F405
-                                    "ctl-sub"), False, False, 0)
+            box.pack_start(dp.label("The Bluetooth service is not running.", "ctl-sub"), False, False, 0)  # noqa: F405
         elif not bt.get("present"):
             box.pack_start(dp.label("No Bluetooth adapter found.", "ctl-sub"), False, False, 0)  # noqa: F405
         else:
             if bt.get("hard_blocked"):
-                sub = "blocked by a hardware switch or the firmware (BIOS)"
+                sub = "blocked by a hardware switch or the BIOS"
             elif bt["powered"]:
                 sub = f"on  ·  shows up as “{bt['name']}”"
             else:
@@ -676,8 +682,8 @@ class Page:
             if bt["powered"]:
                 minutes = round((bt.get("discoverable_timeout") or 0) / 60)
                 grid, _ = row(ICON_EYE, "Visible to other devices",  # noqa: F405
-                              "phones and computers can find this one to pair" +
-                              (f"  ·  turns itself off after {minutes} min" if minutes else ""),
+                              "lets phones and computers find it" +
+                              (f"  ·  off after {minutes} min" if minutes else ""),
                               switch(bt["discoverable"], lambda on: self.act(
                                   "bt", "making it visible…" if on else "hiding it…", "bt", "discoverable",
                                   "on" if on else "off")))

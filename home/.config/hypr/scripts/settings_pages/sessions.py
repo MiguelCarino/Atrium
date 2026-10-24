@@ -21,7 +21,7 @@ from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 import os  # noqa: E402
 import time  # noqa: E402
 
-PAGE = {"id": "sessions", "title": "Workspace sessions", "icon": "", "group": "Apps", "order": 15,
+PAGE = {"id": "sessions", "title": "Workspaces", "icon": "", "group": "Apps", "order": 15, "tab": "Sessions",
         "keywords": ["session", "sesion", "restore windows", "save windows", "where was i", "last session",
                      "pick up where you left off", "reopen", "closed window", "undo close", "layout",
                      "workspaces", "autosave", "after login", "reboot", "logout"]}
@@ -29,11 +29,11 @@ PAGE = {"id": "sessions", "title": "Workspace sessions", "icon": "", "group":
 SESSIONS = os.path.join(HYPR, "sessions.py")
 CLOSED = os.path.join(HYPR, "closed-windows.py")
 SWITCHES = [("autosave", "\uf0c7", "Save the open windows every few minutes",
-             "and at logout, into an automatic slot -- what \"where was I\" brings back"),
+             "and at logout; what \"where was I\" brings back"),
             ("offer", "\uf0f3", "Offer to restore after login",
-             "a notification with a Restore button, once; it never restores by itself"),
+             "a notification with a Restore button; never automatic"),
             ("games", "\uf11b", "Include Steam and games",
-             "off: they are left out of saved sessions and the closed-window list")]
+             "in saved sessions and the closed-window list")]
 
 
 # -- pure helpers (tests/test_sessions.py) ------------------------------------------------
@@ -64,8 +64,7 @@ class Page:
         box.pack_start(self.name, True, True, 0)
         box.pack_start(link("Save the open windows", self.save), False, False, 0)
         w.pack_start(box, False, False, 0)
-        self.save_sub = dp.label("Apps, folders, workspaces, sizes and positions. Saving under a name "
-                                 "that exists replaces it.", "ctl-sub")
+        self.save_sub = dp.label("Apps, workspaces and positions. Same name replaces.", "ctl-sub")
         self.save_sub.set_line_wrap(True)
         w.pack_start(self.save_sub, False, False, 0)
         w.pack_start(sep(), False, False, 0)
@@ -83,10 +82,8 @@ class Page:
             w.pack_start(grid, False, False, 0)
         w.pack_start(sep(), False, False, 0)
         w.pack_start(heading("CLOSED WINDOWS"), False, False, 0)
-        note = dp.label("ALT+SHIFT+T opens the window you closed last again, on its workspace and where "
-                        "it was -- up to the last 20, dialogs and popups left out.", "ctl-sub")
-        note.set_line_wrap(True)
-        w.pack_start(note, False, False, 0)
+        w.pack_start(dp.label("ALT+SHIFT+T reopens the last closed window (up to 20).", "ctl-sub"),
+                     False, False, 0)
         w.pack_start(links_row(link("Reopen the last closed window", lambda: spawn(CLOSED, "reopen"))),
                      False, False, 0)
         self.updating = False
@@ -135,7 +132,7 @@ class Page:
         clear(self.rows)
         last = data.get("last")
         if last:
-            grid, _ = row("", "Where was I", "the last session before this login: " + session_sub(last),
+            grid, _ = row("", "Where was I", "before this login: " + session_sub(last),
                           links_row(link("Restore", lambda: spawn(SESSIONS, "where-was-i"))))
             self.rows.pack_start(grid, False, False, 0)
         for s in data.get("sessions") or []:
@@ -146,8 +143,6 @@ class Page:
                           links_row(link("Restore", lambda n=s["name"]: self.restore(n)), delete))
             self.rows.pack_start(grid, False, False, 0)
         if not last and not data.get("sessions"):
-            self.rows.pack_start(dp.label("Nothing saved yet. Name the windows you have open above, or "
-                                          "leave the automatic save on and \"where was I\" appears here "
-                                          "after the next login.", "ctl-sub"), False, False, 0)
+            self.rows.pack_start(dp.label("Nothing saved yet.", "ctl-sub"), False, False, 0)
         self.widget.show_all()
         self.updating = False

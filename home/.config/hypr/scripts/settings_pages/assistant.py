@@ -10,14 +10,13 @@ memory", which is Privacy's (`privacy_settings.py assistant memory on|off`).
 The page keeps nothing itself: every control runs one of those and redraws
 from what status says.
 """
-import datetime
 import os
 import subprocess
 
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 from gi.repository import GLib, Gtk  # noqa: F401,E402  (after common: it picks GTK 3)
 
-PAGE = {"id": "assistant", "title": "Assistant", "icon": "", "group": "Apps", "order": 41,
+PAGE = {"id": "assistant", "title": "Assistant", "icon": "", "group": "Apps", "order": 41, "parent": "ai", "tab": "Assistant",
         "keywords": ["assistant", "asistente", "chat", "ask", "pregunta", "local model", "ai", "ia",
                      "tools", "herramientas", "conversation", "history", "historial", "forget", "olvidar",
                      "voice reply", "speak", "confirm", "what was i doing", "compare windows"]}
@@ -29,6 +28,11 @@ GROUP_ICONS = {"memory": "", "screen": "", "project": "", "actions": "�
                "files": "", "repos": ""}
 STEPS = [2, 3, 4, 6, 8, 10]
 KEEP = [(0, "Not kept"), (1, "1 day"), (7, "7 days"), (30, "30 days"), (90, "90 days")]
+TOOL_SUBS = {"memory": "what you did, saw, copied and the files you have",       # short lines over
+             "screen": "the window or screen, by the local vision model",      # assistant.py's own
+             "actions": "theme, Do Not Disturb, timers, apps, windows, media; risky ones ask",
+             "sessions": "saved sessions, where you left off, closed windows",
+             "repos": "a project's commits and uncommitted files"}
 
 
 # -- pure helpers (tests/test_assistant.py) ----------------------------------------------
@@ -47,14 +51,12 @@ def history_text(history, days):
     """The line under the history choice: how much is kept now."""
     turns = (history or {}).get("turns") or 0
     if not days:
-        return ("Nothing is written: the conversation lives only while the panel is open."
-                + (f" {turns} older exchange(s) are still on disk until Forget." if turns else ""))
+        return ("Not saved: kept only while the panel is open"
+                + (f"  ·  {turns} older until Forget" if turns else ""))
     if not turns:
-        return f"Nothing kept yet. Exchanges older than {days} day(s) are dropped."
-    since = datetime.datetime.fromtimestamp(history["since"]).strftime("%b %d %H:%M") if history.get("since") else "?"
+        return f"Nothing kept yet; dropped after {days} day(s)"
     size = max(1, round((history.get("bytes") or 0) / 1024))
-    return (f"{turns} exchange(s) kept since {since} ({size} KB, ~/.local/state/hypr/assistant). Only the "
-            "words and the step lines: never pictures, file contents or tool results.")
+    return f"{turns} exchange(s) kept ({size} KB)"
 
 
 def call(*cmd):
@@ -90,9 +92,7 @@ class Page:
 
         w.pack_start(heading("DESKTOP ASSISTANT"), False, False, 0)  # noqa: F405
         w.pack_start(self.switch_row("enabled", "", "Assistant",
-                                     "A chat that knows this desktop: it searches what you did, looks at the "
-                                     "screen, reads a file you name and does desktop actions -- only through "
-                                     "the tools below, with the LOCAL model. Nothing leaves the computer."),
+                                     "A local chat that knows this desktop; nothing leaves it"),
                      False, False, 0)
         w.pack_start(links_row(link("Open the assistant", lambda: spawn(ASSISTANT, "open")),  # noqa: F405
                                link("AI & models", lambda: spawn(os.path.join(HYPR, "settings.py"), "ai"))),  # noqa: F405
@@ -103,14 +103,15 @@ class Page:
         self.model = Chips(lambda k: self.change(ASSISTANT, "set", "model", k))  # noqa: F405
         self.model.widget.set_max_children_per_line(2)
         w.pack_start(self.model.widget, False, False, 0)
-        w.pack_start(wrapped("Automatic: the big default model when LM Studio has it loaded already, else the "
-                             "quick one. Never a cloud model, never in gamemode, never one that would not fit on "
-                             "the graphics card next to what is loaded -- it then says why instead."),
-                     False, False, 0)
-        w.pack_start(dp.label("Tools per question (each step shows in the chat)", "ctl-sub"), False, False, 0)  # noqa: F405
+        w.pack_start(dp.label("Tools per question", "ctl-sub"), False, False, 0)  # noqa: F405
         self.steps = Chips(lambda k: self.change(ASSISTANT, "set", "max_steps", str(k)))  # noqa: F405
         self.steps.widget.set_max_children_per_line(6)
         w.pack_start(self.steps.widget, False, False, 0)
+        w.pack_start(details(wrapped("Automatic: the big default model when LM Studio has it loaded already, "  # noqa: F405
+                                     "else the quick one. Never a cloud model, never in gamemode, never one "
+                                     "that would not fit on the graphics card next to what is loaded -- it "
+                                     "then says why instead. Each tool step shows in the chat.")),
+                     False, False, 0)
 
         w.pack_start(sep(), False, False, 0)  # noqa: F405
         w.pack_start(heading("TOOLS IT MAY USE"), False, False, 0)  # noqa: F405
@@ -122,9 +123,10 @@ class Page:
         self.confirm = Chips(lambda k: self.change(ASSISTANT, "set", "confirm", k))  # noqa: F405
         self.confirm.widget.set_max_children_per_line(2)
         w.pack_start(self.confirm.widget, False, False, 0)
-        w.pack_start(wrapped("Risky actions follow voice commands' rules: several windows, overwriting a session, "
-                             "an app name that fits several apps. Restoring a session, closing any window and "
-                             "opening a link always ask. Nothing that asks runs without your Confirm click."),
+        w.pack_start(details(wrapped("Risky actions follow voice commands' rules: several windows, overwriting "  # noqa: F405
+                                     "a session, an app name that fits several apps. Restoring a session, "
+                                     "closing any window and opening a link always ask. Nothing that asks runs "
+                                     "without your Confirm click.")),
                      False, False, 0)
 
         w.pack_start(sep(), False, False, 0)  # noqa: F405
@@ -135,23 +137,26 @@ class Page:
         self.history_line = wrapped("")
         w.pack_start(self.history_line, False, False, 0)
         w.pack_start(self.switch_row("privacy:memory", "", "Into the desktop memory",
-                                     "Each exchange also becomes a desktop memory (from the app \"Assistant\"), so "
-                                     "\"remember …\" finds it. Off as shipped; needs Desktop memory and its "
-                                     "Notifications source on (Privacy)."),
+                                     "So \"remember …\" finds it; needs Desktop memory (Privacy)"),
                      False, False, 0)
         w.pack_start(links_row(link("Forget the whole conversation", self.forget)), False, False, 0)  # noqa: F405
+        w.pack_start(details(wrapped("Kept in ~/.local/state/hypr/assistant: only the words and the step lines, "  # noqa: F405
+                                     "never pictures, file contents or tool results. Into the desktop memory "
+                                     "files each exchange under the app \"Assistant\"; off as shipped, and it "
+                                     "needs Desktop memory and its Notifications source on (Privacy).")),
+                     False, False, 0)
 
         w.pack_start(sep(), False, False, 0)  # noqa: F405
         w.pack_start(heading("VOICE AND LANGUAGE"), False, False, 0)  # noqa: F405
         self.voice_row = self.switch_row("voice_reply", "", "Speak the replies",
-                                         "The answers read out loud by the desktop's text-to-speech voice.")
+                                         "Read aloud by the desktop's voice")
         w.pack_start(self.voice_row, False, False, 0)
         w.pack_start(dp.label("Answer in", "ctl-sub"), False, False, 0)  # noqa: F405
         self.language = Chips(lambda k: self.change(ASSISTANT, "set", "language", k))  # noqa: F405
         w.pack_start(self.language.widget, False, False, 0)
-        w.pack_start(wrapped("Voice in: the microphone button in the chat (or `assistant.py open --voice`) -- voice "
-                             "typing's own Whisper transcribes it (Voice typing & captions); the recording is "
-                             "deleted at once."), False, False, 0)
+        w.pack_start(details(wrapped("Voice in: the microphone button in the chat (or `assistant.py open "  # noqa: F405
+                                     "--voice`) -- voice typing's own Whisper transcribes it (Voice typing & "
+                                     "captions); the recording is deleted at once.")), False, False, 0)
 
         w.pack_start(sep(), False, False, 0)  # noqa: F405
         w.pack_start(heading("LAUNCHER"), False, False, 0)  # noqa: F405
@@ -159,7 +164,7 @@ class Page:
         self.launcher = Chips(lambda k: self.change(ASSISTANT, "set", "launcher_ask", k))  # noqa: F405
         self.launcher.widget.set_max_children_per_line(2)
         w.pack_start(self.launcher.widget, False, False, 0)
-        w.pack_start(wrapped("The other one is the second row. \"assistant\" / \"asistente\" alone opens the chat."),
+        w.pack_start(wrapped("The other is the second row; \"assistant\" alone opens the chat"),
                      False, False, 0)
 
     # -- building ----------------------------------------------------------------------
@@ -222,15 +227,15 @@ class Page:
             self.updating = False
         self.history_line.set_text(history_text(data.get("history"), conf["history_days"]))
         self.voice_row.sub_label.set_text(
-            "The answers read out loud by the desktop's text-to-speech voice. " +
-            ("" if data.get("tts") else "No text-to-speech voice is installed yet: until one is, this does nothing."))
+            "Read aloud by the desktop's voice" + ("" if data.get("tts") else " (no voice installed yet)"))
         self.widget.show_all()
 
     def draw_tools(self, data):
         conf = data["settings"]
         if not self.tool_box.get_children():
             for gid, info in data["tools"].items():
-                grid = self.switch_row(f"tool_{gid}", GROUP_ICONS.get(gid, ""), info["title"], info["sub"])
+                grid = self.switch_row(f"tool_{gid}", GROUP_ICONS.get(gid, ""), info["title"],
+                                     TOOL_SUBS.get(gid, info["sub"]))
                 self.tool_box.pack_start(grid, False, False, 0)
         for gid in data["tools"]:
             put(self.switches[f"tool_{gid}"], conf[f"tool_{gid}"] == "on")

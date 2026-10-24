@@ -444,7 +444,7 @@ class PageHelpers(unittest.TestCase):
     def test_test_line(self):
         line = self.page.test_line({"voice": "es_MX-ald-medium", "audio_s": 5.0, "synth_s": 0.1, "rtf": 0.02,
                                     "load_s": 1.0, "played": True})
-        self.assertTrue(line.startswith("Playing: ald · Mexico · medium. 5.0 s of speech made in 0.1 s (50×"))
+        self.assertEqual(line, "Playing: ald · Mexico · medium  ·  50× faster than real time")
         self.assertEqual(self.page.test_line({"error": "x"}), "Not played: x")
 
 

@@ -43,7 +43,7 @@ import time  # noqa: E402
 
 import llm_models  # noqa: E402  (hypr/scripts, on the path via settings.py; no GTK)
 
-PAGE = {"id": "ai", "title": "AI & models", "icon": "", "group": "Apps", "order": 40,
+PAGE = {"id": "ai", "title": "AI & assistant", "icon": "", "group": "Apps", "order": 25, "tab": "Models",
         "keywords": ["llm", "ai", "model", "models", "gpu", "vram", "graphics memory", "lm studio", "local",
                      "llm chat", "chat window", "chat notifications", "ollama", "llama.cpp", "vllm", "openai",
                      "server", "api key", "gemma", "qwen", "glm", "claude", "context", "quick answers",
@@ -60,13 +60,14 @@ BENCH_UNIT = "llm-bench"
 CONTEXTS = [16384, 24576, 32768, 49152, 65536, 131072]
 SLOTS = [1, 2, 4]
 ROLES = [("default", "", "The chat window and ? asks",
-          "what the LLM chat window and the launcher's \"?question\" run on"),
+          "the LLM chat window and the launcher's \"?question\""),
          ("quick", "", "?? quick answers",
-          "a few sentences in the launcher. A local model here gives way to haiku (with Claude Code "
-          "installed) when it would not fit on the card next to what is loaded, or while a game runs"),
+          "a few sentences in the launcher"),
          ("worker", "", "Worker",
-          "the local worker a coding agent hands bulk text jobs to over MCP (llm-worker.py); never pushes "
-          "other models off the GPU")]
+          "bulk text jobs for coding agents; never pushes other models off")]
+ROLES_MORE = ("?? quick answers: a local model here gives way to haiku (with Claude Code installed) when it "
+              "would not fit on the card next to what is loaded, or while a game runs. Worker: the local "
+              "worker a coding agent hands bulk text jobs to over MCP (llm-worker.py).")
 VERDICT_CLASS = {"fits": "", "tight": "warning", "won't fit": "critical"}
 
 
@@ -132,9 +133,7 @@ def loaded_sub(m, default_parallel=4):
 
 def installed_sub(m, ctx):
     bits = [m.get("params"), m.get("quant"), gbs(m["size"]), "tool use" if m.get("tools") else "no tool use",
-            f"up to {k(m['max_context'])} context" if m.get("max_context") else "",
-            f"KV cache {gbs(m['kv'])} at {k(ctx)}" + (" (rule of thumb)" if m.get("kv_how") == "rule of thumb"
-                                                     else "") if m.get("kv_how") else ""]
+            f"up to {k(m['max_context'])} context" if m.get("max_context") else ""]
     return "  ·  ".join(b for b in bits if b)
 
 
@@ -143,7 +142,7 @@ def fit_text(m):
     if not f:
         return "?"
     if f["verdict"] == "won't fit":
-        return f"won't fit: needs {gbs(f['need'])} of {gbs(f['room'])} (would spill to RAM: slow)"
+        return f"won't fit: needs {gbs(f['need'])} of {gbs(f['room'])} (slow)"
     return f"{f['text']}: {gbs(f['need'])} of {gbs(f['room'])}"
 
 
@@ -189,25 +188,23 @@ def limits_line(s):
     CPU against them."""
     lim = s["limits"]
     if not s["unit"]:
-        return "lmstudio.service is not installed: LM Studio runs the old way, with no limits."
+        return "No limits: LM Studio's service is not installed"
     if s["where"] == "none":
-        return "LM Studio is not running. It starts inside these limits when a local model is asked for."
+        return "LM Studio is not running; it starts inside these limits"
     use = s.get("usage") or {}
-    cpu = f"; CPU {use['cpu_pct']:.0f} % of the machine" if use.get("cpu_pct") is not None else ""
+    cpu = f", CPU {use['cpu_pct']:.0f} %" if use.get("cpu_pct") is not None else ""
     if s["where"] == "outside":
         who = "the LM Studio app" if s["app"] else "a terminal `lms` or the app"
-        return (f"!  LM Studio is running OUTSIDE the limits (started by {who}): {gbs_gib(use.get('current'))} "
-                f"in use{cpu}." + ("" if s["app"] else " Restart it under them when nothing is answering "
-                                   "(the models are unloaded, and load again when asked for)."))
+        return (f"!  Running outside the limits (started by {who}): {gbs_gib(use.get('current'))} "
+                f"in use{cpu}" + ("" if s["app"] else " -- restart it under them in Details"))
     limit = f" of {lim['ram_limit_gb']} GB" if lim["ram_limit_gb"] else ""
-    text = (f"Running inside the limits: {gbs_gib(use.get('current'))}{limit} in use (its own "
-            f"{gbs_gib(use.get('own'))}, the rest file cache it can drop){cpu}.")
+    text = f"Using {gbs_gib(use.get('current'))}{limit}{cpu}"
     if s.get("oom_kills"):
-        text += f"  !  The RAM limit has ended a model {s['oom_kills']} time(s) since LM Studio started."
+        text += f"  !  The RAM limit ended a model {s['oom_kills']} time(s)"
     if lim["llm_low_priority"] and (s.get("nice") or 0) < 10:
-        text += " Low priority's nice 10 holds from the next start."
+        text += "  ·  low priority from the next start"
     elif not lim["llm_low_priority"] and (s.get("nice") or 0) > 0:
-        text += " Normal priority holds from the next start."
+        text += "  ·  normal priority from the next start"
     return text
 
 
@@ -319,13 +316,13 @@ class Page:
         w.pack_start(heading("INSTALLED MODELS"), False, False, 0)
         self.installed = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         w.pack_start(self.installed, False, False, 0)
-        w.pack_start(wrapped("\"Fits?\" is the model, its KV cache for the context below, 0.5 GB of working "
-                             "space and 2 GB kept for the desktop, against the card's memory; a model that "
-                             "does not fit is loaded partly into RAM by LM Studio, and every answer is slow. "
-                             "The cache is worked out from the model file's own header."), False, False, 0)
-        w.pack_start(links_row(link("Look for new models", self.relist),
-                               link("Open the models folder", lambda: spawn(
-                                   "xdg-open", llm_models.LMS_MODELS))), False, False, 0)
+        w.pack_start(links_row(link("Look for new models", self.relist)), False, False, 0)
+        w.pack_start(details(wrapped("\"Fits?\" is the model, its KV cache for the context below, 0.5 GB of "
+                                     "working space and 2 GB kept for the desktop, against the card's memory; a "
+                                     "model that does not fit is loaded partly into RAM by LM Studio, and every "
+                                     "answer is slow. The cache is worked out from the model file's own header."),
+                             links_row(link("Open the models folder", lambda: spawn(
+                                 "xdg-open", llm_models.LMS_MODELS)))), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("WHICH MODEL DOES WHAT"), False, False, 0)
@@ -336,6 +333,7 @@ class Page:
             grid, _ = row(icon, title, sub, combo)
             self.roles[role] = combo
             w.pack_start(grid, False, False, 0)
+        w.pack_start(details(wrapped(ROLES_MORE)), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("CONTEXT AND SLOTS"), False, False, 0)
@@ -349,6 +347,12 @@ class Page:
         self.slots = self.make_chips(lambda key: None if self.updating else
                                      self.do("python3", LLM_MODELS, "set", "parallel", key))
         w.pack_start(self.slots.widget, False, False, 0)
+        w.pack_start(details(wrapped(
+            "Context is what a local model is loaded with for the chat window and the rest; LM Studio's own "
+            "default, 8k, is too small for a chat with tools. It is used the next time a model is loaded (one "
+            "loaded already with at least this much is used as it is). More context, more of the card for "
+            "the KV cache. Slots are answers at once (the chat, the assistant, background calls) sharing one "
+            "pool of context: each is sure of its share, and one alone can use it all.")), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("LIMITS"), False, False, 0)
@@ -364,25 +368,30 @@ class Page:
         self.low = Gtk.Switch()
         self.low.connect("state-set", lambda _s, state: self.switched_low(state))
         grid, _ = row("\uf06c", "Give way to the desktop",
-                      "low priority for LM Studio's CPU and disk use (weight 20 of 100, nice 10), so the "
-                      "desktop stays smooth while a model answers", self.low)
+                      "low priority for LM Studio, so the desktop stays smooth", self.low)
         w.pack_start(grid, False, False, 0)
         self.limits_live = wrapped("checking…")
         w.pack_start(self.limits_live, False, False, 0)
         self.adopt = link("Restart under the limits", lambda: self.do(
             LLM_LIMITS, "adopt", busy="restarting LM Studio under the limits…"))
         self.adopt.set_no_show_all(True)
-        w.pack_start(links_row(self.adopt), False, False, 0)
+        w.pack_start(details(wrapped(
+            "The RAM limit covers LM Studio and its models together: past it, the model is ended and its load "
+            "says so, instead of the whole desktop freezing while memory runs out. A model on the card needs "
+            "far less RAM than its size; one that spills to RAM needs most of it. The CPU limit is the most it "
+            "may use at once, even when the rest is idle (it matters for a model partly in RAM). Low priority "
+            "is CPU and disk weight 20 of 100, nice 10. Use counts file cache it can drop. Restart under the "
+            "limits shows when LM Studio was started outside lmstudio.service (the models are unloaded, and "
+            "load again when asked for)."), links_row(self.adopt)), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("GAMES"), False, False, 0)
         self.switches = {}
         for key, icon, title, sub in (
                 ("unload_for_games", "", "Unload the models when gamemode turns on",
-                 "a local model can hold most of the card's memory; gamemode (ALT+SHIFT+G, or a Steam game) "
-                 "unloads every one first"),
+                 "frees the card for ALT+SHIFT+G or a Steam game"),
                 ("reload_after_games", "", "Load them again when it turns off",
-                 "off: they come back the next time they are asked for, or from Load again below")):
+                 "off: they load the next time they are asked for")):
             sw = Gtk.Switch()
             sw.connect("state-set", lambda _s, state, k=key: self.switched(k, state))
             grid, _sub = row(icon, title, sub, sw)
@@ -404,9 +413,7 @@ class Page:
         self.front_notify.set_active(front_notify())
         self.front_notify.connect("state-set", lambda _s, state: set_front_notify(state) and False)
         grid, _ = row("\uf0f3", "Notify when the chat is in the background",
-                      "a finished or failed answer, and a permission the model is waiting for (that one even "
-                      "in Do Not Disturb). The window's permission mode -- Ask me, Auto, Accept edits, "
-                      "Plan -- is its Ctrl+P menu", self.front_notify)
+                      "finished answers, and permissions it waits for", self.front_notify)
         w.pack_start(grid, False, False, 0)
         # One more OpenAI-compatible server next to LM Studio: its models in
         # the chat window's picker (Ctrl+M). Saved on Enter or on leaving the
@@ -418,27 +425,30 @@ class Page:
         self.server_url.set_placeholder_text("http://localhost:11434/v1")
         self.server_url.set_text(conf.get("server_url") or "")
         grid, _ = row("\uf233", "OpenAI-compatible server",
-                      "Ollama (http://localhost:11434/v1), llama.cpp's llama-server (http://localhost:8080/v1), "
-                      "vLLM, or a remote provider: its models show in the chat window's model menu next to "
-                      "LM Studio's. Empty: none", self.server_url)
+                      "Ollama, llama.cpp, vLLM or a remote one; empty: none", self.server_url)
         w.pack_start(grid, False, False, 0)
         self.server_key = Gtk.Entry()
         self.server_key.set_width_chars(34)
         self.server_key.set_visibility(False)
         self.server_key.set_placeholder_text("•••• (set)" if conf.get("server_key") else "none")
         grid, _ = row("\uf084", "Its API key",
-                      "only if the server wants one; sent to that server only, as a Bearer token. "
-                      "$LLM_SERVER_KEY wins over it. Type \"none\" to remove it", self.server_key)
+                      "only if the server wants one; \"none\" removes it", self.server_key)
         w.pack_start(grid, False, False, 0)
         for entry, key in ((self.server_url, "server_url"), (self.server_key, "server_key")):
             entry.connect("activate", lambda e, k=key: self.save_server(k, e))
             entry.connect("focus-out-event", lambda e, _ev, k=key: self.save_server(k, e))
+        w.pack_start(details(wrapped(
+            "Notifications come when the chat is in the background: a finished or failed answer, and a "
+            "permission the model is waiting for (that one even in Do Not Disturb). The window's permission "
+            "mode -- Ask me, Auto, Accept edits, Plan -- is its Ctrl+P menu. The server's models show in the "
+            "chat window's model menu (Ctrl+M) next to LM Studio's: Ollama is http://localhost:11434/v1, "
+            "llama.cpp's llama-server http://localhost:8080/v1. The key is kept in llm.json (yours only) and "
+            "sent to that server only, as a Bearer token; $LLM_SERVER_KEY wins over it.")), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("ASK YOUR DESKTOP"), False, False, 0)
-        w.pack_start(wrapped("The launcher's \"ask ...\" answers questions about your files, clipboard and what "
-                             "you were doing with a local model, so nothing leaves the computer. Which of "
-                             "those it may read is on the Privacy page."), False, False, 0)
+        w.pack_start(wrapped("The launcher's \"ask ...\" answers about your files and activity, locally"),
+                     False, False, 0)
         w.pack_start(links_row(link("Open Privacy", lambda: spawn(SETTINGS, "privacy"))), False, False, 0)
 
     # -- building blocks -------------------------------------------------------------
@@ -538,8 +548,7 @@ class Page:
 
     def bench_started(self, result):
         ok, text = result
-        self.say("benchmark started: every model is loaded in turn, up to ~45 min, and the card is busy "
-                 "meanwhile" if ok else f"!  {text}")
+        self.say("benchmark started: up to ~45 min, the card is busy meanwhile" if ok else f"!  {text}")
         background(read_bench, self.show_bench)
 
     # -- drawing ---------------------------------------------------------------------
@@ -570,14 +579,10 @@ class Page:
             combo.set_active_id(current)
         ctx, par = data["context"], data["parallel"]
         self.ctx.set(context_chips(ctx), str(ctx))
-        self.ctx_sub.set_text(f"{k(ctx)} tokens: what a local model is loaded with for the chat window and "
-                              "the rest; LM Studio's own default, 8k, is too small for a chat with tools. Used the next time a model is "
-                              "loaded (one loaded already with at least this much is used as it is). More "
-                              "context, more of the card for the KV cache.")
+        self.ctx_sub.set_text(f"{k(ctx)} tokens for local models, from the next load")
         self.slots.set(slot_chips(par, data["default_parallel"]), str(par) if par else "auto")
         slots = par or data["default_parallel"]
-        text = (f"{slots} answers at once (the chat, the assistant, background calls) share one pool of "
-                f"{k(ctx)}: each is sure of {k(data['per_slot'])}, and one alone can use it all.")
+        text = f"{slots} answers at once, {k(data['per_slot'])} each for sure"
         if data["slot_warning"]:
             text += "  !  " + data["slot_warning"][0].upper() + data["slot_warning"][1:] + "."
         self.slot_sub.set_text(text)
@@ -601,15 +606,12 @@ class Page:
         self.ram.set(ram_chips(lim["ram_limit_gb"], dflt["ram_limit_gb"], mach["ram_gb"]),
                      str(lim["ram_limit_gb"]))
         self.ram_sub.set_text(
-            (f"{lim['ram_limit_gb']} GB" if lim["ram_limit_gb"] else "No limit") + f" of this machine's "
-            f"{mach['ram_gb']:.0f} GB for LM Studio and its models together. Past it, the model is ended "
-            "and its load says so, instead of the whole desktop freezing while memory runs out. A model "
-            "on the card needs far less RAM than its size; one that spills to RAM needs most of it.")
+            (f"{lim['ram_limit_gb']} GB" if lim["ram_limit_gb"] else "No limit") + f" of "
+            f"{mach['ram_gb']:.0f} GB for LM Studio and its models")
         self.cpu.set(cpu_chips(lim["cpu_limit_pct"], mach["cpus"]), str(lim["cpu_limit_pct"]))
         self.cpu_sub.set_text(
             (f"{lim['cpu_limit_pct']} % of all {mach['cpus']} threads" if lim["cpu_limit_pct"] else
-             "No limit") + ": the most LM Studio may use at once, even when the rest is idle. Matters for "
-            "a model partly in RAM, which works the CPU hard.")
+             "No limit") + " for LM Studio")
         on = bool(lim["llm_low_priority"])
         self.low.set_state(on)
         self.low.set_active(on)
@@ -621,8 +623,7 @@ class Page:
         clear(self.card)
         card = data.get("gpu")
         if not card:
-            self.card.pack_start(wrapped("nvidia-smi did not answer: no NVIDIA card, or its driver is not "
-                                         "loaded"), False, False, 0)
+            self.card.pack_start(wrapped("No NVIDIA card found (or its driver is not loaded)"), False, False, 0)
             self.card.show_all()
             return
         pct = round(100 * card["used"] / card["total"]) if card["total"] else 0
@@ -631,25 +632,27 @@ class Page:
                       f"{gbs(card['total'] - card['used'])} free", dp.label(f"{pct} %", "ctl-value"))
         grid.attach(bar(pct, level), 1, 2, 2, 1)
         self.card.pack_start(grid, False, False, 0)
+        if card["procs"]:
+            procs = details(label="Programs on the card")
+            self.card.pack_start(procs, False, False, 0)
         for p in card["procs"]:
             line = Gtk.Box(spacing=10)
             name = dp.label(p["name"], "ctl-title" if p.get("lmstudio") else "ctl-sub")
             name.set_ellipsize(3)       # Pango.EllipsizeMode.END
             line.pack_start(name, True, True, 0)
             line.pack_start(dp.label(gbs(p["used"]), "ctl-value"), False, False, 0)
-            self.card.pack_start(line, False, False, 0)
+            procs.box.pack_start(line, False, False, 0)
         if card["procs"]:
-            self.card.pack_start(wrapped("Programs drawing on screen (the desktop itself, games) use the card "
+            procs.box.pack_start(wrapped("Programs drawing on screen (the desktop itself, games) use the card "
                                          "too, and are not all listed."), False, False, 0)
         self.card.show_all()
 
     def show_loaded(self, data):
         clear(self.loaded)
         if not data["running"]:
-            self.loaded.pack_start(wrapped("LM Studio is not running, so no model is on the card. A local "
-                                           "model starts it when it is asked something."), False, False, 0)
+            self.loaded.pack_start(wrapped("none: LM Studio is not running"), False, False, 0)
         elif not data["loaded"]:
-            self.loaded.pack_start(wrapped("none: LM Studio is running with nothing loaded"), False, False, 0)
+            self.loaded.pack_start(wrapped("none loaded"), False, False, 0)
         for m in data["loaded"]:
             grid, _ = row("", m["alias"], loaded_sub(m, data["default_parallel"]),
                           link("Unload", lambda a=m["identifier"]: self.do(LLM_GPU, "unload", a)))
@@ -701,17 +704,19 @@ class Page:
         self.bench_run.set_label("running…" if going else "Run again")
         if going:
             names = ", ".join((data.get("running") or {}).get("models") or [])
-            self.bench.pack_start(wrapped("A benchmark is running" + (f" ({names})" if names else "")
-                                          + ": the results below are the last finished run's."), False, False, 0)
+            self.bench.pack_start(wrapped("Running now" + (f" ({names})" if names else "")
+                                          + "; below is the last finished run"), False, False, 0)
         if not data.get("runs"):
-            self.bench.pack_start(wrapped("No benchmark yet. \"Run again\" loads every installed model at 16k, "
-                                          "32k and 64k context (and 64k with 4 slots), times reading an 8k "
-                                          "prompt and writing 256 tokens, and checks a tool call."), False, False, 0)
+            self.bench.pack_start(wrapped("No benchmark yet"), False, False, 0)
+            self.bench.pack_start(details(wrapped(
+                "\"Run again\" loads every installed model at 16k, 32k and 64k context (and 64k with 4 slots), "
+                "times reading an 8k prompt and writing 256 tokens, and checks a tool call.")), False, False, 0)
             self.bench.show_all()
             return
-        self.bench.pack_start(wrapped(bench_when(data).capitalize() + ". VRAM is what the model took on the "
-                                      "card, pred what the calculator above said it would; pp is reading the "
-                                      "prompt, gen writing, x4 four answers at once together."), False, False, 0)
+        self.bench.pack_start(wrapped(bench_when(data).capitalize()), False, False, 0)
+        full = details(wrapped("VRAM is what the model took on the card, pred what the calculator above said "
+                               "it would; pp is reading the prompt, gen writing, x4 four answers at once "
+                               "together."), label="Full results")
         grid = Gtk.Grid(column_spacing=12, row_spacing=1)
         grid.set_margin_start(6)
         heads = llm_bench.HEAD
@@ -728,10 +733,10 @@ class Page:
             note.set_max_width_chars(34)
             note.set_tooltip_text(cells[-1] or None)
             grid.attach(note, len(heads) - 1, i, 1, 1)
-        self.bench.pack_start(grid, False, False, 0)
+        full.box.pack_start(grid, False, False, 0)
         calc = data.get("calculator") or {}
         if calc.get("n"):
-            self.bench.pack_start(wrapped(
+            full.box.pack_start(wrapped(
                 f"The calculator was off by {calc['mean_gb']:+.1f} GB on average (measured less predicted, "
                 f"{calc['n']} loads): " + ", ".join(f"{a} {e:+.1f}" for a, e in calc["per_model"].items())),
                 False, False, 0)
@@ -739,6 +744,6 @@ class Page:
             title = ROLE_TITLES.get(role, role) + ": " + (rec.get("model") or "none")
             grid, _ = row(ROLE_ICONS.get(role, ""), title, rec.get("why") or "")
             self.bench.pack_start(grid, False, False, 0)
-        self.bench.pack_start(wrapped("Recommendations only: which model does what is chosen above."),
-                              False, False, 0)
+        self.bench.pack_start(wrapped("Suggestions only; pick models above"), False, False, 0)
+        self.bench.pack_start(full, False, False, 0)
         self.bench.show_all()

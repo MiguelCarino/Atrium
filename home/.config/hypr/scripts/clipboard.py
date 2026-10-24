@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Clipboard history for SUPER+V, laid out like the app launcher: the newest
-entry (or the best match for what is typed) as a big hero card, the rest as
-tiles -- text snippets, or thumbnails for images.
+entry (or the best match for what is typed) as a big hero card, the rest in
+history order below it: text as one-line rows, images as thumbnail tiles.
 
     clipboard.py         open it, or close it if it is already open
 
 Keys: type to filter (text entries by content, images by "png", "jpeg", size),
-arrows to move, Enter copies the highlighted entry back onto the clipboard,
+arrows to move (up/down to the row or tile above or below), Enter copies the highlighted entry back onto the clipboard,
 Delete removes it from the history, Esc closes. A click copies; a click off the
 card closes.
 
@@ -171,19 +171,15 @@ class Clipboard(Gtk.Window):
         self.empty.set_no_show_all(True)
         card.pack_start(self.empty, False, False, 0)
 
-        self.grid = Gtk.FlowBox()
-        self.grid.set_name("tiles")
-        self.grid.set_min_children_per_line(COLUMNS)
-        self.grid.set_max_children_per_line(COLUMNS)
-        self.grid.set_homogeneous(True)
-        self.grid.set_selection_mode(Gtk.SelectionMode.NONE)
-        self.grid.set_valign(Gtk.Align.START)
-        self.grid.set_can_focus(False)
+        # Text rows and runs of image tiles, stacked in history order.
+        self.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.list.set_name("tiles")
+        self.list.set_valign(Gtk.Align.START)
         self.scroll = Gtk.ScrolledWindow()
         self.scroll.set_name("tiles-scroll")
         self.scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         self.scroll.set_can_focus(False)
-        self.scroll.add(self.grid)
+        self.scroll.add(self.list)
         card.pack_start(self.scroll, True, True, 0)
 
         self.connect("key-press-event", self.on_key)
@@ -233,10 +229,18 @@ class Clipboard(Gtk.Window):
         self.empty.set_visible(not has)
         if has:
             self.show_hero(self.results[0])
-        for child in self.grid.get_children():
+        for child in self.list.get_children():
             child.destroy()
-        self.tiles = [self.make_tile(item, n) for n, item in enumerate(self.results[1:], 1)]
-        self.grid.show_all()
+        self.tiles, grid = [], None
+        for n, item in enumerate(self.results[1:], 1):
+            if not item.image:
+                grid = None
+                self.tiles.append(self.make_row(item, n))
+                continue
+            if grid is None:                    # a run of images: one grid
+                grid = self.make_grid()
+            self.tiles.append(self.make_tile(item, n, grid))
+        self.list.show_all()
         self.paint_selection()
 
     def show_hero(self, item):
@@ -252,50 +256,91 @@ class Clipboard(Gtk.Window):
             self.hero_text.set_text(flat(text, HERO_TEXT_CHARS))
             self.hero_caption.set_text(f"TEXT  ·  {len(text)} chars")
 
-    def make_tile(self, item, index):
+    def make_grid(self):
+        grid = Gtk.FlowBox()
+        grid.set_min_children_per_line(COLUMNS)
+        grid.set_max_children_per_line(COLUMNS)
+        grid.set_homogeneous(True)
+        grid.set_selection_mode(Gtk.SelectionMode.NONE)
+        grid.set_valign(Gtk.Align.START)
+        grid.set_can_focus(False)
+        self.list.pack_start(grid, False, False, 0)
+        return grid
+
+    def clickable(self, widget, index, *classes):
+        tile = launcher.styled(Gtk.EventBox(), "tile", *classes)
+        tile.add(widget)
+        tile.connect("button-release-event", lambda *_: self.copy(index))
+        tile.connect("enter-notify-event", lambda *_: self.hover(index))
+        return tile
+
+    def make_row(self, item, index):
+        text = launcher.styled(Gtk.Label(label=flat(item.preview, 300), xalign=0), "clip-text")
+        text.set_ellipsize(Pango.EllipsizeMode.END)
+        text.set_single_line_mode(True)
+        text.set_margin_start(14)
+        text.set_margin_end(14)
+        text.set_margin_top(8)
+        text.set_margin_bottom(8)
+        row = self.clickable(text, index, "clip-row")
+        row.set_margin_start(4)
+        row.set_margin_end(4)
+        row.set_margin_top(3)
+        row.set_margin_bottom(3)
+        self.list.pack_start(row, False, False, 0)
+        return row
+
+    def make_tile(self, item, index, grid):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         box.set_margin_start(10)
         box.set_margin_end(10)
-        if item.image:
-            image = Gtk.Image()
-            image.set_vexpand(True)
-            box.pack_start(image, True, True, 0)
-            self.want_thumb(item, TILE_THUMB, image)
-            caption = launcher.styled(Gtk.Label(label=item.caption), "clip-caption")
-            box.pack_start(caption, False, False, 0)
-        else:
-            text = launcher.styled(Gtk.Label(label=flat(item.preview, 160), xalign=0, yalign=0),
-                                   "clip-text")
-            text.set_line_wrap(True)
-            text.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
-            text.set_lines(4)
-            text.set_ellipsize(Pango.EllipsizeMode.END)
-            text.set_max_width_chars(22)
-            text.set_valign(Gtk.Align.START)
-            box.pack_start(text, True, True, 0)
-        tile = launcher.styled(Gtk.EventBox(), "tile", "clip-tile")
-        tile.add(box)
-        tile.connect("button-release-event", lambda *_: self.copy(index))
-        tile.connect("enter-notify-event", lambda *_: self.hover(index))
+        image = Gtk.Image()
+        image.set_vexpand(True)
+        box.pack_start(image, True, True, 0)
+        self.want_thumb(item, TILE_THUMB, image)
+        caption = launcher.styled(Gtk.Label(label=item.caption), "clip-caption")
+        box.pack_start(caption, False, False, 0)
+        tile = self.clickable(box, index, "clip-tile")
         child = Gtk.FlowBoxChild()
         child.set_can_focus(False)
         child.add(tile)
-        self.grid.add(child)
-        return child
+        grid.add(child)
+        return tile
+
+    def where(self, index):
+        """(x, y, width, height) of a row or tile inside the list."""
+        tile = self.tiles[index - 1]
+        alloc = tile.get_allocation()
+        x, y = tile.translate_coordinates(self.list, 0, 0) or (alloc.x, alloc.y)
+        return x, y, alloc.width, alloc.height
+
+    def step(self, down):
+        """The row or tile straight above or below the selected one: on the
+        nearest line in that direction, the one closest across."""
+        x, y, w, h = self.where(self.selected)
+        middle = x + w / 2
+        best = None
+        for index in range(1, len(self.tiles) + 1):
+            ox, oy, ow, oh = self.where(index)
+            if (oy >= y + h) if down else (oy + oh <= y):
+                score = (abs(oy - y), abs(ox + ow / 2 - middle))
+                if best is None or score < best[0]:
+                    best = (score, index)
+        return best[1] if best else None
 
     def paint_selection(self):
         style = self.hero.get_style_context()
         (style.add_class if self.selected == 0 else style.remove_class)("selected")
-        for index, child in enumerate(self.tiles, start=1):
-            style = child.get_child().get_style_context()
+        for index, tile in enumerate(self.tiles, start=1):
+            style = tile.get_style_context()
             (style.add_class if index == self.selected else style.remove_class)("selected")
         if self.selected:
-            alloc = self.tiles[self.selected - 1].get_allocation()
+            _x, y, _w, height = self.where(self.selected)
             adj = self.scroll.get_vadjustment()
-            if alloc.y < adj.get_value():
-                adj.set_value(alloc.y)
-            elif alloc.y + alloc.height > adj.get_value() + adj.get_page_size():
-                adj.set_value(alloc.y + alloc.height - adj.get_page_size())
+            if y < adj.get_value():
+                adj.set_value(y)
+            elif y + height > adj.get_value() + adj.get_page_size():
+                adj.set_value(y + height - adj.get_page_size())
 
     def hover(self, index):
         self.selected = index
@@ -318,9 +363,9 @@ class Clipboard(Gtk.Window):
             return True
         sel = self.selected
         if key in (Gdk.KEY_Down, Gdk.KEY_KP_Down):
-            sel = 1 if sel == 0 else sel + COLUMNS
+            sel = 1 if sel == 0 else (self.step(True) or sel)
         elif key in (Gdk.KEY_Up, Gdk.KEY_KP_Up):
-            sel = 0 if sel <= COLUMNS else sel - COLUMNS
+            sel = 0 if sel == 0 else (self.step(False) or 0)
         elif key in (Gdk.KEY_Right, Gdk.KEY_Tab) and sel > 0:
             sel += 1
         elif key in (Gdk.KEY_Left, Gdk.KEY_ISO_Left_Tab) and sel > 0:

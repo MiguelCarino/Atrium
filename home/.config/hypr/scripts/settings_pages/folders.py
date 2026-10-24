@@ -3,8 +3,8 @@ files in (folder_access.py, which explains the rules; this page runs its
 command line and redraws from what it reports).
 
     FOLDER ACCESS FOR AI   "Ask before AI reads a folder" on / off
-    ALLOWED FOLDERS        each grant: the folder, for which feature, since
-                           when, how it was given; Revoke. Then the folders
+    ALLOWED FOLDERS        each grant: the folder, for which feature, how
+                           it was given; Revoke. Then the folders
                            your background tasks work on (open to tasks by
                            the task itself; Deny one below to stop it)
     ADD A FOLDER           for which feature (all, or one), Allow a folder… /
@@ -12,17 +12,17 @@ command line and redraws from what it reports).
                            index's folders as one-click suggestions
     DENIED FOLDERS         each denial; Remove
     NEVER READ             the secret and system folders no grant opens
+                           (the list and the terminal commands folded)
 
 Reached from Settings > Privacy and the Smart desktop hub's privacy strip.
 """
-import datetime
 import subprocess
 
 from gi.repository import GLib, Gtk  # noqa: F401
 
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 
-PAGE = {"id": "folders", "title": "Folder access", "icon": "", "group": "Safety", "order": 21,
+PAGE = {"id": "folders", "title": "Folder access", "icon": "", "group": "Smart", "order": 24, "parent": "intelligence", "tab": "Folder access",
         "keywords": ["folder access", "acceso a carpetas", "carpetas", "permissions", "permisos", "ai reads",
                      "files the ai reads", "allow folder", "deny folder", "revoke", "assistant files",
                      "local worker", "llm chat", "chat window", "read_file"]}
@@ -40,13 +40,6 @@ SUGGESTED = ("Documents", "Downloads", "Desktop")      # the search index's fold
 
 def tilde(path):
     return "~" + path[len(HOME):] if path == HOME or path.startswith(HOME + "/") else path
-
-
-def day_text(epoch):
-    if not epoch:
-        return "?"
-    then = datetime.datetime.fromtimestamp(epoch)
-    return f"today {then:%H:%M}" if then.date() == datetime.date.today() else f"{then:%a %d %b %Y}"
 
 
 def task_folders(data):
@@ -89,7 +82,7 @@ class Page:
                         "only from open folders.", "ctl-sub")
         note.set_line_wrap(True)
         note.set_max_width_chars(90)
-        w.pack_start(note, False, False, 0)
+        w.pack_start(details(note, label="How it works"), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("ALLOWED FOLDERS"), False, False, 0)
@@ -121,16 +114,21 @@ class Page:
 
         w.pack_start(heading("NEVER READ"), False, False, 0)
         grid, self.never_sub = row("", "Secret and system folders",
-                                   "Whatever is allowed here: ~/.ssh, ~/.gnupg, password stores, keyrings, browser "
-                                   "and mail profiles, cloud keys (~/.aws, ~/.kube, ~/.docker), folders named "
-                                   "secrets / credentials, files named like *secret*, *password*, *token*, *.env, "
-                                   "id_rsa*, *.pem, *.key, and /proc, /sys, /dev, /run, /boot. Links are followed "
-                                   "first: a link into another folder needs that folder.")
+                                   "never read by AI, whatever is allowed here")
         w.pack_start(grid, False, False, 0)
+        never = dp.label("~/.ssh, ~/.gnupg, password stores, keyrings, browser and mail profiles, cloud keys "
+                         "(~/.aws, ~/.kube, ~/.docker), folders named secrets / credentials, files named like "
+                         "*secret*, *password*, *token*, *.env, id_rsa*, *.pem, *.key, and /proc, /sys, /dev, "
+                         "/run, /boot. Links are followed first: a link into another folder needs that folder.",
+                         "ctl-sub")
+        never.set_line_wrap(True)
+        never.set_max_width_chars(90)
+        fold = details(never)
         grid, _ = row("", "From a terminal",
                       "folder-access.py list · allow PATH --who assistant|worker|ask-desktop|tasks|phone|all · "
                       "deny PATH · revoke PATH · check PATH · ask on|off")
-        w.pack_start(grid, False, False, 0)
+        fold.box.pack_start(grid, False, False, 0)
+        w.pack_start(fold, False, False, 0)
         w.pack_start(links_row(link("Open Privacy", lambda: spawn(SETTINGS, "privacy")),
                                link("Open Background tasks", lambda: spawn(SETTINGS, "tasks"))), False, False, 0)
         self.msg = dp.label("", "ctl-sub")
@@ -180,7 +178,7 @@ class Page:
     # -- drawing -------------------------------------------------------------------
     def rule_row(self, r, kind):
         who = dict(WHO_CHOICES).get(r["who"], r["who"])
-        sub = f"{who}  ·  since {day_text(r.get('since'))}  ·  {BY_TEXT.get(r.get('by'), r.get('by') or '')}"
+        sub = f"{who}  ·  {BY_TEXT.get(r.get('by'), r.get('by') or '')}"
         caption = "Revoke" if kind == "allow" else "Remove"
         grid, _ = row("" if kind == "allow" else "", tilde(r["path"]), sub,
                       link(caption, lambda: self.act("revoke", r["path"], "--who", r["who"])))
@@ -189,7 +187,7 @@ class Page:
     def show(self, result):
         data, tasks, self.projects = result
         if not data:
-            self.msg.set_text("folder-access.py did not answer (run it in a terminal to see why)")
+            self.msg.set_text("Folder access did not answer")
             return
         self.data = data
         self.tasks = task_folders(tasks)
@@ -200,30 +198,29 @@ class Page:
         finally:
             self.updating = False
         self.ask_sub.set_text(
-            "on: a folder nobody opened yet asks first; no answer in a minute, or no screen to ask on, is a no"
+            "on: a new folder asks first; no answer is a no"
             if data["ask"] else
-            "off: AI features may read any folder that does not look secret, except the ones denied below")
+            "off: AI may read any non-secret folder not denied below")
         clear(self.allowed)
         for r in data["allow"]:
             self.allowed.pack_start(self.rule_row(r, "allow"), False, False, 0)
         if not data["allow"]:
             grid, _ = row("", "Nothing allowed yet",
-                          "Each folder is asked about the first time an AI feature needs it, or add one below.")
+                          "asked the first time AI needs one, or add one below")
             self.allowed.pack_start(grid, False, False, 0)
         clear(self.from_tasks)
         for folder, name in self.tasks:
             denied = covered(folder, data["deny"], "tasks")
             grid, _ = row("", tilde(folder),
-                          f"Background tasks  ·  opened by your task “{name}” while it exists"
-                          + ("  ·  DENIED below: the task works without the model" if denied else ""),
+                          f"Background tasks  ·  for your task “{name}”"
+                          + ("  ·  denied below" if denied else ""),
                           link("Deny", lambda f=folder: self.act("deny", f, "--who", "tasks")) if not denied else None)
             self.from_tasks.pack_start(grid, False, False, 0)
         clear(self.denied)
         for r in data["deny"]:
             self.denied.pack_start(self.rule_row(r, "deny"), False, False, 0)
         if not data["deny"]:
-            grid, _ = row("", "Nothing denied", "A denied folder is never read by that feature and never "
-                                                      "asked about: the request is refused at once.")
+            grid, _ = row("", "Nothing denied", "a denied folder is refused without asking")
             self.denied.pack_start(grid, False, False, 0)
         self.show_who()
         self.show_suggestions()
@@ -231,7 +228,7 @@ class Page:
 
     def show_who(self):
         self.who_chips.set(WHO_CHOICES, self.who)
-        self.who_sub.set_text("which feature the folder you add is for; All covers every one of them")
+        self.who_sub.set_text("which AI feature may read it")
 
     def show_suggestions(self):
         clear(self.suggest)

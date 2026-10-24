@@ -90,15 +90,15 @@ def screen_sub(name, info, matched):
     """The line under a screen's title: what it shows, how many pictures,
     whether the slideshow counts time on it."""
     if not info["exists"]:
-        return f"no folder yet: make {short(info['folder'])}/ and put pictures in it"
-    bits = [os.path.basename(info["current"]) if info["current"] else "nothing shown by the slideshow yet"]
-    bits.append(f"{info['in_set']} of {info['pictures']} pictures in the set")
+        return f"no folder yet: {short(info['folder'])}/"
+    bits = [os.path.basename(info["current"]) if info["current"] else "nothing shown yet"]
+    bits.append(f"{info['in_set']} of {info['pictures']} in the set")
     if not info["connected"]:
         bits.append("not connected")
     elif info["covered"] is True:
-        bits.append("covered by windows: its time stands still" + (" (another screen's may run)" if matched else ""))
+        bits.append("covered: paused")
     elif info["covered"] is False:
-        bits.append("visible: counting")
+        bits.append("visible")
     return "  ·  ".join(bits)
 
 
@@ -216,6 +216,10 @@ class Page:
         w.pack_start(self.set_row, False, False, 0)
         self.screens = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         w.pack_start(self.screens, False, False, 0)
+        self.intro_more = dp.label("", "ctl-sub")
+        self.intro_more.set_line_wrap(True)
+        self.intro_more.set_max_width_chars(90)
+        w.pack_start(details(self.intro_more), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("SLIDESHOW"), False, False, 0)
@@ -230,7 +234,7 @@ class Page:
         grid, self.shuffle_sub = row("\uf074", "Shuffle", "", self.shuffle)
         w.pack_start(grid, False, False, 0)
         self.daemon_row, self.daemon_sub = row("\uf013", "The slideshow", "")
-        w.pack_start(self.daemon_row, False, False, 0)
+        w.pack_start(details(self.daemon_row), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("MOVING WALLPAPER"), False, False, 0)
@@ -271,8 +275,7 @@ class Page:
         for key, icon, title, sub in (
                 ("date", "\uf133", "Date", "the day and date under the clock"),
                 ("user", "\uf007", "User name", "your login name over the password field"),
-                ("layout", "\uf11c", "Keyboard layout", "under the field: a password that \"stopped working\" is "
-                 "usually the wrong layout (SUPER+Space switches it while locked)")):
+                ("layout", "\uf11c", "Keyboard layout", "under the field (SUPER+Space switches it)")):
             sw = self.switch()
             sw.connect("state-set", lambda _s, on, k=key: self.toggle(LOCK, k, on))
             grid, _ = row(icon, title, sub, sw)
@@ -301,16 +304,14 @@ class Page:
         self.preview = link("Lock now to preview", self.press_preview)
         self.preview.set_tooltip_text("hyprlock has no preview mode: this is the real lock, and your password "
                                       "brings you back")
-        w.pack_start(links_row(self.preview,
-                               link("Open hyprlock.conf", lambda: spawn("xdg-open", os.path.expanduser(
-                                   "~/.config/hypr/hyprlock.conf"))),
-                               link("Check again", self.refresh)), False, False, 0)
+        w.pack_start(links_row(self.preview, link("Check again", self.refresh)), False, False, 0)
         note = dp.label("Changes show at the next lock: hyprlock reads hyprlock.conf every time it starts. "
                         "lock-screen.py only edits the lines it owns; the previous file is kept as "
                         "~/.local/state/hypr/hyprlock.conf.prev.", "ctl-sub")
         note.set_line_wrap(True)
         note.set_max_width_chars(90)
-        w.pack_start(note, False, False, 0)
+        w.pack_start(details(note, links_row(link("Open hyprlock.conf", lambda: spawn("xdg-open", os.path.expanduser(
+            "~/.config/hypr/hyprlock.conf"))))), False, False, 0)
 
     # -- building blocks -------------------------------------------------------------
     @staticmethod
@@ -412,28 +413,27 @@ class Page:
             if wall:
                 self.show_wallpaper(wall, motion or {}, react or {})
             else:
-                self.intro.set_text("wallpaper-slideshow.py did not answer (run `wallpaper-slideshow.py "
-                                    "settings` in a terminal to see why)")
+                self.intro.set_text("The slideshow did not answer")
             if lock:
                 self.show_lock(lock, monitors or [])
             else:
-                self.bg_sub.set_text("lock-screen.py did not answer (run `lock-screen.py status` in a terminal)")
+                self.bg_sub.set_text("The lock screen settings did not answer")
             self.widget.show_all()
             self.colour_row.set_visible(bool(lock) and lock["background"] == "color")
         finally:
             self.updating = False
 
     def show_wallpaper(self, wall, motion, react):
-        self.intro.set_text(f"Each screen has a folder of its own, {short(wall['folder'])}/<screen>/: drop pictures "
-                            "in (PNG, JPEG, WebP, JPEG XL) and they join at the next change. hyprpaper fills the "
-                            "screen with each and crops the overflow, so pictures the screen's shape look best.")
+        self.intro.set_text(f"One folder per screen: {short(wall['folder'])}/<screen>/")
+        self.intro_more.set_text("Drop pictures (PNG, JPEG, WebP, JPEG XL) in a screen's folder and they join at "
+                                 "the next change. hyprpaper fills the screen and crops the overflow, so pictures "
+                                 "the screen's shape look best. Only pictures whose names start with the theme's "
+                                 "wallpaper_prefix rotate; the rest can still be picked. The slideshow counts only "
+                                 "time the wallpaper is seen (not under tiled or fullscreen windows).")
         pre = wall["prefix"]
-        self.set_sub.set_text((f"only pictures whose names start with \"{pre}\" -- the theme's wallpaper set "
-                               "(wallpaper_prefix); switch the theme to switch the set. The rest stay in the "
-                               "folders, out of the rotation, and can still be picked below"
-                               if pre else "every picture in the folders (this theme has no set of its own)")
-                              + ("  ·  all screens change together, to pictures of the same name"
-                                 if wall["matched"] else ""))
+        self.set_sub.set_text((f"pictures starting \"{pre}\" (set by the theme)"
+                               if pre else "every picture (this theme has no set)")
+                              + ("  ·  all screens change together" if wall["matched"] else ""))
         names = list(wall["outputs"])
         if names != self.screens_built:
             self.build_screens(wall)
@@ -450,36 +450,29 @@ class Page:
 
         self.auto.set_state(wall["auto"])
         self.auto.set_active(wall["auto"])
-        self.auto_sub.set_text(f"a new picture every {every(wall['interval'])} of the wallpaper being SEEN: time "
-                               "under tiled or fullscreen windows does not count" if wall["auto"] else
-                               "off: the picture stays until you press Next or pick one (a theme switch still "
-                               "changes the set)")
+        self.auto_sub.set_text(f"a new picture every {every(wall['interval'])} of visible wallpaper" if wall["auto"]
+                               else "off: changes only on Next or a pick")
         self.interval.set(interval_choices(wall["interval"]), str(int(wall["interval"])))
         self.interval.widget.set_sensitive(wall["auto"])
         self.shuffle.set_state(wall["shuffle"])
         self.shuffle.set_active(wall["shuffle"])
-        self.shuffle_sub.set_text("random order, every picture once before any repeats" if wall["shuffle"] else
-                                  "in name order, round and round")
+        self.shuffle_sub.set_text("random, no repeats until all are shown" if wall["shuffle"] else
+                                  "in name order")
         pid = wall.get("daemon")
-        self.daemon_sub.set_text((f"running (pid {pid})" if pid else
-                                  "NOT running: nothing changes by itself and Next does nothing until the next "
-                                  "login (or start it: ~/.config/hypr/scripts/wallpaper-slideshow.py &)")
+        self.daemon_sub.set_text(("running" if pid else
+                                  "NOT running until the next login (or start "
+                                  "~/.config/hypr/scripts/wallpaper-slideshow.py &)")
                                  + f"  ·  options in {short(wall['options_file'])}")
 
         video = motion.get("video")
         if video:
-            self.motion_sub.set_text(f"{video}, playing in a loop over the still: "
-                                     f"{'on' if motion.get('on') else 'off'}  ·  switched on the Theme page")
-            self.react_sub.set_text(("on" if react.get("on") else "off") + ": its speed follows the CPU, its "
-                                    "colour the time of day and the weather  ·  switched on the Theme page")
+            self.motion_sub.set_text(f"{video}: {'on' if motion.get('on') else 'off'}  ·  set on the Theme page")
+            self.react_sub.set_text(("on" if react.get("on") else "off") + ": follows the CPU, time and weather")
         else:
-            self.motion_sub.set_text("this theme has none (a theme names one with wallpaper_video=)  ·  the "
-                                     "switch is on the Theme page")
+            self.motion_sub.set_text("none in this theme  ·  set on the Theme page")
             # The switch is kept even without a video, so it is ready for a
             # theme that has one; say so rather than a bare "on".
-            self.react_sub.set_text("goes with the moving wallpaper, so it does nothing in this theme (its "
-                                    "switch stays " + ("on" if react.get("on") else "off") + " for one that has a "
-                                    "video)  ·  switched on the Theme page")
+            self.react_sub.set_text(("on" if react.get("on") else "off") + ": needs a moving wallpaper")
 
     def build_screens(self, wall):
         clear(self.screens)
@@ -573,12 +566,10 @@ class Page:
         items = list(BACKGROUNDS) + ([("picture", "Your own picture")] if mode == "picture" else [])
         self.background.set(items, mode)
         self.bg_sub.set_text({
-            "screenshot": "what was on each screen at the moment it locked, blurred and darkened so nothing "
-                          "is readable over your shoulder",
-            "wallpaper": "the picture each screen had (the slideshow keeps links to them in "
-                         "~/.cache/wallpaper-slideshow/lock/)",
+            "screenshot": "each screen as it was, blurred and darkened",
+            "wallpaper": "each screen's wallpaper",
             "color": "one plain colour on every screen",
-            "picture": f"a fixed picture set by hand in hyprlock.conf: {short(lock['path'])}",
+            "picture": "a picture set in hyprlock.conf",
         }.get(mode, mode))
         rgb = parse_colour(lock["color"])
         if rgb:
@@ -586,13 +577,13 @@ class Page:
         self.blur.set(BLUR, str(lock["blur"]))
         self.blur.widget.set_sensitive(mode != "color")
         self.blur_sub.set_text("not used with a plain colour" if mode == "color" else
-                               "how far the background is smeared (blur passes)")
+                               "how strongly the background is blurred")
         self.dim.set([(f"{v:g}", dim_caption(v)) for v in sorted(set(DIM) | {lock["dim"]})], f"{lock['dim']:g}")
-        self.dim_sub.set_text("lower keeps the white text readable over a bright picture")
+        self.dim_sub.set_text("darker keeps the text readable")
 
         self.clock.set([("24h", "24-hour  (21:30)"), ("12h", "12-hour  (9:30 PM)")], lock["clock"])
         self.clock_sub.set_text("the big clock over the field" if lock["clock"] != "off" else
-                                "hyprlock.conf has no clock label ($TIME) to change")
+                                "no clock in hyprlock.conf")
         self.clock.widget.set_sensitive(lock["clock"] != "off")
         for key, sw in self.shown.items():
             sw.set_state(lock[key])
@@ -600,17 +591,15 @@ class Page:
         if not self.message.has_focus():
             self.message.set_text(lock["message"])
         self.message_sub.set_text(f"shown under the field: \"{lock['message']}\"" if lock["message"] else
-                                  "a line of your own under the field (Enter or Save; empty = none)")
+                                  "a line of your own under the field")
 
         connected = [m["name"] for m in monitors if not m.get("disabled")]
         screen = lock["screen"]
         names = sorted(set(connected) | ({screen} if screen else set()))
         self.screen.set([(n, n) for n in names] + [("", "Every screen")], screen)
         if screen and connected and screen not in connected:
-            self.screen_sub.set_text(f"!  {screen} is not connected now: the field and clock would not show on "
-                                     "any screen (typing the password still works). Pick a connected one or "
-                                     "Every screen.")
+            self.screen_sub.set_text(f"!  {screen} is not connected: pick another screen")
         elif screen:
-            self.screen_sub.set_text(f"on {screen} only; the other screens show just the background")
+            self.screen_sub.set_text(f"on {screen} only")
         else:
             self.screen_sub.set_text("on every screen")

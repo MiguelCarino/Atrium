@@ -43,22 +43,26 @@ class Page:
         self.codes_busy = False
         self.codes.connect("state-set", self.flip_codes)
         grid, _ = row("", "Offer sign-in codes from the phone",
-                      "When a phone notification (an SMS, an app) carries a 2FA code, a notification offers it: "
-                      "click to copy. On the clipboard for 60 s, never in its history, never logged. Reads the "
-                      "phone's notifications on this computer only.", self.codes)
+                      "2FA codes in phone notifications, one click to copy (kept 60 s)", self.codes)
         w.pack_start(grid, False, False, 0)
         w.pack_start(links_row(link("Open this page on the phone", lambda: spawn(PHONE, "open")),
                                link("Send a file", lambda: spawn(PHONE, "file")),
                                link("Send copied files", lambda: spawn(PHONE, "file", "--copied"))),
                      False, False, 0)
+        # The fixes (commands) for what show_handoff found missing; hidden when nothing is.
+        self.handoff_fix = dp.label("", "ctl-sub")
+        self.handoff_fix.set_line_wrap(True)
+        self.handoff_fix.set_selectable(True)
+        self.handoff_fold = details(self.handoff_fix, label="How to fix")
+        self.handoff_fold.set_no_show_all(True)
+        w.pack_start(self.handoff_fold, False, False, 0)
         w.pack_start(sep(), False, False, 0)
         self.ask = _phone_ask.Section()     # asking the desktop from the phone (phone-ask.py)
         w.pack_start(self.ask.widget, False, False, 0)
         w.pack_start(sep(), False, False, 0)
         w.pack_start(heading("GAMES"), False, False, 0)
         grid, _ = row("\uf11b", "Game profiles and game mode",
-                      "what each game sets up when it starts, and what game mode turns off -- on the "
-                      "Screenshots & recording page",
+                      "per-game setup and what game mode turns off",
                       link("Open Screenshots & recording", lambda: spawn(os.path.join(HYPR, "settings.py"), "capture")))
         w.pack_start(grid, False, False, 0)
 
@@ -89,24 +93,27 @@ class Page:
             self.codes.set_state(bool(st.get("codes")))
         finally:
             self.codes_busy = False
+        fixes = []
         if not st.get("kdeconnect"):
             text = "KDE Connect is not running: nothing goes either way."
         else:
-            text = ("To the phone: the page in your browser (opens in the phone's browser), files (a picker, or "
-                    "the ones copied in Files), the clipboard. From the phone: shared text lands on the clipboard "
-                    "(KDE Connect does that itself), shared links on the clipboard too (KDE Connect also opens "
-                    "them), photos and videos in ~/Pictures/Phone.")
+            text = ("Pages, files and the clipboard go to the phone; its shared text and links land on the "
+                    "clipboard, photos in ~/Pictures/Phone.")
             if not st.get("watcher"):
-                text += ("\nThe watcher (phone-handoff.service) is not running: links and photos from the phone "
-                         "are left as KDE Connect leaves them. systemctl --user enable --now phone-handoff")
+                text += "\nLinks and photos from the phone are not being picked up."
+                fixes.append("systemctl --user enable --now phone-handoff")
             if not st.get("picker"):
-                text += "\nNo file picker: sudo dnf install zenity"
+                text += "\nNo file picker installed."
+                fixes.append("sudo dnf install zenity")
             plugins = st.get("plugins") or {}
             off = [k for k in ("share", "notifications") if k in plugins and not plugins[k]]
             if off:
                 text += f"\nOff in the phone's KDE Connect plugins: {', '.join(off)}."
         self.handoff.set_text(text)
+        self.handoff_fix.set_text("\n".join(fixes))
+        self.handoff_fold.set_no_show_all(not fixes)
         self.widget.show_all()
+        self.handoff_fold.set_visible(bool(fixes))
 
     def show(self, data):
         drives, phones, phone_bar, auto = data
@@ -115,12 +122,12 @@ class Page:
             # Worded from what automount.py really does now (Settings >
             # Storage switches both): mounted, opened in Files, or neither.
             if auto.get("mount", True) and auto.get("open", True):
-                what = "A USB drive is mounted and opens in Files by itself when you plug it in."
+                what = "mounted and opened in Files when plugged in"
             elif auto.get("mount", True):
-                what = "A USB drive is mounted by itself when you plug it in (opening it in Files is off)."
+                what = "mounted when plugged in"
             else:
-                what = "Plugged-in drives are not mounted by themselves (switched off on the Storage page)."
-            lab = dp.label("None plugged in. " + what, "ctl-sub")
+                what = "not mounted by themselves (Storage page)"
+            lab = dp.label("None plugged in  ·  drives are " + what, "ctl-sub")
             lab.set_line_wrap(True)
             self.drives.pack_start(lab, False, False, 0)
         for d in drives:
@@ -132,17 +139,15 @@ class Page:
             self.drives.pack_start(links_row(link("Open", lambda m=d["mount"]: spawn("nautilus", m))), False, False, 0)
         clear(self.phone)
         if phones is None:
-            sub = ("KDE Connect is not running. If setup-root.sh has not finished, run it (System page), "
-                   "then open KDE Connect on the phone.")
+            sub = "KDE Connect is not running: finish the setup on the System page."
             self.phone.pack_start(dp.label(sub, "ctl-sub"), False, False, 0)
         elif not phones:
-            msg = ("No phone paired. Open KDE Connect on the phone (same network), allow it to find local "
-                   "devices, pick this computer and pair; accept the request here. If it does not show this "
-                   "computer, add it by IP address in the phone app.")
+            msg = "No phone paired: pair this computer from KDE Connect on the phone (same network)."
             lab = dp.label(msg, "ctl-sub")
             lab.set_line_wrap(True)
             self.phone.pack_start(lab, False, False, 0)
-            self.phone.pack_start(dp.label(f"This computer: {self.my_ip()}", "ctl-title"), False, False, 0)
+            self.phone.pack_start(dp.label(f"This computer: {self.my_ip()} (to add it by IP)", "ctl-title"),
+                                  False, False, 0)
         else:
             try:
                 bar = json.loads(phone_bar or "{}")

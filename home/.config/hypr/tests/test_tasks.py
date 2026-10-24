@@ -522,7 +522,8 @@ class SettingsPage(unittest.TestCase):
                "last_summary": "3 moves", "permissions": ["reads ~/x", "notifies you"]}
         sub = self.page.task_sub(row, now)
         self.assertIn("ran 10 min ago", sub)
-        self.assertIn("May: reads ~/x; notifies you", sub)
+        self.assertNotIn("May:", sub)                        # folded under the row instead
+        self.assertEqual(self.page.task_may(row), "May: reads ~/x; notifies you")
 
     def test_hand_task(self):
         t = self.page.hand_task("watch-command", {"command": " make ", "cwd": "", "lines": ""}, "", "")

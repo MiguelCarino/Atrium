@@ -35,7 +35,7 @@ from gi.repository import GLib, Gtk  # noqa: F401
 
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 
-PAGE = {"id": "about", "title": "About this computer", "icon": "\uf05a", "group": "System", "order": 90,
+PAGE = {"id": "about", "title": "About", "icon": "\uf05a", "group": "System", "order": 90,
         "keywords": ["system information", "specs", "hardware", "computer", "model", "cpu", "processor", "gpu",
                      "graphics card", "nvidia", "driver", "ram", "memory", "disks", "kernel", "fedora",
                      "version", "os", "hostname", "motherboard", "bios", "firmware", "report",
@@ -200,8 +200,8 @@ class Page:
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
             w.pack_start(box, False, False, 0)
             self.boxes[sid] = box
-        note = dp.label("Nothing here is sent anywhere. The same report in a terminal: "
-                        "system-info.py text  (add --reveal for the identifiers).", "ctl-sub")
+        note = dp.label("Nothing here is sent anywhere. In a terminal: system-info.py text "
+                        "(--reveal for the identifiers).", "ctl-sub")
         note.set_line_wrap(True)
         w.pack_start(sep(), False, False, 0)
         w.pack_start(note, False, False, 0)

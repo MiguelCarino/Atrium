@@ -26,20 +26,18 @@ def how_text(data):
     conf = data["settings"]
     devs = data.get("devices") or []
     if not devs:
-        return "No phone paired (pair one in the Phone section above)."
+        return "No phone paired (see Phone above)."
     if not data["on"]:
-        return ("Off: the phone cannot ask anything. On puts quick questions in the phone's KDE Connect "
-                "> Run command list and listens for shared text.")
+        return "Off: the phone cannot ask anything."
     lines = []
     for d in devs:
         if not d["chosen"]:
             continue
         got = ", ".join(data["presets"].get(n, n) for n in d["installed"]) or "none"
-        lines.append(f"{d['name']} ({'here' if d['reachable'] else 'away'}): quick questions -- {got}")
-    lines.append("On the phone: KDE Connect > this computer > Run command, tap a quick question.")
+        lines.append(f"{d['name']} ({'here' if d['reachable'] else 'away'}): {got}")
+    lines.append("On the phone: KDE Connect > Run command.")
     if conf["text_questions"] == "on":
-        lines.append(f"Any question: share text starting with “{conf['prefix']}” to this computer "
-                     f"(e.g. “{conf['prefix']} did the backup finish?”)."
+        lines.append(f"Or share text starting with “{conf['prefix']}”."
                      + ("" if data["listener"] else "  The listener (phone-ask.service) is not running."))
     return "\n".join(lines)
 
@@ -120,21 +118,18 @@ class Section:
         self.problem.set_no_show_all(True)
         w.pack_start(self.problem, False, False, 0)
         w.pack_start(self.switch_row("on", "\uf10b", "Answer questions from the phone",
-                                     "The paired phone asks, the desktop assistant answers with the LOCAL model "
-                                     "and the answer comes back as a phone notification. Only a paired phone; "
-                                     "each question goes in the journal (never its words)."), False, False, 0)
+                                     "the local assistant answers, back on the phone"), False, False, 0)
         self.how = wrapped("")
         w.pack_start(self.how, False, False, 0)
         self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         w.pack_start(self.body, False, False, 0)
         b = self.body
 
-        b.pack_start(dp.label("Quick questions on the phone (its Run command list)", "ctl-sub"), False, False, 0)  # noqa: F405
+        b.pack_start(dp.label("Quick questions on the phone", "ctl-sub"), False, False, 0)  # noqa: F405
         self.presets = Toggles(lambda k, on: self.change("set", "presets", toggled(self.conf("presets"), k, on)))
         b.pack_start(self.presets.widget, False, False, 0)
         b.pack_start(self.switch_row("text_questions", "\uf27a", "Any question as shared text",
-                                     "Share text from any phone app to this computer; it is a question when it "
-                                     "starts with the prefix below, an ordinary share otherwise."), False, False, 0)
+                                     "shared text starting with the prefix below"), False, False, 0)
         self.prefix = Chips(lambda k: self.change("set", "prefix", k))  # noqa: F405
         b.pack_start(self.prefix.widget, False, False, 0)
 
@@ -144,22 +139,15 @@ class Section:
         b.pack_start(self.reply.widget, False, False, 0)
 
         b.pack_start(self.switch_row("screen", "\uf108", "May describe the screen",
-                                     "“What's on my screen?” and questions like it are answered in words by the "
-                                     "local vision model. Off: the assistant cannot look at the screen for the "
-                                     "phone. A private window or a password manager on screen is never looked at."),
+                                     "in words, by the local model  ·  never private windows"),
                      False, False, 0)
         self.shots_row = self.switch_row("screenshots", "\uf030", "Also send a screenshot",
-                                         "The screen question sends the picture too (the private-window check "
-                                         "first). Off as shipped: only words leave the desktop.")
+                                         "the picture goes with the answer")
         b.pack_start(self.shots_row, False, False, 0)
 
-        b.pack_start(dp.label("Actions the phone may have done (the rest are refused from the phone)", "ctl-sub"),  # noqa: F405
-                     False, False, 0)
+        b.pack_start(dp.label("Actions the phone may run", "ctl-sub"), False, False, 0)  # noqa: F405
         self.allow = Toggles(lambda k, on: self.change("set", "allow", toggled(self.conf("allow"), k, on)))
         b.pack_start(self.allow.widget, False, False, 0)
-        b.pack_start(wrapped("Every action the assistant plans for the phone waits; it is done only when all of "
-                             "its actions are lit here. \"Risky\" ones close or open windows, links or apps."),
-                     False, False, 0)
 
         b.pack_start(dp.label("Questions per 10 minutes", "ctl-sub"), False, False, 0)  # noqa: F405
         self.limit = Chips(lambda k: self.change("set", "limit", str(k)))  # noqa: F405
@@ -168,8 +156,11 @@ class Section:
         b.pack_start(dp.label("Which phone may ask", "ctl-sub"), False, False, 0)  # noqa: F405
         self.device = Chips(lambda k: self.change("set", "device", k))  # noqa: F405
         b.pack_start(self.device.widget, False, False, 0)
-        b.pack_start(links_row(link("Put the quick questions on the phone again",  # noqa: F405
-                                    lambda: self.change("install"))), False, False, 0)
+        b.pack_start(details(  # noqa: F405
+            wrapped("An answer runs only if all its actions are lit; \"risky\" ones open or close windows, "
+                    "links or apps. Each question is logged in the journal, never its words."),
+            links_row(link("Put the quick questions on the phone again",  # noqa: F405
+                           lambda: self.change("install")))), False, False, 0)
 
     def switch_row(self, key, icon, title, sub):
         sw = Gtk.Switch()

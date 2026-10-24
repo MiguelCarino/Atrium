@@ -20,74 +20,35 @@ launcher's "Settings" and "Settings: <page>" items, the toolbox).
                                   the whole window (sidebar, search) offscreen,
                                   with the words typed into the search box
 
-The sidebar, by group (common.GROUPS order; each page says its own group and
-order in its PAGE, see settings_pages/common.py):
+The sidebar, by group (_catalog.GROUPS order; each page says its own group and
+order in its PAGE, see settings_pages/common.py). A page whose PAGE names a
+"parent" is not in the sidebar but a tab of that page, under a row of tabs at
+the top (its "tab" is the caption); `settings.py <id>` and the search open
+a tab the same as a page:
 
-    SMART     Smart desktop      every smart feature on one page: its switch,
-                                 status, keys, a link to its own page, and
-                                 "privacy at a glance" (settings_pages/
-                                 intelligence.py; the logic is _smart.py)
-    DISPLAY   Screens            HDR, brightness / warmth / saturation and
-                                 refresh rate per screen (the display panel's
-                                 own controls, waybar/scripts/display_panel.py
-                                 DisplayControls)
-    LOOK      Theme              theme, accent, window glass, moving / living
-                                 wallpaper, fade, by time of day
-              Wallpaper & lock screen   each screen's picture and the
-                                 slideshow, the lock screen's look
-                                 (wallpaper-slideshow.py, lock-screen.py)
-              Effects            screen filters, animation presets
-              Fonts, text & pointer   fonts in apps and in the desktop's own
-                                 text, text size and rendering, the cursor
-              Windows & workspaces    gaps, borders, corners, blur, shadow,
-                                 dimming, tiling layout (window-look.py)
-              Accessibility      magnifier, screen reader, high contrast,
-                                 reduce motion / transparency, visual alerts,
-                                 a larger pointer (accessibility.py)
-              Bar & toolbox      which pills, in what order, on which screen,
-                                 how often they look again (bar-settings.py)
-    APPS      Default apps       what opens links, mail, folders, files...,
-                                 the terminal (default-apps.py)
-              Timers & alarms    what is set, the ring, calendar alarms, work
-                                 hours (timers.py, workhours.py)
-              Screenshots & recording   folders, formats, sound, instant
-                                 replay, OCR, gamemode and game profiles
-                                 (capture-settings.py)
-    HARDWARE  Network & Bluetooth   wired, Wi-Fi, VPN, Bluetooth, airplane
-                                 mode, the host name (network-settings.py)
-              Sound              outputs, inputs, app volumes, profiles,
-                                 over-amplification (sound-settings.py)
-              Keyboard, mouse & touchpad   layouts, typing, pointer, touchpad,
-                                 focus (input-settings.py)
-              Keyboard shortcuts   every key bind, changing one, shortcuts of
-                                 your own (shortcuts.py, lua/userbinds.lua)
-              Devices            USB drives (automount.py), the phone
-                                 (phone.py), game profiles (game-profiles.py)
-    SAFETY    Emergency alerts   your place, the sources for your country, a
-                                 drill (emergency-alerts.py)
-              Privacy            activity / clipboard history, Ask your
-                                 desktop, recent files, what is in use now
-                                 (privacy_settings.py)
-    SYSTEM    Notifications      Do Not Disturb, quiet hours, popups, theme
-                                 sounds, history (notify-settings.py)
-              Power & screen lock   idle timings, Keep awake, power profile,
-                                 the session buttons (idle-settings.py)
-              Storage            how full the disks are, what is big in ~,
-                                 trash, caches, automatic clean-up, USB
-                                 drives (storage.py, automount.py)
-              Users, sharing & printers   you, the login screen, online
-                                 accounts, firewall / SSH / encryption, the
-                                 printers (accounts.py; root steps are copied,
-                                 never run)
-              Date, time & region   time zone, network time, the bar's clock,
-                                 calendar, weather (region.py)
-              Startup & background   services, timers, autostart apps
-                                 (startup.py)
-              Software updates   what is waiting, restart, history, firmware
-                                 (software-updates.py)
-              Maintenance        health (doctor.py), snapshots, the dotfiles
-                                 backup, config safe mode (hypr-guard.py)
-              About this computer   hardware and software (system-info.py)
+    SMART     Smart desktop      every smart feature's switch | Presence,
+                                 Gestures & gaze, Memory, Folder access
+    LOOK      Theme              theme, accent, glass, video player | Ambient,
+                                 Effects (the display panel's own pages)
+              Wallpaper & lock screen
+              Text & pointer     fonts, text size, cursor | Accessibility
+              Windows            gaps, borders, blur | Layout, Picture-in-picture
+              Bar & toolbox
+    APPS      Default apps
+              Workspaces         sessions | Contexts, Focus
+              Timers & alarms
+              AI & assistant     models | Voice typing, Spoken replies,
+                                 Clipboard, Suggestions, Assistant, Daily brief
+              Screenshots & recording
+    HARDWARE  Screens            HDR, brightness, refresh, arrangement
+              Network & Bluetooth, Sound
+              Keyboard & mouse   | Shortcuts
+              Devices            USB drives, phone | Machines
+    SYSTEM    Notifications      | Emergency alerts
+              Privacy, Power & lock, Storage, Users & sharing, Date & region
+              Startup & automations   | Automations, Background tasks
+              Updates & maintenance   | Maintenance, Health
+              About
 
 A new module in settings_pages/ with a PAGE shows up by itself, in its group;
 `settings.py --list` is always the real list.
@@ -187,8 +148,8 @@ def discover():
             continue
         if isinstance(getattr(mod, "PAGE", None), dict) and hasattr(mod, "Page"):
             found.append((mod.PAGE, mod.Page))
-    found.sort(key=lambda p: _catalog.sort_key(p[0]))
-    return found
+    by_id = {m["id"]: (m, f) for m, f in found}
+    return [by_id[m["id"]] for m in _catalog.arrange([m for m, _ in found])]
 
 
 def printable(event):
@@ -245,14 +206,30 @@ class SettingsView(Gtk.Box):
         self.stack.set_transition_duration(120)
         self.pack_start(self.stack, True, True, 0)
 
-        self.buttons, self.pages, self.metas = {}, {}, []
+        # buttons: the sidebar's (top pages only); pages: every page, tabs
+        # too; host: page id -> the sidebar page showing it; tabbed: a
+        # sidebar page with tabs -> (its inner stack, its tab chips, tabs).
+        self.buttons, self.pages, self.host, self.tabbed, self.metas = {}, {}, {}, {}, []
         self.current, self.first_match = None, None
         group = None
-        for meta, factory in discover():
+        found = discover()
+        all_metas = [m for m, _ in found]
+        for meta, factory in found:
             try:
                 page = factory()
             except Exception as exc:
                 print(f"settings: page {meta['id']} failed to build: {type(exc).__name__}: {exc}", file=sys.stderr)
+                continue
+            key = meta["id"]
+            scroll = Gtk.ScrolledWindow()
+            scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            scroll.add(page.widget)
+            self.pages[key] = page
+            self.metas.append(meta)
+            parent = meta.get("parent")
+            if parent in self.tabbed:                  # a tab of the page before it
+                self.host[key] = parent
+                self.tabbed[parent][0].add_named(scroll, key)
                 continue
             if meta.get("group") != group:
                 group = meta.get("group")
@@ -260,14 +237,26 @@ class SettingsView(Gtk.Box):
             b = Gtk.Button(label=f"{meta.get('icon', '')}   {meta['title']}")
             b.get_style_context().add_class("dev-pick")
             b.get_child().set_xalign(0)
-            b.connect("clicked", lambda _b, k=meta["id"]: self.show(k))
+            b.connect("clicked", lambda _b, k=key: self.show(k))
             self.side.pack_start(b, False, False, 0)
-            scroll = Gtk.ScrolledWindow()
-            scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-            scroll.add(page.widget)
-            self.stack.add_named(scroll, meta["id"])
-            self.buttons[meta["id"]], self.pages[meta["id"]] = b, page
-            self.metas.append(meta)
+            self.buttons[key], self.host[key] = b, key
+            tabs = _catalog.tabs(all_metas, key)
+            if not tabs:
+                self.stack.add_named(scroll, key)
+                continue
+            # The tabs stay put at the top; each tab scrolls on its own.
+            inner = Gtk.Stack()
+            inner.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+            inner.set_transition_duration(120)
+            inner.add_named(scroll, key)
+            chips = dp.Chips(lambda k: self.show(k), mark=False)
+            chips.widget.set_max_children_per_line(len(tabs))
+            chips.widget.set_margin_bottom(6)
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            box.pack_start(chips.widget, False, False, 0)
+            box.pack_start(inner, True, True, 0)
+            self.stack.add_named(box, key)
+            self.tabbed[key] = (inner, chips, tabs)
 
     # -- search ------------------------------------------------------------------------
     def result_button(self, meta, why):
@@ -277,6 +266,10 @@ class SettingsView(Gtk.Box):
         title = Gtk.Label(label=f"{meta.get('icon', '')}   {meta['title']}")
         title.set_xalign(0)
         box.pack_start(title, False, False, 0)
+        host = self.host.get(meta["id"], meta["id"])
+        if host != meta["id"]:
+            where = f"in {self.title_of(host)}"
+            why = f"{where} · {why}" if why else where
         if why:
             sub = dp.label(why, "ctl-sub")
             sub.set_margin_start(28)        # under the title, past the icon
@@ -325,13 +318,23 @@ class SettingsView(Gtk.Box):
         return self.first_match is not None
 
     # -- pages -------------------------------------------------------------------------
+    def title_of(self, key):
+        return next((m["title"] for m in self.metas if m["id"] == key), key)
+
     def show(self, key):
-        if key not in self.buttons:
+        """A page by id: a sidebar page, or a tab of one (its page shown on
+        that tab)."""
+        if key not in self.pages:
             key = next(iter(self.buttons))
         self.current = key
-        self.stack.set_visible_child_name(key)
+        host = self.host[key]
+        self.stack.set_visible_child_name(host)
+        if host in self.tabbed:
+            inner, chips, tabs = self.tabbed[host]
+            inner.set_visible_child_name(key)
+            chips.set(tabs, key)
         for k, b in self.buttons.items():
-            (b.get_style_context().add_class if k == key else b.get_style_context().remove_class)("active")
+            (b.get_style_context().add_class if k == host else b.get_style_context().remove_class)("active")
         if self.search.get_text().strip():
             self.filter()           # the matches' "active" mark follows too
         try:
@@ -350,7 +353,7 @@ class SettingsView(Gtk.Box):
         the search. Returns a line to say on the command line, or ""."""
         if not arg:
             return ""
-        if arg in self.buttons:
+        if arg in self.pages:
             self.search.set_text("")
             self.show(arg)
             return ""
@@ -367,6 +370,7 @@ class Settings(Gtk.ApplicationWindow):
         self.set_name("panel-window")
         self.connect("key-press-event", self.on_key)
         self.view = SettingsView()
+        dp.guard_wheel(self.view)       # the wheel scrolls the page, never picks a value
         self.add(self.view)
         self.show_all()
         self.view.show(self.last_page())

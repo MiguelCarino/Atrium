@@ -3,10 +3,11 @@ the screen (screen-ask.py).
 
     SMART CLIPBOARD        the switch (smart-clipboard.service), and each kind
                            of copy it recognises on / off, with an example;
-                           what it never acts on
+                           what it never acts on (the full list folded)
     ASK ABOUT THE SCREEN   which local vision model would answer now (and
-                           why not, when none would), and buttons that start
-                           it on a region or copy the text of one
+                           why not, when none would), buttons that start
+                           it on a region or copy the text of one, and how
+                           it works (folded)
 
 Everything goes through `smart-clipboard.py get --json` / `set ...` and
 `screen-ask.py which --json` (which loads nothing and starts nothing); the
@@ -19,7 +20,7 @@ from gi.repository import GLib, Gtk  # noqa: F401
 
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 
-PAGE = {"id": "smartclip", "title": "Smart clipboard", "icon": "", "group": "Apps", "order": 37,
+PAGE = {"id": "smartclip", "title": "Smart clipboard", "icon": "", "group": "Apps", "order": 37, "parent": "ai", "tab": "Clipboard",
         "keywords": ["clipboard suggestions", "copy actions", "portapapeles", "tracking number", "parcel",
                      "colour code", "color code", "pretty print json", "address map", "stack trace",
                      "ask about the screen", "vision model", "screenshot question", "ocr", "copy text",
@@ -35,6 +36,18 @@ NEVER = ("Never for passwords or secrets: copies a password manager marks as sen
          "while a password manager or a private window has the focus, card numbers, IBANs, CLABEs, keys "
          "and tokens, and anything that looks like a password. Nothing is sent anywhere: fast rules on "
          "this computer decide, and nothing happens until you click.")
+HOW = ("Pick a region (or the focused window), then type or say a question: \"what is this error\", "
+       "\"translate\", \"turn this table into CSV\". Also in the screen actions menu (Ask about this). "
+       "Screenshots are deleted when the card closes; the answer comes from LM Studio on this computer "
+       "only, never the cloud, and nothing is unloaded to make room for it.")
+
+
+def note(text):
+    """A wrapped sub-styled paragraph, for the details folds."""
+    label = dp.label(text, "ctl-sub")
+    label.set_line_wrap(True)
+    label.set_xalign(0)
+    return label
 
 
 class Page:
@@ -47,30 +60,28 @@ class Page:
         w.pack_start(heading("SMART CLIPBOARD"), False, False, 0)
         self.main_switch = self.switch(lambda on: self.act("set", "on" if on else "off"))
         grid, self.main_sub = row("", "Suggestions when you copy",
-                                  "A small card offers one to three things to do with what you copied.",
+                                  "A card offers actions for what you copy",
                                   self.main_switch)
         w.pack_start(grid, False, False, 0)
         self.kinds_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         w.pack_start(self.kinds_box, False, False, 0)
-        grid, _ = row("", "Passwords are left alone", NEVER)
+        grid, _ = row("", "Passwords are left alone", "Secrets and private windows are skipped; all local")
         w.pack_start(grid, False, False, 0)
         w.pack_start(links_row(link("Open Privacy", lambda: spawn(SETTINGS, "privacy"))), False, False, 0)
+        w.pack_start(details(note(NEVER)), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("ASK ABOUT THE SCREEN"), False, False, 0)
-        grid, self.model_sub = row("", "Ask a local vision model about part of the screen",
+        grid, self.model_sub = row("", "Ask about part of the screen",
                                    "checking which model would answer…")
         w.pack_start(grid, False, False, 0)
         grid, _ = row("", "How",
-                      "Pick a region (or the focused window), then type or say a question: \"what is this "
-                      "error\", \"translate\", \"turn this table into CSV\". Also in the screen actions menu "
-                      "(Ask about this). Screenshots are deleted when the card closes; the answer comes "
-                      "from LM Studio on this computer only, never the cloud, and nothing is unloaded to "
-                      "make room for it.")
+                      "Pick a region, then type or say a question; answered locally")
         w.pack_start(grid, False, False, 0)
         w.pack_start(links_row(link("Ask about a region", lambda: spawn(SCREEN_ASK, "region")),
                                link("Copy text from a region", lambda: spawn(SCREEN_ASK, "ocr", "region"))),
                      False, False, 0)
+        w.pack_start(details(note(HOW), label="How it works"), False, False, 0)
         self.msg = dp.label("", "ctl-sub")
         self.msg.set_line_wrap(True)
         w.pack_start(self.msg, False, False, 0)
@@ -107,8 +118,7 @@ class Page:
         try:
             self.main_switch.set_active(data["on"])
             self.main_switch.set_state(data["on"])
-            sub = ("on: a card comes for the kinds switched on below" if data["on"] else
-                   "off: copies are not looked at")
+            sub = "On" if data["on"] else "Off: copies are not looked at"
             if data["on"] != data["enabled"]:
                 sub += "  ·  " + ("not started at login" if data["on"] else "starts again at the next login")
             self.main_sub.set_text(sub)
@@ -132,9 +142,6 @@ class Page:
             self.model_sub.set_text("screen-ask.py did not answer")
         elif data.get("model"):
             name = data["model"].split("/")[-1]
-            self.model_sub.set_text(f"{name} would answer now" + (" (already loaded)" if data.get("loaded")
-                                                                    else " (loaded when you ask)"))
+            self.model_sub.set_text(f"{name} would answer now")
         else:
-            vision = ", ".join(v.split("/")[-1] for v in data.get("vision") or [])
-            self.model_sub.set_text(f"no model right now: {data.get('why')}"
-                                    + (f"  ·  vision models: {vision}" if vision else ""))
+            self.model_sub.set_text(f"No model right now: {data.get('why')}")

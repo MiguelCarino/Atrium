@@ -5,7 +5,7 @@
     LEFT / MIDDLE / RIGHT   every pill on that side of the bar, in order: a
                      switch to show or hide it, arrows to move it along its side
     TOOLBOX          the toolbox card's rows, the same way
-    HOW OFTEN        how often the updates, weather and git pills look again
+    REFRESH          how often the updates, weather and git pills look again
     CLOCK AND DATE   a link to Date, time & region, where their format lives
 
 Nothing is kept here: every control runs ~/.config/hypr/scripts/bar-settings.py,
@@ -37,11 +37,8 @@ APPLY_AFTER_MS = 1500           # restart the bar this long after the last chang
 
 SIDE_TEXT = {
     "modules-left": ("LEFT OF THE BAR", "from the left edge inwards"),
-    "modules-center": ("MIDDLE OF THE BAR", "two joined capsules, [date | time | weather] and [updates | git | "
-                       "notifications]: their rounded ends are styled by which pill comes first and last, so "
-                       "moving or hiding an end pill leaves a square edge"),
-    "modules-right": ("RIGHT OF THE BAR", "from the middle out to the right edge; the toolbox card drops down "
-                      "near the right end"),
+    "modules-center": ("MIDDLE OF THE BAR", "two joined capsules: moving or hiding an end pill leaves a square edge"),
+    "modules-right": ("RIGHT OF THE BAR", "from the middle out to the right edge"),
 }
 
 
@@ -89,26 +86,26 @@ def screen_sub(data):
     if not current:
         return "on every screen (no \"output\" in the config)"
     found = next((s for s in data.get("screens") or [] if s["name"] == current), None)
-    text = f"on {current}, and the toolbox card drops down under it"
+    text = f"on {current}, with the toolbox"
     if found is None:
-        text += f"  ·  {current} is not connected, so there is no bar on any screen now: pick another"
+        text += f"  ·  {current} is not connected: no bar now, pick another"
     elif found.get("disabled"):
-        text += f"  ·  {current} is turned off in Screens, so there is no bar on any screen now"
+        text += f"  ·  {current} is off in Screens: no bar now"
     return text
 
 
 def bar_sub(data, now=None):
-    """The line under "The bar": running since when, and whether it has
+    """The line under "The bar": running or not, and whether it has
     loaded every change."""
     now = time.time() if now is None else now
     since = (data.get("running") or {}).get("bar")
     if not since:
-        return "NOT running: Restart the bar starts it (journalctl --user -u waybar says why it stopped)"
-    text = f"running since {time.strftime('%H:%M' if now - since < 86400 else '%a %d %b %H:%M', time.localtime(since))}"
+        return "NOT running: Restart the bar starts it"
+    text = "running"
     if data.get("pending"):
-        text += "  ·  has changes it has not loaded yet: Restart the bar (ALT+G does the same)"
+        text += "  ·  changes not loaded yet: Restart the bar (ALT+G)"
     else:
-        text += "  ·  up to date. Changes here restart it a moment after your last click"
+        text += "  ·  up to date"
     return text
 
 
@@ -140,25 +137,27 @@ class Page:
         w.pack_start(heading("THE BAR"), False, False, 0)
         grid, self.bar_sub = row("", "The bar", "checking…")
         w.pack_start(grid, False, False, 0)
-        w.pack_start(links_row(link("Restart the bar", lambda: self.apply_now(force=True)),
-                               link("Open config", lambda: spawn("xdg-open", os.path.expanduser(
-                                   "~/.config/waybar/config"))),
-                               link("Open toolbox config", lambda: spawn("xdg-open", os.path.expanduser(
-                                   "~/.config/waybar/config-toolbox")))),
-                     False, False, 0)
+        w.pack_start(links_row(link("Restart the bar", lambda: self.apply_now(force=True))), False, False, 0)
         grid, self.screen_sub = row("", "Screen", "")
         w.pack_start(grid, False, False, 0)
         self.screen = self.make_chips(lambda k: self.do("screen", k))
         w.pack_start(self.screen.widget, False, False, 0)
         self.problems = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         w.pack_start(self.problems, False, False, 0)
+        how = dp.label("Changes restart the bar a moment after your last click. If it stopped, "
+                       "journalctl --user -u waybar says why.", "ctl-sub")
+        how.set_line_wrap(True)
+        w.pack_start(details(how, links_row(
+            link("Open config", lambda: spawn("xdg-open", os.path.expanduser("~/.config/waybar/config"))),
+            link("Open toolbox config", lambda: spawn("xdg-open", os.path.expanduser(
+                "~/.config/waybar/config-toolbox"))))), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         # One box per list, filled by show(): the rows are rebuilt from the
         # file each time, since a move changes their order.
         self.lists = {}
         for key in (*SIDE_TEXT, "card"):
-            title, sub = SIDE_TEXT.get(key, ("TOOLBOX", "the card the sliders pill opens, top to bottom"))
+            title, sub = SIDE_TEXT.get(key, ("TOOLBOX", "the card the toolbox button opens, top to bottom"))
             w.pack_start(heading(title), False, False, 0)
             hint = dp.label(sub, "ctl-sub")
             hint.set_line_wrap(True)
@@ -168,16 +167,15 @@ class Page:
             w.pack_start(box, False, False, 0)
             w.pack_start(sep(), False, False, 0)
 
-        w.pack_start(heading("HOW OFTEN THE SLOW PILLS LOOK AGAIN"), False, False, 0)
+        w.pack_start(heading("REFRESH"), False, False, 0)
         self.intervals = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         w.pack_start(self.intervals, False, False, 0)
         self.interval_chips = {}
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("CLOCK AND DATE"), False, False, 0)
-        grid, _sub = row("", "How the time and date are written",
-                         "24 or 12 hours, the seconds, the date's format and the week's first day are on the "
-                         "Date, time & region page; the bar follows within a second, no restart needed",
+        grid, _sub = row("", "Time and date format",
+                         "set on Date, time & region",
                          link("Open Region", lambda: spawn(SETTINGS, "region")))
         w.pack_start(grid, False, False, 0)
 
@@ -277,7 +275,7 @@ class Page:
 
     def show(self, data):
         if not data:
-            self.bar_sub.set_text("bar-settings.py did not answer")
+            self.bar_sub.set_text("Bar settings did not answer")
             return
         self.data = data
         self.updating = True
@@ -306,10 +304,9 @@ class Page:
         for iv in data.get("intervals") or []:
             grid, _sub = row(next((it["icon"] for side in lists.values() for it in side
                                    if it["name"] == iv["module"]), ""),
-                             iv["title"], f"runs again every {every(iv['seconds'])}; right-click the pill to "
-                             "look now. Weather comes from wttr.in, which turns away anyone asking too often, "
-                             "so it goes no lower than 10 min" if iv["module"] == "custom/weather" else
-                             f"runs again every {every(iv['seconds'])}; right-click the pill to look now")
+                             iv["title"], f"every {every(iv['seconds'])} (10 min at least)  ·  right-click to refresh"
+                             if iv["module"] == "custom/weather" else
+                             f"every {every(iv['seconds'])}  ·  right-click to refresh")
             self.intervals.pack_start(grid, False, False, 0)
             chips = self.make_chips(lambda k, m=iv["module"]: self.do("interval", m, k))
             chips.set(interval_choices(iv["choices"], iv["seconds"]), str(iv["seconds"]))

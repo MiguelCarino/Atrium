@@ -26,9 +26,7 @@ NOTIFY = os.path.join(HYPR, "notify-settings.py")  # noqa: F405  (HYPR: common)
 THEME_SOUND = os.path.join(HYPR, "theme-sound.sh")  # noqa: F405
 AUTOMATIONS = os.path.join(HYPR, "automations.py")  # noqa: F405
 DIGEST_RULE = "dnd-digest"
-DIGEST_TEXT = ("When it turns off, one notification sums up what arrived meanwhile, by app, urgent ones "
-               "flagged -- written by the local model when it can run (never a cloud one), plain counts "
-               "otherwise. Click it for the history.")
+DIGEST_TEXT = "one summary of what you missed, written on this computer"
 
 # The 3x3 chips are laid out like the screen: the stack goes where its chip is.
 ANCHORS = [("top-left", "Top left"), ("top-center", "Top middle"), ("top-right", "Top right"),
@@ -36,7 +34,7 @@ ANCHORS = [("top-left", "Top left"), ("top-center", "Top middle"), ("top-right",
            ("bottom-left", "Bottom left"), ("bottom-center", "Bottom middle"), ("bottom-right", "Bottom right")]
 TIMEOUTS = {
     "timeout_normal": ("Normal", [3, 5, 8, 15, 30, 0]),
-    "timeout_low": ("Low urgency (volume, theme and such toasts)", [2, 3, 5, 10, 0]),
+    "timeout_low": ("Low urgency (volume and such toasts)", [2, 3, 5, 10, 0]),
     "timeout_critical": ("Urgent (battery, disk full, alerts)", [15, 30, 60, 0]),
 }
 MAX_VISIBLE = [("1", "1"), ("3", "3"), ("5", "5"), ("8", "8"), ("-1", "No limit")]
@@ -109,8 +107,8 @@ class Page:
         w.pack_start(self.problem, False, False, 0)
         # Its own line, not self.problem: draw() owns this one (shown while
         # mako is down, gone when it is back), changed() owns that one.
-        self.mako_down = wrapped("mako (the notification daemon) is not running: nothing pops up. "
-                                 "systemctl --user restart mako starts it again.")
+        self.mako_down = wrapped("!  Nothing pops up: mako is not running "
+                                 "(systemctl --user restart mako starts it).")
         self.mako_down.set_no_show_all(True)
         w.pack_start(self.mako_down, False, False, 0)
 
@@ -122,9 +120,8 @@ class Page:
         w.pack_start(grid, False, False, 0)
         self.switches = {}
         w.pack_start(self.switch_row("critical_in_dnd", "", "Urgent ones break through",
-                                     "Battery, disk-full and emergency warnings still pop up in Do Not "
-                                     "Disturb. Off: nothing pops up at all; urgent ones wait in the "
-                                     "history like the rest."), False, False, 0)
+                                     "battery, disk-full and emergency warnings still pop up"),
+                     False, False, 0)
         self.digest = Gtk.Switch()
         self.digest.connect("state-set", lambda _s, on: self.change(
             AUTOMATIONS, "enable" if on else "disable", DIGEST_RULE))
@@ -152,16 +149,15 @@ class Page:
         hours.pack_start(link("Save hours", self.save_hours), False, False, 0)  # noqa: F405
         w.pack_start(hours, False, False, 0)
         self.days = Chips(lambda key: key != "custom" and self.set("quiet_days", key))  # noqa: F405
-        chips_block(w, "On (the day the quiet hours start)", self.days)
+        chips_block(w, "Days (when they start)", self.days)
         w.pack_start(self.switch_row("dnd_games", "", "While a game is running",
-                                     "Any Steam game window (steam_app_*); off again a few seconds "
-                                     "after the last one closes."), False, False, 0)
+                                     "any Steam game"), False, False, 0)
         w.pack_start(self.switch_row("dnd_share", "", "While the screen is shared",
-                                     "A call or OBS sharing through the portal -- so nothing private "
-                                     "pops up on someone else's screen."), False, False, 0)
-        w.pack_start(wrapped("These never fight you: if Do Not Disturb is already on they leave it alone, "
-                             "and if you turn it off they wait until the reason is over. A focus round "
-                             "(timers) keeps it on until the round ends."), False, False, 0)
+                                     "a call or OBS sharing your screen"), False, False, 0)
+        w.pack_start(details(wrapped(
+            "These never fight you: if Do Not Disturb is already on they leave it alone, and if you turn it "
+            "off they wait until the reason is over. A focus round (timers) keeps it on until the round ends. "
+            "Games are any steam_app_* window; screen sharing is the portal's.")), False, False, 0)
 
         # -- popups -----------------------------------------------------------
         w.pack_start(sep(), False, False, 0)  # noqa: F405
@@ -179,13 +175,11 @@ class Page:
             chips_block(w, caption, chips, per_line=7)
             self.timeouts[key] = chips
         w.pack_start(self.switch_row("ignore_app_timeouts", "", "Use these times for every app",
-                                     "Some apps ask for their own time (a chat app might ask for "
-                                     "\"until dismissed\"). On: these times win anyway."), False, False, 0)
+                                     "even for apps that ask for their own time"), False, False, 0)
         self.max_visible = Chips(lambda key: self.set("max_visible", key))  # noqa: F405
-        chips_block(w, "At most on screen at once (the rest wait their turn)", self.max_visible, per_line=6)
+        chips_block(w, "At most on screen at once", self.max_visible, per_line=6)
         w.pack_start(self.switch_row("group", "", "Stack repeats from one app",
-                                     "Five messages from the same app become one popup that says "
-                                     "\"(4 more)\"."), False, False, 0)
+                                     "one popup per app, \"(4 more)\""), False, False, 0)
         w.pack_start(links_row(link("Send a test notification", lambda: spawn(  # noqa: F405
             "notify-send", "-a", "Settings", "Test notification",
             "This is where and how long they appear now."))), False, False, 0)
@@ -195,8 +189,8 @@ class Page:
         w.pack_start(heading("SOUND"), False, False, 0)  # noqa: F405
         self.sound = Gtk.Switch()
         self.sound.connect("state-set", lambda _s, on: self.change(THEME_SOUND, "on" if on else "off"))
-        grid, _ = row("", "Theme sounds", "The desktop theme's chime for each notification (and its "  # noqa: F405
-                      "theme-change sound). Never for low-urgency toasts or in Do Not Disturb.", self.sound)
+        grid, _ = row("", "Theme sounds", "chime for each notification; never in Do Not Disturb",  # noqa: F405
+                      self.sound)
         w.pack_start(grid, False, False, 0)
 
         # -- history ----------------------------------------------------------
@@ -219,8 +213,8 @@ class Page:
         self.confirm.pack_start(link("Cancel", self.hide_confirm), False, False, 0)  # noqa: F405
         self.confirm.set_no_show_all(True)
         w.pack_start(self.confirm, False, False, 0)
-        w.pack_start(links_row(link("Back to the defaults", lambda: self.change(NOTIFY, "reset"))),  # noqa: F405
-                     False, False, 0)
+        w.pack_start(details(links_row(link("Back to the defaults",  # noqa: F405
+                                            lambda: self.change(NOTIFY, "reset")))), False, False, 0)
 
     # -- building helpers ---------------------------------------------------------
     def switch_row(self, key, icon, title, sub):
@@ -297,8 +291,7 @@ class Page:
         if rule is None:
             text = "automations.py did not answer: " + AUTOMATIONS
         elif rule["enabled"] and not data.get("running"):
-            text += ("\nautomations.service is not running, so nothing happens yet "
-                     "(Settings > Automations starts it).")
+            text = "off until Automations is running (Settings > Automations)"
         self.digest_sub.set_text(text)
 
     def show(self, data):
@@ -318,15 +311,13 @@ class Page:
         auto = data.get("auto") or {}
         put(self.dnd, data["dnd"])
         if data["dnd"] and auto.get("ours"):
-            text = (f"On by itself, for the {auto.get('reasons') or 'reason that started it'}. Turn it off "
-                    "and it stays off until that is over.")
+            text = f"on by itself, for the {auto.get('reasons') or 'reason that started it'}"
         elif data["dnd"]:
-            text = ("On. Popups are held back" + (" (urgent ones still show)" if conf["critical_in_dnd"] else "")
-                    + " and nothing chimes; everything still goes to the history.")
+            text = "on: popups held back" + (" (urgent ones still show)" if conf["critical_in_dnd"] else "")
         elif auto.get("declined") and auto.get("reasons"):
-            text = f"Off: you turned it off during the {auto['reasons']}. It comes on by itself next time."
+            text = f"off: you turned it off during the {auto['reasons']}"
         else:
-            text = "Off. ALT+SHIFT+D or the bell in the bar toggles it."
+            text = "off  ·  ALT+SHIFT+D or the bell in the bar"
         self.dnd_sub.set_text(text)
         for key, sw in self.switches.items():
             put(sw, bool(conf[key]))
@@ -334,7 +325,7 @@ class Page:
         clear(self.service_box)  # noqa: F405
         if data["auto_dnd_service"] != "active":
             grid, _ = row("", "Not running: nothing below happens by itself",  # noqa: F405
-                          f"auto-dnd.service is {data['auto_dnd_service']}.",
+                          f"its service is {data['auto_dnd_service']}",
                           link("Start it", lambda: self.change(  # noqa: F405
                               "systemctl", "--user", "enable", "--now", "auto-dnd.service")))
             self.service_box.pack_start(grid, False, False, 0)
@@ -342,13 +333,13 @@ class Page:
 
         span = f"{conf['quiet_from']} to {conf['quiet_to']}, {data['quiet_days_text']}"
         if not conf["quiet"]:
-            self.quiet_sub.set_text(f"Off. When on: Do Not Disturb {span}.")
+            self.quiet_sub.set_text(f"off  ·  {span} when on")
         elif conf["quiet_from"] == conf["quiet_to"]:
-            self.quiet_sub.set_text("From and to are the same time: an empty window, nothing happens.")
+            self.quiet_sub.set_text("from and to are the same time: never quiet")
         else:
             now = "Quiet now" if data["quiet_now"] else "Not now"
             change = f"; {'ends' if data['quiet_now'] else 'starts'} {data['quiet_change']}" if data["quiet_change"] else ""
-            self.quiet_sub.set_text(f"{span}. {now}{change}.")
+            self.quiet_sub.set_text(f"{span}  ·  {now}{change}")
         if not self.q_from.has_focus():
             self.q_from.set_text(conf["quiet_from"])
         if not self.q_to.has_focus():
@@ -368,12 +359,12 @@ class Page:
             screens.append((conf["output"], f"{conf['output']} (not connected)"))
         self.output.set(screens, conf["output"])
         if not conf["output"]:
-            self.output_sub.set_text("They appear on the screen you are working on.")
+            self.output_sub.set_text("on the screen you are working on")
         else:
             desc = next((monitor_name(o["description"]) for o in data["outputs"] if o["name"] == conf["output"]), "")
             note = ("" if conf["output"] in bars or not conf["anchor"].startswith("top")
-                    else "  ·  no bar there, so the gap above them shrinks to match")
-            self.output_sub.set_text((desc or "not connected now: they go to the focused screen meanwhile") + note)
+                    else "  ·  no bar there, so less gap above")
+            self.output_sub.set_text((desc or "not connected: on the focused screen meanwhile") + note)
         for key, (_caption, choices) in TIMEOUTS.items():
             values = choices if conf[key] in choices else sorted(choices + [conf[key]], key=order)
             items = [(str(s), seconds_caption(s)) for s in values]
@@ -385,10 +376,8 @@ class Page:
         kept = data["history"]
         shown = data["shown"]
         self.history_sub.set_text(
-            f"{kept} in the list, {shown} on screen now  ·  " + (
-                f"mako keeps the last {conf['max_history']}, in memory only: the list empties when you log out"
-                if conf["max_history"] else "history is off: what is dismissed (or arrives in Do Not Disturb) "
-                "is gone"))
+            f"{kept} in the list, {shown} on screen  ·  " + (
+                "emptied when you log out" if conf["max_history"] else "history is off"))
         self.widget.show_all()
 
     @staticmethod

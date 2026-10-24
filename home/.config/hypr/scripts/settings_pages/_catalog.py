@@ -30,25 +30,25 @@ import unicodedata
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 # "Smart" first: the Smart desktop hub (intelligence.py), every smart feature's switch on one page.
-GROUPS = ["Smart", "Display", "Look", "Apps", "Hardware", "Safety", "System"]
+GROUPS = ["Smart", "Look", "Apps", "Hardware", "System"]
 
 # The display panel's own three pages (waybar/scripts/display_panel.py
 # DisplayControls), which settings.py lists like the rest. Their keywords are
 # what is on each of them.
 BUILTIN = [
-    {"id": "screens", "title": "Screens", "icon": "", "group": "Display", "order": 10,
+    {"id": "screens", "title": "Screens", "icon": "", "group": "Hardware", "order": 5,
      "keywords": ["display", "monitor", "pantalla", "hdr", "sdr", "brightness", "brillo", "dim",
                   "warmth", "colour temperature", "color", "saturation", "red green blue", "night light",
                   "refresh rate", "hz", "resolution", "scale", "rotation", "arrange", "position",
                   "mirror", "vrr", "variable refresh", "adaptive sync", "primary", "main screen",
                   "bit depth", "10 bit", "night light schedule", "screen off"]},
-    {"id": "theme", "title": "Theme", "icon": "", "group": "Look", "order": 10,
+    {"id": "theme", "title": "Theme", "icon": "", "group": "Look", "order": 10, "tab": "Theme",
      "keywords": ["tema", "mpv", "video player", "player border", "mpv frame", "mpv controls", "uosc", "accent", "accent colour", "accent color", "accent from wallpaper", "glass",
                   "transparency", "window glass", "wallpaper", "fondo", "moving wallpaper",
                   "living wallpaper", "theme fade", "theme sounds", "dark", "light", "dark mode",
                   "light mode", "day and night",
                   "time of day", "schedule", "evening"]},
-    {"id": "effects", "title": "Effects", "icon": "", "group": "Look", "order": 20,
+    {"id": "effects", "title": "Effects", "icon": "", "group": "Look", "order": 30, "parent": "theme", "tab": "Effects",
      "keywords": ["screen filter", "shader", "grayscale", "greyscale", "reading", "vibrance", "crt",
                   "colour blindness", "color blind", "protanopia", "deuteranopia", "tritanopia",
                   "animations", "animaciones", "snappy", "smooth", "fancy", "calm", "motion"]},
@@ -95,6 +95,8 @@ def score(meta, query):
         total += best
     if words(meta.get("title", ""))[:len(wanted)] == wanted:
         total += 4                                      # "sound" is the Sound page, first
+    if any(words(k) == wanted for k in meta.get("keywords") or []):
+        total += 2                                      # "hdr" is Screens' keyword; Screenshots' is "hdr recording"
     return total
 
 
@@ -107,11 +109,13 @@ def hint(meta, query):
     missing = [w for w in words(query) if not any(t.startswith(w) for t in title)]
     if not missing:
         return ""
+    best, hits = "", 0
     for keyword in meta.get("keywords") or []:
         have = words(keyword)
-        if any(h.startswith(w) for w in missing for h in have):
-            return keyword
-    return ""
+        n = sum(any(h.startswith(w) for h in have) for w in missing)
+        if n > hits:                # the keyword that says the most of what was typed
+            best, hits = keyword, n
+    return best
 
 
 def search(pages, query):
@@ -137,6 +141,38 @@ def resolve(pages, arg):
 def sort_key(meta):
     group = meta.get("group")
     return (GROUPS.index(group) if group in GROUPS else len(GROUPS), meta.get("order", 50), meta.get("title", ""))
+
+
+def arrange(pages):
+    """Sidebar order with each page's tabs right after it: a page whose PAGE
+    says "parent": <id> is not in the sidebar but a tab of that page (its own
+    "tab" is the tab's caption, the parent's "tab" the caption of its first
+    tab). A parent that does not exist makes the page an ordinary one."""
+    ids = {p["id"] for p in pages}
+    top = sorted((p for p in pages if p.get("parent") not in ids), key=sort_key)
+    out = []
+    for page in top:
+        out.append(page)
+        out += sorted((p for p in pages if p.get("parent") == page["id"]),
+                      key=lambda p: (p.get("order", 50), p.get("title", "")))
+    return out
+
+
+def tabs(pages, host):
+    """[(id, caption)] of a sidebar page's tabs, itself first; [] when it
+    has none."""
+    kids = [p for p in arrange(pages) if p.get("parent") == host]
+    if not kids:
+        return []
+    me = next(p for p in pages if p["id"] == host)
+    return [(host, me.get("tab") or me["title"])] + [(p["id"], p.get("tab") or p["title"]) for p in kids]
+
+
+def host_of(pages, page_id):
+    """The sidebar page that shows page_id: its parent, or itself."""
+    meta = next((p for p in pages if p["id"] == page_id), None)
+    parent = (meta or {}).get("parent")
+    return parent if any(p["id"] == parent for p in pages) else page_id
 
 
 # -- reading the pages without importing them -------------------------------------------
@@ -166,7 +202,7 @@ def page_of(source):
 
 
 def read_pages(folder=HERE, builtin=True):
-    """Every page's PAGE, the built-in three first, in sidebar order. A file
+    """Every page's PAGE, in sidebar order (each page's tabs after it). A file
     is read again only when it has changed (the launcher asks every time it
     opens)."""
     pages = list(BUILTIN) if builtin else []
@@ -188,8 +224,7 @@ def read_pages(folder=HERE, builtin=True):
             continue
         if cached[1]:
             pages.append(cached[1])
-    pages.sort(key=sort_key)
-    return pages
+    return arrange(pages)
 
 
 if __name__ == "__main__":

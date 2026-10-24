@@ -246,7 +246,8 @@ class PageWords(unittest.TestCase):
         path = os.path.join(helpers.SCRIPTS, "settings_pages", "startup.py")
         with open(path) as handle:
             tree = ast.parse(handle.read())
-        names = {"duration", "size", "when", "service_sub", "timer_sub", "autostart_sub", "short_why",
+        names = {"duration", "size", "when", "service_sub", "service_tip", "timer_sub", "timer_tip",
+                 "autostart_sub", "short_why",
                  "own_unit", "hits_me", "call"}
         body = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in names]
         cls.page = types.SimpleNamespace()
@@ -277,7 +278,9 @@ class PageWords(unittest.TestCase):
         text = self.page.service_sub(s)
         self.assertIn("running for 2 min", text)
         self.assertIn("restarted 2×", text)
-        self.assertIn("Essential: the bar", text)
+        self.assertNotIn("x.service", text)                  # the unit is in the tooltip
+        self.assertIn("Essential: the bar", self.page.service_tip(s))
+        self.assertIn("x.service", self.page.service_tip(s))
         t = {"schedule": "every day at 21:30", "on": False, "next": None, "last": None, "job": "j.service",
              "job_title": "Job", "job_result": "", "route": "", "note": ""}
         self.assertIn("off", self.page.timer_sub(t))

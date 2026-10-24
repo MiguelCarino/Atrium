@@ -13,7 +13,8 @@ the layout first, close the project's own windows).
 Nothing is kept here: every control runs contexts.py (new, set NAME KEY
 VALUE, enter, leave, save, delete), which writes ~/.config/hypr/contexts.json,
 and the page redraws from `contexts.py status`. The projects folder row runs
-desktop_conf.py set projects PATH (~/.config/hypr/desktop.conf); the git
+desktop_conf.py set projects PATH (~/.config/hypr/desktop.conf; "Back to
+the default" and who else reads it sit in a Details fold); the git
 pill, the brief, the assistant and voice read it too (a service that is
 already running picks it up when it next starts). Entering starts apps, so it
 is spawned, never waited for.
@@ -25,7 +26,7 @@ from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 import os  # noqa: E402
 import time  # noqa: E402
 
-PAGE = {"id": "contexts", "title": "Project contexts", "icon": "", "group": "Apps", "order": 17,
+PAGE = {"id": "contexts", "title": "Project contexts", "icon": "", "group": "Apps", "order": 17, "parent": "sessions", "tab": "Contexts",
         "keywords": ["project", "proyecto", "context", "contexto", "repo", "repository", "workspace", "focus",
                      "focus mode", "enter project", "switch project", "ctx", "preview", "layout",
                      "projects folder", "repos folder", "carpeta de proyectos"]}
@@ -33,13 +34,13 @@ PAGE = {"id": "contexts", "title": "Project contexts", "icon": "", "group": "
 CONTEXTS = os.path.join(HYPR, "contexts.py")  # noqa: F405
 DESKTOP_CONF = os.path.join(HYPR, "desktop_conf.py")  # noqa: F405
 SWITCHES = [("session", "", "Restore its windows",
-             "the workspace session saved as its layout (what is open already is skipped)"),
+             "its saved layout, skipping what is already open"),
             ("terminal", "", "Open a terminal in the repo", "unless one is open there already"),
             ("editor", "", "Open the editor on the repo", "the default editor, or the command below"),
             ("save_on_leave", "", "Save the layout when leaving",
-             "the windows open then become what entering brings back"),
+             "what is open then is what entering brings back"),
             ("close_on_leave", "", "Close the project's windows when leaving",
-             "idle terminals in the repo, editors and file managers on it -- nothing else")]
+             "idle terminals, editors and file managers on the repo")]
 PREVIEW = [("off", "No preview"), ("start", "Start the preview"), ("open", "Start and open it")]
 FOCUS = [("none", "Notifications as usual"), ("dnd", "Do Not Disturb"), ("project", "Only this project's")]
 ENTRIES = [("workspace", "\uf009", "Go to workspace", "a number or name; empty: stay where you are"),
@@ -94,8 +95,6 @@ class Page:
         self.folder.connect("file-set", lambda c: c.get_filename() and self.set_folder(c.get_filename()))
         grid, self.folder_sub = row("\uf07c", "Your projects folder", "", self.folder)  # noqa: F405
         w.pack_start(grid, False, False, 0)
-        w.pack_start(links_row(link("Back to the default", lambda: self.set_folder(""))),  # noqa: F405
-                     False, False, 0)
         box = Gtk.Box(spacing=8)
         self.repo = Gtk.ComboBoxText()
         self.repo.connect("changed", lambda _c: self.repo_changed())
@@ -107,10 +106,16 @@ class Page:
         box.pack_start(self.name, True, True, 0)
         box.pack_start(link("Add", self.add), False, False, 0)  # noqa: F405
         w.pack_start(box, False, False, 0)
-        self.add_sub = dp.label("A repo in your projects folder. It starts with a terminal and the editor on it, its "  # noqa: F405
-                                "local preview when it has a site, and only its notifications.", "ctl-sub")
+        self.add_sub = dp.label("Starts with a terminal, the editor and only its notifications.", "ctl-sub")  # noqa: F405
         self.add_sub.set_line_wrap(True)
         w.pack_start(self.add_sub, False, False, 0)
+        folder_note = dp.label("The git pill, the brief, the assistant and voice use the projects folder too "  # noqa: F405
+                               "(a running service picks a change up when it next starts). A repo with a site "
+                               "also starts its local preview.", "ctl-sub")
+        folder_note.set_line_wrap(True)
+        folder_note.set_max_width_chars(90)
+        w.pack_start(details(folder_note, links_row(link("Back to the default folder",  # noqa: F405
+                                                         lambda: self.set_folder("")))), False, False, 0)
         w.pack_start(sep(), False, False, 0)  # noqa: F405
 
         w.pack_start(heading("PROJECTS"), False, False, 0)  # noqa: F405
@@ -120,7 +125,7 @@ class Page:
                         "right-click: leave), and automations (\"context NAME\", when a project is entered "
                         "or left).", "ctl-sub")
         note.set_line_wrap(True)
-        w.pack_start(note, False, False, 0)
+        w.pack_start(details(note, label="Other ways in"), False, False, 0)  # noqa: F405
         w.pack_start(sep(), False, False, 0)  # noqa: F405
 
         self.edit_heading = heading("EDIT")  # noqa: F405
@@ -134,7 +139,7 @@ class Page:
             grid, _ = row(icon, title, sub, sw)  # noqa: F405
             self.switches[key] = sw
             self.edit_box.pack_start(grid, False, False, 0)
-        self.edit_box.pack_start(dp.label("Website preview (repos.py preview: localhost, as it is on disk)",  # noqa: F405
+        self.edit_box.pack_start(dp.label("Website preview (localhost)",  # noqa: F405
                                           "ctl-sub"), False, False, 0)
         self.preview = Chips(lambda key: self.set("preview", key))  # noqa: F405
         self.edit_box.pack_start(self.preview.widget, False, False, 0)
@@ -263,7 +268,7 @@ class Page:
                                           link("Leave", self.leave))), 2, 0, 1, 2)  # noqa: F405
         else:
             grid, _ = row("", "Not in a project",  # noqa: F405
-                          "Enter one below, from the launcher (\"project <name>\") or the bar.")
+                          "Enter one below, from the launcher or the bar.")
         self.now_box.pack_start(grid, False, False, 0)
 
         folder = self.data.get("projects_full")
@@ -272,8 +277,7 @@ class Page:
                 self.folder.set_filename(folder)
             self.folder_sub.set_text(self.data.get("projects", folder)
                                      + ("" if os.path.isdir(folder) else "  ·  not there yet")
-                                     + ("" if self.data.get("projects_set") else "  ·  the default")
-                                     + "  ·  the git pill, the brief and the assistant use it too")
+                                     + ("" if self.data.get("projects_set") else "  ·  the default"))
         repos = self.data.get("repos") or []
         if [r for r in repos] != [self.repo.get_model()[i][0] for i in range(len(self.repo.get_model()))]:
             keep = self.repo.get_active_text()

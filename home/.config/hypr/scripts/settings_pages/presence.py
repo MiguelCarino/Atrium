@@ -29,7 +29,7 @@ import os  # noqa: E402
 import socket  # noqa: E402
 import time  # noqa: E402
 
-PAGE = {"id": "presence", "title": "Presence", "icon": "", "group": "Safety", "order": 22,
+PAGE = {"id": "presence", "title": "Presence", "icon": "", "group": "Smart", "order": 22, "parent": "intelligence", "tab": "Presence",
         "keywords": ["webcam", "camera", "away", "walk away", "lock when I leave", "presencia", "cámara",
                      "face", "at the desk", "wake screen", "pause media when away", "auto lock"]}
 
@@ -37,15 +37,11 @@ PRESENCE = os.path.join(HYPR, "presence.py")
 PRIVACY = os.path.join(HYPR, "privacy_settings.py")
 SETTINGS = os.path.join(HYPR, "settings.py")
 SWITCHES = [
-    ("lock", "", "Lock the screen when you walk away",
-     "only when the camera sees nobody AND the keyboard and mouse have been still"),
-    ("media", "", "Pause music and video while you are away", "and play the same ones when you are back"),
-    ("dnd", "", "Do Not Disturb while you are away",
-     "off again when you are back, unless you changed it meanwhile"),
-    ("automations", "", "Tell Automations",
-     "the \"presence-away\" / \"presence-back\" triggers (Settings > Automations)"),
-    ("wake", "", "Turn the screens on when you are back",
-     "never unlocks: the lock screen still asks for your password"),
+    ("lock", "", "Lock the screen when you walk away", "no face and no keyboard or mouse"),
+    ("media", "", "Pause music and video while you are away", "resumes when you are back"),
+    ("dnd", "", "Do Not Disturb while you are away", "off again when you are back"),
+    ("automations", "", "Tell Automations", "presence-away / presence-back triggers"),
+    ("wake", "", "Turn the screens on when you are back", "never unlocks"),
 ]
 AWAY = [("30", "30 s"), ("60", "1 min"), ("120", "2 min"), ("300", "5 min")]
 FPS = [("1", "1 a second"), ("2", "2 a second")]
@@ -64,25 +60,21 @@ def status_text(data):
     if not data.get("on"):
         others = [name for name, on in (("gestures", data.get("gestures")), ("gaze", data.get("gaze"))) if on]
         if others:
-            return (f"Off, but the camera stays open for {' and '.join(others)} (Gestures & gaze). "
-                    "Camera off closes it.")
-        return ("Off: nothing opens the camera. Turning it on needs no account and sends nothing "
-                "anywhere.")
+            return f"Off, but the camera stays open for {' and '.join(others)}"
+        return "Off: nothing opens the camera"
     if not all((data.get("installed") or {}).values()):
-        return "On, but its detector is missing: ~/.local/share/presence (see presence.py's docstring)."
+        return "On, but its face detector is not installed"
     live = data.get("live")
     if data.get("service") != "active" or not live:
-        return f"On, but the service is {data.get('service') or 'not running'} (journalctl --user -u presence)."
+        return f"On, but the service is {data.get('service') or 'not running'}"
     seen = "you are at the desk" if live.get("state") == "present" else "you are away"
-    cam = (f"the camera is open ({live.get('device')}), 1 look every "
-           f"{'second' if data['settings'].get('fps', 1) == 1 else 'half second'}") if live.get("camera") \
+    cam = f"camera open ({live.get('device')})" if live.get("camera") \
         else f"the camera is closed: {live['why']}" if live.get("why") else "the camera is closed between looks"
     vision = live.get("vision") or {}
     if live.get("camera") and vision.get("fps"):
-        cam = (f"the camera is open ({live.get('device')}), {vision['fps']:g} looks a second "
-               "for gestures / gaze")
+        cam = f"camera open ({live.get('device')}) for gestures / gaze"
     if live.get("paused_for"):
-        cam = f"paused for {max(1, live['paused_for'] // 60)} more min, the camera is closed"
+        cam = f"paused for {max(1, live['paused_for'] // 60)} more min"
     return f"{seen}  ·  {cam}"
 
 
@@ -116,8 +108,6 @@ def live_text(data, live):
         bits.append(f"{len(faces)} face{'s' if len(faces) > 1 else ''}, {best:.0%} sure")
     bits.append("just now" if age < 1.5 else f"{age:.0f} s ago")
     bits.append("counted as at the desk" if live.get("state") == "present" else "counted as away")
-    if live.get("watched") and live.get("state") == "present":
-        bits.append("5 looks a second while this page is open")
     if age > STALE_S:
         head = "Last look: " + head[0].lower() + head[1:]
     return head, "  ·  ".join(bits), kind
@@ -197,15 +187,16 @@ class Page:
         w.pack_start(self.camera.widget, False, False, 0)
         self.fps = Chips(lambda key: self.run(PRESENCE, "set", "fps", key))
         w.pack_start(self.fps.widget, False, False, 0)
-        note = dp.label("What it keeps: nothing. Each picture is looked at in memory (a face, and is it turned "
-                        "to the screen?) and dropped before the next; nothing is saved or sent. The camera is "
-                        "closed while paused, in gamemode, while another app (a call) uses it, and while you "
-                        "are away it only peeks every few seconds -- after half an hour away not at all: your "
-                        "keyboard brings it back. The camera icon in the top bar says \"presence\" whenever it "
-                        "is open. SUPER+CTRL+SHIFT+P pauses it for an hour.", "ctl-sub")
+        w.pack_start(dp.label("Nothing is saved or sent.  SUPER+CTRL+SHIFT+P pauses for an hour.", "ctl-sub"),
+                     False, False, 0)
+        note = dp.label("Each picture is looked at in memory and dropped before the next. The camera is "
+                        "closed while paused, in gamemode or while another app (a call) uses it; while you "
+                        "are away it only peeks every few seconds, and after half an hour not at all (your "
+                        "keyboard brings it back). The top bar's camera icon says \"presence\" while it is "
+                        "open.", "ctl-sub")
         note.set_line_wrap(True)
         note.set_max_width_chars(90)
-        w.pack_start(note, False, False, 0)
+        w.pack_start(details(note, label="How it works"), False, False, 0)
         self.msg = dp.label("", "ctl-sub")
         self.msg.set_line_wrap(True)
         w.pack_start(self.msg, False, False, 0)
@@ -301,7 +292,7 @@ class Page:
 
     def draw(self, data):
         if not data:
-            self.msg.set_text("presence.py did not answer (run it in a terminal to see why)")
+            self.msg.set_text("Presence did not answer")
             return
         self.data = data
         self.updating = True
@@ -315,8 +306,7 @@ class Page:
                 sw.set_active(s.get(key) == "on")
             away = str(s.get("away_s", 60))
             self.away.set(AWAY if away in dict(AWAY) else AWAY + [(away, f"{away} s")], away)
-            self.away_sub.set_text(f"no face for {s.get('away_s', 60)} s, and no keyboard or mouse for "
-                                   f"{data.get('idle_s', 20)} s")
+            self.away_sub.set_text(f"no face for {s.get('away_s', 60)} s, idle for {data.get('idle_s', 20)} s")
             self.camera.set(camera_items(data.get("cameras") or [], s.get("camera", "auto")),
                             s.get("camera", "auto"))
             self.fps.set(FPS, str(s.get("fps", 1)))

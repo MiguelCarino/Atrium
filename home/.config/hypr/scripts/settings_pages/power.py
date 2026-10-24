@@ -21,7 +21,7 @@ import time  # noqa: E402
 
 import power_panel as pp  # noqa: E402  (waybar/scripts, on the path via common)
 
-PAGE = {"id": "power", "title": "Power & screen lock", "icon": "", "group": "System", "order": 20,
+PAGE = {"id": "power", "title": "Power & lock", "icon": "", "group": "System", "order": 20,
         "keywords": ["idle", "dim", "lock", "screen lock", "lock screen", "screens off", "timeout", "suspend",
                      "sleep", "keep awake", "caffeine", "power profile", "performance", "power saver",
                      "balanced", "power button", "lid", "log out", "restart", "reboot", "shut down", "apagar",
@@ -33,23 +33,21 @@ SCREEN_COLOR = os.path.join(HYPR, "screen-color.py")
 # (key, icon, title, what it does, choices in seconds; 0 = never). A value in
 # hypridle.conf that is none of these (a hand edit) gets a chip of its own.
 TIMINGS = [
-    ("dim", "", "Dim the screens", "after this long without input, every screen goes darker until you "
-     "move the mouse or press a key", [0, 120, 300, 600, 900]),
-    ("lock", "", "Lock the screen", "after this long without input; SUPER+ALT+L locks at once",
+    ("dim", "", "Dim the screens", "dim after this long idle", [0, 120, 300, 600, 900]),
+    ("lock", "", "Lock the screen", "lock after this long idle; SUPER+ALT+L locks now",
      [0, 300, 600, 900, 1800, 3600]),
-    ("screens_off", "", "Turn the screens off", "after this long without input; any input wakes them",
+    ("screens_off", "", "Turn the screens off", "screens off after this long idle",
      [0, 300, 600, 900, 1800, 3600]),
-    ("suspend", "", "Suspend", "put the computer to sleep after this long without input; downloads, "
-     "games and anything running stop until it wakes", [0, 1800, 3600, 7200, 10800]),
+    ("suspend", "", "Suspend", "sleep after this long idle", [0, 1800, 3600, 7200, 10800]),
 ]
 AFTER_LOCK = [0, 10, 30, 60, 300]
 GRACE = [0, 3, 5, 10, 30]
 DIM_LEVEL = [20, 40, 60]
 AWAKE = [("off", "Off"), ("60", "1 hour"), ("180", "3 hours"), ("on", "Until I turn it off")]
 PROFILE_TEXT = {"power-saver": "Power saver", "balanced": "Balanced", "performance": "Performance"}
-PROFILE_SUB = {"power-saver": "quieter and cooler, the CPU holds back",
-               "balanced": "fast when there is work, frugal when idle",
-               "performance": "the CPU runs at full speed sooner; more heat and fan noise"}
+PROFILE_SUB = {"power-saver": "quieter and cooler",
+               "balanced": "fast when busy, frugal when idle",
+               "performance": "full speed sooner; more heat and fan noise"}
 POWER_KEY = [("poweroff", "Shut down"), ("suspend", "Suspend"), ("lock", "Lock"), ("ignore", "Nothing")]
 
 
@@ -125,7 +123,7 @@ class Page:
 
         w.pack_start(heading("SCREEN LOCK"), False, False, 0)
         grid, self.after_sub = row("", "Screens off after locking",
-                                   "how soon the screens go dark once the lock is up, however it was locked")
+                                   "how soon the screens go dark once locked")
         w.pack_start(grid, False, False, 0)
         self.after_lock = self.make_chips(lambda k: self.set("off_after_lock", f"{k}s" if k != "0" else "never"))
         w.pack_start(self.after_lock.widget, False, False, 0)
@@ -136,20 +134,21 @@ class Page:
         self.switches = {}
         for key, icon, title, sub in (
                 ("lock_before_sleep", "", "Lock before sleep",
-                 "lock the screen just before the computer suspends, so it wakes onto the lock screen"),
+                 "wake onto the lock screen"),
                 ("password_on_wake", "", "Ask for the password when the screens wake",
-                 "turning the screens off on idle locks first, even before the lock timeout")):
+                 "screens going off on idle lock first")):
             sw = Gtk.Switch()
             sw.connect("state-set", lambda _s, state, k=key: self.toggle(k, state))
             grid, sub_label = row(icon, title, sub, sw)
             self.switches[key] = (sw, sub_label, sub)
             w.pack_start(grid, False, False, 0)
+        # The idle daemon itself: what most people never need, folded.
         self.idle_row, self.idle_sub = row("", "hypridle", "")
-        w.pack_start(self.idle_row, False, False, 0)
-        w.pack_start(links_row(link("Open hypridle.conf", lambda: spawn("xdg-open", os.path.expanduser(
-                                   "~/.config/hypr/hypridle.conf"))),
-                               link("Restart hypridle", lambda: self.do("systemctl", "--user", "restart",
-                                                                        "hypridle.service"))),
+        w.pack_start(details(self.idle_row,
+                             links_row(link("Open hypridle.conf", lambda: spawn("xdg-open", os.path.expanduser(
+                                           "~/.config/hypr/hypridle.conf"))),
+                                       link("Restart hypridle", lambda: self.do("systemctl", "--user", "restart",
+                                                                                "hypridle.service")))),
                      False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
@@ -167,6 +166,10 @@ class Page:
         w.pack_start(grid, False, False, 0)
         self.profile = self.make_chips(self.set_profile)
         w.pack_start(self.profile.widget, False, False, 0)
+        self.profile_more = dp.label("", "ctl-sub")
+        self.profile_more.set_line_wrap(True)
+        self.profile_more.set_selectable(True)
+        w.pack_start(details(self.profile_more), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("POWER BUTTON AND SLEEP"), False, False, 0)
@@ -176,14 +179,16 @@ class Page:
         w.pack_start(self.power_key.widget, False, False, 0)
         self.sleep_row, self.sleep_sub = row("", "Sleep", "")
         w.pack_start(self.sleep_row, False, False, 0)
+        self.sleep_more = dp.label("", "ctl-sub")
+        self.sleep_more.set_line_wrap(True)
+        self.sleep_more.set_selectable(True)
+        w.pack_start(details(self.sleep_more), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("SESSION"), False, False, 0)
         self.session = self.session_tiles()
         w.pack_start(self.session, False, False, 0)
-        hint = dp.label("Every button takes two clicks: the first turns it into \"Click again to ...\", which "
-                        f"goes back after {pp.ARM_SECONDS} seconds. Log out, Restart and Shut down end every "
-                        "open program.", "ctl-sub")
+        hint = dp.label("Click twice to confirm. Log out, Restart and Shut down close every app.", "ctl-sub")
         hint.set_line_wrap(True)
         w.pack_start(hint, False, False, 0)
         self.updating = False
@@ -268,12 +273,10 @@ class Page:
         try:
             spawn("wl-copy", power_key_command(action))     # wl-copy forks and holds it itself
         except OSError:
-            self.key_sub.set_text("wl-copy is missing, so here it is to copy by hand: "
-                                  + power_key_command(action))
+            self.key_sub.set_text("wl-copy is missing; run this as root: " + power_key_command(action))
             self.key_sub.set_selectable(True)
             return
-        self.key_sub.set_text(f"Copied the command that makes it \"{dict(POWER_KEY)[action]}\". It needs "
-                              "root: paste it into a terminal and enter your password.")
+        self.key_sub.set_text(f"copied: paste in a terminal to make it \"{dict(POWER_KEY)[action]}\"")
 
     # -- drawing ---------------------------------------------------------------------
     def refresh(self):
@@ -295,19 +298,11 @@ class Page:
                            str(v["dim_level"]))
         self.dim_level.widget.set_visible(bool(v["dim"]))
         if v["dim"]:
-            self.subs["dim"].set_text(f"every screen goes down to {v['dim_level']} % of its brightness (in "
-                                      "software, on top of yours) until you move the mouse or press a key")
+            self.subs["dim"].set_text(f"down to {v['dim_level']} % brightness until any input")
             if not data.get("dim_ready"):
-                self.subs["dim"].set_text(self.subs["dim"].get_text() + "  ·  needs the screen colour service "
-                                          "restarted once to know how (it happens at the next login, or: "
-                                          "systemctl --user restart screen-color)")
+                self.subs["dim"].set_text(self.subs["dim"].get_text() + "  ·  works from the next login")
         if v["lock"] and v["screens_off"] and v["off_after_lock"] and v["screens_off"] == v["lock"] + v["off_after_lock"]:
-            self.subs["screens_off"].set_text(f"{dur(v['off_after_lock'])} after the idle lock, and it moves with "
-                                              "the lock and with \"Screens off after locking\"  ·  any input "
-                                              "wakes them, onto the lock screen")
-        if v["suspend"]:
-            self.subs["suspend"].set_text(TIMINGS[3][3] + "  ·  the computer never sleeps on its own otherwise "
-                                          "(logind's IdleAction is " + str(data["logind"].get("IdleAction")) + ")")
+            self.subs["screens_off"].set_text(f"{dur(v['off_after_lock'])} after the idle lock, moving with it")
         clear(self.problems)
         for p in data["problems"]:
             lab = dp.label(f"!  {p[0].upper()}{p[1:]}.", "ctl-sub")
@@ -319,10 +314,9 @@ class Page:
         self.grace.set([(str(s), "None" if not s else f"{s} s") for s in sorted(set(GRACE) | {v["grace"]})],
                        str(v["grace"]))
         self.grace_sub.set_text(
-            (f"input in the first {v['grace']} s after an idle lock unlocks without the password, so nudging the "
-             "mouse as it fades in costs nothing; locks by hand and before sleep always ask"
+            (f"input within {v['grace']} s of an idle lock unlocks without a password"
              if v["grace"] else "an idle lock asks for the password at once")
-            if v["lock"] else "only for the idle lock, which is off: set \"Lock the screen\" to a time first")
+            if v["lock"] else "needs \"Lock the screen\" set to a time")
         # Kept only in the lock listener, so with no idle lock there is
         # nowhere to write it: greyed out rather than a click that does nothing.
         self.grace.widget.set_sensitive(bool(v["lock"]))
@@ -334,9 +328,9 @@ class Page:
         # has nothing to change (same reasoning as the grace chips).
         self.switches["password_on_wake"][0].set_sensitive(bool(v["screens_off"]) or v["password_on_wake"])
         if not v["screens_off"]:
-            pw_sub = "only when the screens turn off on idle, which is set to Never above"
+            pw_sub = "needs \"Turn the screens off\" set to a time"
         elif v["lock"] and v["lock"] <= v["screens_off"]:
-            pw_sub += "  ·  the screen is already locked by the time they go off"
+            pw_sub += "  ·  already locked by then"
         self.switches["password_on_wake"][1].set_text(pw_sub)
 
         hyp = data["hypridle"]
@@ -347,25 +341,30 @@ class Page:
             sub += f"  ·  {len(data['kept'])} listener{'s' if len(data['kept']) != 1 else ''} of your own kept as is"
         if hyp["ignores_systemd_inhibit"]:
             sub += "  ·  ignore_systemd_inhibit is on, so Keep awake below cannot hold it off"
+        sub += f"  ·  logind's IdleAction: {data['logind'].get('IdleAction')}"
         self.idle_sub.set_text(sub)
+        # The fold hides the row, so a stopped daemon also shows up top.
+        if hyp["state"] != "active":
+            lab = dp.label("!  Nothing happens on idle: hypridle is not running (Details, Restart hypridle).",
+                           "ctl-sub")
+            lab.set_line_wrap(True)
+            self.problems.pack_start(lab, False, False, 0)
+            self.problems.show_all()
 
         aw = data["awake"]
         key = "off" if not aw["on"] else ("on" if not aw["until"] else str(aw.get("minutes")))
         self.awake.set(AWAKE, key)
         if aw["on"] and aw["until"]:
-            self.awake_sub.set_text(f"on until {time.strftime('%H:%M', time.localtime(aw['until']))}: nothing dims, "
-                                    "locks, turns off or sleeps on idle")
+            self.awake_sub.set_text(f"on until {time.strftime('%H:%M', time.localtime(aw['until']))}: "
+                                    "nothing dims, locks or sleeps")
         elif aw["on"]:
-            self.awake_sub.set_text("on until you turn it off or log out: nothing dims, locks, turns off or "
-                                    "sleeps on idle")
+            self.awake_sub.set_text("on until you turn it off: nothing dims, locks or sleeps")
         else:
-            self.awake_sub.set_text("hold off everything above for a while -- a long read, a download, a "
-                                    "presentation. Suspend from the power menu still works")
+            self.awake_sub.set_text("pause everything above for a while")
         clear(self.holders)
         others = [h for h in data["holders"] if h["who"] != "Keep awake"]
-        lines = [f"Also keeping the screens awake now: {h['who']} ({h['why']})" for h in others[:6]]
-        lines.append("A fullscreen window and Steam games hold it off too. The toolbox's Keep awake row is "
-                     "this same switch, so flipping either one changes both.")
+        lines = [f"Also keeping it awake: {h['who']} ({h['why']})" for h in others[:6]]
+        lines.append("Fullscreen windows and Steam games keep it awake too.")
         for text in lines:
             lab = dp.label(text, "ctl-sub")
             lab.set_line_wrap(True)
@@ -377,33 +376,37 @@ class Page:
             self.profile.set([(p, PROFILE_TEXT.get(p, p)) for p in prof["profiles"]], prof["active"])
             bits = [PROFILE_SUB.get(prof["active"], prof["active"] or "?")]
             if prof.get("cpu_watts") is not None:
-                bits.append(f"CPU drawing {prof['cpu_watts']:.0f} W now")
-            if prof.get("epp"):
-                bits.append(f"CPU energy preference: {prof['epp'].replace('_', ' ')}")
+                bits.append(f"CPU {prof['cpu_watts']:.0f} W now")
             if prof.get("degraded"):
                 bits.append(f"held back: {prof['degraded']}")
-            bits.append("kept across restarts by the profile service")
             self.profile_sub.set_text("  ·  ".join(bits))
+            more = ["kept across restarts by the profile service (net.hadess.PowerProfiles)"]
+            if prof.get("epp"):
+                more.insert(0, f"CPU energy preference: {prof['epp'].replace('_', ' ')}")
+            self.profile_more.set_text("  ·  ".join(more))
         else:
             self.profile.set([], None)
-            self.profile_sub.set_text("No power profile service answered (net.hadess.PowerProfiles). On Fedora "
-                                      "it is tuned-ppd: sudo dnf install tuned-ppd && sudo systemctl enable "
-                                      "--now tuned-ppd")
+            self.profile_sub.set_text("no power profile service found")
+            self.profile_more.set_text("No answer from net.hadess.PowerProfiles. On Fedora it is tuned-ppd: "
+                                       "sudo dnf install tuned-ppd && sudo systemctl enable --now tuned-ppd")
 
         lg = data["logind"]
         current = lg.get("HandlePowerKey")
         self.power_key.set(POWER_KEY, current)
-        self.key_sub.set_text(f"pressing it: {dict(POWER_KEY).get(current, current or '?')}  ·  changing it "
-                              "needs root: pick one to copy the command, then run it in a terminal")
-        mode = {"deep": "deep sleep (S3): almost no power, a few seconds to wake",
+        self.key_sub.set_text(f"now: {dict(POWER_KEY).get(current, current or '?')}  ·  "
+                              "pick one to copy the root command")
+        mode = {"deep": "deep sleep (S3): almost no power, slower to wake",
                 "s2idle": "light sleep (s2idle): wakes fast, draws more"}.get(lg.get("mem_sleep"), lg.get("mem_sleep"))
         # None: systemctl did not say (no such unit -- no NVIDIA driver), which
         # is not the same as "off".
         nv = {"enabled": "NVIDIA's suspend helpers are on, so the card keeps its memory across sleep",
               None: None}.get(lg.get("nvidia_suspend"),
                               "NVIDIA's suspend helpers are off: sudo systemctl enable nvidia-suspend nvidia-resume")
-        self.sleep_sub.set_text("  ·  ".join(filter(None, [mode or "sleep mode unknown", nv,
-                                                            f"the suspend key: {lg.get('HandleSuspendKey') or '?'}"])))
+        nv_off = nv and not nv.startswith("NVIDIA's suspend helpers are on")
+        self.sleep_sub.set_text(mode or "sleep mode unknown"
+                                + ("  ·  NVIDIA suspend helpers off" if nv_off else ""))
+        self.sleep_more.set_text("  ·  ".join(filter(None, [nv, f"the suspend key: "
+                                                                f"{lg.get('HandleSuspendKey') or '?'}"])))
         self.widget.show_all()
         self.dim_level.widget.set_visible(bool(v["dim"]))
         if not prof["profiles"]:

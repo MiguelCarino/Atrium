@@ -29,7 +29,7 @@ import importlib.util  # noqa: E402
 import os  # noqa: E402
 import subprocess  # noqa: E402
 
-PAGE = {"id": "shortcuts", "title": "Keyboard shortcuts", "icon": "", "group": "Hardware", "order": 35,
+PAGE = {"id": "shortcuts", "title": "Keyboard shortcuts", "icon": "", "group": "Hardware", "order": 35, "parent": "input", "tab": "Shortcuts",
         "keywords": ["keybinds", "keybindings", "hotkeys", "keys", "bind", "rebind", "shortcut", "custom shortcut",
                      "conflict", "super", "atajos", "teclado"]}
 
@@ -112,13 +112,13 @@ def entry_sub(e):
     elif e["state"] == "mode":
         bits.append(f"only inside the {e['submap']} mode")
     elif e["state"] == "fixed":
-        bits.append("made outside the shortcut list, so it can't be changed here")
+        bits.append("can't be changed here")
     if e["mouse"]:
-        bits.append("a mouse button: hold the keys and press it")
+        bits.append("mouse button")
     if e["pending"]:
         bits.append("not loaded into Hyprland yet" + (f" (wanted: {e['wanted']})" if e.get("wanted") else ""))
     if e["conflicts"]:
-        bits.append("!  these keys also do: " + "; ".join(e["conflicts"]) + " -- both fire")
+        bits.append("!  also fires: " + "; ".join(e["conflicts"]))
     return "  ·  ".join(bits)
 
 
@@ -150,8 +150,7 @@ class KeyCapture:
         box.pack_start(dp.label(title, "ctl-title"), False, False, 0)  # noqa: F405
         self.shown = dp.label("Press the new keys now…", "kb-heading")  # noqa: F405
         box.pack_start(self.shown, False, False, 0)
-        self.note = dp.label(f"Every shortcut is paused while this is open (at most {CAPTURE_SECONDS} s). "  # noqa: F405
-                             "Esc on its own cancels.", "ctl-sub")
+        self.note = dp.label(f"Shortcuts paused (up to {CAPTURE_SECONDS} s). Esc cancels.", "ctl-sub")  # noqa: F405
         self.note.set_line_wrap(True)
         self.note.set_max_width_chars(48)
         box.pack_start(self.note, False, False, 0)
@@ -245,9 +244,11 @@ class Page:
         self.reset_btn = link("Reset all", self.reset_all)  # noqa: F405
         self.load_btn = link("Load into Hyprland now", lambda: self.do("apply"))  # noqa: F405
         w.pack_start(links_row(self.load_btn,  # noqa: F405
-                               link("Open the file", self.open_file),  # noqa: F405
                                link("Shortcuts panel", lambda: spawn(os.path.join(WAYBAR, "keybinds_panel.py"))),  # noqa: F405
                                self.reset_btn), False, False, 0)
+        self.file_sub = dp.label("Kept in " + sc.FILE.replace(os.path.expanduser("~"), "~"), "ctl-sub")  # noqa: F405
+        w.pack_start(details(self.file_sub, links_row(link("Open the file", self.open_file))),  # noqa: F405
+                     False, False, 0)
         w.pack_start(sep(), False, False, 0)  # noqa: F405
 
         w.pack_start(heading("ADD A SHORTCUT OF YOUR OWN"), False, False, 0)  # noqa: F405
@@ -257,7 +258,7 @@ class Page:
         w.pack_start(heading("EVERY SHORTCUT"), False, False, 0)  # noqa: F405
         top = Gtk.Box(spacing=8)
         self.search = Gtk.SearchEntry()
-        self.search.set_placeholder_text("Search by keys or by what they do (e.g. \"super q\", \"screenshot\")")
+        self.search.set_placeholder_text("Search keys or actions (e.g. \"super q\", \"screenshot\")")
         self.search.set_hexpand(True)
         self.search.connect("search-changed", lambda _e: self.apply_filter())
         top.pack_start(self.search, True, True, 0)
@@ -275,8 +276,7 @@ class Page:
     # -- the add form ----------------------------------------------------------------
     def add_form(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        hint = dp.label("Pick what it does, give it a name, press its keys. Keys with Super or Alt in them "  # noqa: F405
-                        "are safest: anything else is taken from every app.", "ctl-sub")
+        hint = dp.label("Keys with Super or Alt are safest.", "ctl-sub")  # noqa: F405
         hint.set_line_wrap(True)
         box.pack_start(hint, False, False, 0)
         self.kind = "app"
@@ -451,7 +451,7 @@ class Page:
         if os.path.exists(sc.FILE):
             spawn("xdg-open", sc.FILE)  # noqa: F405
         else:
-            self.show_error("No changes yet, so there is no file: it appears with the first one.")
+            self.show_error("No changes yet, so no file yet.")
 
     def pick_filter(self, which):
         self.filter = which
@@ -470,7 +470,7 @@ class Page:
     def show(self, result):
         entries, ok, loaded, errors, over = result
         if not ok:
-            self.status_sub.set_text("hyprctl did not answer, so the shortcuts can't be read (is Hyprland running?)")
+            self.status_sub.set_text("can't read the shortcuts: is Hyprland running?")
             return
         self.entries = entries
         n_moved, n_off, n_own = len(over["moves"]), len(over["off"]), len(over["adds"])
@@ -478,12 +478,11 @@ class Page:
         if n_moved or n_off or n_own:
             bits = [f"{n} {what}" for n, what in ((n_moved, "on other keys"), (n_off, "turned off"),
                                                    (n_own, "of your own")) if n]
-            sub = ", ".join(bits) + f"  ·  kept in {sc.FILE.replace(os.path.expanduser('~'), '~')}"
+            sub = ", ".join(bits)
         else:
-            sub = "none: every shortcut is on its default keys (lua/binds.lua)"
+            sub = "none: every shortcut is on its default keys"
         if not loaded:
-            sub += ("  ·  Hyprland has not loaded the module that applies them (lua/userbinds.lua) yet; it "
-                    "does at the next reload or login")
+            sub += "  ·  applied at the next reload or login"
         elif pending:
             sub += f"  ·  {pending} not loaded into Hyprland yet"
         self.status_sub.set_text(sub)
@@ -591,5 +590,5 @@ class Page:
         shared = sum(1 for e in self.entries if e["conflicts"])
         text = f"{n} shown"
         if shared:
-            text += f"  ·  {shared} share their keys with another shortcut (marked with !)"
+            text += f"  ·  {shared} share keys (marked !)"
         self.count.set_text(text if self.rows else "")

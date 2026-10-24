@@ -19,7 +19,7 @@ from gi.repository import GLib, Gtk  # noqa: F401
 
 from .common import *  # noqa: F401,F403  (the shared helpers and paths)
 
-PAGE = {"id": "speech", "title": "Spoken replies", "icon": "", "group": "Apps", "order": 36,
+PAGE = {"id": "speech", "title": "Spoken replies", "icon": "", "group": "Apps", "order": 36, "parent": "ai", "tab": "Spoken replies",
         "keywords": ["text to speech", "tts", "speech", "read aloud", "leer en voz alta", "voz", "hablar",
                      "piper", "voice reply", "respuestas habladas", "spoken brief", "speak", "narrator",
                      "lector", "voices", "voces"]}
@@ -50,19 +50,17 @@ def engine_line(data):
     if not isinstance(data, dict) or not data.get("settings"):
         return "tts.py did not answer"
     if not data.get("installed"):
-        return ("Not installed: ~/.local/share/tts/venv is missing (python3 -m venv there, then "
-                "pip install piper-tts).")
+        return "Not installed (see Details)"
     voices = data.get("voices") or {}
     if not any(voices.values()):
-        return "No voice yet: pick one under Voices to download it."
+        return "No voice yet: get one under Voices"
     if data.get("speaking"):
         now = "Speaking now" + (f", {data['queued']} more waiting" if data.get("queued") else "")
     elif data.get("blocked"):
         now = f"Silent now: {data['blocked']}"
     else:
         now = "Ready"
-    return f"{now}  ·  Piper on the CPU, nothing leaves this computer  ·  " + \
-        ", ".join(f"{len(v)} {k}" for k, v in voices.items()) + " voices"
+    return f"{now}  ·  " + ", ".join(f"{len(v)} {k}" for k, v in voices.items()) + " voices"
 
 
 def test_line(result):
@@ -74,8 +72,15 @@ def test_line(result):
     rtf = result.get("rtf")
     speed = f"{1 / rtf:.0f}× faster than real time" if rtf else "?"
     played = "Playing" if result.get("played") else "Made (not played)"
-    return (f"{played}: {voice_caption(result.get('voice', '?'))}. {result.get('audio_s', 0)} s of speech made "
-            f"in {result.get('synth_s', 0)} s ({speed}; voice loaded in {result.get('load_s', 0)} s).")
+    return f"{played}: {voice_caption(result.get('voice', '?'))}  ·  {speed}"
+
+
+def note(text):
+    """A wrapped sub-styled paragraph, for the details fold."""
+    lab = label(text, "ctl-sub")
+    lab.set_line_wrap(True)
+    lab.set_xalign(0)
+    return lab
 
 
 class Page:
@@ -91,32 +96,33 @@ class Page:
         grid, self.engine_sub = row(ICON_SPEAK, "The desktop can talk", "checking…", self.enabled)
         w.pack_start(grid, False, False, 0)
         w.pack_start(links_row(link("Stop talking", self.stop)), False, False, 0)
+        w.pack_start(details(note("Piper, on the CPU: nothing leaves this computer. It lives in "
+                                  "~/.local/share/tts/venv (python3 -m venv there, then pip install "
+                                  "piper-tts); voices download once from rhasspy/piper-voices.")),
+                     False, False, 0)
 
         w.pack_start(sep(), False, False, 0)
         w.pack_start(heading("WHAT SPEAKS"), False, False, 0)
         self.brief = Gtk.Switch()
         self.brief.connect("state-set", lambda _s, state: self.switch("speak_brief", state))
         grid, _ = row(ICON_SUN, "The morning brief, read aloud",
-                      "When the daily brief comes up in the morning it is also said: a sentence per section.",
+                      "A sentence per section when it comes up",
                       self.brief)
         w.pack_start(grid, False, False, 0)
         self.commands = Gtk.Switch()
         self.commands.connect("state-set", lambda _s, state: self.switch("speak_commands", state))
         grid, _ = row(ICON_MIC, "Voice commands answer by voice",
-                      "What a voice command did, what it asks before doing, or why not -- in the language you "
-                      "spoke.", self.commands)
+                      "What it did or asks, in the language you spoke", self.commands)
         w.pack_start(grid, False, False, 0)
         self.assistant = Gtk.Switch()
         self.assistant.connect("state-set", self.on_assistant)
         grid, self.assistant_sub = row(ICON_COMMENT, "The assistant says its answers",
-                                       "Its replies in the chat are also spoken (cut at a sentence end when "
-                                       "long).", self.assistant)
+                                       "Chat replies are also spoken", self.assistant)
         w.pack_start(grid, False, False, 0)
         self.selection = Gtk.Switch()
         self.selection.connect("state-set", lambda _s, state: self.switch("speak_selection", state))
         grid, _ = row(ICON_TEXT, "Read the selection aloud",
-                      "SUPER+ALT+S says the text you highlighted, again stops it (SUPER+ALT+Q stops any "
-                      "speech). Never from a password manager or a private window.", self.selection)
+                      "SUPER+ALT+S reads the highlight; SUPER+ALT+Q stops", self.selection)
         w.pack_start(grid, False, False, 0)
 
         w.pack_start(sep(), False, False, 0)
@@ -127,8 +133,7 @@ class Page:
         w.pack_start(label("English", "ctl-sub"), False, False, 0)
         self.voice_en = Chips(lambda key: self.set("voice_en", key))
         w.pack_start(self.voice_en.widget, False, False, 0)
-        w.pack_start(label("Get another voice (downloaded once from rhasspy/piper-voices, then local)",
-                           "ctl-sub"), False, False, 0)
+        w.pack_start(label("Get another voice", "ctl-sub"), False, False, 0)
         self.more = Chips(self.download, mark=False)
         w.pack_start(self.more.widget, False, False, 0)
         self.more_sub = label("", "ctl-sub")
@@ -144,7 +149,7 @@ class Page:
         w.pack_start(self.rate.widget, False, False, 0)
         self.volume = Slider("volume", "Volume", 10, 100, 5, " %", commit)
         w.pack_start(self.volume.widget, False, False, 0)
-        self.max_chars = Slider("max_chars", "Longest reply read out (longer ones stop at a sentence end)",
+        self.max_chars = Slider("max_chars", "Longest reply read out",
                                 100, 3000, 50, " chars", commit)
         w.pack_start(self.max_chars.widget, False, False, 0)
 
@@ -158,7 +163,7 @@ class Page:
         self.quiet = Gtk.Switch()
         self.quiet.connect("state-set", lambda _s, state: self.switch("quiet", state))
         grid, _ = row(ICON_MOON, "Silent in Do Not Disturb and the quiet hours",
-                      "Always silent in gamemode. Whatever is not said still shows as a notification.",
+                      "Always silent in games; it still shows as a notification",
                       self.quiet)
         w.pack_start(grid, False, False, 0)
 
@@ -167,8 +172,7 @@ class Page:
         self.test_text = Gtk.Entry()
         self.test_text.set_placeholder_text("Type something to hear it, or leave empty for a sample")
         w.pack_start(self.test_text, False, False, 0)
-        self.test_sub = label("Plays out loud with the voices above, even when the switches are off.",
-                              "ctl-sub")
+        self.test_sub = label("Plays aloud even with the switches off", "ctl-sub")
         self.test_sub.set_line_wrap(True)
         self.test_sub.set_xalign(0)
         w.pack_start(self.test_sub, False, False, 0)
@@ -249,7 +253,7 @@ class Page:
 
     def test(self, lang):
         text = self.test_text.get_text().strip()
-        self.test_sub.set_text("Making it… (the first line loads the voice: about a second)")
+        self.test_sub.set_text("Making it…")
         argv = [TTS, "test", "--lang", lang, "--json"] + ([text] if text else [])
         background(lambda: run_json(*argv, timeout=120), lambda r: (self.test_sub.set_text(test_line(r)),
                                                                    self.refresh()))
