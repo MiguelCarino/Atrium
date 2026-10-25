@@ -241,23 +241,28 @@ EMOTE_FALLBACK = {"accent": "#7fd4ff", "warn": "#f2c14e", "bad": "#ff6b6b",
                   "good": "#6ee08a", "love": "#ff8fb8", "dim": "#9aa3b2"}
 
 
-def draw_emote(cv, emote, anchor, colours=None):
+def draw_emote(cv, emote, anchor, colours=None, steady=False):
     """Draw a View.emote -- (text, tone, age in seconds) -- with its first
     character at anchor (x, y), the cell just above the right side of the
     mascot's head. It pops in (a dot for a quarter second), floats up one
     row after 1.5 s and blinks out in its last second (REACT_S's hold ends
-    it; the age is all it knows). Clipped to the canvas, never wider than
-    it; single-column ASCII only, like everything on the grid."""
+    it; the age is all it knows). steady (reduce motion,
+    mascot_mood.reduced_motion): none of that -- the whole sign at the
+    anchor from the first frame to the last, so nothing over her head moves
+    or flashes (a 2 Hz blink-out is exactly what reduce motion is for).
+    Clipped to the canvas, never wider than it; single-column ASCII only,
+    like everything on the grid."""
     if not emote or not anchor:
         return
     text, tone, age = emote[0], emote[1], float(emote[2])
     colour = (colours or {}).get(tone) or EMOTE_FALLBACK.get(tone) or EMOTE_FALLBACK["accent"]
-    if age < 0.25:
-        text = "."
-    elif age > 7.5 and int(age * 4) % 2:
-        return
+    if not steady:
+        if age < 0.25:
+            text = "."
+        elif age > 7.5 and int(age * 4) % 2:
+            return
     x, y = anchor
-    if age >= 1.5:
+    if age >= 1.5 and not steady:
         y -= 1
     x = max(0, min(x, cv.cols - len(text)))
     y = max(0, min(y, cv.rows - 1))
@@ -327,12 +332,16 @@ def check_size(job):
                     fails.append("%s: head anchor %r outside the canvas" % (where, head))
                     return n, fails
                 for text, tone in set(EMOTES.values()):
-                    for age in (0.1, 1.0, 2.0, 8.2):
+                    # the last one steady (reduce motion): the whole sign at
+                    # the anchor itself, a row lower than a floated one
+                    for age, steady in ((0.1, False), (1.0, False), (2.0, False), (8.2, False),
+                                        (8.2, True)):
                         n += 1
                         cv = m._render(state, tick, "Bash" if state == "tool" else None, mood,
                                        frozenset({"night"}))
-                        draw_emote(cv, (text, tone, age), m.head)
-                        fails += _check_canvas(cv, cols, rows, where + " emote %s@%.1f" % (text, age))
+                        draw_emote(cv, (text, tone, age), m.head, steady=steady)
+                        fails += _check_canvas(cv, cols, rows, where + " emote %s@%.1f%s"
+                                               % (text, age, " steady" if steady else ""))
                         if len(fails) > 5:
                             return n, fails
     return n, fails

@@ -1,7 +1,9 @@
 """Settings page: timers, alarms, reminders, focus rounds, the stopwatch and
 calendar alarms (timers.py), and work hours (workhours.py).
 
-What is set right now, soonest first, each with Cancel; the stopwatch when
+What is set right now, soonest first, each with Cancel (a paused alarm --
+the clock card's pause, `timers.py pause` -- last, saying "paused" instead
+of a countdown, with Resume: it would not ring); the stopwatch when
 there is one; the focus round's lengths; what a ring sounds like (the
 theme's alarm, a quiet chime, or nothing), how loud, and how long Snooze
 waits; calendar alarms on or off, how long before the event, and which of
@@ -13,7 +15,8 @@ calendar on|off, calendars use|skip) or workhours.py (enable, disable,
 set, off-today, on), which write $XDG_STATE_HOME/hypr/timers.conf,
 timers.json and ~/.config/hypr/workhours.conf, and the page redraws from `timers.py status --json` and
 `workhours.py status --json`. Setting a timer is the launcher's job (ALT+E:
-"timer 5m tea", "alarm 7:30 weekdays"), so this page only lists and cancels.
+"timer 5m tea", "alarm 7:30 weekdays"), so this page only lists, resumes and
+cancels.
 While the page is on screen the countdowns tick once a second from the last
 answer, with no command run; when one of them comes due it asks again.
 """
@@ -97,12 +100,15 @@ def item_title(t):
 
 def item_sub(t, now=None):
     """What it is and when it rings: "timer  ·  rings at 14:05  ·  then
-    suspend", with the weekday when it is more than half a day away."""
+    suspend", with the weekday when it is more than half a day away. A
+    paused alarm says "paused": its due (status gives when it WOULD ring if
+    resumed) is no time it rings at."""
     now = now or time.time()
     at = dt.datetime.fromtimestamp(t["due"])
     when = at.strftime("%a %H:%M" if t["due"] - now > 43200 else "%H:%M")
     verb = {"focus": "ends", "break": "ends", "calendar": "rings"}.get(t["kind"], "rings")
-    bits = [t["name"] if t["label"] else "", f"{verb} at {when}", t.get("repeat") or "", t.get("then") or ""]
+    state = "paused" if t.get("paused") else f"{verb} at {when}"
+    bits = [t["name"] if t["label"] else "", state, t.get("repeat") or "", t.get("then") or ""]
     return "  ·  ".join(b for b in bits if b)
 
 
@@ -397,10 +403,20 @@ class Page:
                                            lambda i=t["id"]: self.do(TIMERS, "cancel", i))
             else:
                 cancel = link("Cancel", lambda i=t["id"]: self.do(TIMERS, "cancel", i))
-            grid, _sub = row(KIND_ICON.get(t["kind"], ""), "", item_sub(t, now), cancel)
-            lab = grid.get_child_at(1, 0)
-            lab.set_text(f"{title}  ·  {left_text(t['due'] - now)}")
-            self.ticks.append((lab, t["due"], title, False))
+            icon = KIND_ICON.get(t["kind"], "")
+            if t.get("paused"):
+                # Not ticking: it does not ring, so a countdown to its would-be
+                # time would only ask timers.py again, for nothing, at that moment.
+                box = Gtk.Box(spacing=6)
+                box.pack_start(link("Resume", lambda i=t["id"]: self.do(TIMERS, "resume", i)), False, False, 0)
+                box.pack_start(cancel, False, False, 0)
+                grid, _sub = row(icon, "", item_sub(t, now), box)
+                grid.get_child_at(1, 0).set_text(f"{title}  ·  paused")
+            else:
+                grid, _sub = row(icon, "", item_sub(t, now), cancel)
+                lab = grid.get_child_at(1, 0)
+                lab.set_text(f"{title}  ·  {left_text(t['due'] - now)}")
+                self.ticks.append((lab, t["due"], title, False))
             self.items.pack_start(grid, False, False, 0)
         if len(data["timers"]) > 1:
             n = len(data["timers"])

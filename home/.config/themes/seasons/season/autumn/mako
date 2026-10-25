@@ -1,0 +1,31 @@
+# ~/.config/themes/seasons/season/autumn/mako -- the autumn colours of the
+# seasons theme's notifications. theme.py merges it with ../../mako
+# (mako_merge: the theme's global lines, these global lines, the theme's
+# sections, these sections), so a line here beats the theme's same line and
+# a global line here cannot land inside the theme's [urgency=low]. Colours
+# only: the face, borders, radius and padding are ../../mako's, the same all
+# year. mako colours are #RRGGBBAA, unquoted.
+#
+# The card is the autumn card #1c130d at F2 (95%; mako draws no blur): over a
+# dark window #1b120c, over a white one #281f19, the worst case.
+# Contrast, WCAG, dark / white behind: text #f1e3d0 14.6 / 12.8, the
+# low-urgency dim #bba78f 7.9 / 7.0. The hairline #64462c (2.2 / 1.9)
+# is decoration; the critical border, the autumn bad #e9506e 5.1 / 4.5, is the
+# signal and clears 3:1. The progress bar is the accent #ee9a62 at 1/3 over
+# the card.
+background-color=#1C130DF2
+text-color=#F1E3D0
+border-color=#64462C
+progress-color=over #EE9A6255
+
+[urgency=critical]
+# text-color again: mako/sections paints a critical body in its neon pink,
+# which only this line replaces -- urgency is the frame, not a red paragraph.
+# (Inside the section: mako_merge cuts at the first "[" line, so a comment
+# above it would travel with the global lines.)
+border-color=#E9506E
+text-color=#F1E3D0
+
+[urgency=low]
+text-color=#BBA78F
+border-color=#45301F

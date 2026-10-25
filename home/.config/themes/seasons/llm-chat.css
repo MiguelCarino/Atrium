@@ -1,0 +1,366 @@
+/* ===========================================================================
+   SEASONS -- the LLM chat window (~/.config/hypr/scripts/llm-chat.py, base
+   stylesheet llm-chat.css there). Copied to
+   waybar/generated/theme-llm-chat.css by theme.py and imported LAST, with
+   the season's palette.css (the 23 @s-* names) written in above this text.
+
+   A field notebook open on the desk. The window is the season's surface
+   (@s-surface), the header bar and the input strip a shade deeper
+   (@s-dense) parted from it by 1 px @s-rule hairlines; plates have 10 px
+   corners, the stage 14. The title is Alegreya Sans in small capitals, in
+   the season's accent; replies sit on the card colour (@s-card) inside a
+   hairline, your messages on the raised plate (@s-raised) with a 2 px
+   accent underline; code on the floor (@s-floor) in Source Code Pro. Reply
+   headings are the season's second hue (@s-hue2, the md-accent name; the
+   face is llm-chat.py's HEADING_FONT, Alegreya Sans Bold), links the accent.
+   Send is the one accent key under ink; Stop is the season's bad colour
+   under ink. The words are llm-chat.py's (UI_THEME); this file only paints
+   them. No season hex in any rule: @s-* names and @cyan only.
+
+   The stage is the one fixed colour: #101418, a neutral night that equals
+   mascot_seasons.PANEL in every season -- the mascot draws its cell
+   backgrounds on it, so it must not follow the season. Sorrel's sky, crown
+   and ground change instead.
+
+   Status colours, never the accent: a tool's dot is @s-warn while it runs,
+   @s-good when done, @s-bad when it failed. @magenta, the base's second
+   accent, is the bad colour here, and every base rule that drew it as a
+   glow or a structural line is repeated below without it.
+
+   HDR: every surface is dark and opaque -- window L 0.010 / 0.009 / 0.007 /
+   0.007 (spring / summer / autumn / winter), the strip 0.008 / 0.006 /
+   0.005 / 0.005, a raised plate at most 0.019, the stage 0.006. The only
+   fills are small: the send key, the stop key, the status dots.
+
+   Contrast, WCAG, spring / summer / autumn / winter:
+     text on the window 13.9 / 15.2 / 14.6 / 15.4, on the strip 14.5 / 15.8
+       / 15.0 / 15.9, on a reply 13.8 / 15.0 / 14.5 / 15.2, on yours 12.1 /
+       13.5 / 13.4 / 13.6; dim on the window 8.5 / 8.5 / 7.9 / 7.8, on
+       yours 7.4 / 7.5 / 7.3 / 6.9
+     the title (accent) on the strip 9.8 / 10.1 / 8.5 / 10.8; headings
+       (hue2) on a reply 9.2 / 11.9 / 8.4 / 8.6; links (accent) 9.4 / 9.6 /
+       8.2 / 10.3
+     a selection (30% accent) under the readout: on a reply 7.7 / 8.1 / 8.8
+       / 8.3, on yours 6.8 / 7.2 / 8.0 / 7.3
+     a header key (@s-raised) text 12.1 / 13.5 / 13.4 / 13.6, hovered (10%
+       accent) 9.9 / 10.9 / 11.1 / 11.0
+     ink on Send (accent) 10.3 / 10.2 / 8.5 / 10.7, hovered (25% toward the
+       readout) 11.6 / 11.6 / 10.1 / 12.2, pressed (12% toward the floor)
+       8.1 / 8.0 / 6.8 / 8.4; on Stop (bad) 6.7 / 6.4 / 5.3 / 6.5, hovered
+       (bad-fg) 8.2 / 8.2 / 7.2 / 8.5; on the dots warn 11.3 / 9.2 / 13.2 /
+       11.6, good 10.6 / 11.1 / 10.4 / 10.9, bad as Stop
+     code: text on the floor 15.1 / 16.3 / 15.5 / 16.4, the language /
+       copy (accent) 10.3 / 10.4 / 8.8 / 11.1; `code` spans (hue1) on the
+       raised chip 8.9 / 8.8 / 8.9 / 10.1
+     the input well (floor): text 15.1 / 16.3 / 15.5 / 16.4, placeholder
+       9.2 / 9.1 / 8.4 / 8.4
+     an error card (14% bad into the window): text 11.6 / 12.9 / 12.4 /
+       12.9, its edge / the armed delete (bad-fg) 6.3 / 6.7 / 6.0 / 6.9
+     a note (4% text): dim 7.8 / 7.7 / 7.3 / 7.2; a tool chip (3%): text
+       13.0 / 14.3 / 13.8 / 14.5
+     on the stage #101418: the bubble's text 14.7 / 15.7 / 14.7 / 15.4, the
+       stage text (dim) 8.9 / 8.7 / 8.0 / 7.8, the accent 10.0 / 10.0 / 8.3
+       / 10.4; a tooltip (floor) 15.1 / 16.3 / 15.5 / 16.4
+   =========================================================================== */
+
+@define-color se-stage    #101418;         /* = mascot_seasons.PANEL, every season */
+@define-color se-hover    mix(@s-raised, @cyan, 0.10);
+@define-color se-send-hi  mix(@cyan, @s-readout, 0.25);
+@define-color se-send-lo  mix(@cyan, @s-floor, 0.12);
+
+/* --- the base's PALETTE, in the season ------------------------------------- */
+@define-color magenta       @s-bad;
+@define-color violet        @s-rule-hi;
+@define-color yellow        @s-warn;
+@define-color green         @s-good;
+@define-color mist          @s-dim;
+@define-color surface       @s-surface;
+@define-color surface-2     @s-dense;
+@define-color edge          @s-rule;
+@define-color edge-lit      @s-rule-hi;
+@define-color text          @s-text;
+@define-color text-dim      @s-dim;
+@define-color ink           @s-ink;
+@define-color button-bg     @s-raised;
+@define-color button-hover  @se-hover;
+@define-color stop-bg       @s-bad;
+@define-color stop-fg       @s-ink;
+@define-color user-bg       @s-raised;
+@define-color user-edge     @s-rule-hi;
+@define-color user-fg       @s-text;
+@define-color assistant-bg  @s-card;
+@define-color assistant-edge @s-rule;
+@define-color stage-bg      @se-stage;
+@define-color stage-edge    @s-rule-hi;
+@define-color stage-glow    alpha(@se-stage, 0.0);
+@define-color scanline      alpha(@se-stage, 0.0);   /* no raster: a notebook, not a scope */
+@define-color stage-fg      @s-dim;
+@define-color bubble-bg     @se-stage;
+@define-color bubble-fg     @s-text;
+@define-color bubble-edge   @s-rule-hi;
+@define-color code-bg       @s-floor;
+@define-color code-fg       @s-text;
+@define-color code-lang     @cyan;
+@define-color code-edge     @s-rule;
+@define-color chip-bg       mix(@s-surface, @s-text, 0.03);
+@define-color chip-edge     @s-rule;
+@define-color run-bg        @s-warn;
+@define-color done-bg       @s-good;
+@define-color bad-bg        @s-bad;
+@define-color dot-fg        @s-ink;
+@define-color error-bg      mix(@s-surface, @s-bad, 0.14);
+@define-color error-edge    @s-bad-fg;
+@define-color note-bg       mix(@s-surface, @s-text, 0.04);
+@define-color sel-bg        alpha(@cyan, 0.30);
+@define-color sel-fg        @s-readout;
+@define-color input-bg      @s-floor;
+@define-color input-edge    @s-rule;
+@define-color input-line    @cyan;
+@define-color caret         @cyan;
+@define-color send-bg       @cyan;
+@define-color send-fg       @s-ink;
+@define-color send-glow     alpha(@cyan, 0.0);
+@define-color slider        mix(@s-rule-hi, @s-dim, 0.5);  /* 4.3-4.9 on the window */
+@define-color tooltip-bg    @s-floor;
+@define-color tooltip-fg    @s-text;
+@define-color rule          @s-rule-hi;
+/* reply markup: llm-chat.py reads these with lookup_color, which resolves
+   a named colour to its value, so they may name @s-*: headings and bullets
+   in the second hue, dim quotes, `code` spans in the first hue on a raised
+   chip (8.9 / 8.8 / 8.9 / 10.1) -- not the warn colour, which is a status. */
+@define-color md-accent     @s-hue2;
+@define-color md-dim        @s-dim;
+@define-color md-code-fg    @s-hue1;
+@define-color md-code-bg    @s-raised;
+@define-color placeholder_text_color @s-dim;
+
+/* --- the window: a flat page ----------------------------------------------- */
+window#llm-chat {
+    background-image: none;
+    font-weight: 400;
+}
+
+/* --- header bar: the deeper strip, a hairline under it ---------------------- */
+window#llm-chat headerbar {
+    border-bottom: 1px solid @s-rule;
+    box-shadow: none;
+}
+
+/* The title: a running head -- small capitals, a little letter-spaced. */
+window#llm-chat headerbar .title {
+    font-family: "Alegreya Sans", "IBM Plex Sans", sans-serif;
+    font-feature-settings: "smcp, c2sc";
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: @cyan;
+}
+
+window#llm-chat headerbar .subtitle {
+    font-feature-settings: "tnum, lnum";
+}
+
+window#llm-chat headerbar button {
+    border-radius: 10px;
+    border: 1px solid @s-rule;
+}
+
+window#llm-chat headerbar button:hover {
+    border-color: @s-rule-hi;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+window#llm-chat headerbar button.stop {
+    border-color: @s-bad;
+    font-weight: 700;
+}
+
+window#llm-chat headerbar button.stop:hover {
+    background-color: @s-bad-fg;
+    box-shadow: none;
+}
+
+window#llm-chat headerbar button.titlebutton {
+    border-radius: 6px;
+}
+
+window#llm-chat popover#model-menu {
+    border: 1px solid @s-rule-hi;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px alpha(@s-floor, 0.60);
+}
+
+window#llm-chat popover#model-menu modelbutton,
+window#llm-chat popover#model-menu button {
+    border-radius: 6px;
+}
+
+window#llm-chat popover#model-menu modelbutton:hover,
+window#llm-chat popover#model-menu modelbutton:focus {
+    background-color: @s-raised;
+    box-shadow: inset 2px 0 0 @cyan;
+}
+
+/* The menu's section heads: running heads, small capitals in the second hue. */
+window#llm-chat popover#model-menu .model-heading {
+    font-feature-settings: "smcp, c2sc";
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: @s-hue2;
+}
+
+/* --- the stage: the fixed night where Sorrel's tree stands ------------------- */
+#stage {
+    background-color: @se-stage;
+    background-image: none;
+    border: 1px solid @s-rule-hi;
+    border-radius: 14px;
+    box-shadow: none;
+}
+
+#bubble {
+    border-radius: 10px;
+    box-shadow: 0 2px 6px alpha(@s-floor, 0.60);
+}
+
+paned > separator {
+    background-image: none;
+    background-color: @s-rule;
+    min-height: 1px;
+    margin: 0 24px;
+}
+
+#transcript-scroll scrollbar slider {
+    border-radius: 2px;
+}
+
+/* --- the conversation --------------------------------------------------------- */
+label.user {
+    border-radius: 10px;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+label.user.queued,
+label.user.dropped {
+    border-radius: 10px;
+    box-shadow: none;
+}
+
+.assistant {
+    border-radius: 10px;
+}
+
+label.md link {
+    color: @cyan;
+}
+
+.codeblock {
+    border-radius: 10px;
+}
+
+.codeblock label.code-lang {
+    font-family: "Source Code Pro", "IBM Plex Mono", monospace;
+    letter-spacing: 0.04em;
+}
+
+.toolchip {
+    border-radius: 10px;
+}
+
+label.tool-icon {
+    border-radius: 6px;
+}
+
+label.tool-name {
+    font-feature-settings: "smcp, c2sc";
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+label.tool-excerpt {
+    border-radius: 6px;
+}
+
+label.note {
+    border-radius: 6px;
+}
+
+label.error-card {
+    border-radius: 10px;
+}
+
+box.perm-card {
+    border-radius: 10px;
+}
+
+box.perm-card label.perm-title {
+    font-feature-settings: "smcp, c2sc";
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: @s-hue2;
+}
+
+box.perm-card label.perm-what {
+    color: @s-text;
+    border-radius: 6px;
+}
+
+box.perm-card button,
+button.retry {
+    border-radius: 10px;
+}
+
+box.perm-card button:hover,
+box.perm-card button:focus,
+button.retry:hover {
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+/* Allow is the accent key: its hover lightens the key rather than drawing
+   the accent line on the accent (ink 11.6 / 11.6 / 10.1 / 12.2). */
+box.perm-card button.perm-allow:hover,
+box.perm-card button.perm-allow:focus {
+    background-color: @se-send-hi;
+    box-shadow: none;
+}
+
+#search entry {
+    border-radius: 10px;
+}
+
+/* --- the input: a well and the Send key ------------------------------------- */
+#bottom {
+    border-top: 1px solid @s-rule;
+}
+
+#input-scroll {
+    border-radius: 10px;
+    border-bottom: 2px solid @cyan;
+    box-shadow: none;
+}
+
+button#send {
+    font-family: "Alegreya Sans", "IBM Plex Sans", sans-serif;
+    font-feature-settings: "smcp, c2sc";
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    border-radius: 10px;
+    border: 1px solid @cyan;
+}
+
+button#send:hover {
+    background-color: @se-send-hi;
+    box-shadow: none;
+}
+
+button#send:active {
+    background-color: @se-send-lo;
+}
+
+tooltip, tooltip.background {
+    border: 1px solid @s-rule-hi;
+    border-radius: 6px;
+}
+
+.md-table separator {
+    background-color: @s-rule-hi;
+}

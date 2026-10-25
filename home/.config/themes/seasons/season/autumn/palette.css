@@ -1,0 +1,46 @@
+/* Seasons -- autumn (amber and rust): the s-* palette.
+
+   theme.py puts this file BEFORE the theme's own css in every GTK3
+   stylesheet (waybar, panel, launcher, llm-chat, wofi) -- not gtk4.css, which
+   has its own season/autumn/gtk4.css -- so the names are defined before any
+   rule uses them. Every season defines the same 22 names in the same
+   order; the theme's stylesheets use only these, @cyan (accent=#ee9a62, the
+   season's theme.conf) and the base names they redefine from them. Change a
+   value here, never a name.
+
+   Measured (WCAG 2.x contrast as theme.py contrast(); CIEDE2000 dE),
+   S = s-surface, R = s-raised:
+     L(S) 0.0069, L(R) 0.0123: every surface dark (DP-1 is HDR)
+     text on S / R 14.6 / 13.4   dim 7.9 / 7.3   readout on S 16.2
+     accent on S / R 8.3 / 7.6
+     good / warn on S 10.1 / 12.9   bad 5.1 (fills, glyphs)   bad-fg 7.1 (small text)
+     ink on accent / good / warn / bad 8.5 / 10.4 / 13.2 / 5.3
+     readout on crit / crit-dim / rec 8.1 / 13.8 / 7.0
+     hue1 / hue2 / hue3 / epoch on S 9.8 / 8.5 / 9.5 / 14.0
+     rule / rule-hi on S 1.49 / 2.16 (decoration, not text)
+     dE accent-good 42.1, accent-warn 26.5, accent-bad 28.5 (rule: >= 24)
+     dE good-warn 26.7, good-bad 65.6, warn-bad 55.9 (rule: >= 22)
+     nearest status to hue1 28.8, hue2 26.7, hue3 19.8, epoch 14.7 (rule: >= 14) */
+
+@define-color s-floor    #110b07;  /* deepest: the bar strip's gaps, the terminal floor, card wells */
+@define-color s-dense    #160f0a;  /* toolbox card, tray pill */
+@define-color s-surface  #1b120c;  /* every pill (opaque) */
+@define-color s-card     #1c130d;  /* panel cards (opaque) */
+@define-color s-raised   #281a11;  /* hover, wells, selected rows */
+@define-color s-rule     #45301f;  /* 1 px hairlines (decoration) */
+@define-color s-rule-hi  #64462c;  /* the focused or hovered hairline */
+@define-color s-text     #f1e3d0;  /* text */
+@define-color s-dim      #bba78f;  /* labels, idle pills */
+@define-color s-readout  #f8efe3;  /* numbers, text on dark alarm fills (never #ffffff) */
+@define-color s-ink      #1c0d04;  /* text on any light fill (accent, good, warn, bad) */
+@define-color s-good     #86d0a0;  /* status: fills, edges, glyphs, text >= 14 px */
+@define-color s-warn     #f0d85c;  /* status: fills, edges, glyphs, text >= 14 px */
+@define-color s-bad      #e9506e;  /* status: fills, edges, glyphs, text >= 14 px */
+@define-color s-bad-fg   #f47a90;  /* bad as small text */
+@define-color s-crit     #8a1c30;  /* the critical fill */
+@define-color s-crit-dim #460e18;  /* the dark end of the critical blink */
+@define-color s-rec      #982238;  /* REC / camera / dictation fill */
+@define-color s-hue1     #a9bfd8;  /* quiet hue 1: the first screen's workspaces */
+@define-color s-hue2     #c9a2d8;  /* quiet hue 2: the second screen, headings, the UTC readout */
+@define-color s-hue3     #c8b8a0;  /* quiet hue 3: the third screen, net-up, night light */
+@define-color s-epoch    #f0dfb8;  /* the epoch readout, the pale sun */

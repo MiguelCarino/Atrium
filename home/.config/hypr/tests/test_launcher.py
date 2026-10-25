@@ -131,5 +131,28 @@ class Ask(unittest.TestCase):
         self.assertEqual(sorted({n for n in names if names.count(n) > 1}), [])
 
 
+
+class PausedTimerTitle(unittest.TestCase):
+    """The timers list counts down to when each one rings; a paused alarm
+    won't ring, so its title says "paused" instead of a time left."""
+
+    def test_titles(self):
+        import time
+        now = time.time()
+        entries = [{"id": "a", "kind": "timer", "label": "tea", "due": now + 125},
+                   {"id": "b", "kind": "alarm", "label": "gym", "due": now + 3600, "paused": True}]
+        saved = L.timers
+        L.timers = type("T", (), {"running": staticmethod(lambda: entries), "NAMES": saved.NAMES,
+                                  "clock": staticmethod(saved.clock), "days_text": staticmethod(saved.days_text),
+                                  "describe": staticmethod(lambda t, _n: t["label"]),
+                                  "cancel": staticmethod(lambda _i: None)})
+        try:
+            titles = [i.name for i in L.running_timer_items()]
+        finally:
+            L.timers = saved
+        self.assertTrue(titles[0].startswith("tea  ") and titles[0].endswith(" left"), titles[0])
+        self.assertEqual(titles[1], "gym  paused")
+
+
 if __name__ == "__main__":
     unittest.main()

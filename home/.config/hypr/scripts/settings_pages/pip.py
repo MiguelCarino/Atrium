@@ -3,7 +3,10 @@
 pip.py's settings (pip.conf) through `pip.py get --json` / `set KEY VALUE`,
 and buttons that start a mirror the same way the keys do. The opacity is
 applied by lua/pip.lua's rules, which `pip.py set opacity` re-evaluates;
-everything else takes effect at the next mirror. The page keeps nothing.
+everything else takes effect at the next mirror. The width and corner also
+place mpv's own picture-in-picture button (mpv-pip.py moves the real player
+window there), so the mirror and the parked player land in the same spot.
+The page keeps nothing.
 """
 import os
 
@@ -56,7 +59,8 @@ class Page:
         w.pack_start(self.window_fps.widget, False, False, 0)
         note = dp.label("A window on another workspace can be mirrored too, but many apps stop drawing while "
                         "hidden, so its copy may stand still until it is shown. Region frames are recorded "
-                        "on the graphics card; window frames are full copies of the window.", "ctl-sub")
+                        "on the graphics card; window frames are full copies of the window. Size and Corner "
+                        "also set where mpv's picture-in-picture button parks the player itself.", "ctl-sub")
         note.set_line_wrap(True)
         note.set_xalign(0)
         w.pack_start(details(note), False, False, 0)

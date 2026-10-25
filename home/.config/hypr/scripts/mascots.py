@@ -36,6 +36,9 @@ T is a theme name (default: the desktop's current theme, theme.py).
     panel(theme)                      the background colour it is drawn on
                                       (the theme's llm-chat.css paints
                                       the same colour on #stage)
+    emote_markup(m, ..., emote, calm) its markup with a reaction's sign over
+                                      the head; calm is reduce motion (the
+                                      stage at calm_tick, the sign steady)
 
 Every mascot has the API moe_mascot.Mascot has always had -- lines(state,
 tick, tool), markup(state, tick, tool), bubble(state, tool) -- and draws on
@@ -49,6 +52,7 @@ mascot_common.Canvas, single-column characters only.
     lofi       mascot_lofi.py       a sleepy ginger cat by a rainy window, lamp and records
     luna       mascot_luna.py       a cheerful manila folder on a green hill, XP taskbar below
     orbit      mascot_orbit.py      a little probe (dish, solar panels, a blinking LED) over a planet's limb
+    seasons    mascot_seasons.py    a fox kit under a tree that turns with the seasons
 """
 
 import importlib
@@ -69,6 +73,7 @@ MODULES = {
     "lofi": "mascot_lofi",
     "luna": "mascot_luna",
     "orbit": "mascot_orbit",
+    "seasons": "mascot_seasons",
 }
 THEMES = tuple(MODULES)
 DEFAULT = "moe"
@@ -91,18 +96,37 @@ def Mascot(cols=64, rows=18, theme=DEFAULT):
     return mascot_for(theme)(cols, rows)
 
 
-def emote_markup(m, state, tick, tool=None, mood=None, scene=(), emote=None):
+# Reduce motion slows the whole stage to a third of its speed: every mascot
+# is a pure function of the tick (10 a second in llm-chat.py), so dividing
+# it calms them all at once without a hook in every mascot module. Measured on
+# the tables they use: a music bob of (tick // 4) % 2 swings every 0.4 s ->
+# 1.2 s, moe's done jump (12 ticks) takes 1.2 s -> 3.6 s and rises one row
+# per 0.3 s instead of per 0.1 s, the hops of an excited idle likewise; the
+# rain, the blinks and the streaming text slow with them, and the grid
+# changes at most 3.3 times a second instead of 10.
+CALM_SLOW = 3
+
+
+def calm_tick(tick, calm=True):
+    """The tick a reduce-motion stage is drawn at (CALM_SLOW above)."""
+    return int(tick) // CALM_SLOW if calm else int(tick)
+
+
+def emote_markup(m, state, tick, tool=None, mood=None, scene=(), emote=None, calm=False):
     """m.markup(...) with a reaction's emote (mascot_mood.View.emote) drawn
     over the head: at m.head, the anchor its _render() leaves (x, y), in its
     module's EMOTE_COLOURS. A mascot without moods, or without an anchor,
-    gets its plain markup."""
+    gets its plain markup. calm (reduce motion, mascot_mood.reduced_motion):
+    the stage at calm_tick(tick) and the emote steady -- with or without an
+    emote, so the window can send every frame through here."""
+    tick = calm_tick(tick, calm)
     if not emote or not getattr(m, "moods", False):
         return m.markup(state, tick, tool, mood, scene)
     cv = m._render(state, tick, tool, mood, scene)
     anchor = getattr(m, "head", None)
     if anchor:
         colours = getattr(sys.modules.get(type(m).__module__), "EMOTE_COLOURS", None)
-        draw_emote(cv, emote, anchor, colours)
+        draw_emote(cv, emote, anchor, colours, steady=calm)
     return cv.markup()
 
 

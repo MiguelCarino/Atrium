@@ -9,7 +9,7 @@ back to, so it tiles and takes focus like any app; app id "llm-chat").
 The top is the mascot's stage -- the theme's ASCII animation (mascots.py:
 moe's cat-eared girl, matrix's hacker, win95's paperclip, aero's glass orb,
 cyberpunk's android, lofi's sleepy cat, luna's manila folder, orbit's little
-probe) on the theme's
+probe, seasons' fox kit) on the theme's
 dark card, a speech bubble over it -- the middle the conversation, the
 bottom a box to type the next message in and a status line.
 
@@ -103,8 +103,9 @@ Keys:
     Ctrl+M                the model picker (also the header's model button);
                           with a local model loaded, "Unload <model>" and
                           "Unload all local models" there
-    Ctrl+J                the mascot menu: her mood now, and what she reacts
-                          to (mascot_mood.py's settings)
+    Ctrl+J                the mascot menu: her mood now, what she reacts
+                          to, which reactions she has, reduce motion
+                          (mascot_mood.py's settings)
     Ctrl+K                the mascot in a small card in a corner of the
                           conversation, or back on her stage; a click on the
                           card moves it to the next corner (both remembered
@@ -300,8 +301,12 @@ bubble, worded by the mascot's say(), and a reaction's emote ("!", "?", "<3"
 Pressing the stage is handled by on_art_click. The
 surroundings are re-read on a thread every minute; a changed scene is drawn
 even while the animation sleeps. The header's mascot menu (Ctrl+J) shows the
-mood and scene now and switches the moods, random only, and each signal on or
-off; a change is saved to mascot.json and read again at once.
+mood and scene now and switches the moods, random only, each signal, each
+group of her reactions (greetings, prompt notices, feelings, the work, clicks
+on her) and reduce motion -- set there or following the desktop's (Settings ›
+Accessibility), under which her reaction sign is drawn steady and the stage
+runs at a third of its speed; a change is saved to mascot.json and read
+again at once.
 """
 
 import argparse
@@ -352,6 +357,7 @@ TITLES = {
     "lofi": "LLM ☾ lo-fi",
     "luna": "LLM Chat · Luna",
     "orbit": "LLM · CAPCOM",
+    "seasons": "LLM · Seasons",
 }
 UI_EN = {"stop": "■ Stop", "send": "Send", "wait": "Queue", "stopping": "Stopping…",
          "done": "✓ done", "placeholder": "Ask {model}…  (Enter send · Shift+Enter newline)",
@@ -388,6 +394,8 @@ UI_THEME = {
              "placeholder": "Type a question for {model}, then press Enter…  (Shift+Enter newline)"},
     "orbit": {"stop": "■ ABORT", "send": "TRANSMIT ▸", "wait": "QUEUE ▸", "done": "✓ NOMINAL",
               "placeholder": "CAPCOM to {model}…  (Enter transmit · Shift+Enter newline)"},
+    "seasons": {"stop": "■ Hush", "send": "Send ›", "wait": "Queue ›", "done": "✓ done",
+                "placeholder": "Ask {model}, take a stroll through it…  (Enter send · Shift+Enter newline)"},
 }
 UI_THEME["cyberpunk"]["perm_bubble"] = "Auth required, choom…"
 UI_THEME["matrix"]["perm_bubble"] = "> awaiting authorization_"
@@ -395,6 +403,7 @@ UI_THEME["win95"]["perm_bubble"] = "It looks like the AI needs your permission."
 UI_THEME["lofi"]["perm_bubble"] = "mrrp? waiting for your ok…"
 UI_THEME["luna"]["perm_bubble"] = "Action needed: click Allow to continue."
 UI_THEME["orbit"]["perm_bubble"] = "Standing by for your GO."
+UI_THEME["seasons"]["perm_bubble"] = "May I? I'll wait by the path…"
 UI_JA = {"stop": "■ 止める", "send": "送信 ♡", "wait": "待つ ♡", "stopping": "止めてる…",
          "done": "✿ できた",
          "placeholder": "ねえ、なにする？  Ask {model}…  (Enter send · Shift+Enter newline)",
@@ -415,7 +424,8 @@ UI_JA = {"stop": "■ 止める", "send": "送信 ♡", "wait": "待つ ♡", "s
          "unload": "{model} をおろす", "unload_all": "ローカルモデルを全部おろす"}
 # The face reply headings are drawn in, where the theme has one for it.
 HEADING_FONT = {"moe": "Hachi Maru Pop", "aero": "Selawik", "win95": "W95FA",
-                "lofi": "Comfortaa", "luna": "Tahoma", "orbit": "Barlow Semi Condensed"}
+                "lofi": "Comfortaa", "luna": "Tahoma", "orbit": "Barlow Semi Condensed",
+                "seasons": "Alegreya Sans"}
 
 # A --permission-mode (or a Permissions key: ask, auto, acceptEdits, plan)
 # that wins over the saved pick when the window opens; unset = the pick.
@@ -2443,16 +2453,23 @@ class Front(Gtk.Window):
         state = self.state
         view = self.mood_view(state)
         mood, scene = (view.mood, view.scene) if view else (None, ())
+        # Reduce motion (mascot_mood.reduced_motion, kept on the Mood and
+        # asked again with the surroundings): the stage at a third of its
+        # speed and the reaction sign steady (mascots.emote_markup).
+        calm = bool(self.moods is not None and self.moods.calm)
         try:
             emote = view.emote if view else None
-            if emote and mascots is not None:
-                markup = mascots.emote_markup(self.mascot, state, tick, self.tool, mood, scene, emote)
+            if mascots is not None:
+                markup = mascots.emote_markup(self.mascot, state, tick, self.tool, mood, scene, emote,
+                                              calm=calm)
             else:
                 markup = self.mascot.markup(state, tick, self.tool, mood, scene)
             Pango.parse_markup(markup, -1, "\0")
             self.art.set_markup(markup)
         except Exception as exc:
             try:
+                if calm and mascots is not None:
+                    tick = mascots.calm_tick(tick)
                 self.art.set_text("\n".join(self.mascot.lines(state, tick, self.tool, mood, scene)))
             except Exception:
                 self.art.set_text(f"(mascot error: {exc})")
@@ -4461,6 +4478,12 @@ class Front(Gtk.Window):
                       ("time", "the time of day"), ("calendar", "the calendar and holidays"),
                       ("workhours", "work hours"), ("pc", "your PC: music, games, heat"),
                       ("chance", "chance: a random mood now and then"))
+    # mascot_mood.REACTION_GROUPS, in words.
+    MASCOT_REACTIONS = (("greetings", "greetings: hello, welcome back, waking up"),
+                        ("notices", "your prompt: a picture, code, a long one, a question"),
+                        ("feelings", "feelings: thanks, errors, a fix, a long run"),
+                        ("work", "the work: tests, commits, quick or busy runs, a model"),
+                        ("stage", "clicks on her: pokes and pats"))
 
     def fill_mascot_menu(self, focus=None):
         old = self.mascot_pop.get_child()
@@ -4502,6 +4525,25 @@ class Front(Gtk.Window):
         for key, text in self.MASCOT_SIGNALS:
             check(key, text, cur["signals"][key] and (not rnd or key == "chance"),
                   on and (not rnd or key == "chance"))
+        box.pack_start(Gtk.Separator(), False, False, 4)
+        label("Her reactions", "model-heading")
+        talk = cur["signals"]["talk"] and not rnd
+        for key, text in self.MASCOT_REACTIONS:
+            # Every group but the clicks answers the conversation: off with
+            # the talk signal (stage is a direct ask, as in Mood.react).
+            live = on and (talk or key == "stage")
+            check(key, text, cur["reactions"][key] and live, live)
+        box.pack_start(Gtk.Separator(), False, False, 4)
+        label("Motion", "model-heading")
+        mode = cur["reduce_motion"]
+        calm = mascot_mood.reduced_motion(cur)
+        # Two switches over one key: following the desktop is "auto"; off,
+        # the second one is set here (to what is in effect now, so the tick
+        # alone never changes the picture).
+        check("reduce_motion", "Reduce motion: steady sign, a slower stage", calm, mode != "auto")
+        check("motion_auto", "Follow the desktop's Reduce motion", mode == "auto")
+        if mode == "auto":
+            label(f"the desktop's is {'on' if calm else 'off'} (Settings › Accessibility)", "model-detail")
         box.show_all()
         self.mascot_pop.add(box)
         if focus in buttons:
@@ -4511,13 +4553,21 @@ class Front(Gtk.Window):
         """One switch flipped: saved, the surroundings read again with it,
         the menu rebuilt in place (a check ModelButton keeps it open)."""
         try:
-            mascot_mood.save_settings(**{key: value})
+            if key == "motion_auto":
+                # On: follow the desktop; off: keep what it says now, set here.
+                value = "auto" if value else mascot_mood.reduced_motion()
+                mascot_mood.save_settings(reduce_motion=value)
+            else:
+                mascot_mood.save_settings(**{key: value})
         except (OSError, ValueError) as exc:
             self.error(f"could not save {short_path(mascot_mood.SETTINGS)}: {exc}")
             return
         if self.moods is not None:
+            cur = mascot_mood.read_settings()
             self.moods.signals = mascot_mood.load_settings()
-            self.moods.enabled = mascot_mood.read_settings()["enabled"]
+            self.moods.enabled = cur["enabled"]
+            self.moods.reactions = mascot_mood.load_reactions()
+            self.moods.calm = mascot_mood.reduced_motion(cur)
             self.refresh_mood()
         self.draw_frame()
         GLib.idle_add(lambda: self.fill_mascot_menu(focus=key) and False)

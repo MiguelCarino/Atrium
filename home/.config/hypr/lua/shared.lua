@@ -44,6 +44,10 @@ M.scrDir           = scrDir
 --                             glass; the display panel's slider). Not read by Lua
 --     wallpaper_motion=off    the theme's moving wallpaper off (scripts/wallpaper-
 --                             slideshow.py motion). Not read by Lua
+--     season_hemisphere=auto  a seasonal theme's hemisphere: north, south or
+--                             auto (scripts/theme.py season). Not read by Lua
+--     season_pin=winter       hold one season; empty or auto = follow the
+--                             date (scripts/theme.py season pin). Not read by Lua
 --     hdr.DP-1=off            HDR off for that output     (lua/monitors.lua)
 --     sdr_white.DP-1=220      SDR white level in HDR, nits (lua/monitors.lua)
 --

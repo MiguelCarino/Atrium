@@ -631,3 +631,132 @@ levelbar.dk-bar.critical block.filled {
                 inset -1px -1px @w-hi,
                 inset 1px 1px @w-shadow;
 }
+
+/* --- The clock card (clock_panel.py) and the other cards' text fields --------
+   Measured on the live card: the base drew its entries (the alarm's time and
+   label, the countdown's date, the timer's free entry, the zone search, the
+   repos filter, and since then every field, number box and drop-down in
+   Settings: #panel entry / spinbutton / combobox in the base) with the cyberpunk 2px/8px cut corners -- here they came out
+   ROUNDED with a faint 1px rim -- and its chips (the four tabs, Once /
+   Daily / Weekdays / Weekends, the planner's zones, Ring then) as flat
+   1px-rimmed slabs, the chosen one #1084d0 under BOLD black
+   text with an 8px blurred black glow. None of that is Windows 95.
+
+   Entries: the sunken white-well of a Windows 95 text box, square, in the
+   light face #c4c4c4 rather than white (HDR: a 30 px high strip, luminance
+   0.55; white would be 1.0). Text #000 on it 12.0:1. (GTK3 draws the
+   placeholder itself at a fixed fade -- #818181 here, measured -- whatever
+   colour a rule gives it, so there is no placeholder rule.) Focus does not
+   glow: Windows 95 showed focus by the caret. */
+#panel entry,
+#panel spinbutton,
+#panel entry:focus {
+    color: @text;
+    border: none;
+    border-radius: 0px;
+    background-color: @w-light;
+    background-image: none;
+    box-shadow: inset 1px 1px @w-shadow,
+                inset 2px 2px @w-dark,
+                inset -1px -1px @w-hi,
+                inset -2px -2px @w-light;
+    padding: 4px 6px;
+}
+
+#panel entry selection {
+    color: @text-bright;
+    background-color: @w-navy;
+}
+
+/* A number box's inner entry draws nothing (the spinbutton is the well);
+   its arrows and a drop-down's button are push buttons. */
+#panel spinbutton entry,
+#panel spinbutton entry:focus {
+    background: none;
+    box-shadow: none;
+    padding: 0px;
+}
+
+#panel combobox button,
+#panel spinbutton button,
+#panel combobox button:hover,
+#panel spinbutton button:hover {
+    color: @text;
+    border: none;
+    border-radius: 0px;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+#panel combobox button,
+#panel spinbutton button {
+    background-color: @w-face;
+}
+
+#panel combobox button:hover,
+#panel spinbutton button:hover {
+    background-color: @w-hover;
+}
+
+/* The card's commands (Add, Set alarm, Start, Lap, Reset / Pause / Resume):
+   bare words until now -- the list rule makes a dev-pick in a box a quiet
+   row. Raised push buttons, as the "Commands, not choices" rule above
+   explains; pressed while held. Before the chips: same specificity, so
+   "Ring then" (a chip in a page) still takes the chip rule below. */
+.clk-page button.dev-pick {
+    padding: 2px 10px;
+    color: @text;
+    background-color: @w-face;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+.clk-page button.dev-pick:hover {
+    background-color: @w-hover;
+}
+
+.clk-page button.dev-pick:active {
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+/* Chips: push buttons; the chosen one is the navy selection under white
+   text (16:1), pressed in. Three classes and an
+   element: these outrank the base's button.dev-pick.chip.active. */
+button.dev-pick.chip,
+button.dev-pick.chip:hover {
+    color: @text;
+    border: none;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+button.dev-pick.chip {
+    background-color: @w-face;
+}
+
+button.dev-pick.chip:hover {
+    background-color: @w-hover;
+}
+
+button.dev-pick.chip.active,
+button.dev-pick.chip.active:hover {
+    color: @text-bright;
+    font-weight: normal;
+    background-color: @w-navy;
+    box-shadow: inset 2px 2px @w-dark,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-shadow,
+                inset -1px -1px @w-hi;
+}

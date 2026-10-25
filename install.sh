@@ -151,9 +151,15 @@ step "6/8  builds"
 run "$HYPR/hyprview-build.sh"
 run "$HYPR/hypr-cube-build.sh"
 run python3 "$HYPR/make-icon-theme.py" --all
-for maker in make-aero-wallpaper make-win95-wallpaper make-matrix-wallpaper make-moe-wallpaper; do
+for maker in make-aero-wallpaper make-win95-wallpaper make-matrix-wallpaper make-moe-wallpaper \
+             make-lofi-wallpaper make-luna-wallpaper make-seasons-wallpaper; do
     run python3 "$HYPR/$maker.py" --all
 done
+# orbit's are NASA / Webb photographs: downloaded (about 45 MB, hash-checked),
+# so asked, not assumed -- without them `theme.py check orbit` says to run it.
+if ask "Download the orbit theme's space photographs (about 45 MB)?" y; then
+    run python3 "$HYPR/make-orbit-wallpaper.py" --all
+fi
 if ask "Render the moving wallpapers too (a few minutes)?" n; then
     run python3 "$HYPR/make-matrix-rain.py" --all
     run python3 "$HYPR/make-moe-sakura.py" --all

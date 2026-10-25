@@ -56,6 +56,14 @@ with, which the stylesheets recolour anyway) falls through unchanged:
            light-on-dark set) with BLUE-GREY folders -- the steel of the
            console rules, quieter than the telemetry teal, which stays for
            focus and the accent. No filter, so no NATIVE sizes.
+    seasons-spring / -summer / -autumn / -winter
+           ~/.local/share/icons/Seasons-Spring/ (-Summer, -Autumn, -Winter),
+           Inherits=Papirus-Dark,Papirus,Adwaita,hicolor. Four variants of
+           one theme, built as lofi is (Papirus-DARK: every season is
+           dark-based), each with its season's folder colour: PINK blossom,
+           GREEN deep leaf, DEEPORANGE rust leaf, BLUE frost. Each season's
+           theme.conf (themes/seasons/season/<s>/) names its variant, so the
+           folders turn with the season through gsettings, live. No filter.
     matrix ~/.local/share/icons/Phosphor/, Inherits=Adwaita,hicolor.
            Everything traced, green line art on an opaque near-black body
            (the look asked for): Adwaita's full-colour names (folders, files,
@@ -216,6 +224,20 @@ VARIANTS = {
     "orbit": dict(dir="Orbit", name="Orbit",
                   comment="Papirus-Dark with blue-grey (steel) folders (make-icon-theme.py)",
                   inherits="Papirus-Dark,Papirus,Adwaita,hicolor", cover=None, folder_colour="bluegrey"),
+    # The seasons theme's four variants: one folder colour each. The name
+    # says the season, so the four are told apart in an icon-theme picker.
+    "seasons-spring": dict(dir="Seasons-Spring", name="Seasons (spring)",
+                           comment="Papirus-Dark with pink (blossom) folders (make-icon-theme.py)",
+                           inherits="Papirus-Dark,Papirus,Adwaita,hicolor", cover=None, folder_colour="pink"),
+    "seasons-summer": dict(dir="Seasons-Summer", name="Seasons (summer)",
+                           comment="Papirus-Dark with green (deep leaf) folders (make-icon-theme.py)",
+                           inherits="Papirus-Dark,Papirus,Adwaita,hicolor", cover=None, folder_colour="green"),
+    "seasons-autumn": dict(dir="Seasons-Autumn", name="Seasons (autumn)",
+                           comment="Papirus-Dark with deep orange (rust leaf) folders (make-icon-theme.py)",
+                           inherits="Papirus-Dark,Papirus,Adwaita,hicolor", cover=None, folder_colour="deeporange"),
+    "seasons-winter": dict(dir="Seasons-Winter", name="Seasons (winter)",
+                           comment="Papirus-Dark with blue (frost) folders (make-icon-theme.py)",
+                           inherits="Papirus-Dark,Papirus,Adwaita,hicolor", cover=None, folder_colour="blue"),
     "matrix": dict(dir="Phosphor", name="Phosphor",
                    comment="Papirus traced as green line art on black (make-icon-theme.py)",
                    inherits="Adwaita,hicolor", cover=None),

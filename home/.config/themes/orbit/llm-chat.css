@@ -139,11 +139,14 @@ window#llm-chat headerbar {
     box-shadow: none;
 }
 
+/* No letter-spacing on the title, unlike the console's other captions:
+   GtkHeaderBar sizes its title before the CSS spacing is added, so 0.10em
+   cut "LLM · CAPCOM" to "LLM · CAPC…" at every window width (1000 and
+   1582 px, seen). */
 window#llm-chat headerbar .title {
     font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
     font-weight: 600;
     font-size: 12pt;
-    letter-spacing: 0.10em;
     color: @cyan;
 }
 

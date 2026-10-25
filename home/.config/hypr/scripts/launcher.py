@@ -289,7 +289,9 @@ palette can never do something the rest of the desktop cannot. After them,
 "Chat model: <name>" and "Quick model: <name>", one per model (the current
 one ticked): Enter makes it the one for ? / ??. Then "Mascot: …", the chat
 window's mascot switches (mascot_mood.py's mascot.json): the moods, random
-only, and what she reacts to, each ticked when on; Enter flips it.
+only, what she reacts to, her reaction groups and reduce motion, each ticked
+when on; Enter flips it (reduce motion: "Mascot: reduce motion" sets it
+here, "Mascot: reduce motion follows the desktop" hands it back).
 
 Models: llm_models.py has the list -- LM Studio's from `lms ls` (kept in
 ~/.cache/llm-models.json; asked again, in a thread, when the launcher opens
@@ -583,6 +585,28 @@ COMMANDS = [
      [os.path.join(HYPR, "make-luna-wallpaper.py"), "--all"]),
     ("Render Orbit wallpapers", "make-orbit-wallpaper.py --all (space photographs)", "preferences-desktop-wallpaper",
      [os.path.join(HYPR, "make-orbit-wallpaper.py"), "--all"]),
+    # Measured: --all took 1:25 for 48 frames on four screens, peaking near 550 MB.
+    ("Render Seasons wallpapers", "make-seasons-wallpaper.py --all (about 90 s)", "preferences-desktop-wallpaper",
+     [os.path.join(HYPR, "make-seasons-wallpaper.py"), "--all"]),
+    # The seasons theme's own season and hemisphere (theme.py season pin /
+    # hemisphere): they re-apply at once if a seasonal theme is current, and
+    # are kept for later otherwise.
+    ("Season: follow the date", "theme.py season pin auto (seasonal themes)", "weather-few-clouds",
+     [os.path.join(HYPR, "theme.py"), "season", "pin", "auto"]),
+    ("Season: spring", "hold spring  (theme.py season pin spring)", "weather-few-clouds",
+     [os.path.join(HYPR, "theme.py"), "season", "pin", "spring"]),
+    ("Season: summer", "hold summer  (theme.py season pin summer)", "weather-clear",
+     [os.path.join(HYPR, "theme.py"), "season", "pin", "summer"]),
+    ("Season: autumn", "hold autumn  (theme.py season pin autumn)", "weather-overcast",
+     [os.path.join(HYPR, "theme.py"), "season", "pin", "autumn"]),
+    ("Season: winter", "hold winter  (theme.py season pin winter)", "weather-snow",
+     [os.path.join(HYPR, "theme.py"), "season", "pin", "winter"]),
+    ("Hemisphere: auto", "from the weather place, else the time zone  (theme.py season hemisphere auto)",
+     "find-location", [os.path.join(HYPR, "theme.py"), "season", "hemisphere", "auto"]),
+    ("Hemisphere: north", "theme.py season hemisphere north", "find-location",
+     [os.path.join(HYPR, "theme.py"), "season", "hemisphere", "north"]),
+    ("Hemisphere: south", "theme.py season hemisphere south", "find-location",
+     [os.path.join(HYPR, "theme.py"), "season", "hemisphere", "south"]),
     ("Night light on / off", "until the next boundary  (SUPER+N)", "weather-clear-night",
      [os.path.join(HYPR, "nightlight.sh"), "toggle"]),
     ("Record monitor", "start / stop  (ALT+F9)", "media-record", [os.path.join(HYPR, "record.sh"), "monitor"]),
@@ -2222,13 +2246,40 @@ MASCOT_SWITCHES = (("enabled", "moods"), ("random_only", "random moods only"),
                    ("calendar", "reacts to the calendar and holidays"),
                    ("workhours", "reacts to work hours"),
                    ("pc", "reacts to your PC (music, games, heat)"),
-                   ("chance", "random mood changes"))
+                   ("chance", "random mood changes"),
+                   # mascot_mood.REACTION_GROUPS
+                   ("greetings", "greetings (hello, welcome back, waking up)"),
+                   ("notices", "notices your prompt (a picture, code, a long one)"),
+                   ("feelings", "feelings (thanks, errors, a fix, a long run)"),
+                   ("work", "reacts to the work (tests, commits, quick or busy runs)"),
+                   ("stage", "reacts to clicks (pokes and pats)"),
+                   # reduce_motion: the first sets it here, the second is "auto"
+                   ("reduce_motion", "reduce motion"),
+                   ("motion_auto", "reduce motion follows the desktop"))
+
+
+def mascot_value(cur, key):
+    """A MASCOT_SWITCHES key's state in mascot_mood.read_settings() terms:
+    reduce_motion is the answer in effect (the desktop's while it follows
+    it), motion_auto whether it follows."""
+    import mascot_mood
+    if key == "reduce_motion":
+        return mascot_mood.reduced_motion(cur)
+    if key == "motion_auto":
+        return cur["reduce_motion"] == "auto"
+    if key in cur["reactions"]:
+        return cur["reactions"][key]
+    return cur.get(key, cur["signals"].get(key))
 
 
 def set_mascot(key, value, text):
     import mascot_mood
     try:
-        mascot_mood.save_settings(**{key: value})
+        if key == "motion_auto":
+            # off: keep what the desktop says now, set here from then on
+            mascot_mood.save_settings(reduce_motion="auto" if value else mascot_mood.reduced_motion())
+        else:
+            mascot_mood.save_settings(**{key: value})
     except (OSError, ValueError) as exc:
         notify(f"could not save the mascot settings: {exc}")
         return
@@ -2246,7 +2297,7 @@ def mascot_commands():
         return []
     out = []
     for key, text in MASCOT_SWITCHES:
-        value = cur.get(key, cur["signals"].get(key))
+        value = mascot_value(cur, key)
         out.append(Item(f"Mascot: {text}" + ("  ✓" if value else ""),
                         f"{'on' if value else 'off'}  ·  Enter: turn it {'off' if value else 'on'}"
                         "  ·  the chat window's mascot",
@@ -3299,8 +3350,10 @@ def running_timer_items():
     out = []
     for t in timers.running():
         what = t["label"] or timers.NAMES[t["kind"]]
-        left = timers.clock(t["due"] - now)
-        out.append(Item(f"{what}  {left} left",
+        # A paused alarm won't ring, so a countdown to its next time would
+        # mislead; the subtitle (describe) already says "paused · 07:30".
+        left = "paused" if t.get("paused") else timers.clock(t["due"] - now) + " left"
+        out.append(Item(f"{what}  {left}",
                         f"{timers.describe(t, now)}  ·  Enter cancels it",
                         KIND_ICON.get(t["kind"], "preferences-system-time"),
                         lambda i=t["id"]: timers.cancel(i),

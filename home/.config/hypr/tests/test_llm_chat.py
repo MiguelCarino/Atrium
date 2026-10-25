@@ -500,6 +500,164 @@ class Mood(unittest.TestCase):
             self.assertIn("!?", markup.replace("<", "\n").replace(">", "\n"), theme)
 
 
+class MascotSettings(unittest.TestCase):
+    """mascot.json's reaction groups and reduce motion: an old file, the
+    switches, Mood.react honouring them, the steady sign and the calm tick.
+    The settings file is the scratch state folder's (helpers.py)."""
+
+    def setUp(self):
+        self.addCleanup(self.forget)
+        self.forget()
+
+    def forget(self):
+        try:
+            os.remove(mood.SETTINGS)
+        except FileNotFoundError:
+            pass
+
+    def write(self, data):
+        os.makedirs(os.path.dirname(mood.SETTINGS), exist_ok=True)
+        with open(mood.SETTINGS, "w") as handle:
+            json.dump(data, handle)
+
+    def test_an_old_file_reads_as_all_on_and_auto(self):
+        self.write({"enabled": True, "signals": {"weather": False}, "random_only": False})
+        cur = mood.read_settings()
+        self.assertEqual(cur["reactions"], {k: True for k in mood.REACTIONS})
+        self.assertEqual(cur["reduce_motion"], "auto")
+        self.assertFalse(cur["signals"]["weather"])
+        self.write({"reactions": "nonsense", "reduce_motion": "sometimes"})
+        cur = mood.read_settings()
+        self.assertTrue(all(cur["reactions"].values()))
+        self.assertEqual(cur["reduce_motion"], "auto")
+
+    def test_every_reaction_topic_has_one_group(self):
+        topics = [t for group in mood.REACTION_GROUPS.values() for t in group]
+        self.assertEqual(len(topics), len(set(topics)))
+        for topic in topics:
+            self.assertTrue(topic.startswith("?") or topic in mood.DEFAULT_LINES, topic)
+
+    def test_save_and_cli(self):
+        cur = mood.save_settings(stage=False, weather=False, reduce_motion=True)
+        self.assertFalse(cur["reactions"]["stage"])
+        self.assertFalse(cur["signals"]["weather"])
+        self.assertIs(mood.read_settings()["reduce_motion"], True)
+        with self.assertRaises(ValueError):
+            mood.save_settings(nonsense=True)
+        with self.assertRaises(ValueError):
+            mood.save_settings(reduce_motion="sometimes")
+        import contextlib
+        import io
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(mood.main(["--set", "greetings=off", "reduce_motion=auto"]), 0)
+        cur = mood.read_settings()
+        self.assertFalse(cur["reactions"]["greetings"])
+        self.assertEqual(cur["reduce_motion"], "auto")
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(mood.main(["--set", "reduce_motion=maybe"]), 2)
+            self.assertEqual(mood.main(["--set", "greetings=auto"]), 2)
+        self.write({"enabled": False})
+        self.assertFalse(any(mood.load_reactions().values()))
+
+    def test_reduced_motion_follows_the_desktop_only_on_auto(self):
+        asked = []
+
+        def desktop():
+            asked.append(1)
+            return True
+        self.assertTrue(mood.reduced_motion({"reduce_motion": "auto"}, desktop))
+        self.assertFalse(mood.reduced_motion({"reduce_motion": False}, desktop))
+        self.assertTrue(mood.reduced_motion({"reduce_motion": True}, lambda: False))
+        self.assertEqual(len(asked), 1)
+        self.write({"reduce_motion": False})
+        self.assertFalse(mood.Mood().calm)                       # read from the file
+        self.assertFalse(mood.Mood(signals={k: True for k in mood.SIGNALS}).calm)
+
+    def clocked(self, **off):
+        t = [1000.0]
+        groups = {k: k not in off for k in mood.REACTIONS}
+        m = mood.Mood(signals={k: True for k in mood.SIGNALS}, clock=lambda: t[0], reactions=groups)
+        return m, t
+
+    def test_a_group_off_falls_through_to_the_next(self):
+        m, _ = self.clocked(greetings=True)
+        m.react("prompt", text="hi\n```\nx = 1\n```")
+        self.assertEqual(m.reaction[2], ("code",))               # not "hello"
+        m, _ = self.clocked(greetings=True, notices=True)
+        m.react("prompt", text="```\nx\n```", images=1)
+        self.assertIsNone(m.reaction)
+        m, _ = self.clocked(feelings=True)
+        m.react("prompt", text="thank you!")
+        self.assertEqual(m.reaction[2], ("hello",))              # not "thanks"
+        m.react("tool_error", tool="Read")
+        self.assertEqual(m.reaction[2], ("hello",))              # no quiet worry over it
+        m.react("tool_error", tool="Bash", command="pytest", output="2 failed")
+        self.assertEqual(m.reaction[2], ("tests_fail",))         # work is still on
+
+    def test_work_and_stage_off(self):
+        m, t = self.clocked(work=True, stage=True)
+        m.react("prompt", text="go")
+        m.reaction = None
+        for _ in range(mood.BUSY_TOOLS):
+            m.react("tool_start")
+        m.react("tool_ok", tool="Bash", command="git commit -m x", output="")
+        m.react("model", name="qwen3")
+        m.react("stopped")
+        self.assertIsNone(m.reaction)
+        m.react("result_ok", duration=2.0)                       # "fast" off: the quiet one
+        self.assertEqual(m.reaction[:1] + m.reaction[2:4], ("happy", None, mood.EMOTES["@happy"]))
+        m.reaction = None
+        for _ in range(mood.POKE_SPAM[0] + 1):
+            t[0] += 0.3
+            m.react("poke")
+        m.react("pet")
+        self.assertIsNone(m.reaction)
+        m.react("permission")                                    # the window's own, always
+        self.assertEqual(m.reaction[0], "curious")
+
+    def test_steady_emote(self):
+        from mascot_common import Canvas, draw_emote
+        for age in (0.1, 1.0, 2.0, 8.2, 7.8):
+            moving, steady = Canvas(20, 6), Canvas(20, 6)
+            draw_emote(moving, ("!?", "warn", age), (5, 3))
+            draw_emote(steady, ("!?", "warn", age), (5, 3), steady=True)
+            self.assertEqual(steady.lines()[3][5:7], "!?", age)  # whole, at the anchor, always
+            self.assertEqual(steady.lines()[2].strip(), "", age)
+        self.assertEqual(moving.lines()[2].strip(), "")          # 7.8 s: blinked out
+        moving = Canvas(20, 6)
+        draw_emote(moving, ("!?", "warn", 2.0), (5, 3))
+        self.assertEqual(moving.lines()[2][5:7], "!?")           # floated a row up
+
+    def test_calm_stage(self):
+        import mascots
+        self.assertEqual(mascots.calm_tick(29), 29 // mascots.CALM_SLOW)
+        self.assertEqual(mascots.calm_tick(29, calm=False), 29)
+        m = mascots.Mascot(64, 18, theme="moe")
+        self.assertEqual(mascots.emote_markup(m, "done", 31, calm=True),
+                         m.markup("done", 31 // mascots.CALM_SLOW))
+        self.assertEqual(mascots.emote_markup(m, "done", 31), m.markup("done", 31))
+        # moe's done jump: at full speed she leaves the ground within 0.3 s,
+        # calm she is still on it then.
+        frames = [m.lines("done", t) for t in range(3)]
+        calm = [m.lines("done", mascots.calm_tick(t)) for t in range(3)]
+        self.assertNotEqual(frames[0], frames[2])
+        self.assertEqual(calm[0], calm[2])
+
+    def test_launcher_switches(self):
+        launcher = helpers.import_script("launcher.py", "launcher")
+        names = [key for key, _ in launcher.MASCOT_SWITCHES]
+        for key in mood.REACTIONS + ("reduce_motion", "motion_auto"):
+            self.assertIn(key, names)
+        self.write({"reactions": {"stage": False}, "reduce_motion": True})
+        cur = mood.read_settings()
+        self.assertFalse(launcher.mascot_value(cur, "stage"))
+        self.assertTrue(launcher.mascot_value(cur, "greetings"))
+        self.assertTrue(launcher.mascot_value(cur, "reduce_motion"))
+        self.assertFalse(launcher.mascot_value(cur, "motion_auto"))
+        self.assertTrue(launcher.mascot_value(cur, "enabled"))
+        self.assertTrue(launcher.mascot_value(cur, "weather"))
+
+
 class Words(unittest.TestCase):
     def test_every_theme_has_every_word(self):
         keys = set(front.UI_EN)
@@ -507,7 +665,7 @@ class Words(unittest.TestCase):
         for key in ("perm_title", "perm_once", "perm_session", "perm_deny", "perm_note", "perm_keys",
                     "perm_bubble", "n_done", "n_perm", "unload", "unload_all"):
             self.assertIn(key, front.UI_JA, key)
-        for theme in ("moe", "cyberpunk", "matrix", "win95", "aero", "lofi", "luna", "orbit"):
+        for theme in ("moe", "cyberpunk", "matrix", "win95", "aero", "lofi", "luna", "orbit", "seasons"):
             ui = front.ui_strings(theme, conf={"lang": "ja" if theme == "moe" else "en"})
             for key in keys:
                 self.assertIn(key, ui)

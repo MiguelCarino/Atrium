@@ -73,7 +73,7 @@ class FakeWorld:
         return {"id": 1, "name": "1"}
 
     def themes(self):
-        return ["cyberpunk", "matrix", "aero", "win95", "moe", "lofi", "luna", "orbit"]
+        return ["cyberpunk", "matrix", "aero", "win95", "moe", "lofi", "luna", "orbit", "seasons"]
 
     def current_theme(self):
         return "matrix"

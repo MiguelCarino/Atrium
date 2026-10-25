@@ -23,6 +23,14 @@ defaults are the old fixed look: 24-hour with seconds, "Tue, Oct 20".
 A time zone change (timedatectl set-timezone) rewrites /etc/localtime under
 a running watcher; time.tzset() each tick makes the C library look again,
 so the local reading follows without restarting the bar.
+
+A world clock pinned in the clock card (its pin toggle; "pin" in
+$XDG_STATE_HOME/hypr/world-clocks.json, next to the zones) is a second,
+short reading after the local or UTC one: "15:04:05 · TYO 06:04" (minutes
+only, a three-letter code: zone_code). Not in epoch mode -- that one is
+for pasting. The watcher stat()s the file each tick and reads it only when
+its mtime moves (the card also sends SIGUSR1, so a pin shows at once), the
+same bargain as region.conf.
 """
 
 import json
@@ -41,6 +49,86 @@ except ImportError:     # a bar without the hypr scripts: the fixed look
 
 def prefs():
     return region.prefs() if region else {}
+
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:     # no zoneinfo: no pinned world clock
+    ZoneInfo = None
+
+STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hypr")
+ZONES_FILE = os.path.join(STATE_DIR, "world-clocks.json")
+# Codes people know for the cities most often added, where the first three
+# letters would read wrong (TOK, NEW, LOS); the rest: zone_code's rule.
+ZONE_CODES = {"Tokyo": "TYO", "New_York": "NYC", "Los_Angeles": "LAX", "Mexico_City": "MEX",
+              "Sao_Paulo": "SAO", "Buenos_Aires": "BUE", "Hong_Kong": "HKG", "Kolkata": "CCU",
+              "Calcutta": "CCU", "Shanghai": "SHA", "Singapore": "SIN", "Seoul": "SEL",
+              "Sydney": "SYD", "Chicago": "CHI", "Denver": "DEN", "Moscow": "MOW",
+              "Johannesburg": "JNB", "Dubai": "DXB", "Madrid": "MAD", "Bogota": "BOG"}
+
+
+def zone_code(zone):
+    """Three letters for a zone on the bar: ZONE_CODES for the usual
+    cities, else the initials of a two- or three-word city ("Port_Moresby"
+    -> "PM"), else the city's first three letters ("Europe/Lisbon" ->
+    "LIS"); "UTC" stays."""
+    city = zone.rsplit("/", 1)[-1]
+    if city in ZONE_CODES:
+        return ZONE_CODES[city]
+    words = [w for w in city.replace("-", "_").split("_") if w]
+    if len(words) > 1:
+        return "".join(w[0] for w in words[:3]).upper()
+    return city[:3].upper()
+
+
+def parse_zones(data):
+    """world-clocks.json's two shapes -> (zones or None, pin or None): the
+    old plain list of zones, or {"zones": [...], "pin": zone}. None zones
+    when the file is neither (the card then shows its defaults); a pin is
+    only one of the zones."""
+    if isinstance(data, dict):
+        zones, pin = data.get("zones"), data.get("pin")
+    else:
+        zones, pin = data, None
+    if not isinstance(zones, list):
+        return None, None
+    zones = [z for z in zones if isinstance(z, str)]
+    return zones, (pin if pin in zones else None)
+
+
+_pin = {"mtime": None, "zone": None}
+
+
+def pinned_zone(path=None):
+    """The pinned zone, re-read only when the file's mtime moved (one
+    stat() a tick)."""
+    path = path or ZONES_FILE
+    try:
+        mtime = os.stat(path).st_mtime_ns
+    except OSError:
+        _pin.update(mtime=None, zone=None)
+        return None
+    if mtime != _pin["mtime"]:
+        try:
+            with open(path) as handle:
+                zone = parse_zones(json.load(handle))[1]
+        except (OSError, ValueError):
+            zone = None
+        _pin.update(mtime=mtime, zone=zone)
+    return _pin["zone"]
+
+
+def pin_text(zone, conf=None, now=None):
+    """" · TYO 06:04" for a pinned zone (no seconds, whatever the main
+    reading does), "" for none or a zone this Python does not know."""
+    if not zone or ZoneInfo is None:
+        return ""
+    try:
+        there = (now or datetime.now(timezone.utc)).astimezone(ZoneInfo(zone))
+    except Exception:       # an unknown zone name: no second reading
+        return ""
+    short = dict(conf if conf is not None else prefs(), seconds="off")
+    return f" · {zone_code(zone)} {hms(there, short)}"
 
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 MODE_FILE = os.path.join(RUNTIME, "waybar-clock.mode")
@@ -113,16 +201,24 @@ def day_text(current, moment, conf=None):
     return moment.strftime("%a, %b %d")
 
 
-def tooltip(moment):
+def tooltip(moment, pin=None):
     """Whichever readings are not on screen, so the other two are one hover
-    away instead of two clicks."""
+    away instead of two clicks (and the pinned zone in full, with its day)."""
     local = moment.astimezone() if moment.tzinfo else moment
     utc = local.astimezone(timezone.utc)
-    return "\n".join([
+    lines = [
         f"<b>{local.strftime('%A, %d %B %Y')}</b>",
         f"local  {hms(local)} {local.strftime('%Z')}",
         f"UTC    {hms(utc)}",
         f"epoch  {int(local.timestamp())}",
+    ]
+    if pin and ZoneInfo is not None:
+        try:
+            there = local.astimezone(ZoneInfo(pin))
+            lines.append(f"{zone_code(pin):<6} {hms(there)} {there:%a}  ({pin.rsplit('/', 1)[-1].replace('_', ' ')})")
+        except Exception:
+            pass
+    return "\n".join(lines + [
         "",
         "<i>click to cycle · the date opens the calendar</i>",
     ])
@@ -132,10 +228,15 @@ def emit(kind):
     time.tzset()        # follow a time zone change (see the docstring)
     current = mode()
     moment = now_in(current)
-    text = clock_text(current, moment) if kind == "clock" else day_text(current, moment)
+    pin = pinned_zone() if kind == "clock" else None
+    if kind == "clock":
+        conf = prefs()
+        text = clock_text(current, moment, conf) + ("" if current == "epoch" else pin_text(pin, conf, moment))
+    else:
+        text = day_text(current, moment)
     print(json.dumps({
         "text": text,
-        "tooltip": tooltip(moment),
+        "tooltip": tooltip(moment, pin),
         "class": current,
     }), flush=True)
 
@@ -181,13 +282,19 @@ def watch():
             _sleeping = False
 
 
-def cycle():
-    set_mode(MODES[(MODES.index(mode()) + 1) % len(MODES)])
+def poke():
+    """Wake the watcher (SIGUSR1) so a change shows on this second: a mode
+    cycle, a pin set in the clock card."""
     try:
         with open(PID_FILE) as handle:
             os.kill(int(handle.read().strip()), signal.SIGUSR1)
     except (OSError, ValueError):
-        pass        # no watcher: the next tick picks the new mode up anyway
+        pass        # no watcher: the next tick picks the change up anyway
+
+
+def cycle():
+    set_mode(MODES[(MODES.index(mode()) + 1) % len(MODES)])
+    poke()
     os.system(f"pkill -SIGRTMIN+{DAY_SIGNAL} waybar")
 
 

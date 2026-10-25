@@ -1,0 +1,60 @@
+The seasons theme's faces (~/.config/themes/seasons/).
+
+Alegreya Sans comes from Google Fonts' repository, which carries the
+upstream project's released TTFs together with its licence:
+    https://github.com/google/fonts   (branch main)
+It is under the SIL Open Font License 1.1 (OFL-1.1): free to use, bundle
+and redistribute, not to sell on its own; the licence text travels with the
+files (OFL-AlegreyaSans.txt here). No file was modified.
+
+Alegreya Sans -- the UI face (theme.conf font=): the bar, the toolbox, the
+    popup panels, the launcher, wofi, mako, mpv's OSD and subtitles, the LLM
+    chat's headings, Nautilus's document face.
+    By Juan Pablo del Peral (Huerta Tipografica;
+    https://github.com/huertatipografica/Alegreya-Sans), version 2.004.
+    A humanist sans with a calligraphic, hand-drawn rhythm: warm and organic,
+    which suits a theme about nature and the calendar, and very readable at
+    11-13 px. True small caps ("smcp", "c2sc") for the almanac-style labels
+    and running heads, "tnum" and "lnum" for readouts (the base stylesheets
+    ask for tnum; lnum stops the old-style figures bobbing in the clock).
+    Static weights, so every weight the stylesheets ask for is a real cut:
+    Regular 400, Medium 500, Bold 700, and Italic. No SemiBold: where the
+    base asks for 600 the theme asks for 500 or 700 explicitly.
+    GSUB (probed 2026-10-24): aalt c2sc case ccmp dnom frac liga lnum locl
+    numr onum ordn pnum sinf smcp ss01-ss05 subs sups tnum.
+    Coverage: 2109 glyphs, Latin with Latin Extended; it has the middle dot
+    and the ellipsis, but none of the symbols U+25B8 U+25CF U+2600 U+2744
+    U+266A U+2387 U+273F U+2713 -- fontconfig falls back per glyph to IBM
+    Plex Sans (theme.conf font= lists it second) or Noto, and Font Awesome
+    is the icon fallback as everywhere.
+    Metrics: 1000 units per em, hhea ascent 900 / descent -300 / gap 0, a
+    1.20 em line (IBM Plex Sans: 1.30) and narrower letters than Plex -- so
+    most panels come out a little smaller than cyberpunk's
+    (~/.config/themes/seasons/panel.css's header has the sizes).
+    Files:  AlegreyaSans-Regular.ttf  AlegreyaSans-Medium.ttf
+            AlegreyaSans-Bold.ttf     AlegreyaSans-Italic.ttf
+    Source: https://raw.githubusercontent.com/google/fonts/main/ofl/alegreyasans/<file>
+            licence: https://raw.githubusercontent.com/google/fonts/main/ofl/alegreyasans/OFL.txt
+                     (saved as OFL-AlegreyaSans.txt)
+    (The directory also has Thin through Black with italics; only these
+    four are used, so only these four are here.)
+
+Source Code Pro -- the readout and terminal face (term.font=, font_mono=):
+    COSMIC Terminal, kitty, the bar's mono readouts, code in the LLM chat,
+    Nautilus's monospace.
+    By Paul D. Hunt (Adobe; https://github.com/adobe-fonts/source-code-pro),
+    OFL-1.1. A humanist mono, so it pairs naturally with Alegreya Sans, and
+    it has the Bold COSMIC Terminal needs (theme.py check verifies it).
+    NOT copied here: it is Fedora's adobe-source-code-pro-fonts package
+    (/usr/share/fonts/adobe-source-code-pro-fonts/), installed with the
+    system. No other theme uses it for the terminal yet (orbit: JetBrains
+    Mono, lofi: Rec Mono Casual).
+
+sha256:
+8fab634196007afca839f1e5a6fb300976daff55d8528b590ef032f01b14ea10  AlegreyaSans-Regular.ttf
+4b89fe7804fd1485ec2757795a53ffdb66e1206dd56f844c2d72b3c944815b43  AlegreyaSans-Medium.ttf
+a3055a1893759bdbd7504bb22abc583769e7974c49353176eac0b03792c9fb8e  AlegreyaSans-Bold.ttf
+f49f6f2bdd84df850b25b0f8185d8a051e1d1eb2dd08e2f91b8c7b86d9a9e1a6  AlegreyaSans-Italic.ttf
+0677891e6a143f297350d260ad766ad33bfc18ed5fa4f213acf648d6b597ec1a  OFL-AlegreyaSans.txt
+
+Installed with: fc-cache -f ~/.local/share/fonts/themes/seasons

@@ -496,7 +496,8 @@ def sec_timers(_today):
     timers = _module("timers", "timers.py")
     now = time.time()
     _t0, t1 = day_bounds(dt.date.today())
-    return [timers.describe(t, now) for t in timers.running() if t.get("due", 0) < t1][:6]
+    return [timers.describe(t, now) for t in timers.running()
+            if t.get("due", 0) < t1 and not t.get("paused")][:6]   # paused: won't ring
 
 
 def sec_notifications(_today):

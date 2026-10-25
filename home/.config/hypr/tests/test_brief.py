@@ -244,5 +244,29 @@ class PageHelpers(unittest.TestCase):
                          [("05:00", "05:00"), ("05:30", "05:30"), ("06:00", "06:00")])
 
 
+
+class PausedAlarms(unittest.TestCase):
+    """A paused alarm keeps its entry (and its next due time) in
+    timers.running(), but it will not ring, so the brief's "still to ring
+    today" list leaves it out."""
+
+    def test_paused_alarm_is_left_out(self):
+        now = dt.datetime.now().timestamp()
+        entries = [{"id": "a", "due": now + 60, "label": "tea"},
+                   {"id": "b", "due": now + 60, "label": "gym", "paused": True}]
+        fake = type("T", (), {"running": staticmethod(lambda: entries),
+                              "describe": staticmethod(lambda t, _now: t["label"])})
+        saved = brief._module, brief.day_bounds
+        brief._module = lambda *_a, **_k: fake
+        # Today ends an hour from now whatever the clock says, so the check
+        # runs at 23:59 too (the entries are a minute out).
+        brief.day_bounds = lambda _day: (now - 3600, now + 3600)
+        try:
+            got = brief.sec_timers(dt.date.today())
+        finally:
+            brief._module, brief.day_bounds = saved
+        self.assertEqual(got, ["tea"])
+
+
 if __name__ == "__main__":
     unittest.main()

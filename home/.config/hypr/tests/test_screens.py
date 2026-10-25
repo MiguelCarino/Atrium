@@ -247,6 +247,9 @@ class WallpaperMakers(unittest.TestCase):
     def test_orbit(self):
         self.run_all("make-orbit-wallpaper.py", want_logical=True)
 
+    def test_seasons(self):
+        self.run_all("make-seasons-wallpaper.py", want_logical=True)
+
 
 if __name__ == "__main__":
     unittest.main()

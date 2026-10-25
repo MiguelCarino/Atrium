@@ -8,6 +8,7 @@ workhours.conf is its scratch HYPR_WORKHOURS_CONF; no timer is armed, no sound p
 (calendar_use only edits the setting), and refresh_bar is never called."""
 import datetime as dt
 import os
+import time
 import unittest
 
 import helpers
@@ -248,6 +249,45 @@ class PageHelpers(unittest.TestCase):
         a = {"kind": "alarm", "label": "", "name": "alarm", "due": now + 86400, "repeat": "weekdays", "then": ""}
         self.assertEqual(self.page.item_title(a), "Alarm")
         self.assertEqual(self.page.item_sub(a, now), "rings at Wed 10:00  ·  weekdays")
+
+    def test_paused_alarm_text(self):
+        """A paused alarm does not ring: its sub line says so, not "rings at"
+        its would-be time (status --json's due for it)."""
+        now = dt.datetime(2026, 10, 20, 10, 0).timestamp()
+        a = {"kind": "alarm", "label": "gym", "name": "alarm", "due": now + 3600, "repeat": "weekdays",
+             "then": "", "paused": True}
+        self.assertEqual(self.page.item_sub(a, now), "alarm  ·  paused  ·  weekdays")
+
+    def test_paused_alarm_row_has_resume_and_does_not_tick(self):
+        try:
+            p = self.page.Page()
+        except Exception as exc:                                    # noqa: BLE001
+            self.skipTest(f"page not buildable here: {exc}")
+        from gi.repository import Gtk
+        ran = []
+        p.do = lambda *cmd: ran.append(cmd)                         # never a real timers.py
+        now = time.time()
+        p.show_items({"timers": [
+            {"id": "1", "kind": "timer", "label": "tea", "name": "timer", "due": now + 300, "repeat": "",
+             "then": "", "paused": False},
+            {"id": "2", "kind": "alarm", "label": "gym", "name": "alarm", "due": now + 7200, "repeat": "",
+             "then": "", "paused": True}]})
+        self.assertEqual([title for _l, _m, title, _u in p.ticks], ["tea"])     # only the timer ticks
+        buttons, titles = [], []
+
+        def walk(w):
+            if isinstance(w, Gtk.Button):
+                buttons.append(w)
+            elif isinstance(w, Gtk.Label):
+                titles.append(w.get_text())
+            if isinstance(w, Gtk.Container):
+                for child in w.get_children():
+                    walk(child)
+        walk(p.items)
+        self.assertIn("gym  ·  paused", titles)
+        (resume,) = [b for b in buttons if b.get_label() == "Resume"]
+        resume.clicked()
+        self.assertEqual(ran, [(self.page.TIMERS, "resume", "2")])
 
     def test_calendar_sub(self):
         self.assertIn("off", self.page.calendar_sub({"on": False}))

@@ -30,6 +30,7 @@ smartlayout.service
 suggest.service
 tasks.service
 theme-schedule.timer
+theme-season.timer
 timers-calendar.timer
 timers.service
 wallpaper-slideshow.service

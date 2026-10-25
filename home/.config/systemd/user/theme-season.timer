@@ -1,0 +1,20 @@
+# Seasonal themes (theme.py season-check): re-applies the current theme when
+# its season has changed -- a month boundary, a new hemisphere, a pin. Most
+# ticks do nothing (a few file reads). Hourly rather than daily so a check
+# held by a game on screen, or a machine asleep at midnight, catches up
+# within the hour; Persistent catches up after a power-off. Not
+# theme-schedule.timer: `theme-schedule.py off` disables that one, and the
+# season must still turn with the day/night schedule off.
+[Unit]
+Description=Seasonal theme check
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Timer]
+OnActiveSec=30s
+OnCalendar=*-*-* *:00:30
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=graphical-session.target

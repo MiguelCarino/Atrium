@@ -1,0 +1,227 @@
+/* ===========================================================================
+   SEASONS -- the launcher, quick note and clipboard (~/.config/hypr/scripts/
+   launcher.css). Copied to waybar/generated/theme-launcher.css by theme.py
+   and imported LAST, with the season's palette.css
+   (season/<s>/palette.css: the 23 @s-* names) written in above this text.
+
+   A page of a field notebook: the card is the season's opaque card colour
+   (@s-card) with a 1 px @s-rule hairline round it and 14 px corners; the
+   search line, the best match and the tiles are 10 px plates on it. No
+   scan strip, no gloss, no glow, no text shadow. The search box is a well
+   on @s-floor with an accent caret and, when focused, a 2 px accent
+   underline. The best match, when chosen, is a raised plate (@s-raised)
+   with a 2 px accent bar at its left (an inset shadow, so the text does not
+   move); a chosen tile is the raised plate with the 2 px accent underline,
+   the theme's one "this one" mark. Subtitles are @s-dim; the "nothing
+   found" line and the key hint are small-capital running heads (Alegreya
+   Sans "smcp, c2sc"), the heading in the season's second hue @s-hue2.
+   Nothing in this file writes a season's hex: every colour is an @s-* name
+   or @cyan (the accent, theme.conf accent= of the season), so all four
+   seasons share it and no size can move between them.
+
+   @magenta is the BAD colour here (the spec's base redefinition, as in
+   waybar.css), so every base rule that drew it as structure -- the caret,
+   the card's bottom edge, the selection gradient's end, the search glyph,
+   the text selection -- is repeated below with the accent or a hairline.
+
+   Weights: Alegreya Sans has no SemiBold, so the base's 600 is asked for as
+   500 (Medium) explicitly; the hero name stays Bold (700).
+
+   HDR: the card is opaque and dark, L 0.010 / 0.009 / 0.007 / 0.007
+   (spring / summer / autumn / winter); the raised plate 0.019 / 0.016 /
+   0.012 / 0.014; the well 0.005 / 0.005 / 0.004 / 0.003. The only light
+   pixels are text and the 2 px accent marks.
+
+   Contrast, WCAG, spring / summer / autumn / winter:
+     on the card: text 13.8 / 15.0 / 14.5 / 15.2, dim 8.4 / 8.4 / 7.9 / 7.7,
+       the accent 9.4 / 9.6 / 8.2 / 10.3, the hue2 heading 9.2 / 11.9 /
+       8.4 / 8.6, the hero name (readout) 15.1 / 16.2 / 16.1 / 16.7
+     in the well (@s-floor): typed text (readout) 16.6 / 17.5 / 17.2 /
+       18.0, the placeholder (dim) 9.2 / 9.1 / 8.4 / 8.4; a text selection
+       (30% accent over the floor) under the readout 8.5 / 9.0 / 9.6 / 9.2
+     on the chosen plate (@s-raised): name 13.3 / 14.5 / 14.8 / 14.9,
+       subtitle (dim) 7.4 / 7.5 / 7.3 / 6.9, the accent bar 8.3 / 8.6 /
+       7.6 / 9.2 (a UI mark, >= 3)
+     a hovered tile (10% accent into the card): text 11.4 / 12.4 / 12.3 /
+       12.6
+     the key cap (on the floor): dim 9.2 / 9.1 / 8.4 / 8.4, the accent when
+       chosen 10.3 / 10.4 / 8.8 / 11.1
+   The hairlines (@s-rule 1.5-1.6, @s-rule-hi 2.1-2.5 on the card) are
+   decoration: no state depends on them.
+   =========================================================================== */
+
+/* --- PALETTE: the base names, in the season ------------------------------------ */
+@define-color magenta     @s-bad;          /* bad only; its structural uses are below */
+@define-color violet      @s-rule-hi;      /* the scrollbar (repainted below) */
+@define-color mist        @s-dim;
+@define-color sel-mid     @s-raised;
+@define-color scan-1      @s-rule;         /* unused (the strip is off below); */
+@define-color scan-2      @s-rule;         /* defined so nothing falls back to neon */
+@define-color scan-3      @s-rule;
+@define-color scan-4      @s-rule;
+@define-color scan-5      @s-rule;
+@define-color surface     @s-card;         /* opaque: the numbers hold over any window */
+@define-color groove      @s-floor;
+@define-color edge        @s-rule;
+@define-color edge-lit    @s-rule-hi;
+@define-color text        @s-text;
+@define-color text-dim    @s-dim;
+@define-color text-bright @s-readout;      /* typed text and the hero name, never #ffffff */
+@define-color ink         @s-readout;      /* text on a chosen plate: the plate stays dark */
+/* GTK3 draws an entry's placeholder in this name when the provider has it,
+   else a fixed #808080: the dim label colour instead (9.2 / 9.1 / 8.4 / 8.4
+   in the well). */
+@define-color placeholder_text_color @s-dim;
+
+@define-color se-hover    mix(@s-card, @cyan, 0.10);
+@define-color se-sel      mix(@s-floor, @cyan, 0.30);
+
+* {
+    font-weight: 500;
+}
+
+/* --- The card: a notebook page ------------------------------------------------ */
+#card {
+    border-radius: 14px;
+    border: 1px solid @s-rule;
+    border-bottom: 1px solid @s-rule;
+    animation: none;
+    background-color: @s-card;
+    background-image: none;
+    box-shadow: 0 4px 14px alpha(@s-floor, 0.60);
+}
+
+/* --- Search: the well ------------------------------------------------------- */
+#search {
+    border-radius: 10px;
+    border: 1px solid @s-rule;
+    border-bottom: 1px solid @s-rule;
+    background-color: @s-floor;
+    caret-color: @cyan;
+    color: @s-readout;
+    font-weight: 400;
+}
+
+#search:focus {
+    border-color: @s-rule-hi;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+#search image {
+    color: @cyan;
+}
+
+#search selection {
+    background-color: @se-sel;
+    color: @s-readout;
+}
+
+/* --- The best match --------------------------------------------------------- */
+#hero {
+    border-radius: 10px;
+    border: 1px solid @s-rule;
+    border-left: 1px solid @s-rule;
+    background-color: @s-card;
+    background-image: none;
+    transition: background-color 160ms ease-out, border-color 160ms ease-out,
+                box-shadow 160ms ease-out;
+}
+
+#hero.selected {
+    background-color: @s-raised;
+    background-image: none;
+    border-color: @s-rule-hi;
+    border-left-color: @s-rule-hi;
+    box-shadow: inset 2px 0 0 @cyan;
+}
+
+label.hero-name {
+    font-weight: 700;
+    color: @s-readout;
+}
+
+label.hero-sub {
+    color: @s-dim;
+}
+
+/* The key hint ("Enter"): a small-capital key cap on the floor. */
+label.hero-hint {
+    font-feature-settings: "smcp, c2sc";
+    letter-spacing: 0.04em;
+    color: @s-dim;
+    background-color: @s-floor;
+    border: 1px solid @s-rule-hi;
+    border-radius: 6px;
+}
+
+#hero.selected label.hero-name,
+#hero.selected label.clip-hero-text { color: @s-readout; }
+#hero.selected label.hero-sub       { color: @s-dim; }
+#hero.selected label.hero-hint {
+    color: @cyan;
+    border-color: @s-rule-hi;
+}
+
+/* "Nothing found" and the clipboard's empty line: the launcher's one
+   heading, a running head in small capitals and the season's second hue. */
+label.empty {
+    font-feature-settings: "smcp, c2sc";
+    letter-spacing: 0.06em;
+    color: @s-hue2;
+}
+
+/* --- Tiles: plates; the 2 px accent underline marks the chosen one ----------- */
+.tile {
+    border-radius: 10px;
+    background-color: @s-card;
+    background-image: none;
+    border: 1px solid @s-rule;
+    border-bottom: 1px solid @s-rule;
+    transition: background-color 140ms ease-out, border-color 140ms ease-out;
+}
+
+.tile:hover {
+    background-color: @se-hover;
+    border-color: @s-rule-hi;
+    border-bottom-color: @s-rule-hi;
+}
+
+.tile.selected,
+.tile.selected:hover {
+    background-color: @s-raised;
+    background-image: none;
+    border: 1px solid @s-rule-hi;
+    border-bottom: 1px solid @s-rule-hi;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+label.tile-name {
+    color: @s-text;
+}
+
+.tile.selected label.tile-name {
+    color: @s-readout;
+    font-weight: 700;
+}
+
+.tile.selected label.clip-text {
+    color: @s-readout;
+}
+
+.tile.selected label.clip-caption {
+    color: @s-dim;
+}
+
+/* The clipboard's captions are times and sizes: lining, tabular figures,
+   so Alegreya's old-style numerals do not bob along the row. */
+label.clip-caption {
+    font-feature-settings: "tnum, lnum";
+}
+
+/* The slider: the bright hairline half-way to dim, 4.3-4.8:1 on the card
+   (the hairline alone is 2.1-2.5, too faint for a control). */
+scrollbar slider {
+    min-width: 3px;
+    border-radius: 2px;
+    background-color: mix(@s-rule-hi, @s-dim, 0.5);
+}

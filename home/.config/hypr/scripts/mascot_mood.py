@@ -4,8 +4,10 @@
     mascot_mood.py                    what she would feel and say right now,
                                       and every signal behind it
     mascot_mood.py --text "TEXT"      the word matcher's reading of TEXT
-    mascot_mood.py --set K=on|off...  switch moods (enabled), random_only or
-                                      a signal on or off (Settings below)
+    mascot_mood.py --set K=on|off...  switch moods (enabled), random_only, a
+                                      signal or a reaction group on or off,
+                                      reduce_motion on, off or auto
+                                      (Settings below)
 
 llm-chat.py keeps one Mood and asks it, every frame, for a View:
 
@@ -53,12 +55,39 @@ Settings: ~/.local/state/hypr/mascot.json, every key optional --
      "signals": {"talk": true, "weather": true, "time": true,
                  "calendar": true, "workhours": true, "pc": true,
                  "chance": true},
-     "random_only": false}
+     "random_only": false,
+     "reactions": {"greetings": true, "notices": true, "feelings": true,
+                   "work": true, "stage": true},
+     "reduce_motion": "auto"}
 
 a signal set to false is never read; random_only leaves chance alone;
 enabled false is no mood at all (calm, no scenery, her plain lines). The
 chat window's mascot menu and the launcher's "Mascot: …" commands write it
 (save_settings); `mascot_mood.py --set weather=off random_only=on` too.
+
+reactions switches Mood.react's reactions in groups (REACTION_GROUPS):
+
+    greetings   hello, welcome_back, wake
+    notices     what a prompt holds: image, code, long_prompt, a question
+    feelings    the older talk reactions: thanks, worried, frustrated,
+                relieved, determined, proud, sad, and the quiet ones a tool
+                error or a finished run leave
+    work        tests_pass, tests_fail, commit, fast, busy, aborted, model
+    stage       a click on her: poke, poke_spam, pet
+
+A group that is off is skipped, not swallowed: the next reaction that
+applies is taken instead (greetings off, the session's first prompt with a
+code block in it still gets "code!"). The talk score, the counters (busy,
+the poke spam) and the permission reactions -- the window's own "waiting
+for a yes" -- go on regardless; the talk signal still gates every
+conversation reaction, and the calendar signal the event heads-up.
+
+reduce_motion is true, false or "auto" (the default): auto follows the
+desktop -- org.gnome.desktop.interface enable-animations, which the Settings
+Accessibility page's Reduce motion (accessibility.py motion on) turns off,
+as GNOME's own does. reduced_motion() is the answer in effect; the window
+then draws the emote steady (mascot_common.draw_emote: no pop, no float, no
+blink-out) and the stage at a third of its speed (mascots.calm_tick).
 """
 
 import datetime as dt
@@ -84,6 +113,21 @@ RUN = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
 STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hypr")
 SETTINGS = os.path.join(STATE_DIR, "mascot.json")
 SIGNALS = ("talk", "weather", "time", "calendar", "workhours", "pc", "chance")
+
+# The reaction groups (mascot.json "reactions"; module docstring). Topics by
+# name; "?question", "?error" and "?result" are the quiet reactions with no
+# topic of their own (a question, a tool error, a finished run).
+REACTION_GROUPS = {
+    "greetings": ("hello", "welcome_back", "wake"),
+    "notices": ("image", "code", "long_prompt", "?question"),
+    "feelings": ("thanks", "worried", "frustrated", "relieved", "determined", "proud", "sad",
+                 "?error", "?result"),
+    "work": ("tests_pass", "tests_fail", "commit", "fast", "busy", "aborted", "model"),
+    "stage": ("poke", "poke_spam", "pet"),
+}
+REACTIONS = tuple(REACTION_GROUPS)
+GROUP_OF = {topic: group for group, topics in REACTION_GROUPS.items() for topic in topics}
+MOTION_MODES = (True, False, "auto")
 
 WEATHER = os.path.join(RUN, "waybar-weather-raw.json")
 GPU_HIST = os.path.join(RUN, "waybar-sensors", "gpu.hist")
@@ -305,7 +349,10 @@ def read_text(text):
 
 def read_settings():
     """mascot.json with every key filled in: {"enabled", "random_only",
-    "signals": {name: bool}} -- the switches as set, before random_only."""
+    "signals": {name: bool}, "reactions": {group: bool}, "reduce_motion":
+    True | False | "auto"} -- the switches as set, before random_only. A
+    file from before reactions / reduce_motion existed reads as all on and
+    "auto"."""
     try:
         with open(SETTINGS) as fh:
             data = json.load(fh)
@@ -316,23 +363,38 @@ def read_settings():
     signals = {k: True for k in SIGNALS}
     if isinstance(data.get("signals"), dict):
         signals.update({k: bool(v) for k, v in data["signals"].items() if k in signals})
+    reactions = {k: True for k in REACTIONS}
+    if isinstance(data.get("reactions"), dict):
+        reactions.update({k: bool(v) for k, v in data["reactions"].items() if k in reactions})
+    motion = data.get("reduce_motion", "auto")
+    if motion not in MOTION_MODES:
+        motion = "auto"
     return {"enabled": bool(data.get("enabled", True)),
             "random_only": bool(data.get("random_only", False)),
-            "signals": signals}
+            "signals": signals, "reactions": reactions, "reduce_motion": motion}
 
 
-def save_settings(enabled=None, random_only=None, **signals):
-    """Change some switches (signals by name: weather=False) and write
-    mascot.json whole; returns read_settings() after."""
+def save_settings(enabled=None, random_only=None, reduce_motion=None, **switches):
+    """Change some switches -- signals and reaction groups by name:
+    weather=False, stage=False; reduce_motion True, False or "auto" -- and
+    write mascot.json whole; returns read_settings() after."""
     cur = read_settings()
     if enabled is not None:
         cur["enabled"] = bool(enabled)
     if random_only is not None:
         cur["random_only"] = bool(random_only)
-    for k, v in signals.items():
-        if k not in SIGNALS:
-            raise ValueError(f"no signal {k!r} (one of {', '.join(SIGNALS)})")
-        cur["signals"][k] = bool(v)
+    if reduce_motion is not None:
+        if reduce_motion not in MOTION_MODES:
+            raise ValueError(f"reduce_motion is on, off or auto, not {reduce_motion!r}")
+        cur["reduce_motion"] = reduce_motion
+    for k, v in switches.items():
+        if k in SIGNALS:
+            cur["signals"][k] = bool(v)
+        elif k in REACTIONS:
+            cur["reactions"][k] = bool(v)
+        else:
+            raise ValueError(f"no signal or reaction group {k!r} (one of "
+                             f"{', '.join(SIGNALS + REACTIONS)})")
     os.makedirs(STATE_DIR, exist_ok=True)
     tmp = SETTINGS + ".tmp"
     with open(tmp, "w") as fh:
@@ -351,6 +413,47 @@ def load_settings():
     if cur["random_only"]:
         return {k: k == "chance" for k in SIGNALS}
     return cur["signals"]
+
+
+def load_reactions():
+    """The reaction groups in effect: all off with the moods off."""
+    cur = read_settings()
+    if not cur["enabled"]:
+        return {k: False for k in REACTIONS}
+    return cur["reactions"]
+
+
+def desktop_reduce_motion():
+    """True when the desktop asks for no animations: GNOME's
+    org.gnome.desktop.interface enable-animations is false (accessibility.py
+    motion on sets it so). Gio first -- a looked-up schema, since
+    Gio.Settings.new on a missing one aborts the process -- else `gsettings
+    get`; False when neither can say."""
+    try:
+        import gi
+        gi.require_version("Gio", "2.0")
+        from gi.repository import Gio
+        source = Gio.SettingsSchemaSource.get_default()
+        schema = source.lookup("org.gnome.desktop.interface", True) if source else None
+        if schema is not None and schema.has_key("enable-animations"):
+            return not Gio.Settings.new("org.gnome.desktop.interface").get_boolean("enable-animations")
+    except Exception:
+        pass
+    try:
+        out = subprocess.run(["gsettings", "get", "org.gnome.desktop.interface", "enable-animations"],
+                             capture_output=True, text=True, timeout=2).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return out == "false"
+
+
+def reduced_motion(cur=None, desktop=desktop_reduce_motion):
+    """The reduce-motion answer in effect: mascot.json's reduce_motion, or
+    the desktop's (desktop(), only asked for "auto") when it is "auto"."""
+    mode = (cur or read_settings())["reduce_motion"]
+    if mode == "auto":
+        return bool(desktop())
+    return bool(mode)
 
 
 def _json(path, max_age=None):
@@ -618,9 +721,17 @@ class Mood:
     """See the module docstring. Thread use: refresh() may run on a worker
     thread; it only swaps self._env (one assignment) when done."""
 
-    def __init__(self, signals=None, clock=time.time, rng=None):
+    def __init__(self, signals=None, clock=time.time, rng=None, reactions=None, calm=None):
+        # Given signals (the tests) mean every reaction group on and full
+        # motion unless also given: the user's mascot.json stays out of it.
         self.signals = signals or load_settings()
         self.enabled = read_settings()["enabled"] if signals is None else True
+        if reactions is None:
+            reactions = load_reactions() if signals is None else {k: True for k in REACTIONS}
+        self.reactions = dict(reactions)
+        # reduced_motion() in effect (the window reads it): refresh() asks
+        # again, so a desktop switch reaches an open window within a minute.
+        self.calm = (reduced_motion() if signals is None else False) if calm is None else bool(calm)
         self.clock = clock
         self.rng = rng or random.Random()
         self._env = {"now": dt.datetime.now(), "hour": dt.datetime.now().hour}
@@ -649,7 +760,10 @@ class Mood:
         """Re-read the surroundings. Blocking (EDS, gamemoded): call it off
         the main loop. Returns True when the scene changed."""
         self.signals = load_settings()
-        self.enabled = read_settings()["enabled"]
+        cur = read_settings()
+        self.enabled = cur["enabled"]
+        self.reactions = load_reactions()
+        self.calm = reduced_motion(cur)
         env = surroundings(signals=self.signals, cal_sources=cal_sources)
         scene = scene_of(env, self.signals)
         with self._lock:
@@ -676,7 +790,10 @@ class Mood:
           "tick"          a run is going: the long-run reaction
           "permission", "permission_allowed", "permission_denied"
           "model"         name: the model you just picked
-          "poke", "pet"   a click / double click on the mascot."""
+          "poke", "pet"   a click / double click on the mascot.
+        Each reaction belongs to a group (REACTION_GROUPS) and is skipped
+        while its group is off; where several could answer an event, the
+        first whose group is on does (_first)."""
         now = self.clock()
         talk_on = self.signals.get("talk", True)
         if event not in ("tick", "reply"):
@@ -695,24 +812,16 @@ class Mood:
             score, thanks, question = read_text(text)
             self._nudge(score * 2.0)
             body = text or ""
-            if thanks:
-                self._react("shy", "thanks", now)
-            elif score <= -0.3:
-                self._react("worried", "worried", now)
-            elif first:
-                self._react("happy", "hello", now)
-            elif away:
-                self._react("happy", "welcome_back", now)
-            elif idle_for > DOZE_S:
-                self._react("excited", "wake", now, hold=REACT_S / 2)
-            elif images:
-                self._react("curious", "image", now, hold=REACT_S / 2)
-            elif "```" in body:
-                self._react("focused", "code", now, hold=REACT_S / 2)
-            elif len(body) >= LONG_PROMPT:
-                self._react("excited", "long_prompt", now, hold=REACT_S / 2)
-            elif question:
-                self._react("curious", None, now, hold=REACT_S / 2)
+            half = REACT_S / 2
+            self._first(now, (thanks, "shy", "thanks", REACT_S),
+                        (score <= -0.3, "worried", "worried", REACT_S),
+                        (first, "happy", "hello", REACT_S),
+                        (away, "happy", "welcome_back", REACT_S),
+                        (idle_for > DOZE_S, "excited", "wake", half),
+                        (images, "curious", "image", half),
+                        ("```" in body, "focused", "code", half),
+                        (len(body) >= LONG_PROMPT, "excited", "long_prompt", half),
+                        (question, "curious", "?question", half))
         elif event == "reply":
             if talk_on:
                 score, _, _ = read_text(text)
@@ -721,49 +830,42 @@ class Mood:
             self.tools_this_run += 1
             if talk_on and self.tools_this_run >= BUSY_TOOLS and not self.busy_said:
                 self.busy_said = True
-                self._react("focused", "busy", now, hold=REACT_S / 2)
+                self._first(now, (True, "focused", "busy", REACT_S / 2))
         elif event == "tool_error":
             self.errors_in_row += 1
             self.errors_this_run += 1
             if talk_on:
                 topic = tool_topic(tool, command, output, True)
-                if topic:
-                    self._react("worried", topic[0], now)
-                elif self.errors_in_row >= 2:
-                    self._react("worried", "frustrated", now)
-                else:
-                    self._react("worried", None, now, hold=REACT_S / 2)
+                self._first(now, (topic, "worried", topic and topic[0], REACT_S),
+                            (self.errors_in_row >= 2, "worried", "frustrated", REACT_S),
+                            (True, "worried", "?error", REACT_S / 2))
                 self._nudge(-0.15)
         elif event == "tool_ok":
             self.errors_in_row = 0
             topic = tool_topic(tool, command, output, False) if talk_on else None
             if topic == ("tests_fail",):
-                self._react("worried", "tests_fail", now)
+                self._first(now, (True, "worried", "tests_fail", REACT_S))
                 self._nudge(-0.15)
             elif topic:
-                self._react("excited", topic[0], now)
+                self._first(now, (True, "excited", topic[0], REACT_S))
                 self._nudge(0.15)
         elif event == "result_ok":
             if talk_on:
-                if self.errors_this_run:
-                    self._react("happy", "relieved", now)
-                elif duration and duration > 60:
-                    self._react("excited", "proud", now)
-                elif duration is not None and duration < FAST_S:
-                    self._react("happy", "fast", now, hold=REACT_S / 2)
-                else:
-                    self._react("happy", None, now, hold=REACT_S / 2)
+                self._first(now, (self.errors_this_run, "happy", "relieved", REACT_S),
+                            (duration and duration > 60, "excited", "proud", REACT_S),
+                            (duration is not None and duration < FAST_S, "happy", "fast", REACT_S / 2),
+                            (True, "happy", "?result", REACT_S / 2))
                 self._nudge(0.2)
             self.run_started = None
         elif event == "result_error":
             if talk_on:
-                self._react("sad", "sad", now)
+                self._first(now, (True, "sad", "sad", REACT_S))
                 self._nudge(-0.4)
             self.run_started = None
         elif event == "stopped":
             self.run_started = None
             if talk_on:
-                self._react("worried", "aborted", now, hold=REACT_S / 2)
+                self._first(now, (True, "worried", "aborted", REACT_S / 2))
         elif event == "permission":
             # Quiet (no line: the window's bubble asks), held until answered.
             self._react("curious", None, now, hold=PERMISSION_HOLD_S)
@@ -774,11 +876,13 @@ class Mood:
             self.reaction = None
             self._react("calm", None, now, hold=REACT_S / 2)
         elif event == "model":
-            if talk_on and name:
+            if talk_on and name and self.reactions.get("work", True):
                 self.reaction = ("curious", now + REACT_S / 2, ("model", name), EMOTES["model"], now)
         elif event == "poke":
             # Not gated by the talk signal: a click is a direct ask.
             self.pokes = [t for t in self.pokes if now - t < POKE_SPAM[1]] + [now]
+            if not self.reactions.get("stage", True):
+                return
             if len(self.pokes) >= POKE_SPAM[0]:
                 self.pokes = []
                 self.reaction = None
@@ -788,12 +892,25 @@ class Mood:
                 self._react("happy" if idle_for < DOZE_S else "excited", "poke", now, hold=REACT_S / 3)
         elif event == "pet":
             self.pokes = []
+            if not self.reactions.get("stage", True):
+                return
             self.reaction = None
             self._react("shy", "pet", now, hold=REACT_S / 2)
         elif event == "tick":
             if talk_on and self.run_started and not self.long_said and now - self.run_started > 60:
                 self.long_said = True
-                self._react("focused", "determined", now)
+                self._first(now, (True, "focused", "determined", REACT_S))
+
+    def _first(self, now, *options):
+        """The first of (applies, mood, topic, hold) that applies and whose
+        group (GROUP_OF[topic]) is on is reacted with; True if one was. A
+        "?name" topic is a quiet reaction: no line, the mood's emote."""
+        for applies, mood, topic, hold in options:
+            if not applies or not self.reactions.get(GROUP_OF.get(topic), True):
+                continue
+            self._react(mood, None if topic.startswith("?") else topic, now, hold=hold)
+            return True
+        return False
 
     def _react(self, mood, topic, now, hold=REACT_S):
         # A quiet reaction (no line) does not cut a speaking one short: a
@@ -972,8 +1089,12 @@ def main(argv):
         changes = {}
         for arg in argv[1:]:
             key, _, val = arg.partition("=")
+            if key == "reduce_motion" and val == "auto":
+                changes[key] = "auto"
+                continue
             if val not in ("on", "off", "true", "false", "1", "0"):
-                print(f"mascot_mood: {arg}: want KEY=on or KEY=off", file=sys.stderr)
+                print(f"mascot_mood: {arg}: want KEY=on or KEY=off"
+                      + (" (or auto)" if key == "reduce_motion" else ""), file=sys.stderr)
                 return 2
             changes[key] = val in ("on", "true", "1")
         try:
@@ -990,6 +1111,10 @@ def main(argv):
     if env.get("work_end"):
         env["work_end"] = env["work_end"].strftime("%H:%M")
     print("signals:", ", ".join(k for k, v in m.signals.items() if v) or "none")
+    print("reactions:", ", ".join(k for k, v in m.reactions.items() if v) or "none")
+    mode = read_settings()["reduce_motion"]
+    print("reduce motion:", "on" if m.calm else "off",
+          "(follows the desktop)" if mode == "auto" else "(set here)")
     print("surroundings:", json.dumps(env, ensure_ascii=False, default=str))
     print("scene:", " ".join(sorted(m._scene)) or "-")
     v = m.view("idle")

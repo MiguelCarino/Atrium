@@ -1,0 +1,594 @@
+/* ===========================================================================
+   SEASONS -- the bar and the toolbox card (~/.config/waybar/style.css and
+   style-toolbox.css). Copied to waybar/generated/theme.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST, after the accent, so the
+   palette below wins over the base file's and the rules below win over its
+   rules of the same selector.
+
+   The look in one line: a field notebook through the year. Every pill is a
+   calm, rounded (radius 10) plate of OPAQUE dark -- the bar's own strip
+   stays a hole, as in every theme -- with
+
+     1. a 1px hairline round the plate (@s-rule), no gloss, no floor glow,
+        no outer glow, no text shadow;
+     2. the accent as a 2px UNDERLINE (an inset box-shadow, so nothing moves)
+        on whatever is on, open, running or focused -- the active workspace,
+        an open toolbox, a toggle that is on, a timer counting, the playing
+        player. The accent is the season's: spring blossom, summer lagoon,
+        autumn copper, winter frost (@cyan, from the season's theme.conf);
+     3. hover: a faint accent tint in the plate (@surface-hover, the accent
+        10% into the surface) and the lighter hairline -- a change of light;
+     4. the date in Alegreya Sans small caps, like an almanac's running head;
+        the clock and the workspace numbers in Alegreya Sans with tabular
+        lining figures ("tnum", "lnum": Alegreya's default figures are
+        old-style, which would bob in the clock), everything else in Alegreya
+        Sans (theme.conf font=; theme.py swaps it, IBM Plex Sans as fallback,
+        into every base rule).
+
+   NO COLOUR IS WRITTEN HERE. theme.py puts the season's palette.css
+   (~/.config/themes/seasons/season/<season>/palette.css: the 22 s-* names)
+   before this file, and every colour below is one of those names, @cyan, a
+   base name redefined from them, or a mix() of them -- so the same rules
+   are right in all four seasons, and a season change is a palette change.
+   Nothing in this file changes with the season except through those names:
+   sizes, padding and faces hold still, so the bar never moves.
+
+   HDR: the pills are DARK and OPAQUE: @s-surface, luminance 0.007-0.010 in
+   every season, whatever picture is behind. Measured (WCAG), the range over
+   the four seasons, on the plate (S) and on the hover tint (H, luminance
+   0.017-0.022):
+       text        s-text      13.9-15.4 / 11.5-12.7
+       text-dim    s-dim        7.8-8.5  /  6.5-7.0   (the date, idle pills)
+       text-bright s-readout   15.3-16.9              (readouts: clock, CPU / GPU)
+       accent      @cyan        8.3-10.4 /  7.0-8.6   (lit toggles; the underline)
+       good / warn as text  9.8-10.6 / 8.8-12.9; bad-fg 7.1-8.2 (s-bad itself,
+                            5.1-6.3, is for fills, edges and glyphs)
+   The toolbox card s-dense: text 14.5-15.9, dim 8.1-8.8. The hairlines
+   (s-rule 1.5-1.6, s-rule-hi 2.2-2.6) are decoration, not information:
+   every state they go with also changes the fill or carries the underline.
+   The only light fills are small ones, all opaque: the mic pill and a failed
+   health check (s-bad under s-ink, 5.3-6.7:1), the location pill and the
+   warn alerts (s-warn under ink, 9.2-13.2:1), the camera and REC pills
+   (s-rec under the readout, 6.9-7.3:1).
+
+   Accent rules: @cyan is the accent ROLE, never a status; each season's
+   accent is >= 26 dE (CIEDE2000) from its good, warn and bad (palette.css
+   has the per-season numbers). Red is only for real problems: muted audio,
+   a lost network, unpushed work, critical load, a capture running. The
+   base files' STRUCTURAL magenta (the CPU edge, the playing player, the
+   pending updates floor, the replay buffer, the power pill at rest) is put
+   back to the season's hue2 or the accent (the list is at the rule further
+   down), as orbit puts it back to steel and lofi to lilac. @magenta itself
+   is the bad colour.
+
+   Every wash that REPLACES the plate (a pill has one background-color) is
+   opaque too -- the hue mixed into s-surface -- so a state pill never lets
+   the wallpaper through and the numbers above hold over any picture.
+   =========================================================================== */
+
+/* --- PALETTE 1: hues (the base names, from the season's) --------------------
+   @cyan is the accent ROLE from the season's theme.conf, not redefined here. */
+@define-color magenta    @s-bad;
+@define-color yellow     @s-warn;
+@define-color green      @s-good;
+@define-color purple     @s-hue2;    /* UTC clock, work hours */
+@define-color red        @s-bad;     /* the capture glyph's red */
+@define-color mist       @s-dim;
+@define-color steel      @s-dim;
+@define-color slate      @s-rule-hi;
+
+/* --- PALETTE 2: surfaces, edges, text ---------------------------------------- */
+@define-color surface        @s-surface;
+/* The hover tint: the accent 10% into the plate, opaque (luminance
+   0.017-0.022; text 11.5-12.7, accent 7.0-8.6 on it). The base uses this
+   name for exactly the plain pills' hover, so status pills keep their own. */
+@define-color surface-hover  mix(@s-surface, @cyan, 0.10);
+@define-color surface-dense  @s-dense;                 /* tray pill, toolbox card */
+@define-color surface-solid  @s-surface;               /* tray menu: a real popup */
+@define-color edge           @s-rule;
+@define-color edge-lit       @s-rule-hi;
+/* Accent WASH (a lit fsstate, tray-menu hover): opaque, still following
+   @cyan: the readout on it 10.5-11.7, the accent 6.0-7.1. */
+@define-color accent         mix(@s-surface, @cyan, 0.18);
+@define-color text           @s-text;
+@define-color text-dim       @s-dim;                   /* solid, not the base's alpha(mist) */
+@define-color text-bright    @s-readout;
+@define-color ink            @s-ink;
+@define-color ink-warn       @s-ink;
+
+/* --- PALETTE 3: workspaces: one quiet hue per screen -------------------------
+   The season's three quiet hues (spring sky / lilac / peach, summer sky /
+   sun gold / lavender, autumn dusk / plum / birch, winter silver / lilac /
+   ember), none of them the accent or a status. An unlit key's number is its
+   screen's hue (8.5-12.1:1 on S); the lit key is a 26% wash of the hue over
+   the plate -- the plate under the workspaces is opaque, so the wash is too
+   -- with the readout on it (8.0-10.0) and the accent underline (4.7-6.2 on
+   the wash: a 2px graphic, the floor is 3). */
+@define-color mon1-hue   @s-hue1;
+@define-color mon2-hue   @s-hue2;
+@define-color mon3-hue   @s-hue3;
+@define-color mon1       alpha(@mon1-hue, 0.26);
+@define-color mon1-dim   @s-hue1;
+@define-color mon2       alpha(@mon2-hue, 0.26);
+@define-color mon2-dim   @s-hue2;
+@define-color mon3       alpha(@mon3-hue, 0.26);
+@define-color mon3-dim   @s-hue3;
+@define-color mon-unknown alpha(@s-dim, 0.26);
+/* workspace-tint.py writes `color: @mon-unknown-dim` for a workspace with no
+   home screen; the base never defines it, so it is defined here. */
+@define-color mon-unknown-dim @s-dim;
+
+/* --- PALETTE 4: clock modes, status, alerts ----------------------------------
+   Each wash is its hue mixed into the opaque plate, so it replaces the plate
+   without letting the picture through. Measured fg on wash, four seasons: */
+@define-color utc        mix(@s-surface, @s-hue2, 0.14);    /* hue2:     6.7-8.7 */
+@define-color utc-fg     @s-hue2;
+@define-color epoch      mix(@s-surface, @s-epoch, 0.12);   /* epoch:  10.0-11.1 */
+@define-color epoch-fg   @s-epoch;
+@define-color good       mix(@s-surface, @s-good, 0.18);    /* good:     6.6-7.2 */
+@define-color good-fg    @s-good;
+@define-color warn       mix(@s-surface, @s-warn, 0.18);    /* warn:     6.3-8.3 */
+@define-color warn-fg    @s-warn;
+@define-color bad        mix(@s-surface, @s-bad, 0.18);     /* bad-fg:   5.7-6.5 */
+@define-color bad-fg     @s-bad-fg;
+/* Critical: the deep s-crit under the readout (7.8-8.3:1); the CPU / GPU
+   labels turn readout there too (color.cpu_hot / gpu_hot). So the blink
+   below ends on s-crit-dim under the same readout (13.6-14.3), not the
+   base's @magenta under @ink. */
+@define-color critical   @s-crit;
+@define-color rec-edge   alpha(@s-bad-fg, 0.60);
+@define-color rec-dim    @s-crit-dim;
+/* Night light: the season's hue3 (peach, lavender, birch, ember), not the
+   base's orange, which would sit on warn. Wash: hue3 7.3-8.9. */
+@define-color night      mix(@s-surface, @s-hue3, 0.14);
+@define-color night-fg   @s-hue3;
+@define-color night-edge @s-hue3;
+
+/* Text faces: Alegreya Sans has Regular 400, Medium 500 and Bold 700 -- no
+   SemiBold, so the base's 600 would land on Bold everywhere. The base
+   default is 600; here it is Medium, and each rule that wants weight asks
+   for 700 by name below. (Specific rules that say `normal` still win:
+   they outrank `*`.) */
+* {
+    font-weight: 500;
+}
+
+/* ---------------------------------------------------------------------------
+   The plate. Same selector list as the base file's shared pill, so this comes
+   later at equal specificity and wins. Only the properties that MAKE the
+   look are set: the radius, no floor gradient, no shadow. Colours stay the
+   base's per-pill rules (the state washes, the power pill).
+   --------------------------------------------------------------------------- */
+#clock,
+#custom-day,
+#custom-clock,
+#custom-updates,
+#custom-weather,
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#network,
+#custom-network,
+#pulseaudio,
+#backlight,
+#battery,
+#temperature,
+#tray,
+#custom-player,
+#privacy,
+#custom-fsstate,
+#custom-nightlight,
+#custom-awake,
+#custom-keybinds,
+#custom-settings,
+#custom-toolbox,
+#custom-power,
+#custom-capture,
+#custom-repos,
+#custom-timers,
+#custom-workhours,
+#custom-context,
+#custom-notifications,
+#custom-display,
+#language,
+#submap,
+#window {
+    border-radius: 10px;
+    background-image: none;
+    box-shadow: none;
+    text-shadow: none;
+    transition: background-color 160ms ease-out, box-shadow 160ms ease-out,
+                border-color 160ms ease-out;
+}
+
+/* Hover keeps the base's change (the tint, the lighter hairline all round)
+   and only makes sure no gradient comes back with it. */
+#clock:hover,
+#custom-day:hover,
+#custom-clock:hover,
+#custom-updates:hover,
+#custom-weather:hover,
+#custom-cpu:hover,
+#custom-gpu:hover,
+#custom-disk:hover,
+#network:hover,
+#custom-network:hover,
+#pulseaudio:hover,
+#tray:hover,
+#custom-player:hover,
+#privacy:hover,
+#custom-fsstate:hover,
+#custom-nightlight:hover,
+#custom-awake:hover,
+#custom-keybinds:hover,
+#custom-settings:hover,
+#custom-toolbox:hover,
+#custom-power:hover,
+#custom-repos:hover,
+#custom-timers:hover,
+#custom-workhours:hover,
+#custom-context:hover,
+#custom-notifications:hover,
+#custom-display:hover,
+#custom-capture:hover {
+    background-image: none;
+}
+
+/* Lit -- a toggle that is on, a timer counting, the project you are in,
+   the player playing: the 2px accent underline. (The base writes
+   `box-shadow: none` on several of these at id.class specificity; these
+   come later and win.) */
+#custom-toolbox.open,
+#custom-display.on,
+#custom-fsstate.mode-a,
+#custom-context.active,
+#custom-timers.timer,
+#custom-timers.alarm,
+#custom-timers.stopwatch,
+#custom-player.playing {
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+/* --- Joined capsules: [date | time | weather] and [updates | git | bell] ---
+   One plate each, square inside, 10px at its two outer ends; the parts
+   share a hairline seam (the base's is a faint cyan). */
+#custom-day,
+#custom-updates {
+    border-radius: 10px 0px 0px 10px;
+    border-right-color: @edge;
+}
+
+#custom-clock,
+#custom-repos {
+    border-radius: 0px;
+    border-left-color: @edge;
+    border-right-color: @edge;
+}
+
+#custom-weather,
+#custom-notifications {
+    border-radius: 0px 10px 10px 0px;
+    border-left-color: @edge;
+}
+
+/* --- Date and time ---------------------------------------------------------------
+   The clock: Alegreya Sans Medium in the readout colour, tabular LINING
+   figures (the base asks for tnum only; Alegreya's default figures are
+   old-style, and a 3 that drops below the line every minute would bob).
+   The date beside it is the almanac's running head: small caps (smcp, and
+   c2sc so the capitals shrink with them) in the label colour, a little
+   tracking. The base's font-size is kept: the bar's height must not move. */
+#custom-clock,
+#custom-clock.local {
+    font-weight: 500;
+    font-feature-settings: "tnum, lnum";
+    letter-spacing: 0.3px;
+    color: @text-bright;
+}
+
+#custom-day {
+    font-weight: 500;
+    font-feature-settings: "smcp, c2sc, tnum, lnum";
+    letter-spacing: 0.8px;
+    color: @text-dim;
+}
+
+/* UTC and epoch: second readouts, each in its own wash (above) with its own
+   hue as the bottom rule. The base draws epoch's edges in yellow, which
+   here is warn; the pale epoch colour instead. */
+#custom-clock.utc {
+    border-bottom-color: @s-hue2;
+}
+
+#custom-clock.epoch {
+    border-color: alpha(@s-epoch, 0.35);
+    border-bottom-color: @s-epoch;
+}
+
+/* --- Structural magenta, put back to hue2 / the accent ----------------------------
+   Changed from the base (where @magenta is structure, not "bad"):
+       #custom-cpu              edges: the hairline, an accent bottom rule (the label's hue)
+       #custom-gpu              edges: the hairline, a GPU-hue bottom rule (color.gpu)
+       #custom-player.playing   bottom edge -> the accent underline (lit, above)
+       #custom-updates.pending  bottom edge: the accent (the "something to do" floor)
+       #custom-recording.replay bottom edge: the light hairline (a quiet hint;
+                                set after the voice rules below, whose border
+                                shorthand would reset it)
+       #custom-power            at rest: neutral; bad only under the pointer
+   (panel.css does the same for the calendar's weekdays and the headings.)
+   The base's magenta uses that DO mean bad stay bad: muted audio, a lost
+   network, unpushed work, the fsstate error. */
+#custom-cpu {
+    border-color: @edge;
+    border-bottom-color: alpha(@cyan, 0.60);
+}
+
+#custom-gpu {
+    border-color: @edge;
+    border-bottom-color: alpha(@s-hue2, 0.60);
+}
+
+#custom-player.playing {
+    border-bottom-color: @edge-lit;
+}
+
+#custom-player {
+    font-weight: 700;
+}
+
+#window {
+    font-weight: 700;
+}
+
+#custom-updates.pending {
+    border-bottom-color: alpha(@cyan, 0.70);
+}
+
+/* --- CPU / GPU readouts ---------------------------------------------------------- */
+#custom-cpu,
+#custom-gpu {
+    color: @text-bright;
+    font-feature-settings: "tnum, lnum";
+}
+
+/* The base gives this a slate wash as its background-color, which would
+   replace the plate with a translucent one; the plain plate keeps the label
+   at 7.8-8.5:1. */
+#custom-gpu.unavailable {
+    background-color: @surface;
+    color: @text-dim;
+    border-bottom-color: @edge-lit;
+}
+
+/* --- Workspaces: one plate, small numbered tabs inside ----------------------------- */
+#workspaces {
+    border-radius: 10px;
+    background-image: none;
+    box-shadow: none;
+}
+
+/* Each tab: lining figures in its screen's hue, a 1px outline drawn INSIDE
+   (an inset shadow, so it adds no size), corners that nest in the plate's.
+   The tabs set the bar's height, as in the base (1px margins, zero vertical
+   padding): the base's 16px lays out 19 px tall in Alegreya Sans (a 1.20 em line), under
+   the GTK theme's 24px button min-height, so the bar stays at the base's
+   36 px. No min-height here: a smaller one would lower that floor. */
+#workspaces button {
+    font-weight: 700;
+    font-feature-settings: "tnum, lnum";
+    padding: 0px 8px;
+    margin: 1px 2px;
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px alpha(@s-rule, 0.80);
+    transition: background-color 160ms ease-out, color 160ms ease-out,
+                box-shadow 160ms ease-out;
+}
+
+#workspaces button:hover {
+    color: @text;
+    box-shadow: inset 0 0 0 1px @edge-lit;
+}
+
+/* The lit tab: its screen's wash (the generated rules), the readout, the
+   light outline and the accent underline -- no gloss. */
+#workspaces button.active,
+#workspaces button.active:hover {
+    color: @text-bright;
+    background-image: none;
+    box-shadow: inset 0 -2px 0 @cyan, inset 0 0 0 1px @edge-lit;
+}
+
+/* Urgent: the base's critical fill under the readout (7.8-8.3:1). */
+#workspaces button.urgent,
+#workspaces button.active.urgent {
+    color: @text-bright;
+    box-shadow: inset 0 0 0 1px alpha(@s-bad, 0.80);
+}
+
+/* --- Toggles that are on: the accent as TEXT (8.3-10.4:1; 6.0-7.1 on its wash) -- */
+#custom-toolbox:hover,
+#custom-toolbox.open,
+#custom-display.on,
+#custom-fsstate.mode-a {
+    color: @cyan;
+}
+
+/* --- Power: a neutral plate at rest; bad under the pointer --------------------------
+   It ends the session, which is serious but not a fault, so it does not sit
+   red on the bar all day. Hovered: the bad-fg glyph, a bad underline. */
+#custom-power {
+    color: @text;
+    border-color: @edge;
+    border-bottom-color: @edge-lit;
+    background-image: none;
+}
+
+#custom-power:hover {
+    color: @bad-fg;
+    background-color: @s-raised;
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 @s-bad;
+}
+
+/* --- Privacy, recording, voice: small fills, readable at every moment -----------
+   Every fill is opaque, a light fill carries ink and a deep one the readout,
+   so text stays readable at both ends of a pulse (four seasons):
+       mic       s-bad, ink                5.3-6.7:1
+       camera    s-rec, readout            6.9-7.3:1
+       location  s-warn, ink               9.2-13.2:1
+       REC       s-rec, readout -> s-crit-dim 13.6-14.3
+       voice     s-crit, readout 7.8-8.3 -> s-crit-dim
+       doctor    warn: s-warn + ink; fail: s-bad + ink
+       tasks     attention: s-warn + ink */
+#custom-mic,
+#custom-camera,
+#custom-location,
+#custom-recording,
+#custom-voice,
+#custom-doctor,
+#custom-tasks,
+#custom-drives,
+#custom-phone {
+    border-radius: 10px;
+}
+
+#custom-mic.active      { background-color: @s-bad;  color: @ink;         border-color: alpha(@s-text, 0.30); }
+#custom-camera.active   { background-color: @s-rec;  color: @text-bright; border-color: alpha(@s-text, 0.30); }
+#custom-location.active { background-color: @s-warn; color: @ink-warn;    border-color: alpha(@s-text, 0.30); }
+
+#custom-recording,
+#custom-voice {
+    color: @text-bright;
+    border-color: alpha(@s-text, 0.30);
+}
+
+#custom-recording.recording {
+    background-color: @s-rec;
+    border-bottom-color: @s-bad-fg;
+}
+
+#custom-voice.recording {
+    background-color: @s-crit;
+}
+
+#custom-recording.replay,
+#custom-voice.busy,
+#custom-voice.captions {
+    color: @text-dim;
+    border-color: @edge;
+}
+
+/* The shorthand above resets all four edges; give the replay pill back its
+   quiet floor. */
+#custom-recording.replay {
+    border-bottom-color: @edge-lit;
+}
+
+/* The health / tasks / drives / phone pills: the hairline (the base's is
+   cyan), and ink on their light alert fills. */
+#custom-doctor,
+#custom-tasks,
+#custom-drives,
+#custom-phone {
+    border-color: @edge;
+    background-image: none;
+}
+
+#custom-doctor.warn,
+#custom-tasks.attention {
+    background-color: @s-warn;
+    color: @ink-warn;
+}
+
+#custom-doctor.fail {
+    background-color: @s-bad;
+    color: @ink;
+}
+
+#custom-phone.low {
+    color: @warn-fg;
+}
+
+/* --- The capture pill while recording -------------------------------------------
+   The base breathes the camera glyph down to alpha(@red, 0.30), nearly gone
+   on a dark plate. Here it breathes between s-bad (5.1-6.3:1) and s-bad a
+   third of the way to the readout (7.6-8.8:1): a change of light, never a
+   fade-out. Same keyframes name as the base: GTK keeps the last @keyframes
+   of a name, and this file comes after style.css. */
+#custom-capture.recording,
+#custom-capture.recording:hover {
+    color: @s-bad;
+    border-color: alpha(@s-bad, 0.70);
+}
+
+@keyframes cap-pulse {
+    to {
+        color: mix(@s-bad, @s-readout, 0.35);
+        border-color: alpha(@s-bad, 0.30);
+    }
+}
+
+/* The critical blink (CPU, GPU, battery), redefined for the reason given at
+   @critical above: both ends deep red under the readout. */
+@keyframes blink {
+    to {
+        background-color: @s-crit-dim;
+        color: @text-bright;
+        text-shadow: none;
+        box-shadow: none;
+    }
+}
+
+/* --- Tray menu: a real popup (no blur behind it), so a solid card ---------------
+   Hovered item: the accent wash under the readout (10.5-11.7:1). */
+#tray menu {
+    border: 1px solid @edge-lit;
+    border-radius: 10px;
+    padding: 4px;
+    background-color: @s-card;
+    background-image: none;
+    color: @text;
+}
+
+#tray menu menuitem {
+    border-radius: 6px;
+    padding: 4px 12px;
+}
+
+#tray menu menuitem:hover {
+    background-color: @accent;
+    color: @text-bright;
+}
+
+/* --- The toolbox card (style-toolbox.css) -----------------------------------------
+   By the bar's name class, so the main bar's own (unpainted) .modules-left
+   is never matched: this file is imported by both bars. A notebook card
+   (s-dense: text 14.5-15.9, dim 8.1-8.8), the hairline, the cards' 14px
+   corners, a soft black drop; widths are the base's (scripts/toolbox_fit.py
+   sizes the layer to them), so only the look changes here. */
+window#waybar.waybar-toolbox .modules-left {
+    border: 1px solid @edge;
+    border-radius: 14px;
+    background-color: @surface-dense;
+    background-image: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.50);
+}
+
+window#waybar.waybar-toolbox #custom-fsstate,
+window#waybar.waybar-toolbox #custom-nightlight,
+window#waybar.waybar-toolbox #custom-awake,
+window#waybar.waybar-toolbox #custom-display,
+window#waybar.waybar-toolbox #custom-keybinds,
+window#waybar.waybar-toolbox #custom-settings,
+window#waybar.waybar-toolbox #tray {
+    border-radius: 10px;
+}
+
+window#waybar.waybar-toolbox #tray {
+    /* Tray icons are the apps' own art (a white Steam, a black keyboard...):
+       a mid well, the light hairline 35% toward the label colour, keeps both
+       visible -- black 4.0-4.9:1, white 4.3-5.2:1, luminance 0.15-0.19 over
+       a small area. */
+    background-color: mix(@s-rule-hi, @s-dim, 0.35);
+    background-image: none;
+}

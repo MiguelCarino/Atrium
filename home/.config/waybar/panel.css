@@ -736,6 +736,16 @@ button.dev-pick.active label.dev-kind {
     color: alpha(@cyan, 0.65);
 }
 
+/* A pick with a second line (Settings' search results: the page, "in Theme"
+   under it) -- that line is .ctl-sub, whose dim colour is made for the card,
+   not for an .active pick, which several themes fill solid (lofi: #bfaebf on
+   the peach #f2a477, 1.03:1 -- invisible). It takes the pick's own colour,
+   a step quieter. */
+button.dev-pick.active label.ctl-sub {
+    color: inherit;
+    opacity: 0.8;
+}
+
 /* ===========================================================================
    Power panel (scripts/power_panel.py). Five big tiles. Lock / Suspend light
    cyan on hover like every other control; the three that end the session
@@ -1049,6 +1059,23 @@ button.sn-link {
     color: alpha(@text, 0.6);
 }
 
+/* Settings > Theme > Gallery's cards (settings_pages/themes.py). The current
+   theme's card is .active like any pick, but a pick's .active is a solid
+   accent FILL in most themes: over a 360 x 235 px card that is a large light
+   field on the HDR screen (lofi: a peach slab, luminance 0.47), and the
+   card's own labels (.ctl-title, .ctl-sub) keep their colours, so lofi's
+   about-line sat on the peach at 1.03:1 and the name at 1.5:1 -- unreadable.
+   A ring and a faint wash instead; the check mark in the name says it in
+   words. Four classes and an element outrank every theme's
+   button.dev-pick.active (three), so no theme needs a copy of this. */
+button.dev-pick.theme-card.active,
+button.dev-pick.theme-card.active:hover {
+    color: @text;
+    background-color: alpha(@cyan, 0.10);
+    background-image: none;
+    box-shadow: inset 0 0 0 2px @cyan;
+}
+
 /* Choice chips (themes, frames, filters, presets): every option looks like a
    button you can press, the chosen one filled and bold. */
 button.dev-pick.chip {
@@ -1140,6 +1167,86 @@ label.clk-big {
     background-color: alpha(@text, 0.05);
 }
 
+/* A paused alarm keeps its row, dimmed: there, but not going to ring. */
+.clk-row.clk-paused label.sn-label,
+.clk-row.clk-paused label.sn-value {
+    color: @text-dim;
+}
+
+/* The row's icon toggles that are on: the pinned world clock, a countdown
+   that rings. Outlined in the accent, like a picked chip but smaller. */
+.clk-row button.ctl-link.active {
+    color: @cyan;
+    border-color: @edge-lit;
+    background-color: alpha(@cyan, 0.10);
+}
+
+/* An alarm open in the in-place editor: framed, so it reads as one form. */
+.clk-row.clk-editing {
+    border: 1px solid @edge;
+    background-color: alpha(@text, 0.04);
+}
+
+/* Something ringing (under the readings, above the tabs): magenta, the
+   colour no other row of this card uses, so it is never read as the
+   accent's "picked". A thin wash, not a light field (the HDR screen). */
+.clk-ringing {
+    padding: 6px 8px;
+    margin-bottom: 8px;
+    border: 1px solid @magenta;
+    border-radius: 2px 8px 2px 8px;
+    background-color: alpha(@magenta, 0.12);
+}
+
+label.clk-ring-title {
+    color: @text;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+/* The meeting planner's strip: 24 small hour cells a side, ~15 px each at
+   the card's 420 px. Working hours a faint accent wash; the hours both
+   sides work green (a status, distinct from the accent); the current hour
+   in the accent's text colour; the picked one outlined. */
+button.clk-hour {
+    color: @text-dim;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9px;
+    min-width: 0px;
+    min-height: 18px;
+    padding: 0px;
+    margin: 0px;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    background-image: none;
+    background-color: alpha(@text, 0.04);
+    box-shadow: none;
+}
+
+button.clk-hour:hover,
+button.clk-hour:focus {
+    border-color: @edge;
+}
+
+button.clk-hour.work {
+    color: @text;
+    background-color: alpha(@cyan, 0.16);
+}
+
+button.clk-hour.both {
+    color: @text;
+    background-color: alpha(@green, 0.26);
+}
+
+button.clk-hour.now {
+    color: @cyan;
+    font-weight: bold;
+}
+
+button.clk-hour.active {
+    border-color: @edge-lit;
+}
+
 entry.clk-entry,
 entry.panel-entry {
     color: @text;
@@ -1170,6 +1277,100 @@ entry.clk-entry image,
 entry.panel-entry placeholder,
 entry.panel-entry image {
     color: @text-dim;
+}
+
+/* Every other text field, drop-down and number box on a card. Settings'
+   pages are a #panel too (settings.py), and their plain Gtk.Entry,
+   Gtk.SearchEntry, Gtk.ComboBoxText and Gtk.SpinButton had no rule here,
+   so GTK3's Adwaita drew them LIGHT -- white fields and pale drop-downs in
+   every dark theme: Settings > Automations was 12% near-white pixels, the
+   search box over the sidebar a white slab (seen in lofi and seasons). The
+   same look as the clock card's fields above. The id outranks those class
+   rules, so this repeats their declarations instead of overriding them; a
+   theme that wants its own fields says #panel entry (luna, win95). */
+#panel entry,
+#panel spinbutton {
+    color: @text;
+    caret-color: @cyan;
+    background-color: alpha(@text, 0.06);
+    background-image: none;
+    border: 1px solid alpha(@text, 0.18);
+    border-radius: 2px 8px 2px 8px;
+    box-shadow: none;
+    padding: 4px 8px;
+    min-height: 0px;
+}
+
+#panel entry:focus {
+    border-color: @edge-lit;
+    background-color: alpha(@text, 0.09);
+}
+
+/* A number box is one field: the entry inside it draws nothing. */
+#panel spinbutton entry,
+#panel spinbutton entry:focus {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0px;
+}
+
+#panel entry selection {
+    color: @ink;
+    background-color: @cyan;
+}
+
+#panel entry placeholder,
+#panel entry image {
+    color: @text-dim;
+}
+
+#panel combobox button,
+#panel spinbutton button {
+    color: @text;
+    background-color: alpha(@text, 0.06);
+    background-image: none;
+    border: 1px solid alpha(@text, 0.18);
+    box-shadow: none;
+    text-shadow: none;
+    -gtk-icon-shadow: none;
+}
+
+#panel spinbutton button {
+    border-width: 0px 0px 0px 1px;
+    border-radius: 0px;
+    background-color: transparent;
+}
+
+#panel combobox button:hover,
+#panel spinbutton button:hover {
+    background-color: alpha(@text, 0.12);
+    border-color: @edge-lit;
+}
+
+#panel combobox button:disabled,
+#panel spinbutton button:disabled {
+    color: @text-dimmer;
+}
+
+/* --- Git card (scripts/repos_panel.py: what the git pill opens) --------------
+   The keyboard's highlighted row: a 3 px accent bar down the left of its two
+   lines and the repo name in the accent. A bar, not a filled band, on purpose
+   -- the rows sit 2 px apart in a grid with 8 px between the columns, so a
+   band would come out striped, and a lit field that size is what the HDR
+   screen must not get (themes/README). Palette names only. */
+label.git-mark {
+    min-width: 3px;
+    border-radius: 2px;
+    background-color: transparent;
+}
+
+label.git-mark.git-on {
+    background-color: @cyan;
+}
+
+label.sn-value.git-hl {
+    color: @cyan;
 }
 
 /* Wallpaper accent (scripts/theme-from-wallpaper.py, ~/.config/hypr/scripts).

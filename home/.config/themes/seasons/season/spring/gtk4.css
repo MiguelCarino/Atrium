@@ -1,0 +1,33 @@
+/* ~/.config/themes/seasons/season/spring/gtk4.css -- the spring (blossom pinks and fresh greens)
+   values of the custom properties ../../gtk4.css is written in. theme.py
+   appends this file after that one, so these are the values libadwaita
+   resolves; the order of custom properties does not matter. The same 22
+   s-* values as palette.css (GTK3) plus --s-accent, the season's accent=
+   (blossom). Change a value here and in palette.css together; never a name.
+   The measured numbers for every season are in ../../gtk4.css. */
+
+:root {
+    --s-floor: #0c110e;
+    --s-dense: #101712;
+    --s-surface: #131b16;
+    --s-card: #141c17;
+    --s-raised: #1c2820;
+    --s-rule: #2c3d32;
+    --s-rule-hi: #46604f;
+    --s-text: #eee2e8;
+    --s-dim: #a9b8ad;
+    --s-readout: #f6edf1;
+    --s-ink: #1a0c12;
+    --s-good: #7fd66a;
+    --s-warn: #f2c14e;
+    --s-bad: #ff6a45;
+    --s-bad-fg: #ff8a6e;
+    --s-crit: #8a2414;
+    --s-crit-dim: #45120a;
+    --s-rec: #962a18;
+    --s-hue1: #a8c8f0;
+    --s-hue2: #c5b3f2;
+    --s-hue3: #f2c4a0;
+    --s-epoch: #f1e8c8;
+    --s-accent: #f4a8d0;
+}

@@ -1,0 +1,478 @@
+/* ===========================================================================
+   SEASONS -- libadwaita / GTK4 (Nautilus). Becomes ~/.config/gtk-4.0/gtk.css
+   (theme.py), with season/<s>/gtk4.css appended: that file is one :root
+   block holding the season's values of the --s-* custom properties used
+   below (the same 22 values as the GTK3 palette.css, plus --s-accent).
+   Custom properties resolve wherever they are defined in the sheet, so
+   this file names no season's colour at all and is the same all year;
+   washes are color-mix() of two of them, opaque. theme.conf keeps
+   gtk_color_scheme=prefer-dark, and this file sets every colour libadwaita
+   varies by scheme, as orbit's and lofi's do, so a running Nautilus draws
+   the same colours under either scheme.
+
+   Nautilus as a field notebook: OPAQUE panes (no translucency, so hypr.lua
+   sets no nautilus-glass rule), 1 px hairlines (--s-rule) between them,
+   10 px corners on plates, no gloss and no glow. The window face and the
+   dialogs are the floor, the file view the surface, the sidebar the dense
+   shade, the header bar and popovers the card. One accent per season --
+   blossom, lagoon, copper, frost -- marks "this one": the caret, the 2 px
+   underline of a hovered or focused control, the 2 px bar at the left of
+   the sidebar's chosen place, a selected file's wash. A selection is an
+   18% accent wash, never a lit block, so a grid of selected icons is no
+   light field. The title is Alegreya Sans Bold; "Files" over the sidebar a
+   small-capital running head. Source Code Pro for monospace.
+
+   Status colours stay apart from the accent (each at least 24 dE from it,
+   palette.css): success the season's good, warning its warn, error and
+   destructive its bad -- as text the lighter bad-fg, as a fill bad under
+   the ink.
+
+   HDR (DP-1), luminance of each large field, spring / summer / autumn /
+   winter: the view (surface) 0.010 / 0.009 / 0.007 / 0.007, the window
+   (floor) 0.005 / 0.005 / 0.004 / 0.003, the header (card) 0.010 / 0.009 /
+   0.007 / 0.007, the sidebar (dense) 0.008 / 0.006 / 0.005 / 0.005, a
+   selected-file wash 0.037 / 0.036 / 0.029 / 0.034. The only light pixels
+   are text and small fills (a suggested button, a switch, the progress).
+
+   Contrast, WCAG, spring / summer / autumn / winter:
+     text on the view 13.9 / 15.2 / 14.6 / 15.4, window 15.1 / 16.3 / 15.5
+       / 16.4, sidebar 14.5 / 15.8 / 15.0 / 15.9, header 13.8 / 15.0 / 14.5
+       / 15.2, a raised key 12.1 / 13.5 / 13.4 / 13.6
+     dim labels on the view 8.5 / 8.5 / 7.9 / 7.8, on a raised key 7.4 /
+       7.5 / 7.3 / 6.9; libadwaita's --dim-opacity (text at 55%) 5.0 / 5.3
+       / 5.1 / 5.3, kept
+     accent text on the view 9.5 / 9.7 / 8.3 / 10.4, header 9.4 / 9.6 /
+       8.2 / 10.3
+     status text on the view: success 9.8 / 10.5 / 10.1 / 10.6, warning
+       10.5 / 8.8 / 12.9 / 11.2, error (bad-fg) 7.6 / 7.8 / 7.1 / 8.2
+     ink on fills: accent 10.3 / 10.2 / 8.5 / 10.7, good 10.6 / 11.1 /
+       10.4 / 10.9, warn 11.3 / 9.2 / 13.2 / 11.6, bad 6.7 / 6.4 / 5.3 / 6.5;
+       on a hovered suggested button (25% toward the readout) 11.6 / 11.6 /
+       10.1 / 12.2, a hovered destructive one (bad-fg) 8.2 / 8.2 / 7.2 / 8.5
+     a selected file (18% accent into the view): the readout 10.5 / 11.1 /
+       11.7 / 11.5; the sidebar's chosen place (raised) 13.3 / 14.5 / 14.8
+       / 14.9
+     a hovered row (8% accent) text 12.1 / 13.2 / 12.9 / 13.2; a hovered
+       key (10% accent into raised) 9.9 / 10.9 / 11.1 / 11.0; a pressed /
+       checked key (18%) the readout 9.0 / 9.8 / 10.4 / 9.9
+   UI graphics: the accent focus line 8.3-10.4 on everything it touches; a
+   switch's knob (text) on its off track (rule) 9.2 / 9.7 / 9.8 / 9.9, the
+   ink knob on the accent track as above; the accent progress on its rule
+   trough 6.2 / 6.2 / 5.6 / 6.7; the scrollbar slider (rule-hi half-way to
+   dim) on the view 4.9 / 4.7 / 4.3 / 4.6. The hairlines (1.5-1.6, 2.1-2.5)
+   separate panes only.
+   =========================================================================== */
+
+:root {
+    --accent-bg-color: var(--s-accent);
+    --accent-fg-color: var(--s-ink);
+    --accent-color: var(--s-accent);
+
+    --destructive-bg-color: var(--s-bad);
+    --destructive-fg-color: var(--s-ink);
+    --destructive-color: var(--s-bad-fg);
+    --success-bg-color: var(--s-good);
+    --success-fg-color: var(--s-ink);
+    --success-color: var(--s-good);
+    --warning-bg-color: var(--s-warn);
+    --warning-fg-color: var(--s-ink);
+    --warning-color: var(--s-warn);
+    --error-bg-color: var(--s-bad);
+    --error-fg-color: var(--s-ink);
+    --error-color: var(--s-bad-fg);
+
+    --window-bg-color: var(--s-floor);
+    --window-fg-color: var(--s-text);
+    --view-bg-color: var(--s-surface);
+    --view-fg-color: var(--s-text);
+    --headerbar-bg-color: var(--s-card);
+    --headerbar-fg-color: var(--s-text);
+    --headerbar-border-color: var(--s-rule);
+    --headerbar-backdrop-color: var(--s-floor);
+    --headerbar-shade-color: color-mix(in srgb, var(--s-floor) 45%, transparent);
+    --headerbar-darker-shade-color: color-mix(in srgb, var(--s-floor) 60%, transparent);
+    --sidebar-bg-color: var(--s-dense);
+    --sidebar-fg-color: var(--s-text);
+    --sidebar-backdrop-color: var(--s-dense);
+    --sidebar-border-color: var(--s-rule);
+    --sidebar-shade-color: color-mix(in srgb, var(--s-floor) 40%, transparent);
+    --secondary-sidebar-bg-color: var(--s-dense);
+    --secondary-sidebar-fg-color: var(--s-text);
+    --secondary-sidebar-backdrop-color: var(--s-dense);
+    --secondary-sidebar-border-color: var(--s-rule);
+    --secondary-sidebar-shade-color: color-mix(in srgb, var(--s-floor) 40%, transparent);
+    --card-bg-color: var(--s-card);
+    --card-fg-color: var(--s-text);
+    --card-shade-color: color-mix(in srgb, var(--s-floor) 40%, transparent);
+    --overview-bg-color: var(--s-dense);
+    --overview-fg-color: var(--s-text);
+    /* Dark-scheme-only (the selected segment of a toggle group): a raised
+       plate with the readout. */
+    --active-toggle-bg-color: var(--s-raised);
+    --active-toggle-fg-color: var(--s-readout);
+    --thumbnail-bg-color: var(--s-card);
+    --thumbnail-fg-color: var(--s-text);
+    --dialog-bg-color: var(--s-floor);
+    --dialog-fg-color: var(--s-text);
+    --popover-bg-color: var(--s-card);
+    --popover-fg-color: var(--s-text);
+    --popover-shade-color: color-mix(in srgb, var(--s-floor) 55%, transparent);
+    --shade-color: color-mix(in srgb, var(--s-floor) 45%, transparent);
+    --scrollbar-outline-color: color-mix(in srgb, var(--s-floor) 50%, transparent);
+    --border-color: var(--s-rule);
+
+    --window-radius: 12px;
+    --document-font-family: "Alegreya Sans", "IBM Plex Sans";
+    --monospace-font-family: "Source Code Pro", "IBM Plex Mono";
+
+    /* This file's own washes, opaque mixes of the season's values. */
+    --se-hover: color-mix(in srgb, var(--s-accent) 8%, var(--s-surface));
+    --se-key-hover: color-mix(in srgb, var(--s-accent) 10%, var(--s-raised));
+    --se-checked: color-mix(in srgb, var(--s-accent) 18%, var(--s-raised));
+    --se-selected: color-mix(in srgb, var(--s-accent) 18%, var(--s-surface));
+    --se-accent-hover: color-mix(in srgb, var(--s-readout) 25%, var(--s-accent));
+    --se-slider: color-mix(in srgb, var(--s-dim) 50%, var(--s-rule-hi));
+}
+
+/* The UI face is a gsettings key (font-name), not a variable; a CSS rule
+   reaches every widget of these apps without touching the desktop-wide key.
+   Alegreya Sans has no SemiBold: libadwaita's 600s round to Bold, which
+   reads as intended for headings. */
+* {
+    font-family: "Alegreya Sans", "IBM Plex Sans", "Noto Color Emoji", sans-serif;
+}
+
+/* --- The header bar: the card, a hairline under it ------------------------------
+   Both panes' header bars, the sidebar's included, so they meet without a
+   seam; unfocused, the bar sinks to the window floor. */
+headerbar,
+.sidebar-pane headerbar,
+.content-pane headerbar,
+toolbarview > .top-bar headerbar,
+.sidebar-pane toolbarview > .top-bar headerbar {
+    background-color: var(--s-card);
+    background-image: none;
+    color: var(--s-text);
+    box-shadow: inset 0 -1px var(--s-rule);
+}
+
+headerbar:backdrop,
+.sidebar-pane headerbar:backdrop,
+.content-pane headerbar:backdrop,
+toolbarview > .top-bar headerbar:backdrop,
+.sidebar-pane toolbarview > .top-bar headerbar:backdrop {
+    background-color: var(--s-floor);
+}
+
+/* libadwaita fades an unfocused window's whole top bar to 50% (filter:
+   opacity), which would put the path bar -- content -- at text 50% over
+   the bar (about 4:1); off, the bar colour alone says "unfocused". */
+headerbar:backdrop > windowhandle,
+toolbarview > .top-bar:backdrop > windowhandle {
+    filter: none;
+}
+
+/* The title: a folder name, so its case is kept -- Bold, no small caps. */
+headerbar .title,
+headerbar label.title {
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+/* "Files" over the sidebar: the one short label that IS a running head --
+   small capitals in the dim label colour (8.4 / 8.4 / 7.9 / 7.7 on the card). */
+.sidebar-pane headerbar .title {
+    font-feature-settings: "smcp", "c2sc";
+    letter-spacing: 0.06em;
+    color: var(--s-dim);
+}
+
+/* --- Buttons: plates ------------------------------------------------------------- */
+button,
+headerbar button,
+.path-bar button,
+.linked > button,
+.linked > button:first-child,
+.linked > button:last-child,
+dropdown > button,
+menubutton > button,
+splitbutton > button,
+splitbutton > menubutton > button {
+    border-radius: 10px;
+}
+
+headerbar button:not(.flat),
+headerbar .linked > button,
+button:not(.flat):not(.suggested-action):not(.destructive-action) {
+    background-color: var(--s-raised);
+    background-image: none;
+    color: var(--s-text);
+    box-shadow: inset 0 0 0 1px var(--s-rule);
+}
+
+/* Hover: the hairline lights a step, a faint accent tint, and the 2 px
+   accent underline -- the theme's one focus mark. */
+button:hover,
+headerbar button:hover {
+    background-color: var(--se-key-hover);
+    box-shadow: inset 0 0 0 1px var(--s-rule-hi),
+                inset 0 -2px 0 var(--s-accent);
+}
+
+/* Pressed / toggled on: an 18% accent wash with the accent line; the
+   readout on it. */
+button:checked,
+button:active,
+button:not(.flat):checked,
+button:not(.flat):active {
+    background-color: var(--se-checked);
+    color: var(--s-readout);
+    box-shadow: inset 0 0 0 1px var(--s-rule-hi),
+                inset 0 -2px 0 var(--s-accent);
+}
+
+button.suggested-action {
+    box-shadow: inset 0 0 0 1px var(--s-accent);
+}
+
+button.suggested-action:hover {
+    background-color: var(--se-accent-hover);
+    box-shadow: inset 0 0 0 1px var(--s-accent);
+}
+
+button.destructive-action {
+    box-shadow: inset 0 0 0 1px var(--s-bad);
+}
+
+button.destructive-action:hover {
+    background-color: var(--s-bad-fg);
+    box-shadow: inset 0 0 0 1px var(--s-bad);
+}
+
+/* --- Window controls: a round plate; close goes the season's bad under the
+   pointer (it ends something), the ink glyph on it 6.7 / 6.4 / 5.3 / 6.5. ----- */
+windowcontrols > button > image {
+    border-radius: 999px;
+    background-color: var(--s-raised);
+    box-shadow: inset 0 0 0 1px var(--s-rule);
+}
+
+windowcontrols > button:hover > image {
+    background-color: var(--se-key-hover);
+    box-shadow: inset 0 0 0 1px var(--s-rule-hi);
+}
+
+windowcontrols > button.close:hover > image {
+    background-color: var(--s-bad);
+    color: var(--s-ink);
+    box-shadow: none;
+}
+
+windowcontrols > button:hover,
+windowcontrols > button:active {
+    box-shadow: none;
+    background-color: transparent;
+}
+
+/* --- Entries: wells on the floor, an accent caret, the accent line when focused - */
+entry,
+searchbar entry,
+spinbutton,
+.path-bar entry {
+    border-radius: 10px;
+    background-color: var(--s-floor);
+    color: var(--s-readout);
+    box-shadow: inset 0 0 0 1px var(--s-rule);
+    caret-color: var(--s-accent);
+}
+
+entry:focus-within,
+spinbutton:focus-within {
+    box-shadow: inset 0 0 0 1px var(--s-rule-hi),
+                inset 0 -2px 0 var(--s-accent);
+    outline: none;
+}
+
+/* --- Switches and checks --------------------------------------------------------- */
+switch {
+    border-radius: 999px;
+    background-color: var(--s-rule);
+    box-shadow: inset 0 0 0 1px var(--s-rule-hi);
+}
+
+switch:checked {
+    background-color: var(--s-accent);
+    box-shadow: none;
+}
+
+switch > slider {
+    border-radius: 999px;
+    background-color: var(--s-text);
+}
+
+switch:checked > slider {
+    background-color: var(--s-ink);
+}
+
+checkbutton check,
+checkbutton radio {
+    box-shadow: inset 0 0 0 1px var(--s-rule-hi);
+}
+
+checkbutton check {
+    border-radius: 4px;
+}
+
+/* --- The sidebar: places as notebook rows --------------------------------------- */
+.navigation-sidebar > row {
+    border-radius: 10px;
+    margin: 1px 6px;
+}
+
+.navigation-sidebar > row:hover {
+    background-color: var(--se-hover);
+}
+
+/* Chosen: a raised row with a 2 px accent bar at its left, the readout. */
+.navigation-sidebar > row:selected,
+.navigation-sidebar > row:selected:hover {
+    background-color: var(--s-raised);
+    color: var(--s-readout);
+    box-shadow: inset 2px 0 0 var(--s-accent);
+}
+
+.navigation-sidebar > row:selected label,
+.navigation-sidebar > row:selected image {
+    color: var(--s-readout);
+}
+
+/* --- Files: an accent wash and a hairline of it when selected --------------------- */
+gridview > child,
+listview > row,
+columnview > listview > row {
+    border-radius: 10px;
+}
+
+gridview > child:hover,
+listview > row:hover,
+columnview > listview > row:hover {
+    background-color: var(--se-hover);
+}
+
+gridview > child:selected,
+gridview > child:selected:hover {
+    background-color: var(--se-selected);
+    color: var(--s-readout);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--s-accent) 60%, var(--s-surface));
+}
+
+listview > row:selected,
+columnview > listview > row:selected,
+list > row:selected {
+    background-color: var(--se-selected);
+    color: var(--s-readout);
+}
+
+gridview > child:selected label,
+listview > row:selected label,
+columnview > listview > row:selected label {
+    color: var(--s-readout);
+}
+
+.dim-label,
+columnview label.dim-label {
+    color: var(--s-dim);
+    opacity: 1;
+}
+
+/* Sizes and dates in the list view: lining, tabular figures, so a column
+   of numbers lines up (Alegreya Sans' default figures are old-style). */
+columnview label.numeric,
+.numeric {
+    font-feature-settings: "tnum", "lnum";
+}
+
+rubberband {
+    background-color: color-mix(in srgb, var(--s-accent) 12%, transparent);
+    border: 1px solid var(--s-accent);
+    border-radius: 4px;
+}
+
+/* Pane separators: the hairline. */
+separator,
+paned > separator {
+    background-color: var(--s-rule);
+}
+
+/* --- Floating things: cards with a hairline --------------------------------------- */
+popover > contents,
+popover.menu > contents {
+    border-radius: 14px;
+    box-shadow: inset 0 0 0 1px var(--s-rule),
+                0 4px 14px color-mix(in srgb, var(--s-floor) 60%, transparent);
+}
+
+popover.menu modelbutton {
+    border-radius: 8px;
+}
+
+popover.menu modelbutton:hover,
+popover.menu modelbutton:selected {
+    background-color: var(--s-raised);
+    color: var(--s-readout);
+    box-shadow: inset 2px 0 0 var(--s-accent);
+}
+
+toast {
+    border-radius: 10px;
+    background-color: var(--s-card);
+    color: var(--s-text);
+    box-shadow: inset 0 0 0 1px var(--s-rule-hi),
+                inset 0 -2px 0 var(--s-accent),
+                0 4px 14px color-mix(in srgb, var(--s-floor) 60%, transparent);
+}
+
+tooltip,
+tooltip > * {
+    border-radius: 6px;
+}
+
+tooltip {
+    background-color: var(--s-floor);
+    color: var(--s-text);
+    box-shadow: inset 0 0 0 1px var(--s-rule-hi);
+}
+
+/* --- Scrollbars and progress ------------------------------------------------------ */
+scrollbar slider {
+    background-color: var(--se-slider);
+    border-radius: 999px;
+}
+
+scrollbar slider:hover {
+    background-color: var(--s-dim);
+}
+
+scrollbar slider:active {
+    background-color: var(--s-accent);
+}
+
+progressbar > trough,
+levelbar trough {
+    background-color: var(--s-rule);
+    border-radius: 999px;
+}
+
+progressbar > trough > progress,
+levelbar block.filled {
+    background-color: var(--s-accent);
+    border-radius: 999px;
+}
+
+levelbar block.empty {
+    background-color: var(--s-raised);
+}
+
+*:focus-visible {
+    outline-color: color-mix(in srgb, var(--s-accent) 70%, transparent);
+}

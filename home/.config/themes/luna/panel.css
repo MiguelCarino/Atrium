@@ -894,3 +894,46 @@ button.pw-tile.live.cap-rec-range label.pw-label {
 .about-hero label.about-sub {
     color: @text-dim;
 }
+
+/* --- The clock card (clock_panel.py) ------------------------------------------
+   Its four tabs (World / Alarms / Timer / Stopwatch) are chips straight
+   under the card, so the command rule above (#panel > box > button.dev-pick:
+   an id) outranked button.dev-pick.chip.active, and the open tab drew as the
+   same light push button as the other three -- nothing said which tab was
+   open (seen on the live card). The id again, so the open one is the
+   selection blue under white text like every other chosen chip (@l-sel
+   #316ac5, 5.3:1). */
+#panel > box.clk-tabs > button.dev-pick.chip.active,
+#panel > box.clk-tabs > button.dev-pick.chip.active:hover {
+    color: #ffffff;
+    font-weight: bold;
+    background-color: @l-sel;
+    background-image: none;
+    border: 1px solid @l-title-lo;
+    box-shadow: none;
+}
+
+/* The card's commands (Add, Set alarm, Start, Lap, Reset / Pause / Resume)
+   sit in plain boxes inside the pages, which neither the list rule nor the
+   command rule picks out: they were bare words. XP push buttons, as the
+   command rule explains. A chip in a page (Ring then, Once / Daily...)
+   matches too, at the weight of the chip rule; both draw the same face, and
+   the chosen chip's button.dev-pick.chip.active outranks both. */
+.clk-page button.dev-pick {
+    padding: 1px 10px;
+    color: @text;
+    border: 1px solid @l-rim;
+    background-color: @l-hi;
+    background-image: linear-gradient(to bottom, @l-hi, @l-face);
+}
+
+.clk-page button.dev-pick:hover {
+    border-color: @l-rim;
+    box-shadow: inset 0 0 0 2px @l-glow;
+}
+
+.clk-page button.dev-pick:active {
+    background-color: @l-well;
+    background-image: none;
+    box-shadow: inset 0 1px 2px alpha(#000000, 0.30);
+}

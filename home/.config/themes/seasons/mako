@@ -1,0 +1,39 @@
+# ~/.config/themes/seasons/mako -- mako fragment for the seasons theme, copied
+# to ~/.config/mako/generated/theme by theme.py and included LAST by
+# ~/.config/mako/config. The season's colours are in season/<s>/mako, which
+# theme.py merges in (mako_merge: these global lines, the season's global
+# lines, these sections, the season's sections). This file holds the shape
+# and the face, the same all year, so a notification is the same size in
+# every season. accent_follow=no, so no accent include is added.
+#
+# A notification is a slip from a field notebook: the season's card colour
+# (opaque at 95%; mako draws no blur, and a dark card is nothing on the HDR
+# panel), a 1 px hairline, 10 px corners like every plate of the theme. The
+# summary is a running head -- Alegreya Sans Bold with small capitals for
+# its lower case ("smcp" only: a title's own capitals stay capitals, as in
+# an almanac's heads) and a little letter-spacing; the body Alegreya Sans
+# Medium. No glyph and no colour in format=, so the season file need not
+# repeat it: the critical mark is the frame, a 2 px border in the season's
+# bad colour, and the low-urgency mark the dim body (season/<s>/mako).
+#
+# font= again after the one theme.py writes ("Alegreya Sans, IBM Plex Sans
+# SemiBold 11"): Alegreya Sans has no SemiBold, which fontconfig would round
+# up to Bold for a whole paragraph. The fallback face keeps ▸ ● ☀ and the
+# like that Alegreya Sans lacks.
+#
+# Contrast: the per-season numbers are in season/<s>/mako (text 13.9-15.4 on
+# the card over a dark window, 12.0-13.5 over a white one).
+font=Alegreya Sans, IBM Plex Sans Medium 11
+border-size=1
+border-radius=10
+padding=14,16
+format=<span weight="700" font_features="smcp" letter_spacing="600">%s</span>\n%b
+
+[grouped]
+format=<span weight="700" font_features="smcp" letter_spacing="600">%s</span>\n%b\n<small>(%g more)</small>
+
+# mako/sections gives a critical title a neon colour inside format=: the
+# plain running head again, and the thicker frame.
+[urgency=critical]
+border-size=2
+format=<span weight="700" font_features="smcp" letter_spacing="600">%s</span>\n%b

@@ -1,0 +1,593 @@
+/* ===========================================================================
+   SEASONS -- every popup card (~/.config/waybar/panel.css): media, calendar,
+   shortcuts, audio, network, CPU / GPU, disks, weather, power, capture,
+   display, repos, notifications, updates -- and, through the same file, the
+   OSD (osd.py) and the focus guard's "Still want X?" card (focus-guard.py
+   overlay). Copied to waybar/generated/theme-panel.css by theme.py and
+   imported LAST. Same palette and rules as this theme's waybar.css (its
+   header explains them): opaque dark plates, 1px hairlines, the season's
+   accent as the accent role, never a status.
+
+   Each card is a page from a field notebook: an OPAQUE s-card pane with
+   14px corners, a 1px s-rule hairline, and a soft black drop in the 14px
+   gutter the base keeps for exactly that (GTK clips a shadow to the
+   toplevel). On it:
+     * section headings (.kb-heading) are almanac running heads: Alegreya
+       Sans Bold small caps (smcp + c2sc: the scripts write them in
+       capitals, and c2sc shrinks those to small caps too) in the season's
+       hue2, over a thin hairline; titles (#kb-title, the month) the same
+       small caps in the readout colour;
+     * values are text, not accent: the accent is kept for what is lit -- an
+       ON row's icon, the chosen device or chip (with the 2px underline the
+       bar uses), today, a switch that is on, the gauges' runs;
+     * every control is a small rounded key: s-raised, the hairline, lighter
+       on hover; the keyboard caps are Source Code Pro keys.
+
+   NO COLOUR IS WRITTEN HERE: every colour is an s-* name from the season's
+   palette.css (theme.py puts it before this file), @cyan, or a mix() of
+   them. The ranges below are over the four seasons.
+
+   HDR: the card is DARK and opaque: s-card, luminance 0.007-0.010. Measured
+   (WCAG) on it:
+       text        s-text        13.8-15.2
+       text-dim    s-dim          7.7-8.4    (labels, subtitles)
+       text-dimmer dim 22% to the card  5.2-5.6 (hints only)
+       text-bright s-readout     15.1-16.7   (titles, the big temperature)
+       accent      @cyan          8.2-10.3   (icons, glyphs, the lit pick)
+       headings    s-hue2         8.4-11.9
+       bad text    s-bad-fg       7.0-8.1    (a row's error)
+       weather lo / hi  s-hue1 9.7-11.3 / s-hue3 9.4-12.0 (summer: hue2, the
+                        sun gold, 11.9 -- season/summer/panel.css)
+       adjacent    dim 45% to the card  3.2-3.5 (the calendar's other-month
+                                         days: "not this month", not to read)
+   Controls: a key at rest s-raised (text 12.1-13.6, dim 6.9-7.5, accent
+   7.6-9.2), hovered s-raised 45% toward s-rule (luminance 0.021-0.027; text
+   10.8-11.8, accent 6.7-8.0), pressed a 30% accent wash (text 6.2-7.2); a
+   chosen chip a 22% accent wash under the readout (9.4-10.5).
+   Fills: s-ink on the accent 8.5-10.7:1 (today, an ON icon), on s-bad
+   5.3-6.7:1 (a muted row's icon, an armed power tile); the capture panel's
+   .live tile is s-rec under the readout, 6.9-7.3:1 (the HDR-range tile, a
+   mode and not a recording, is an accent-lit key, as in orbit). The play
+   button: the accent on its 16% wash 6.1-7.4, 4.7-5.4 hovered.
+
+   Colours the panels DRAW (graphs, "Sure?") are the season's theme.conf
+   color.* keys.
+   =========================================================================== */
+
+/* Panel sizes. Planned, not yet measured: the Look phase measures them,
+   each panel built offscreen with this theme's generated css and the same
+   live data, natural size of the whole window, 14px gutters included (the
+   method lofi's, luna's and orbit's headers describe), and writes the table
+   here. Alegreya Sans has a 1.20 em line (hhea 900 + 300 at 1000 upm)
+   against IBM Plex Sans's 1.30, and narrower letters, so expect orbit-like
+   shrinkage (orbit, Barlow, the same 1.20 line: disk 3% narrower and 6%
+   shorter, calendar 5% smaller, the rest within 6% of cyberpunk's). The
+   headings here are 13px small caps where the base's are 10px capitals
+   (the glyphs come out about as tall: Alegreya's small caps are ~0.47 em,
+   Plex's capitals ~0.70 em), so their rows are a little taller. The
+   CARD_HEIGHT=412 cards (CPU, GPU, network, updates, notifications) keep
+   their height (panelui.py); nothing here resizes them, and nothing in a
+   season's addition may change a size. */
+
+/* --- PALETTE 1: hues (@cyan = the accent role, via accent.css) ----------------
+   @magenta is "this ends something / bad" here: muted rows, errors, the
+   danger and armed power tiles, a full disk. Its STRUCTURAL uses in the
+   base (headings, the calendar's weekdays, section underlines, the About
+   card's wash, the weather's high) are put back to hue2 / hue3 below. */
+@define-color magenta    @s-bad;
+@define-color yellow     @s-warn;
+@define-color green      @s-good;
+/* .live tiles (a capture running) carry the readout, so the red is the deep
+   s-rec (6.9-7.3:1). */
+@define-color red        @s-rec;
+@define-color mist       @s-dim;
+
+/* --- PALETTE 2: surfaces, edges, text ---------------------------------------- */
+@define-color surface        @s-card;
+@define-color surface-deep   @s-floor;
+@define-color surface-video  @s-floor;                 /* the media preview's floor */
+@define-color knob           @s-raised;
+@define-color edge           @s-rule;
+@define-color edge-lit       @s-rule-hi;
+@define-color accent         mix(@s-card, @cyan, 0.16);
+@define-color accent-lit     mix(@s-card, @cyan, 0.28);
+@define-color text           @s-text;
+@define-color text-dim       @s-dim;
+@define-color text-dimmer    mix(@s-dim, @s-card, 0.22);
+@define-color text-bright    @s-readout;
+@define-color ink            @s-ink;
+@define-color rec-edge       alpha(@s-bad-fg, 0.55);
+
+/* The theme's derived names (stylesheets do not inherit: waybar.css has its
+   own). */
+@define-color seasons-key-hi   mix(@s-raised, @s-rule, 0.45);   /* a hovered key */
+@define-color seasons-adjacent mix(@s-dim, @s-card, 0.45);
+
+/* Alegreya Sans has no SemiBold; the base's panel default is 500 (Medium),
+   a real cut, and its bold rules are 700, also real. Nothing to remap here
+   but the headings below, which ask for 700 by name. */
+
+/* --- The card ------------------------------------------------------------------- */
+#panel-window {
+    background: transparent;
+}
+
+#panel {
+    border-radius: 14px;
+    background-color: @surface;
+    background-image: none;
+    border: 1px solid @edge;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.50);
+}
+
+#preview-frame {
+    border-radius: 10px;
+}
+
+/* --- Headings: almanac running heads over a thin hairline ---------------------------
+   Alegreya Sans Bold small caps in hue2 (8.4-11.9). GTK3 CSS has no
+   text-transform; the words are capitals where the scripts write them so,
+   and c2sc turns those into small caps. */
+label.kb-heading {
+    font-size: 13px;
+    font-weight: 700;
+    font-feature-settings: "smcp, c2sc, tnum, lnum";
+    letter-spacing: 1px;
+    color: @s-hue2;
+    padding: 2px 0px 4px 0px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid @edge;
+}
+
+#kb-title,
+#cal-month {
+    font-weight: 700;
+    font-feature-settings: "smcp, c2sc, lnum";
+    letter-spacing: 1.2px;
+    color: @text-bright;
+}
+
+#kb-title {
+    font-size: 16px;
+}
+
+#cal-month {
+    font-size: 15px;
+}
+
+#title {
+    color: @text-bright;
+}
+
+/* Section cards (display panel, Settings): 10px corners, the hairline; the
+   rule under a heading is the light hairline, not the base's 2px magenta
+   (which means "bad" here). */
+.ctl-group {
+    border-radius: 10px;
+    border-color: @edge;
+}
+
+.ctl-group label.kb-heading {
+    font-size: 13px;
+    border-bottom: 1px solid @edge-lit;
+}
+
+/* --- Sliders: an accent run in a raised groove, a round cap ------------------------- */
+#seek trough,
+scale.ctl-slider trough {
+    min-height: 4px;
+    border-radius: 2px;
+    background-color: @s-raised;
+    box-shadow: inset 0 0 0 1px @edge;
+}
+
+#seek highlight,
+scale.ctl-slider highlight {
+    border: none;
+    border-radius: 2px;
+    /* The colour too, not only the image: GTK's own highlight colour (a
+       blue) shows at the run's ends without it (lofi found this). */
+    background-color: @cyan;
+    background-image: none;
+}
+
+#seek slider,
+scale.ctl-slider slider {
+    border-radius: 999px;
+    border: 1px solid @cyan;
+    background-color: @knob;
+}
+
+#seek slider:hover,
+scale.ctl-slider slider:hover {
+    background-color: @cyan;
+}
+
+/* Muted: the run goes bad, as the base's does in its magenta. */
+.ctl-row.muted scale.ctl-slider highlight {
+    background-color: alpha(@s-bad, 0.70);
+    background-image: none;
+}
+
+/* --- Switches: a raised pill; on, an accent-lit track and an accent knob
+   (3.6-4.0:1 on the track: a graphic) ---------------------------------------------- */
+switch {
+    border-radius: 999px;
+    border: 1px solid @edge;
+    background-color: @s-raised;
+}
+
+switch:checked {
+    background-color: mix(@s-raised, @cyan, 0.35);
+    border-color: @cyan;
+}
+
+switch slider {
+    border-radius: 999px;
+    background-color: @s-dim;
+}
+
+switch:checked slider {
+    background-color: @cyan;
+}
+
+/* --- Buttons: rounded keys --------------------------------------------------------- */
+button.control,
+#cal-prev,
+#cal-next,
+.ctl-icon,
+button.ctl-icon,
+button.ctl-link,
+button.sn-link,
+button.dev-pick,
+button.dk-fs {
+    border-radius: 10px;
+}
+
+button.control,
+#cal-prev,
+#cal-next {
+    color: @text;
+    background-color: @s-raised;
+    border: 1px solid @edge;
+}
+
+button.control:hover,
+#cal-prev:hover,
+#cal-next:hover,
+button.ctl-icon:hover {
+    background-color: @seasons-key-hi;
+    border-color: @edge-lit;
+}
+
+button.control:active,
+#cal-prev:active,
+#cal-next:active {
+    background-color: mix(@s-raised, @cyan, 0.30);
+}
+
+/* Play/pause: the one lit control, the accent on its wash with the underline. */
+#play {
+    color: @cyan;
+    background-color: @accent;
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+#play:hover {
+    background-color: @accent-lit;
+    border-color: @edge-lit;
+}
+
+/* --- Rows: icons, values, subtitles -------------------------------------------- */
+.ctl-icon {
+    color: @cyan;
+    background-color: @s-raised;
+    border: 1px solid @edge;
+}
+
+.ctl-row.on .ctl-icon {
+    color: @ink;
+    background-color: @cyan;
+    border-color: @cyan;
+}
+
+.ctl-row.muted .ctl-icon {
+    color: @ink;
+    background-color: @s-bad;
+    border-color: @s-bad;
+}
+
+.ctl-value,
+label.pw-uptime {
+    color: @text;
+}
+
+.ctl-sub {
+    color: @text-dim;
+}
+
+.ctl-row.error .ctl-sub {
+    color: @s-bad-fg;
+}
+
+.ctl-sep,
+.ctl-vsep {
+    background-color: @edge;
+}
+
+/* --- Picks: device rows and chips --------------------------------------------------
+   A pick at rest is quiet text; hovered, a raised key; the chosen device is
+   accent text (7.5-9.3) on a faint 6% wash with the underline. A chosen
+   chip (themes, frames, filters, presets, the display panel's tabs) is a
+   22% accent wash under the readout, with the underline -- the base's
+   outer glow is gone. */
+button.dev-pick:hover {
+    color: @text;
+    border-color: @edge;
+    background-color: @s-raised;
+}
+
+button.dev-pick.active,
+button.dev-pick.active:hover {
+    color: @cyan;
+    border-color: @edge;
+    background-color: mix(@s-card, @cyan, 0.06);
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+button.dev-pick.active label.dev-kind {
+    color: @text-dim;
+}
+
+button.dev-pick.chip {
+    border-radius: 999px;
+    color: @text;
+    border: 1px solid @edge;
+}
+
+button.dev-pick.chip:hover {
+    background-color: @seasons-key-hi;
+    border-color: @edge-lit;
+}
+
+button.dev-pick.chip.active,
+button.dev-pick.chip.active:hover {
+    color: @text-bright;
+    font-weight: 700;
+    background-color: mix(@s-card, @cyan, 0.22);
+    border: 1px solid @edge-lit;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+/* Insensitive picks ("unplugged", the focus card's counting-down "Open it"):
+   the label colour at 0.75 -- still "not now", but readable (about 4.9-5.3
+   on the card). */
+button.dev-pick.unplugged,
+button.dev-pick:disabled {
+    color: @text-dim;
+    opacity: 0.75;
+}
+
+/* --- The focus guard's card ("Still want X?", focus-guard.py overlay) ------------
+   Built from panel classes only (orbit's panel.css explains the selectors):
+   the question is a sentence, not a section label -- larger, the readout,
+   no small caps, no hairline; the two answers are real keys. */
+#panel > box > label.ctl-icon + box > label.kb-heading {
+    font-size: 16px;
+    font-feature-settings: "tnum, lnum";
+    letter-spacing: 0.3px;
+    color: @text-bright;
+    border-bottom: none;
+    margin-bottom: 0px;
+}
+
+#panel > box > label.ctl-icon {
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 17px;
+    border-radius: 12px;
+    color: @cyan;
+    background-color: @s-raised;
+    border: 1px solid @edge-lit;
+}
+
+#panel > box > label.ctl-icon + box > label.ctl-sub {
+    color: @text-dim;
+    font-size: 13px;
+}
+
+#panel > box > button.dev-pick {
+    color: @text;
+    padding: 5px 14px;
+    background-color: @s-raised;
+    border: 1px solid @edge;
+}
+
+#panel > box > button.dev-pick:hover {
+    background-color: @seasons-key-hi;
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+#panel > box > button.dev-pick.active {
+    color: @ink;
+    background-color: @cyan;
+    border-color: @cyan;
+    box-shadow: none;
+}
+
+#panel > box > button.dev-pick:disabled {
+    color: @text-dim;
+    opacity: 0.75;
+}
+
+/* --- Keyboard caps: Source Code Pro keys -----------------------------------------
+   Text on a raised key (12.1-13.6:1), a heavier hairline under it, like a
+   key's front edge. The accent is not used: a cap is a label, not lit. */
+label.kb-cap {
+    font-family: "Source Code Pro", "IBM Plex Mono", "Font Awesome 6 Free Solid", monospace;
+    font-size: 11px;
+    border-radius: 6px;
+    color: @text;
+    background-color: @s-raised;
+    border: 1px solid @edge;
+    border-bottom: 2px solid @edge-lit;
+}
+
+/* --- Calendar: dim small-caps weekdays, today as the one lit day -------------------- */
+label.cal-weekday {
+    font-weight: 700;
+    font-feature-settings: "smcp, c2sc";
+    color: @text-dim;
+    letter-spacing: 1px;
+}
+
+label.cal-day {
+    border-radius: 999px;
+    font-feature-settings: "tnum, lnum";
+}
+
+/* The base's alpha(mist, 0.22) all but vanishes on this card; the label
+   colour 45% toward the card is clearly "not this month". */
+label.cal-adjacent {
+    color: @seasons-adjacent;
+}
+
+label.cal-today {
+    border-radius: 999px;
+    color: @ink;
+    background-color: @cyan;
+    font-weight: 700;
+}
+
+/* --- Disks and level bars: an accent run in a raised groove, warn then bad ---------- */
+levelbar.dk-bar trough {
+    border-radius: 2px;
+    background-color: @s-raised;
+}
+
+levelbar.dk-bar block.filled {
+    border-radius: 2px;
+    background-color: @cyan;
+}
+
+levelbar.dk-bar.warning block.filled {
+    background-color: @s-warn;
+}
+
+levelbar.dk-bar.critical block.filled {
+    background-color: @s-bad;
+}
+
+button.dk-fs:hover {
+    border-color: @edge;
+    background-color: @s-raised;
+}
+
+/* --- Power tiles: raised keys; the ones that end the session have a bad glyph ------- */
+button.pw-tile {
+    border-radius: 12px;
+    background-color: @s-raised;
+    background-image: none;
+    border: 1px solid @edge;
+}
+
+button.pw-tile:hover {
+    background-color: @seasons-key-hi;
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+button.pw-tile:active {
+    background-color: mix(@s-raised, @cyan, 0.30);
+}
+
+/* The danger glyph is s-bad at 26px (4.7-5.5 on the key: large text); the
+   tile stays neutral until hovered. */
+button.pw-tile.danger:hover {
+    border-color: alpha(@s-bad, 0.70);
+    background-color: mix(@s-raised, @s-bad, 0.12);
+    box-shadow: inset 0 -2px 0 @s-bad;
+}
+
+button.pw-tile.armed,
+button.pw-tile.armed:hover {
+    background-color: @s-bad;
+    background-image: none;
+    border-color: @s-bad;
+    box-shadow: none;
+}
+
+button.pw-tile.live,
+button.pw-tile.live:hover {
+    background-color: @s-rec;
+    background-image: none;
+    border-color: @rec-edge;
+    box-shadow: none;
+}
+
+/* The capture panel's HDR-range tile is .live whenever HDR is on: a MODE,
+   not a recording. In the REC red, next to the Record tiles, it would read
+   as a capture running. So it is a lit key: the 28% accent wash under the
+   readout (8.1-9.1), the underline. */
+button.pw-tile.live.cap-rec-range,
+button.pw-tile.live.cap-rec-range:hover {
+    background-color: @accent-lit;
+    background-image: none;
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+button.pw-tile.live.cap-rec-range label.pw-glyph,
+button.pw-tile.live.cap-rec-range label.pw-label {
+    color: @text-bright;
+}
+
+/* --- Weather: the low in hue1, the high in hue3 -------------------------------------
+   (The base's high is magenta; here that would read as bad, and amber as
+   warn.) The rain chance is hue1 too, solid: the base's 75% accent put the
+   accent in a data role. The big temperature is a readout. */
+label.wx-lo   { color: @s-hue1; }
+label.wx-hi   { color: @s-hue3; }
+label.wx-rain { color: @s-hue1; }
+
+label.wx-big-temp {
+    color: @text-bright;
+    font-feature-settings: "tnum, lnum";
+}
+
+/* --- Settings > About's card: a faint accent page -----------------------------------
+   The base's teal-to-magenta wash becomes a 6% accent one; its captions are
+   solid text-dim here (7.0-7.6 on the tiles). */
+.about-hero {
+    border-radius: 14px;
+    background-image: none;
+    background-color: mix(@s-card, @cyan, 0.06);
+    border: 1px solid alpha(@cyan, 0.30);
+}
+
+.about-hero label.about-name {
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.about-hero label.about-model {
+    color: @text-dim;
+}
+
+.about-hero .about-tile {
+    border-radius: 10px;
+    border-color: @edge;
+}
+
+.about-hero label.about-cap {
+    font-weight: 700;
+    font-feature-settings: "smcp, c2sc";
+    letter-spacing: 1px;
+    color: @text-dim;
+}
+
+.about-hero label.about-sub {
+    color: @text-dim;
+}

@@ -29,7 +29,8 @@ a tab the same as a page:
     SMART     Smart desktop      every smart feature's switch | Presence,
                                  Gestures & gaze, Memory, Folder access
     LOOK      Theme              theme, accent, glass, video player | Ambient,
-                                 Effects (the display panel's own pages)
+                                 Effects (the display panel's own pages),
+                                 Gallery (settings_pages/themes.py)
               Wallpaper & lock screen
               Text & pointer     fonts, text size, cursor | Accessibility
               Windows            gaps, borders, blur | Layout, Picture-in-picture

@@ -1,0 +1,10 @@
+# Seasonal themes (theme.py season-check, started by theme-season.timer):
+# nothing unless the current theme is seasonal and its season has changed.
+[Unit]
+Description=Re-apply a seasonal theme when its season changes
+PartOf=graphical-session.target
+After=graphical-session.target waybar.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/theme.py season-check

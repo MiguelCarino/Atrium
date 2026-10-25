@@ -1,0 +1,33 @@
+/* ~/.config/themes/seasons/season/summer/gtk4.css -- the summer (deep green and sun gold)
+   values of the custom properties ../../gtk4.css is written in. theme.py
+   appends this file after that one, so these are the values libadwaita
+   resolves; the order of custom properties does not matter. The same 22
+   s-* values as palette.css (GTK3) plus --s-accent, the season's accent=
+   (lagoon). Change a value here and in palette.css together; never a name.
+   The measured numbers for every season are in ../../gtk4.css. */
+
+:root {
+    --s-floor: #06110c;
+    --s-dense: #09150f;
+    --s-surface: #0b1a13;
+    --s-card: #0c1b14;
+    --s-raised: #12261c;
+    --s-rule: #21402f;
+    --s-rule-hi: #335c45;
+    --s-text: #e8efda;
+    --s-dim: #a2b8a2;
+    --s-readout: #f3f6ea;
+    --s-ink: #05140f;
+    --s-good: #a3d65c;
+    --s-warn: #ff9f45;
+    --s-bad: #ff5c80;
+    --s-bad-fg: #ff86a0;
+    --s-crit: #8c1a34;
+    --s-crit-dim: #470d1a;
+    --s-rec: #9a1f3a;
+    --s-hue1: #9fc2ff;
+    --s-hue2: #ecd27a;
+    --s-hue3: #d8d0f0;
+    --s-epoch: #f2dc90;
+    --s-accent: #5ccfd6;
+}

@@ -169,13 +169,55 @@ The choice is theme=<name> in ~/.local/state/hypr/display.conf and survives
                      (https://creativecommons.org/licenses/by/4.0/), cropped,
                      scaled and darkened at the top;
                      https://esawebb.org/images/<id>/
+    seasons/     Seasons: a field notebook through the year -- calm,
+                 rounded, opaque dark plates (radius 10 pills, 14 cards)
+                 with a 1 px hairline and small-caps running heads like an
+                 almanac's. The first SEASONAL theme: its palette turns with
+                 the real date (meteorological: MAM spring in the north,
+                 SON in the south) in your hemisphere (display.conf
+                 season_hemisphere=auto|north|south; auto = the weather
+                 place's latitude, else the time zone's; season_pin= holds
+                 one). theme-season.timer runs `theme.py season-check`
+                 hourly and re-applies when the season changes; `theme.py
+                 season` says which it is and until when (never a place).
+                 The accent ROLE is fixed per season (accent_follow=no):
+                 spring blossom #f4a8d0, summer lagoon #5ccfd6, autumn
+                 copper #ee9a62, winter frost #8ccaf2, each >= 26 dE from
+                 that season's good / warn / bad (amber and sun gold would
+                 read as warn, so they are never the accent). Pills at
+                 luminance 0.007-0.010, wells <= 0.019; text 13.9-15.4:1,
+                 the accent 8.3-10.4:1 on the pill (each season's
+                 palette.css has its numbers). Alegreya Sans for the UI
+                 (true small caps for labels, tnum + lnum for readouts),
+                 Source Code Pro in the terminal
+                 (~/.local/share/fonts/themes/seasons/README: sources,
+                 sha256, OFL). Papirus-Dark with the season's folder colour
+                 (icon_theme=Seasons-Spring / -Summer / -Autumn / -Winter,
+                 built), a kalimba of our own (make-theme-sounds.py
+                 seasons: every note at or below B4), plain uosc in the
+                 season's colours, and Sorrel, an original fox kit under a
+                 tree whose crown follows the season (blossom, full green,
+                 falling leaves, bare snowy branches) with an almanac strip
+                 below, as the LLM chat's mascot (mascot_seasons.py).
+                 ambient.py keeps the weather rule (no THEME_SOUND: the
+                 theme is outdoors). Wallpapers drawn from scratch:
+                 ~/.config/hypr/scripts/make-seasons-wallpaper.py --all
+                 (seasons-<season>-<scene>.png, three per season:
+                 spring-{orchard,meadow,shower}, summer-{canopy,coast,
+                 field}, autumn-{maples,harvest,mist}, winter-{pines,lake,
+                 snowfall}, at each screen's logical size, about 90 s; the
+                 top 106 px at luminance <= 0.0051, light accents <= 0.12%
+                 of a frame). Each season's theme.conf narrows
+                 wallpaper_prefix= to its own three
     icons        icon_theme= in theme.conf (gsettings icon-theme, live in
                  GTK apps; mako's icon-path): cyberpunk Adwaita, aero
                  oxygen (needs `sudo dnf install oxygen-icon-theme`; Adwaita
                  until then), matrix Phosphor, win95 Win95, moe Moe, lofi
-                 Lofi, luna Luna, orbit Orbit. Phosphor, Win95, Moe, Lofi,
-                 Luna and Orbit are BUILT, not installed (Moe, Lofi, Luna
-                 and Orbit are Papirus with recoloured folders):
+                 Lofi, luna Luna, orbit Orbit, seasons Seasons-Spring/
+                 -Summer/-Autumn/-Winter (built, folder colour per season).
+                 Phosphor, Win95, Moe, Lofi, Luna, Orbit and the four
+                 Seasons sets are BUILT, not installed (all but Phosphor
+                 and Win95 are Papirus with recoloured folders):
                  ~/.config/hypr/scripts/make-icon-theme.py --all (rerun
                  after installing an app; --sheet <variant> shows a before/
                  after sheet). Win95 inherits Chicago95
@@ -217,6 +259,23 @@ A theme folder
                   nothing over playing video). A theme line still wins.
     hypr.lua      optional: return { window_rules = {...}, layer_rules = {...} }
                   enabled only while this theme is current (lua/display.lua)
+    season/       optional: a SEASONAL theme. season/<spring|summer|autumn|winter>/
+                  each hold theme.conf (only colours and the sets that carry
+                  them: accent, gtk_accent_color, icon_theme,
+                  wallpaper_prefix, wallpaper_video, glass, term.* colours,
+                  cosmic.* colours, color.*), palette.css (@define-color
+                  lines theme.py puts BEFORE the theme's own css in every
+                  GTK3 stylesheet), and optional additions to any file above
+                  (appended after the theme's; mako merged section-wise).
+                  Not hypr.lua or sounds/, which are the theme's all year.
+                  The season follows the date (meteorological: MAM spring
+                  in the north, SON in the south) and the hemisphere
+                  (display.conf season_hemisphere=auto|north|south; auto =
+                  the weather place's latitude, else the time zone's);
+                  season_pin= holds one. theme-season.timer runs
+                  `theme.py season-check` hourly and re-applies when the
+                  season changes. `theme.py season` shows it; `check`
+                  checks all four.
 Missing file = no override. After editing any of them: theme.py apply.
 Before switching to a new theme: theme.py check <name>.
 

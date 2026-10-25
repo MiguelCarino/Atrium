@@ -1,0 +1,8 @@
+/* Winter: the clock capsule's hairlines frost over to the light rule
+   (s-rule-hi, 2.49:1 on the plate: decoration). Colour only -- no size,
+   padding or face, so the bar does not move between seasons. */
+#custom-day,
+#custom-clock,
+#custom-weather {
+    border-color: @s-rule-hi;
+}

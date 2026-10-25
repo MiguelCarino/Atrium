@@ -1034,6 +1034,13 @@ window#waybar.empty #window {
 #custom-timers.paused {
     color: @text-dim;
 }
+/* Ringing right now (timers.py ringing): the clock card's ringing row is
+   magenta, so the pill matches until Snooze or Stop answers it. Text and a
+   2 px underline only, no fill: the HDR screen keeps small lit areas. */
+#custom-timers.ringing {
+    color: @magenta;
+    border-bottom-color: @magenta;
+}
 #custom-repos.clean {
     color: @text-dim;
 }

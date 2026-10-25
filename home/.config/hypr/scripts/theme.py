@@ -40,9 +40,23 @@ wallpaper set, the wallpaper accent, and libadwaita apps (Nautilus).
                                display.conf) and re-applies the terminals;
                                fix = the most glass that keeps the text
                                readable (see readable_glass)
+    theme.py season [--json]   the season the current theme shows, your
+                               hemisphere and where it came from, and the
+                               next season's first day ("cyberpunk: not
+                               seasonal" for the others); never a place
+    theme.py season pin <spring|summer|autumn|winter|auto>
+                               hold one season (auto: follow the date
+                               again), then re-apply if the theme is seasonal
+    theme.py season hemisphere <north|south|auto>
+                               your hemisphere (auto: from your places), then
+                               the same
+    theme.py season-check      re-apply the current theme if its season has
+                               changed (theme-season.timer, hourly; a
+                               no-op for every other theme)
 
 Also importable (display.py, wallpaper-slideshow.py, theme-from-wallpaper.py
-and launcher.py do): themes(), current(), load(name), get(key).
+and launcher.py do): themes(), current(), load(name), get(key); and
+season(name) (the mascot asks it which season to draw).
 
 Where a theme lives
 -------------------
@@ -77,6 +91,10 @@ Where a theme lives
                       above it for every theme; the theme's lines win.
         hypr.lua      optional: Hyprland window/layer rules for this theme
                       only (read by lua/display.lua, see there)
+        season/<s>/   optional: a SEASONAL theme ("Seasonal themes" below):
+                      for each of spring summer autumn winter, a theme.conf
+                      (colours only), palette.css, and additions to any file
+                      above (not hypr.lua, not sounds/)
 A missing file means "no override": the generated copy is still written
 (header only), because every one of them is @import-ed or include=-d by the
 base files, and waybar draws NOTHING styled if an import target is missing.
@@ -101,6 +119,64 @@ Every theme inherits cyberpunk (the base, today's neon look) for any key it
 does not set; `inherit=<other>` puts another theme in between. Stylesheets do
 NOT inherit -- each theme's css is an override of the cyberpunk base files, and
 cyberpunk's own are empty.
+
+Seasonal themes
+---------------
+A theme with a season/ folder changes with the real date (seasons/ is the
+one that does). season/<spring|summer|autumn|winter>/ each hold:
+
+    theme.conf    laid over the theme's resolved conf by load(), but ONLY
+                  the keys in SEASON_KEYS and color.*: the accent,
+                  gtk_accent_color, icon_theme, wallpaper_prefix,
+                  wallpaper_video, glass, the term.* and cosmic.* colours.
+                  Everything else -- shape, fonts, hypr.*, lang, anim, the
+                  cursor -- is the theme's all year: lua/display.lua,
+                  lua/env.lua and display_panel.py read theme.conf
+                  themselves and would never see a season's value, and a
+                  face that changed with the season would change every
+                  panel's size. (The window border still follows: a theme
+                  with hypr.accent_stops lets the season's accent= in.)
+                  `check` reports any other key, with why.
+    palette.css   @define-color lines inserted into every GTK3 stylesheet
+                  (waybar, panel, launcher, llm-chat, wofi) after the font
+                  rules and BEFORE the theme's own css, so the theme's rules
+                  use names defined above them. Not gtk4.css: GTK4 has no
+                  @define-color; a season's gtk4.css addition carries CSS
+                  custom properties instead.
+    <file>        an addition to any theme file (waybar.css ... mpv.conf,
+                  kitty.conf, prompt.sh), appended after the theme's own
+                  under a comment naming it (theme_text) -- a later rule,
+                  option, assignment or script-opts-append wins. mako is the
+                  exception: merged section-wise (mako_merge: both
+                  fragments' global lines first, then both sets of
+                  [sections]), since a global line after a [section] header
+                  would belong to that section. Not hypr.lua or sounds/:
+                  lua/display.lua, theme-sound.sh and timers.py read those
+                  from the theme folder itself.
+
+The season (season()) is meteorological -- whole months, as weather
+services count them: MAM spring, JJA summer, SON autumn, DJF winter in the
+north, six months on in the south. (The astronomical dates differ by three
+weeks at most, and whole months are easy to test.) The hemisphere is
+display.conf season_hemisphere=north|south, else (auto) the sign of the
+weather place's latitude (region.conf weather= as "lat,lon", or wttr.py's
+cached answer for that place), else the time zone's principal city's
+(zone1970.tab), else north -- nothing is fetched, and only north/south is
+ever printed. display.conf season_pin=<season> holds one season;
+HYPR_SEASON=<season> beats both for one process (previews, tests, checks).
+
+write_generated records the season the generated files are for in
+waybar/generated/season (the stylesheet headers name it too, so waybar
+re-reads them when it changes). `theme.py season-check` compares that with
+the season due now and re-applies only when they differ, so most of
+theme-season.timer's hourly ticks cost a few file reads. A Steam game on
+screen holds the change until the next tick (a pin or hemisphere you just
+chose does not wait). Its own timer, not theme-schedule.timer:
+`theme-schedule.py off` disables that one, and the season must still turn.
+Hourly, so a held check or a machine asleep at midnight catches up within
+the hour (Persistent=true after a power-off). `check` runs every season:
+the folder first (check_seasons), then the full lint once per season, a
+problem all four share printed once, the rest with a [season] prefix.
 
 theme.conf KEYS (cyberpunk's file lists every one with its value)
 -----------------
@@ -151,7 +227,8 @@ theme.conf KEYS (cyberpunk's file lists every one with its value)
     icon_theme=Adwaita         gsettings icon-theme (GTK apps, live) and
                                mako's icon-path: a folder name in
                                ~/.local/share/icons or /usr/share/icons.
-                               Win95, Phosphor, Neon, Moe, Lofi and Luna are BUILT by
+                               Win95, Phosphor, Neon, Moe, Lofi, Luna, Orbit
+                               and Seasons-* are BUILT by
                                make-icon-theme.py (rerun it after installing
                                an app); `check` says when one is missing
     cursor_theme=Adwaita       the pointer: a cursor theme's folder name in
@@ -312,6 +389,32 @@ TARGETS = {
     "mako": (os.path.join(HOME, ".config", "mako", "generated", "theme"), "mako", []),
     "gtk4.css": (os.path.join(HOME, ".config", "gtk-4.0", "gtk.css"), "css", []),
 }
+
+# Seasonal themes (see "Seasonal themes" in the docstring).
+SEASONS = ("spring", "summer", "autumn", "winter")
+SEASON_DIR = "season"                      # <theme>/season/<s>/
+# month (1-12) -> season, northern hemisphere; the south is six months on.
+# Meteorological seasons (whole months), as weather services count them.
+NORTH = {12: "winter", 1: "winter", 2: "winter", 3: "spring", 4: "spring", 5: "spring",
+         6: "summer", 7: "summer", 8: "summer", 9: "autumn", 10: "autumn", 11: "autumn"}
+HEMISPHERES = ("north", "south")
+# The keys a season's theme.conf may set: colours and the sets that carry
+# them. Everything else (shape, fonts, hypr.*, language, ...) is the
+# theme's, the same all year -- because lua/display.lua, lua/env.lua and
+# display_panel.py read theme.conf themselves, and because a face that
+# changed with the season would change every panel's size.
+SEASON_KEYS = {"accent", "gtk_accent_color", "icon_theme", "wallpaper_prefix", "wallpaper_video",
+               "glass", "term.background", "term.foreground", "term.cursor", "term.normal",
+               "term.bright", "term.bright_bold", "cosmic.background", "cosmic.foreground",
+               "cosmic.accent"}            # plus every color.* key
+# Files a season folder may hold (theme.conf, the shared palette, and an
+# addition to any of the theme's own files). Not hypr.lua, not sounds/:
+# lua/display.lua, theme-sound.sh and timers.py read those from the theme
+# folder itself.
+SEASON_FILES = {"theme.conf", "palette.css", "kitty.conf", "prompt.sh", "mpv.conf"} | set(TARGETS)
+SEASON_FILE = os.path.join(GEN, "season")  # the season the generated files are for ("" = none)
+SEASON_CACHE_S = 60                        # hemisphere lookups kept this long per process
+
 COLORS = os.path.join(GEN, "colors.conf")
 LANG_FILE = os.path.join(GEN, "lang")
 MODULES = os.path.join(GEN, "theme-modules.json")
@@ -416,13 +519,31 @@ def cursor_size(state=None):
     return size if size.isdigit() and 8 <= int(size) <= 256 else CURSOR_SIZE
 
 
-def load(name=None, user=True):
+def season_allowed(key):
+    """May a season's theme.conf set `key`? (SEASON_KEYS and color.*)"""
+    return key in SEASON_KEYS or key.startswith("color.")
+
+
+def load(name=None, user=True, season=None):
     """The resolved theme.conf of `name` (default: the current theme), with
-    the user's own fonts and cursor over it (user=False: the theme alone)."""
+    the user's own fonts and cursor over it (user=False: the theme alone).
+    A seasonal theme gets its season's theme.conf laid over the chain --
+    only the keys season_allowed() lets through; `check` reports the rest.
+    season=None: the season it shows now (season()); "spring".."winter":
+    that one (check and the tests); "": no overlay. conf["season"] says
+    which ("" for every other theme)."""
     name = name or current()
     conf = dict(DEFAULTS)
     for link in reversed(chain(name)):
         conf.update(read_kv(os.path.join(theme_dir(link), "theme.conf")) or {})
+    # The parameter hides the module's season(); _season is the same function.
+    s = _season(name) if season is None else season
+    if s and seasonal(name):
+        over = read_kv(os.path.join(season_dir(name, s), "theme.conf")) or {}
+        conf.update({k: v for k, v in over.items() if season_allowed(k)})
+    else:
+        s = ""
+    conf["season"] = s
     conf["id"] = name
     conf["glass_default"] = conf.get("glass", "0")
     state = read_state()
@@ -461,6 +582,305 @@ def themes():
         rows.append((order, conf.get("name") or n, n))
     rows.sort()
     return [(n, label) for _, label, n in rows] or [(BASE, DEFAULTS["name"])]
+
+
+# -- seasons (see "Seasonal themes" in the docstring) ---------------------------
+def seasonal(name):
+    """Does theme `name` change with the seasons (it has a season/ folder)?"""
+    return bool(name) and "/" not in name and os.path.isdir(os.path.join(theme_dir(name), SEASON_DIR))
+
+
+def season_dir(name, s):
+    return os.path.join(theme_dir(name), SEASON_DIR, s)
+
+
+def season_for(month, hemisphere):
+    """The season of month 1-12: NORTH's, or six months on for "south"
+    (January is summer there)."""
+    return NORTH[(month + 5) % 12 + 1] if hemisphere == "south" else NORTH[month]
+
+
+def hemisphere_from(setting, weather_lat, zone_lat):
+    """-> (hemisphere, source). The setting north|south wins ("setting");
+    anything else is auto: the sign of the weather place's latitude
+    ("weather"), else the time zone's ("time zone"), else ("north",
+    "default"). Latitude 0 counts as north. Pure."""
+    if setting in HEMISPHERES:
+        return setting, "setting"
+    for lat, source in ((weather_lat, "weather"), (zone_lat, "time zone")):
+        if isinstance(lat, (int, float)):
+            return ("south" if lat < 0 else "north"), source
+    return "north", "default"
+
+
+LAT_LON = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*,\s*-?\d+(?:\.\d+)?\s*$")
+_places = {"at": None, "value": (None, None)}
+
+
+def place_latitudes():
+    """(weather_lat, zone_lat), each a float or None, from region.py (no
+    GTK; imported only here). Weather: region.conf weather= parsed as
+    "lat,lon" when it is that, else wttr.py's cached answer
+    (region.read_weather_place) when it is for that place -- nothing is
+    fetched. Zone: the system time zone's principal city. Any failure is
+    None. Kept SEASON_CACHE_S per process: the launcher daemon and the
+    slideshow live long, and themes() loads every theme. Only the sign is
+    ever used; the numbers are never printed."""
+    now = time.monotonic()
+    if _places["at"] is not None and now - _places["at"] < SEASON_CACHE_S:
+        return _places["value"]
+    weather_lat = zone_lat = None
+    try:
+        import region
+        place = (region.prefs().get("weather") or "").strip()
+        m = LAT_LON.match(place)
+        if m:
+            weather_lat = float(m.group(1))
+        elif place:
+            found = region.read_weather_place(place)
+            if found and isinstance(found.get("lat"), (int, float)):
+                weather_lat = float(found["lat"])
+    except Exception:       # a broken region.conf or cache must never stop a theme
+        weather_lat = None
+    try:
+        import region
+        zone = region.zone_place()
+        if zone and isinstance(zone.get("lat"), (int, float)):
+            zone_lat = float(zone["lat"])
+    except Exception:
+        zone_lat = None
+    _places.update(at=now, value=(weather_lat, zone_lat))
+    return _places["value"]
+
+
+def hemisphere(state=None):
+    """(hemisphere, source) now: display.conf season_hemisphere, else auto."""
+    state = state if state is not None else read_state()
+    return hemisphere_from(state.get("season_hemisphere", "auto"), *place_latitudes())
+
+
+def season(name=None, today=None, state=None):
+    """The season theme `name` (default: the current one) shows: "" when it
+    is not seasonal; else $HYPR_SEASON if it is one of SEASONS (previews,
+    tests, checks -- per process); else display.conf season_pin if one of
+    SEASONS; else the month's in your hemisphere. today defaults to
+    datetime.date.today()."""
+    name = name or current()
+    if not seasonal(name):
+        return ""
+    env = os.environ.get("HYPR_SEASON", "")
+    if env in SEASONS:
+        return env
+    state = state if state is not None else read_state()
+    pin = state.get("season_pin", "")
+    if pin in SEASONS:
+        return pin
+    if today is None:
+        import datetime
+        today = datetime.date.today()
+    return season_for(today.month, hemisphere(state)[0])
+
+
+_season = season        # load()'s parameter `season` hides the function there
+
+
+def next_season(today, hemi):
+    """(season, date) of the first day of the next season after `today`."""
+    import datetime
+    now = season_for(today.month, hemi)
+    year, month = today.year, today.month
+    for _ in range(12):
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+        if season_for(month, hemi) != now:
+            return season_for(month, hemi), datetime.date(year, month, 1)
+    return now, None
+
+
+SOURCE_WORDS = {"setting": "set by you", "weather": "from the weather place",
+                "time zone": "from the time zone", "default": "by default"}
+
+
+def season_status(name=None, today=None, state=None):
+    """`theme.py season --json`: {"theme", "seasonal", "season",
+    "hemisphere", "source", "pin", "next": {"season", "date"}}. pin is the
+    pinned season ($HYPR_SEASON or season_pin) or "" when it follows the
+    date; next is null then, since a pinned season does not end by itself.
+    Never a latitude or a place name: only north/south and the source word."""
+    import datetime
+    name = name or current()
+    state = state if state is not None else read_state()
+    today = today or datetime.date.today()
+    out = {"theme": name, "seasonal": seasonal(name), "season": "", "hemisphere": "",
+           "source": "", "pin": "", "next": None}
+    if not out["seasonal"]:
+        return out
+    hemi, source = hemisphere(state)
+    env, pin = os.environ.get("HYPR_SEASON", ""), state.get("season_pin", "")
+    out.update(season=season(name, today, state), hemisphere=hemi, source=source,
+               pin=env if env in SEASONS else pin if pin in SEASONS else "")
+    if not out["pin"]:
+        nxt, date = next_season(today, hemi)
+        out["next"] = {"season": nxt, "date": date.isoformat() if date else ""}
+    return out
+
+
+def season_line(status):
+    """season_status() as one line: "seasons: autumn (north, from the
+    weather place; next: winter on 2026-12-01)"."""
+    if not status["seasonal"]:
+        return f"{status['theme']}: not seasonal"
+    where = f"{status['hemisphere']}, {SOURCE_WORDS.get(status['source'], status['source'])}"
+    tail = (f"pinned to {status['pin']}" if status["pin"]
+            else f"next: {status['next']['season']} on {status['next']['date']}")
+    return f"{status['theme']}: {status['season']} ({where}; {tail})"
+
+
+def season_due(recorded, want):
+    """Should season-check apply? Only for a seasonal theme (want != "")
+    whose generated files are for another season than `want`. Pure."""
+    return bool(want) and recorded != want
+
+
+def _read(path):
+    try:
+        with open(path) as handle:
+            return handle.read()
+    except OSError:
+        return ""
+
+
+def season_text(conf, filename):
+    """The season's addition to theme file `filename` (season/<s>/<filename>)
+    under a one-line comment naming it, or "" (no season, no such file).
+    The comment style follows the file: /* */ for .css, # for the others."""
+    name, s = conf["id"], conf.get("season", "")
+    extra = _read(os.path.join(season_dir(name, s), filename)) if s else ""
+    if not extra:
+        return ""
+    label = f"season={s}: ~/.config/themes/{name}/{SEASON_DIR}/{s}/{filename}"
+    return (f"/* {label} */" if filename.endswith(".css") else f"# {label}") + "\n" + extra
+
+
+def theme_text(conf, filename):
+    """The theme's own file `filename`, then season_text() after a blank
+    line; "" when neither exists. Every reader of a theme file goes through
+    this (mako through mako_merge instead), so a theme without a season
+    reads exactly what it read before."""
+    own = _read(os.path.join(theme_dir(conf["id"]), filename))
+    extra = season_text(conf, filename)
+    if not extra:
+        return own
+    if own and not own.endswith("\n"):
+        own += "\n"
+    return own + ("\n" if own else "") + extra
+
+
+def season_palette(conf):
+    """season/<s>/palette.css, the @define-color s-* block, or ""."""
+    s = conf.get("season", "")
+    if not s:
+        return ""
+    try:
+        with open(os.path.join(season_dir(conf["id"], s), "palette.css")) as handle:
+            return handle.read()
+    except OSError:
+        return ""
+
+
+def mako_split(text):
+    """(global lines, [section]s and after) of a mako fragment, cut at its
+    first line starting with "[" -- the cut generated_text's accent include
+    uses too."""
+    lines = text.splitlines(keepends=True)
+    cut = next((i for i, line in enumerate(lines) if line.lstrip().startswith("[")), len(lines))
+    return "".join(lines[:cut]), "".join(lines[cut:])
+
+
+def mako_merge(base, extra):
+    """Two mako fragments as one: base globals, extra globals, base
+    sections, extra sections. Required, not cosmetic: a global line after a
+    [section] header belongs to that section, so the season's colours simply
+    appended to a base that ends in [urgency=critical] would only colour
+    critical toasts."""
+    if not extra:
+        return base
+    nl = lambda t: t if not t or t.endswith("\n") else t + "\n"
+    (bg, bs), (eg, es) = mako_split(nl(base)), mako_split(nl(extra))
+    return bg + eg + bs + es
+
+
+def game_running():
+    """A Steam game on screen (theme-schedule.py's same check): a season
+    change waits for the next hourly tick instead of repainting over it."""
+    out = run(["hyprctl", "clients", "-j"], timeout=3)
+    return out is not None and '"class": "steam_app_' in (out.stdout or "")
+
+
+def switch_sound():
+    """theme-sound.sh switch, detached (a switch's chime)."""
+    try:
+        subprocess.Popen([THEME_SOUND, "switch"], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        pass
+
+
+def read_season_record():
+    try:
+        with open(SEASON_FILE) as handle:
+            return handle.read().strip()
+    except OSError:
+        return ""
+
+
+def cmd_season_check(force=False):
+    """`theme.py season-check` (theme-season.timer, hourly): re-apply the
+    current theme when the season it shows is not the one its generated
+    files are for. Quiet and cheap when nothing changed (a few file reads);
+    a game on screen holds it until the next tick, unless forced (a pin or
+    a hemisphere you just chose). Returns True when it applied."""
+    name = current()
+    if not seasonal(name):
+        return False
+    want = season(name)
+    if not force and not season_due(read_season_record(), want):
+        return False
+    if not force and game_running():
+        return False
+    changed = apply(load())
+    title = f"Seasons: {want}"
+    if not gtk4_restart(changed, title):
+        status = season_status(name)
+        if status["pin"]:
+            body = "pinned -- `theme.py season pin auto` follows the date again"
+        else:
+            body = (f"{status['hemisphere'].capitalize()}ern hemisphere -- until "
+                    f"{status['next']['date']}")
+        notify(title, body)
+    switch_sound()
+    return True
+
+
+def cmd_season(args):
+    """theme.py season [--json] | pin <s|auto> | hemisphere <north|south|auto>."""
+    if args and args[0] in ("pin", "hemisphere") and len(args) == 2:
+        key, value = f"season_{args[0]}", args[1]
+        allowed = SEASONS if args[0] == "pin" else HEMISPHERES
+        if value not in allowed + ("auto",):
+            sys.exit(f"season {args[0]}: one of {', '.join(allowed + ('auto',))}")
+        state = read_state()
+        state[key] = "" if value == "auto" else value     # write_state drops empty keys
+        write_state(state)
+        _places["at"] = None
+        if seasonal(current()):
+            cmd_season_check(force=True)
+        print(season_line(season_status()))
+    elif args in ([], ["--json"]):
+        status = season_status()
+        print(json.dumps(status) if args else season_line(status))
+    else:
+        sys.exit("season [--json] | season pin <spring|summer|autumn|winter|auto> | "
+                 "season hemisphere <north|south|auto>")
 
 
 # -- state (the format and the other readers: lua/shared.lua) -----------------
@@ -551,16 +971,17 @@ def generated_text(target, conf):
     """The full text of one generated file for theme `conf`."""
     path, style, bases = TARGETS[target]
     name = conf["id"]
-    src = os.path.join(theme_dir(name), target)
-    try:
-        with open(src) as handle:
-            body = handle.read()
-    except OSError:
-        body = ""
+    s = conf.get("season", "")
+    if target == "mako":
+        # Section-wise, not appended: see mako_merge.
+        body = mako_merge(_read(os.path.join(theme_dir(name), target)), season_text(conf, target))
+    else:
+        body = theme_text(conf, target)
+    at = f"from theme '{name}'" + (f" season '{s}'" if s else "")
     swaps = [(BASE_FONT, conf.get("font") or BASE_FONT), (BASE_MONO, conf.get("font_mono") or BASE_MONO)]
     swaps = [(old, new) for old, new in swaps if new != old]
     if style == "css":
-        head = (f"/* {MARK} from theme '{name}' -- do not edit.\n"
+        head = (f"/* {MARK} {at} -- do not edit.\n"
                 f"   Source: ~/.config/themes/{name}/{target}"
                 f"{'' if body else ' (none: no override)'}; change that and run theme.py apply. */\n")
         # A url() a theme cannot write relatively (the generated copy lives
@@ -577,9 +998,16 @@ def generated_text(target, conf):
             # is handed to it here; the theme's wofi.css below can still
             # redefine @cyan itself.
             head += f"\n/* accent={accent} (wofi has no generated/accent.css) */\n@define-color cyan {accent.lower()};\n"
+        palette = season_palette(conf) if bases else ""
+        if palette:
+            # Every GTK3 target (not gtk4.css, which has no bases and its own
+            # season file): the s-* names defined BEFORE the theme's rules
+            # use them -- after the font rules, which name no colour.
+            head += (f"\n/* season={s}: ~/.config/themes/{name}/{SEASON_DIR}/{s}/palette.css */\n"
+                     + palette.rstrip("\n") + "\n")
         return head + ("\n" + body if body else "")
     # mako: fragment included at the very end of mako/config (top level).
-    head = (f"# {MARK} from theme '{name}' -- do not edit.\n"
+    head = (f"# {MARK} {at} -- do not edit.\n"
             f"# Source: ~/.config/themes/{name}/mako{'' if body else ' (none: no override)'}.\n")
     if any(old == BASE_FONT for old, _ in swaps):
         # Pango takes a family LIST too ("A, B SemiBold 11"), so a fallback
@@ -604,11 +1032,10 @@ def generated_text(target, conf):
         # sections is also the right order: the accent beats the theme's
         # global border, and the theme's [urgency=critical] border still
         # beats the accent.
-        lines = body.splitlines(keepends=True)
-        cut = next((i for i, line in enumerate(lines) if line.lstrip().startswith("[")), len(lines))
-        body = ("".join(lines[:cut])
+        globals_, sections = mako_split(body)
+        body = (globals_
                 + f"# accent_follow: the wallpaper accent, again, after the theme's global lines.\ninclude={MAKO_ACCENT}\n"
-                + "".join(lines[cut:]))
+                + sections)
     return head + body
 
 
@@ -720,12 +1147,10 @@ def kitty_text(conf):
              f"selection_foreground {conf['term.background']}"]
     for i, col in enumerate(term_colours(conf, "term.normal") + term_colours(conf, "term.bright")):
         lines.append(f"color{i} {col}")
-    extra = os.path.join(theme_dir(conf["id"]), "kitty.conf")
-    try:
-        with open(extra) as handle:
-            lines += ["", f"# --- ~/.config/themes/{conf['id']}/kitty.conf ---", handle.read().rstrip("\n")]
-    except OSError:
-        pass
+    # The season's kitty.conf comes after the theme's: a later kitty option wins.
+    extra = theme_text(conf, "kitty.conf")
+    if extra or os.path.isfile(os.path.join(theme_dir(conf["id"]), "kitty.conf")):
+        lines += ["", f"# --- ~/.config/themes/{conf['id']}/kitty.conf ---", extra.rstrip("\n")]
     return "\n".join(lines) + "\n"
 
 
@@ -736,10 +1161,9 @@ def prompt_text(conf):
     """~/.bashrc.d/theme-prompt.sh: the theme's prompt.sh under a header, or
     a reset to Fedora's default prompt when the theme has none (a shell that
     sourced another theme's file must not keep its hook)."""
-    try:
-        with open(os.path.join(theme_dir(conf["id"]), "prompt.sh")) as handle:
-            body = handle.read()
-    except OSError:
+    # The season's prompt.sh comes after the theme's: its assignments win.
+    body = theme_text(conf, "prompt.sh")
+    if not body and not os.path.isfile(os.path.join(theme_dir(conf["id"]), "prompt.sh")):
         body = ("# (none: Fedora's default prompt)\n"
                 "PROMPT_COMMAND=${PROMPT_COMMAND//__cp_prompt;/}\n")
     return f"# {MARK} from theme '{conf['id']}' -- do not edit.\n" + body
@@ -818,20 +1242,23 @@ def mpv_text(conf):
         except OSError:
             return ""
     base = read(MPV_BASE)
-    body = read(os.path.join(theme_dir(conf["id"]), "mpv.conf"))
+    # The season's mpv.conf after the theme's: a later script-opts-append wins.
+    body = theme_text(conf, "mpv.conf")
     head = (f"# {MARK} from theme '{conf['id']}' -- do not edit.\n"
             f"# Source: ~/.config/themes/mpv-base.conf, then "
             f"~/.config/themes/{conf['id']}/mpv.conf{'' if body else ' (none: stock mpv)'}.\n")
     return head + ("\n" + base if base else "") + ("\n" + body if body else "")
 
 
-def check_mpv(name):
-    """Problems in a theme's mpv.conf and in the shared mpv-base.conf: lines
-    that are not option=value, and a skin directory or input file named that
-    is not there."""
+def check_mpv(name, season=""):
+    """Problems in a theme's mpv.conf (and its season's, when given) and in
+    the shared mpv-base.conf: lines that are not option=value, and a skin
+    directory or input file named that is not there."""
     problems = []
-    for src in (MPV_BASE, os.path.join(theme_dir(name), "mpv.conf")):
-        label = os.path.basename(src)
+    srcs = [(MPV_BASE, "mpv-base.conf"), (os.path.join(theme_dir(name), "mpv.conf"), "mpv.conf")]
+    if season:
+        srcs.append((os.path.join(season_dir(name, season), "mpv.conf"), f"{SEASON_DIR}/{season}/mpv.conf"))
+    for src, label in srcs:
         try:
             with open(src) as handle:
                 lines = handle.read().splitlines()
@@ -931,6 +1358,11 @@ def write_generated(conf, only_missing=False):
     if not (only_missing and os.path.exists(LANG_FILE)):
         if write_if_changed(LANG_FILE, (conf.get("lang") or "en") + "\n"):
             changed.append("lang")
+    if not (only_missing and os.path.exists(SEASON_FILE)):
+        # The season these files are for: season-check compares it with the
+        # season due now, so an unchanged season costs no re-apply.
+        if write_if_changed(SEASON_FILE, conf.get("season", "") + "\n"):
+            changed.append("season")
     if not (only_missing and os.path.exists(MODULES)):
         if write_if_changed(MODULES, modules_text(conf)):
             changed.append("modules")
@@ -1598,8 +2030,7 @@ def cmd_set(name):
         changed = apply(conf)
     finally:
         end_fade(fade)
-    subprocess.Popen([THEME_SOUND, "switch"], start_new_session=True,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    switch_sound()
     title = f"Theme: {conf.get('name') or name}"
     # The Files toast goes out even from the display panel (DISPLAY_QUIET):
     # the panel shows the theme, but it has no way to say that Files lags.
@@ -1678,17 +2109,101 @@ def check_hypr_lua(name):
     return problems
 
 
+# Why a key a season's theme.conf may not set stays the theme's all year.
+SEASON_FIXED_WHY = {
+    "hypr.": "lua/display.lua reads it from theme.conf",
+    "font": "a face that changed with the season would change every panel's size",
+    "font_mono": "a face that changed with the season would change every panel's size",
+    "term.font": "a face that changed with the season would change every panel's size",
+    "term.font_size": "a size that changed with the season would move the terminals",
+    "lang": "lua/env.lua and the bar read it from theme.conf",
+    "anim": "lua/display.lua reads it from theme.conf",
+    "cursor_theme": "lua/env.lua reads it from theme.conf",
+    "crt_suggest": "display_panel.py reads it from theme.conf",
+}
+SEASON_FILE_WHY = {"hypr.lua": "lua/display.lua reads hypr.lua from the theme folder itself",
+                   "sounds": "theme-sound.sh and timers.py read sounds/ from the theme folder itself"}
+
+
+def check_seasons(name):
+    """Problems in a seasonal theme's season/ folder: a season without its
+    theme.conf or palette.css, a key its theme.conf may not set (with why
+    it is the theme's all year), a file theme.py would never read."""
+    problems = []
+    for s in SEASONS:
+        folder = season_dir(name, s)
+        where = f"{SEASON_DIR}/{s}"
+        if not os.path.isdir(folder):
+            problems.append(f"{where}/: missing (every season needs a folder)")
+            continue
+        over = read_kv(os.path.join(folder, "theme.conf"))
+        if over is None:
+            problems.append(f"{where}/theme.conf: missing")
+        for key in over or {}:
+            if key not in KNOWN and not key.startswith("color."):
+                problems.append(f"{where}/theme.conf: unknown key {key!r}")
+            elif not season_allowed(key):
+                why = SEASON_FIXED_WHY.get(key) or next(
+                    (w for k, w in SEASON_FIXED_WHY.items() if k.endswith(".") and key.startswith(k)),
+                    "the theme's own key, the same all year")
+                problems.append(f"{where}/theme.conf: {key} is ignored -- the theme's all year: {why}")
+        if not os.path.isfile(os.path.join(folder, "palette.css")):
+            problems.append(f"{where}/palette.css: missing (the s-* names every GTK3 stylesheet uses)")
+        for entry in sorted(os.listdir(folder)):
+            if entry not in SEASON_FILES:
+                why = SEASON_FILE_WHY.get(entry, f"not a season file ({', '.join(sorted(SEASON_FILES))})")
+                problems.append(f"{where}/{entry}: never read -- {why}")
+    try:
+        stray = sorted(set(os.listdir(os.path.join(theme_dir(name), SEASON_DIR))) - set(SEASONS))
+    except OSError:
+        stray = []
+    for entry in stray:
+        problems.append(f"{SEASON_DIR}/{entry}: not a season ({', '.join(SEASONS)})")
+    return problems
+
+
 def cmd_check(name):
     """Lint a theme. Exit 1 on any problem. Parses each stylesheet with GTK
     as it will really be loaded: the base file with the generated override
     in place of the live one, so a missing palette name or a typo shows here
-    instead of as an unstyled bar."""
-    problems = []
+    instead of as an unstyled bar. A seasonal theme is checked in every
+    season (check_seasons, then check_conf once per season); a problem the
+    four share is printed once, the others with a [season] prefix."""
     if not exists(name):
         print(f"no theme {name!r} in {THEMES_DIR}")
         sys.exit(1)
     own = read_kv(os.path.join(theme_dir(name), "theme.conf")) or {}
-    conf = load(name, user=False)       # the theme's own, not your overrides
+    if not seasonal(name):
+        # The theme's own, not your overrides.
+        problems = check_conf(name, load(name, user=False, season=""), own)
+    else:
+        problems = check_seasons(name)
+        per = {}
+        for s in SEASONS:
+            mine = read_kv(os.path.join(season_dir(name, s), "theme.conf")) or {}
+            keys = dict(own, **{k: v for k, v in mine.items() if season_allowed(k)})
+            per[s] = check_conf(name, load(name, user=False, season=s), keys)
+        shared = set.intersection(*(set(v) for v in per.values()))
+        seen = set()
+        for s in SEASONS:
+            for p in per[s]:
+                if p in shared:
+                    if p not in seen:
+                        seen.add(p)
+                        problems.append(p)
+                else:
+                    problems.append(f"[{s}] {p}")
+    for p in problems:
+        print("  " + p)
+    print(f"{name}: {'OK' if not problems else f'{len(problems)} problem(s)'}")
+    sys.exit(1 if problems else 0)
+
+
+def check_conf(name, conf, own):
+    """Problems of one resolved conf of theme `name` (`own`: the keys its
+    files set): keys and colours, the terminal font, icons, wallpapers,
+    hypr.lua and the GTK parse of every stylesheet."""
+    problems = []
     for key in own:
         if key not in KNOWN and not key.startswith("color."):
             problems.append(f"theme.conf: unknown key {key!r}")
@@ -1723,7 +2238,7 @@ def cmd_check(name):
         cols = term_colours(conf, key)
         if len(cols) != 8 or not all(HEX.match(c) for c in cols):
             problems.append(f"{key}: want 8 #rrggbb colours ({' '.join(ANSI)})")
-    problems += check_mpv(name)
+    problems += check_mpv(name, conf.get("season", ""))
     if not conf.get("glass", "").isdigit() or not 0 <= int(conf["glass"]) <= 100:
         problems.append(f"glass={conf.get('glass')!r}: 0-100")
     face = font_list(conf.get("term.font", ""))[:1]
@@ -1739,7 +2254,9 @@ def cmd_check(name):
             problems.append(f"term.font={face[0]!r} has no Bold face: COSMIC Terminal will not use it")
     icons = conf.get("icon_theme")
     if not icon_theme_dir(icons):
-        hint = (" (make-icon-theme.py --all builds it)" if icons in ("Win95", "Phosphor", "Neon", "Moe", "Lofi", "Luna")
+        built = ("Win95", "Phosphor", "Neon", "Moe", "Lofi", "Luna", "Orbit",
+                 "Seasons-Spring", "Seasons-Summer", "Seasons-Autumn", "Seasons-Winter")
+        hint = (" (make-icon-theme.py --all builds it)" if icons in built
                 else " (sudo dnf install oxygen-icon-theme)" if icons == "oxygen"
                 else " (Chicago95: see ~/.local/share/icons/Chicago95/README)" if icons == "Chicago95" else "")
         problems.append(f"icon_theme={icons!r}: no such icon theme, Adwaita until there is{hint}")
@@ -1824,10 +2341,7 @@ def cmd_check(name):
             os.remove(probe)
             for err in errors:
                 problems.append(f"{target} (with {os.path.basename(base)}): {err}")
-    for p in problems:
-        print("  " + p)
-    print(f"{name}: {'OK' if not problems else f'{len(problems)} problem(s)'}")
-    sys.exit(1 if problems else 0)
+    return problems
 
 
 # -- glass ---------------------------------------------------------------------
@@ -1921,6 +2435,10 @@ def main(argv):
         write_generated(load(), only_missing=True)
     elif cmd == "check":
         cmd_check(args[0] if args else current())
+    elif cmd == "season":
+        cmd_season(args)
+    elif cmd == "season-check" and not args:
+        cmd_season_check()
     elif cmd == "chrome-watch" and len(args) == 1:
         cmd_chrome_watch(args[0])       # internal: started detached by apply_chrome
     elif cmd == "fade" and len(args) <= 1:

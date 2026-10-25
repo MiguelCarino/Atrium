@@ -12,7 +12,13 @@ the same spirit, written here as new phrases (a fifth, a rolled F major
 chord, a four-note loop), not a transcription of any Windows sound.
 orbit's are Quindar-style tones -- the pure 2525 / 2475 Hz beeps that keyed
 radio links on and off in the 1960s, a generic technique, not a recording --
-plus a soft two-tone caution chime.
+plus a soft two-tone caution chime. seasons' are a kalimba (thumb piano):
+a sine tine with one quiet inharmonic 'tink' at 5.4x that fades fast and a
+3 ms attack -- wood and metal, outdoorsy, soft. One set serves all four
+seasons (theme-sound.sh and timers.py read themes/seasons/sounds/ directly).
+Its notes come from D major pentatonic, all at or below B4 (71), and the
+pairs are told apart from moe (67/72), lofi (64/71), luna (65/72) and aero
+(64/68): notify is D4 -> A4 (62/69).
 
     make-theme-sounds.py            render every theme that has a recipe
     make-theme-sounds.py <name>...  only these
@@ -184,6 +190,19 @@ RECIPES = {
         "alarm": lambda: seq(*[(i * 0.42, 0.9 * soft_bell(note(n), 0.5, 5.5))
                                for i, n in enumerate((79, 72, 79, 72))]),
     },
+    # a kalimba under a tree: notify D4 then A4 (62, 69) with a short echo;
+    # switch a rising D-major pentatonic roll D4 E4 F#4 A4 B4, each softer,
+    # like a wind chime; alarm A4 F#4 A4 D4, its first note softer and its
+    # last let ring out, so timers.py loops it without a seam. Every note at
+    # or below B4 (71): write()'s defaults hold, no THEME_WRITE entry.
+    "seasons": {
+        "notify": lambda: echo(seq((0, 0.9 * kalimba(note(62), 0.9)),
+                                   (0.12, 0.8 * kalimba(note(69), 1.0))), 0.14, 0.18),
+        "switch": lambda: echo(seq(*[(i * 0.09, (0.85 - i * 0.1) * kalimba(note(n), 1.2, 2.8))
+                                     for i, n in enumerate((62, 64, 66, 69, 71))]), 0.2, 0.22, 2),
+        "alarm": lambda: seq(*[(i * 0.25, a * kalimba(note(n), 0.5, 4.5))
+                               for i, (n, a) in enumerate(((69, 0.6), (66, 0.9), (69, 0.9), (62, 0.8)))]),
+    },
 }
 
 # Per-theme overrides for write(): the low-pass cutoff (Hz) and the peak.
@@ -210,6 +229,13 @@ def soft_bell(f, dur, decay=4.0):
     """bell() without its glassy high partials: the fundamental and a quiet
     octave -- round, not piercing."""
     return sine(f, dur, decay, 0.01) + 0.25 * sine(f * 2, dur, decay * 1.8, 0.01)
+
+
+def kalimba(f, dur, decay=3.2):
+    """A thumb piano: the tine's fundamental, a quiet inharmonic overtone at
+    5.4x that fades fast (the metallic 'tink', mostly under write()'s 2 kHz
+    low-pass), and a 3 ms attack -- woody, not a bell."""
+    return sine(f, dur, decay, 0.003) + 0.16 * sine(f * 5.4, dur, decay * 3.5, 0.002)
 
 
 # -- lofi: a Rhodes in a dusty room ---------------------------------------------

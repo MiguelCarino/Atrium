@@ -1,0 +1,33 @@
+/* ~/.config/themes/seasons/season/autumn/gtk4.css -- the autumn (amber and rust)
+   values of the custom properties ../../gtk4.css is written in. theme.py
+   appends this file after that one, so these are the values libadwaita
+   resolves; the order of custom properties does not matter. The same 22
+   s-* values as palette.css (GTK3) plus --s-accent, the season's accent=
+   (copper). Change a value here and in palette.css together; never a name.
+   The measured numbers for every season are in ../../gtk4.css. */
+
+:root {
+    --s-floor: #110b07;
+    --s-dense: #160f0a;
+    --s-surface: #1b120c;
+    --s-card: #1c130d;
+    --s-raised: #281a11;
+    --s-rule: #45301f;
+    --s-rule-hi: #64462c;
+    --s-text: #f1e3d0;
+    --s-dim: #bba78f;
+    --s-readout: #f8efe3;
+    --s-ink: #1c0d04;
+    --s-good: #86d0a0;
+    --s-warn: #f0d85c;
+    --s-bad: #e9506e;
+    --s-bad-fg: #f47a90;
+    --s-crit: #8a1c30;
+    --s-crit-dim: #460e18;
+    --s-rec: #982238;
+    --s-hue1: #a9bfd8;
+    --s-hue2: #c9a2d8;
+    --s-hue3: #c8b8a0;
+    --s-epoch: #f0dfb8;
+    --s-accent: #ee9a62;
+}

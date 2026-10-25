@@ -1,0 +1,31 @@
+# ~/.config/themes/seasons/season/winter/mako -- the winter colours of the
+# seasons theme's notifications. theme.py merges it with ../../mako
+# (mako_merge: the theme's global lines, these global lines, the theme's
+# sections, these sections), so a line here beats the theme's same line and
+# a global line here cannot land inside the theme's [urgency=low]. Colours
+# only: the face, borders, radius and padding are ../../mako's, the same all
+# year. mako colours are #RRGGBBAA, unquoted.
+#
+# The card is the winter card #0f1520 at F2 (95%; mako draws no blur): over a
+# dark window #0e141e, over a white one #1b212b, the worst case.
+# Contrast, WCAG, dark / white behind: text #e4ebf4 15.4 / 13.5, the
+# low-urgency dim #9caabd 7.8 / 6.8. The hairline #415678 (2.5 / 2.2)
+# is decoration; the critical border, the winter bad #f26a7c 6.3 / 5.5, is the
+# signal and clears 3:1. The progress bar is the accent #8ccaf2 at 1/3 over
+# the card.
+background-color=#0F1520F2
+text-color=#E4EBF4
+border-color=#415678
+progress-color=over #8CCAF255
+
+[urgency=critical]
+# text-color again: mako/sections paints a critical body in its neon pink,
+# which only this line replaces -- urgency is the frame, not a red paragraph.
+# (Inside the section: mako_merge cuts at the first "[" line, so a comment
+# above it would travel with the global lines.)
+border-color=#F26A7C
+text-color=#E4EBF4
+
+[urgency=low]
+text-color=#9CAABD
+border-color=#2A384E

@@ -1,0 +1,3 @@
+/* Summer: the weather's high in the sun gold (s-hue2, 11.9:1 on the card)
+   instead of hue3, which in summer is a cool lavender. Colour only. */
+label.wx-hi { color: @s-hue2; }

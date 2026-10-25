@@ -9,6 +9,12 @@ instead of waiting for them to happen.
     statebar.py hide            stop it
     statebar.py shot FILE.png   start, wait for it to draw, screenshot, stop
 
+STATEBAR_OUTPUT=<name> draws it on that screen instead. Without it the bar
+goes to the primary (Settings > Screens) when that screen is connected, else
+to the first connected one: with the main screen unplugged or powered off the
+bar named an output waybar could not find (no bar, and `shot` died in
+geometry() with StopIteration).
+
 It is a second waybar with the REAL style.css (and therefore the live
 generated/accent.css and generated/theme.css), fed static JSON by
 custom modules whose names match the real ones -- custom/disk#crit is drawn
@@ -47,7 +53,31 @@ PIDFILE = os.path.join(WORK, "pid")
 STYLE = os.environ.get("STATEBAR_STYLE") or os.path.expanduser("~/.config/waybar/style.css")
 sys.path.insert(0, os.path.expanduser("~/.config/hypr/scripts"))
 import screens  # noqa: E402  (hypr/scripts/screens.py)
-OUTPUT = screens.primary()      # Settings > Screens' choice, else the host file's first
+
+
+def pick_output(override, primary, connected):
+    """The screen to draw on: the override, else the primary if it is
+    connected, else the first connected screen (hyprctl's order), else the
+    primary anyway (nothing is connected: waybar says so in its log)."""
+    if override:
+        return override
+    if primary in connected or not connected:
+        return primary
+    return connected[0]
+
+
+def connected_outputs():
+    try:
+        mons = json.loads(subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True,
+                                         text=True, timeout=2).stdout)
+        return [m["name"] for m in mons]
+    except (OSError, ValueError, subprocess.SubprocessError, KeyError, TypeError):
+        return []
+
+
+# Settings > Screens' choice, else the host file's first -- if it is connected.
+OUTPUT = pick_output(os.environ.get("STATEBAR_OUTPUT", ""), screens.primary(),
+                     connected_outputs())
 ROW_H = 36
 
 
@@ -122,6 +152,14 @@ ROW2 = [
     ("custom/keybinds", g(0xf11c), ""),
     ("custom/weather#stale", f"{g(0xf0c2)} --", "stale"),
     ("custom/updates#err", g(0xf49e), "error"),
+    # The clock with a world clock pinned (clock_panel.py's pin: "· TYO" after
+    # the time, the widest the clock pill gets) and the timers pill's states
+    # (timers.py bar: a countdown, the stopwatch paused, one ringing) -- none
+    # of them were here, so no theme shot showed them.
+    ("custom/clock#pin", "21:45:07 \u00b7 TYO 12:45", "local"),
+    ("custom/timers", f"{g(0xf252)} 4:59", "timer"),
+    ("custom/timers#paused", f"{g(0xf2f2)} 0:03", "paused"),
+    ("custom/timers#ringing", f"{g(0xf0f3)} tea", "ringing"),
     # Animated: compare by eye.
     ("custom/cpu#crit", f"<span color='{CPU_HOT}'>CPU</span> 99%  91° 16.2G", "critical"),
     ("custom/recording", f"{g(0xf111)} 0:42", "recording"),

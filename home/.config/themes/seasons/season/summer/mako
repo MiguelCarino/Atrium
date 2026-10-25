@@ -1,0 +1,31 @@
+# ~/.config/themes/seasons/season/summer/mako -- the summer colours of the
+# seasons theme's notifications. theme.py merges it with ../../mako
+# (mako_merge: the theme's global lines, these global lines, the theme's
+# sections, these sections), so a line here beats the theme's same line and
+# a global line here cannot land inside the theme's [urgency=low]. Colours
+# only: the face, borders, radius and padding are ../../mako's, the same all
+# year. mako colours are #RRGGBBAA, unquoted.
+#
+# The card is the summer card #0c1b14 at F2 (95%; mako draws no blur): over a
+# dark window #0b1a13, over a white one #182720, the worst case.
+# Contrast, WCAG, dark / white behind: text #e8efda 15.2 / 13.2, the
+# low-urgency dim #a2b8a2 8.5 / 7.3. The hairline #335c45 (2.4 / 2.0)
+# is decoration; the critical border, the summer bad #ff5c80 6.1 / 5.3, is the
+# signal and clears 3:1. The progress bar is the accent #5ccfd6 at 1/3 over
+# the card.
+background-color=#0C1B14F2
+text-color=#E8EFDA
+border-color=#335C45
+progress-color=over #5CCFD655
+
+[urgency=critical]
+# text-color again: mako/sections paints a critical body in its neon pink,
+# which only this line replaces -- urgency is the frame, not a red paragraph.
+# (Inside the section: mako_merge cuts at the first "[" line, so a comment
+# above it would travel with the global lines.)
+border-color=#FF5C80
+text-color=#E8EFDA
+
+[urgency=low]
+text-color=#A2B8A2
+border-color=#21402F

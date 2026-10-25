@@ -1,0 +1,33 @@
+/* ~/.config/themes/seasons/season/winter/gtk4.css -- the winter (frost blue and silver)
+   values of the custom properties ../../gtk4.css is written in. theme.py
+   appends this file after that one, so these are the values libadwaita
+   resolves; the order of custom properties does not matter. The same 22
+   s-* values as palette.css (GTK3) plus --s-accent, the season's accent=
+   (frost). Change a value here and in palette.css together; never a name.
+   The measured numbers for every season are in ../../gtk4.css. */
+
+:root {
+    --s-floor: #070b11;
+    --s-dense: #0b1018;
+    --s-surface: #0e141e;
+    --s-card: #0f1520;
+    --s-raised: #172030;
+    --s-rule: #2a384e;
+    --s-rule-hi: #415678;
+    --s-text: #e4ebf4;
+    --s-dim: #9caabd;
+    --s-readout: #f1f5fa;
+    --s-ink: #06111c;
+    --s-good: #6fd8a2;
+    --s-warn: #f1c45c;
+    --s-bad: #f26a7c;
+    --s-bad-fg: #ff8a98;
+    --s-crit: #8c1f30;
+    --s-crit-dim: #470f18;
+    --s-rec: #9a2436;
+    --s-hue1: #c4ccd8;
+    --s-hue2: #b9a8f0;
+    --s-hue3: #e6cdb8;
+    --s-epoch: #eee6c8;
+    --s-accent: #8ccaf2;
+}
