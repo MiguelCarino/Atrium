@@ -1,0 +1,555 @@
+/* ===========================================================================
+   LO-FI -- every popup card (~/.config/waybar/panel.css): media, calendar,
+   shortcuts, audio, network, CPU / GPU, disks, weather, power, capture,
+   display, repos, notifications, updates -- and, through the same file, the
+   OSD (osd.py) and the focus guard's "Still want X?" card (focus-guard.py
+   overlay). Copied to waybar/generated/theme-panel.css by theme.py and
+   imported LAST. Same palette and rules as this theme's waybar.css (its
+   header explains them): dusk glass, cream text, peach lamplight as the
+   accent role, never a status.
+
+   Each card is a soft, round (radius 18) pane of dusk glass with the film
+   grain over it (grain.png), a 1px lilac hairline, a warm floor where the
+   lamp catches its bottom edge, and a soft violet shadow in the 14px gutter
+   the base keeps for exactly that (GTK clips a shadow to the toplevel).
+   Headings in Comfortaa, light peach; every control rounded -- pill
+   switches, round knobs, 10px buttons, rounded key caps.
+
+   HDR: the card is DARK. rgba(32, 27, 52, 0.92) is #1f1a32 over a dark
+   backdrop (luminance 0.013, "cd") and #2f2a41 over a white window after
+   blur (0.026, "cw"). Measured (WCAG) on cd / cw:
+       text        #e8dccb   12.4 / 10.2
+       text-dim    #bfaebf    8.0 / 6.6
+       text-dimmer #a091aa    5.7 / 4.7   (hints only)
+       accent      #f2a477    8.3 / 6.8   (key caps, values, the big temp)
+       heading     #f6b48c    9.4 / 7.7   (Comfortaa)
+       lilac       #b9a3ea    7.6 / 6.2   (weekdays, section underlines)
+       berry       #f58a98    7.2 / 5.9   (muted, errors, power)
+   Fills: ink #2a1d2a on peach 7.9:1 (today, an "on" icon, an active pick,
+   a switch that is on), on berry 6.9:1 (muted, an armed power tile);
+   cream on the peach wash of the play button / a lit chip 6.6 / 5.4; the
+   capture panel's .live tile is a deep red #a82c3c under cream-hi, 6.2:1
+   (but the HDR-range tile, a mode and not a recording, is a peach-lit
+   lamp tile under cream-hi, 7.4 / 6.1). The weather's rain chance is rain
+   blue, 8.5 / 7.0; the About card's captions are text-dim on its tiles,
+   5.9 / 4.8 at the peach end of the wash.
+
+   Panel sizes follow the font. Nunito's letters are about as wide as
+   Plex's at these sizes, its lines a little taller, and the Comfortaa
+   headings a touch narrower than Plex's spaced caps -- so the panels come
+   out within 2-3% of cyberpunk's: a few px taller, the display panel a
+   little narrower. Measured 2026-10-24, each panel built offscreen with its
+   theme's generated css and the same live data, natural size of the whole
+   window, 14px gutters included (the method gives aero's calendar, 277x310,
+   exactly as the themes README has it):
+                          cyberpunk    lofi
+       disk               900x1279     901x1298
+       display (Screens)  717x1926     705x1901
+       display (Theme)    717x1663     705x1662
+       display (Effects)  717x383      705x376
+       calendar           286x330      285x334
+       audio              430x378      432x388
+   The CARD_HEIGHT=412 cards (CPU, GPU, network, updates, notifications)
+   keep their height (panelui.py); nothing here resizes them.
+   Colours the panels DRAW (graphs, "Sure?") are theme.conf color.* keys.
+   =========================================================================== */
+
+/* --- the theme's own names ---------------------------------------------------- */
+@define-color l-night    #1c1830;
+@define-color l-dusk     #2a2342;
+@define-color l-plum     #3a2f55;   /* tracks, hover */
+@define-color l-cream    #e8dccb;
+@define-color l-cream-hi #f3e9dc;
+@define-color l-mauve    #bfaebf;
+@define-color l-haze     #a091aa;
+@define-color l-peach    #f2a477;
+@define-color l-peach-lt #f6b48c;   /* headings */
+@define-color l-lilac    #b9a3ea;   /* structure (the base's magenta) */
+@define-color l-rain     #8fbfe0;
+@define-color l-sage     #a6d6a0;
+@define-color l-honey    #e8d77a;
+@define-color l-berry    #f58a98;
+@define-color l-crit     #9c3352;
+@define-color l-ink      #2a1d2a;
+@define-color l-shade    rgba(8, 5, 18, 0.55);
+
+/* --- PALETTE 1: hues (@cyan = the accent role, peach, via accent.css) ---------
+   @magenta is "this ends something / bad" here: muted rows, errors, the
+   danger and armed power tiles, a full disk. Its STRUCTURAL uses in the base
+   (the calendar's weekdays, section underlines, the About card's wash, the
+   weather's high) are put back to lilac / peach by the rules below. */
+@define-color magenta    #f58a98;
+@define-color yellow     #e8d77a;
+@define-color green      #a6d6a0;
+/* .live tiles (a capture running) carry cream text, so the red is deep: the
+   spec's capture red #f2737d under cream was 2.9:1. */
+@define-color red        #a82c3c;
+@define-color mist       #bfaebf;
+
+/* --- PALETTE 2: surfaces, edges, text ------------------------------------------ */
+@define-color surface        rgba(32, 27, 52, 0.92);
+@define-color surface-deep   rgba(24, 20, 40, 0.70);
+@define-color surface-video  rgba(10, 8, 18, 0.88);   /* the media preview's floor */
+@define-color knob           #2a2342;
+@define-color edge           alpha(#b9a3ea, 0.22);
+@define-color edge-lit       alpha(@cyan, 0.75);
+@define-color accent         alpha(@cyan, 0.26);
+@define-color accent-lit     alpha(@cyan, 0.42);
+@define-color text           #e8dccb;
+@define-color text-dim       #bfaebf;
+@define-color text-dimmer    #a091aa;
+@define-color text-bright    #f3e9dc;
+@define-color ink            #2a1d2a;
+@define-color rec-edge       rgba(242, 115, 125, 0.55);
+
+/* Nunito, semi-bold where the base is medium: its strokes are a touch
+   lighter than Plex's at the same weight. */
+* {
+    font-weight: 600;
+}
+
+/* --- The card ------------------------------------------------------------------- */
+#panel-window {
+    background: transparent;
+}
+
+#panel {
+    border-radius: 18px;
+    background-color: @surface;
+    background-image: url("file://~/.config/themes/lofi/grain.png"),
+                      linear-gradient(to bottom,
+                        alpha(@cyan, 0.00) 0%,
+                        alpha(@cyan, 0.00) 82%,
+                        alpha(@cyan, 0.05) 100%);
+    border: 1px solid @edge;
+    border-top-color: @edge;
+    border-bottom-color: alpha(@cyan, 0.40);
+    box-shadow: 0 4px 14px @l-shade;
+}
+
+/* --- Headings: Comfortaa, light peach ----------------------------------------------
+   Comfortaa is a rounded geometric face; bold, a little larger than the
+   base's 10px caps and with less letter-spacing, so it stays legible. */
+label.kb-heading,
+#kb-title,
+#cal-month {
+    font-family: "Comfortaa", "Nunito", sans-serif;
+    font-weight: bold;
+    letter-spacing: 1px;
+    color: @l-peach-lt;
+}
+
+label.kb-heading {
+    font-size: 12px;
+}
+
+#kb-title {
+    font-size: 16px;
+}
+
+#title {
+    font-family: "Comfortaa", "Nunito", sans-serif;
+    font-weight: bold;
+    color: @text-bright;
+}
+
+/* Section cards (display panel, Settings): the underline under a heading is
+   lilac, not the base's magenta (which means "bad" here). */
+.ctl-group {
+    border-radius: 14px;
+    border-color: alpha(#b9a3ea, 0.16);
+}
+
+.ctl-group label.kb-heading {
+    border-bottom: 2px solid alpha(@l-lilac, 0.40);
+}
+
+/* --- Sliders: a peach gauge on a plum track, a round cream knob ------------------- */
+#seek trough,
+scale.ctl-slider trough {
+    min-height: 6px;
+    border-radius: 3px;
+    background-color: @l-plum;
+}
+
+#seek highlight,
+scale.ctl-slider highlight {
+    border: none;
+    border-radius: 3px;
+    /* The colour too, not only the gradient: GTK's own highlight colour
+       (a blue) showed at the run's rounded ends without it. */
+    background-color: @cyan;
+    background-image: linear-gradient(to right, alpha(@cyan, 0.70), @cyan);
+}
+
+#seek slider,
+scale.ctl-slider slider {
+    min-width: 16px;
+    min-height: 16px;
+    margin: -6px -2px;
+    border: 2px solid alpha(@cyan, 0.85);
+    border-radius: 10px;
+    background-color: @l-cream;
+    box-shadow: 0 1px 3px @l-shade;
+}
+
+#seek slider:hover,
+scale.ctl-slider slider:hover {
+    background-color: @l-cream-hi;
+    border-color: @cyan;
+    box-shadow: 0 0 6px alpha(@cyan, 0.55);
+}
+
+/* Muted: the gauge goes berry, as the base's does in its magenta. */
+.ctl-row.muted scale.ctl-slider highlight {
+    background-image: linear-gradient(to right, alpha(@magenta, 0.45), alpha(@magenta, 0.75));
+}
+
+/* --- Switches: pills. Off a plum track, on a peach fill with an ink knob --------- */
+switch {
+    border-radius: 11px;
+    border: 1px solid @edge;
+    background-color: @l-plum;
+}
+
+switch:checked {
+    background-color: @cyan;
+    border-color: @cyan;
+}
+
+switch slider {
+    border-radius: 9px;
+    background-color: @l-mauve;
+    box-shadow: 0 1px 2px @l-shade;
+}
+
+switch:checked slider {
+    background-color: @ink;
+}
+
+/* --- Buttons: rounded, the lamp glow under the hovered one ---------------------- */
+button.control,
+button.ctl-link,
+button.dev-pick,
+button.pw-tile,
+button.dk-fs,
+button.sn-link,
+#cal-prev,
+#cal-next,
+.ctl-icon,
+button.ctl-icon {
+    border-radius: 10px;
+}
+
+button.control:hover,
+#cal-prev:hover,
+#cal-next:hover,
+button.ctl-icon:hover {
+    background-color: alpha(@l-plum, 0.80);
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.75);
+}
+
+/* Play/pause: the one lit control, a peach wash under cream. */
+#play {
+    border-radius: 18px;
+    color: @text-bright;
+    background-color: alpha(@cyan, 0.30);
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.55);
+}
+
+#play:hover {
+    background-color: @accent-lit;
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.75);
+}
+
+/* --- Rows: icons, values, subtitles -------------------------------------------- */
+.ctl-icon {
+    color: @cyan;
+    background-color: alpha(@cyan, 0.08);
+    border: 1px solid @edge;
+}
+
+.ctl-row.on .ctl-icon {
+    color: @ink;
+    background-color: @cyan;
+    border-color: @cyan;
+}
+
+.ctl-row.muted .ctl-icon {
+    color: @ink;
+    background-color: @magenta;
+    border-color: @magenta;
+}
+
+.ctl-sub {
+    color: @text-dim;
+}
+
+.ctl-row.error .ctl-sub {
+    color: @magenta;
+}
+
+.ctl-sep,
+.ctl-vsep {
+    background-color: @edge;
+}
+
+/* --- Picks: device rows, chips, and the focus card's buttons ---------------------
+   A pick at rest is quiet text; hovered it gets the plum hover; the chosen
+   one is a peach FILL under ink (7.9:1) -- the theme's "selected". */
+button.dev-pick {
+    color: @text-dim;
+}
+
+button.dev-pick:hover {
+    color: @text;
+    border-color: @edge;
+    background-color: alpha(@l-plum, 0.70);
+}
+
+button.dev-pick.active,
+button.dev-pick.chip.active {
+    color: @ink;
+    font-weight: bold;
+    background-color: @cyan;
+    border: 1px solid @cyan;
+    box-shadow: none;
+}
+
+button.dev-pick.active label.dev-name,
+button.dev-pick.active label.dev-kind {
+    color: @ink;
+}
+
+button.dev-pick.active .dev-dot {
+    border-color: @ink;
+    background-color: @ink;
+}
+
+button.dev-pick.chip {
+    color: @text;
+    background-color: alpha(@l-plum, 0.45);
+    border: 1px solid @edge;
+}
+
+button.dev-pick.chip:hover {
+    background-color: alpha(@l-plum, 0.85);
+    border-color: @edge-lit;
+}
+
+/* The tabs above the display panel's pages are chips too; same look. */
+
+/* --- The focus guard's card ("Still want X?", focus-guard.py overlay) ------------
+   It is built from panel classes only: #panel-window / #panel (the card
+   above), an icon label .ctl-icon, the question as .kb-heading, the text as
+   .ctl-sub, and two buttons .dev-pick in a row straight under the card. The
+   theme's focus-mode tie-in: a calm lamp-lit card, the question in
+   Comfortaa, the moon glyph in peach, and the two answers as real buttons
+   (they are the only dev-picks that sit directly in a box under #panel; the
+   same holds for the other small question cards that copy this layout --
+   display-confirm, screen-ask -- which get the same buttons). */
+#panel > box > box > label.kb-heading {
+    font-size: 15px;
+    letter-spacing: 0px;
+}
+
+#panel > box > label.ctl-icon {
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 17px;
+    border-radius: 20px;
+    color: @cyan;
+    background-color: alpha(@cyan, 0.12);
+    border: 1px solid alpha(@cyan, 0.35);
+}
+
+#panel > box > box > label.ctl-sub {
+    color: @text-dim;
+    font-size: 13px;
+}
+
+#panel > box > button.dev-pick {
+    color: @text;
+    padding: 5px 14px;
+    background-color: alpha(@l-plum, 0.60);
+    border: 1px solid @edge;
+}
+
+#panel > box > button.dev-pick:hover {
+    background-color: alpha(@l-plum, 0.90);
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.75);
+}
+
+#panel > box > button.dev-pick.active {
+    color: @ink;
+    background-color: @cyan;
+    border-color: @cyan;
+}
+
+/* "Open it (9)" counts down insensitive: dim, but still readable (the
+   base's dimmer at 0.6 opacity would be 2.6:1 here). */
+#panel > box > button.dev-pick:disabled {
+    color: @text-dim;
+    opacity: 0.75;
+}
+
+/* --- Keyboard caps: rounded dusk keys with a peach floor ---------------------------- */
+label.kb-cap {
+    border-radius: 7px;
+    color: @cyan;
+    background-color: alpha(@cyan, 0.08);
+    border: 1px solid @edge;
+    border-bottom: 2px solid alpha(@cyan, 0.70);
+}
+
+/* --- Calendar: lilac weekdays, today as a peach circle ------------------------------ */
+label.cal-weekday {
+    color: @l-lilac;
+    letter-spacing: 1px;
+}
+
+label.cal-day {
+    border-radius: 13px;
+}
+
+/* The base's 0.22 was a near-invisible 1.6:1 on this card; 0.55 is 3.1:1
+   over a white window, still clearly "not this month". */
+label.cal-adjacent {
+    color: alpha(@mist, 0.55);
+}
+
+label.cal-today {
+    border-radius: 13px;
+    color: @ink;
+    background-color: @cyan;
+    font-weight: bold;
+}
+
+/* --- Disks and level bars: a peach run on a plum track, honey then berry ------------ */
+levelbar.dk-bar trough {
+    border-radius: 4px;
+    background-color: @l-plum;
+}
+
+levelbar.dk-bar block.filled {
+    border-radius: 4px;
+    background-color: @cyan;
+}
+
+levelbar.dk-bar.warning block.filled {
+    background-color: @yellow;
+}
+
+levelbar.dk-bar.critical block.filled {
+    background-color: @magenta;
+}
+
+button.dk-fs:hover {
+    background-color: alpha(@l-plum, 0.70);
+}
+
+/* --- Power tiles: dusk tiles; the ones that end the session are berry ------------- */
+button.pw-tile {
+    border-radius: 16px;
+    background-color: alpha(@l-plum, 0.35);
+    background-image: linear-gradient(to bottom,
+                        alpha(@cyan, 0.00) 0%,
+                        alpha(@cyan, 0.00) 60%,
+                        alpha(@cyan, 0.08) 100%);
+    border: 1px solid @edge;
+    border-bottom-color: alpha(@cyan, 0.55);
+}
+
+button.pw-tile:hover {
+    background-color: alpha(@l-plum, 0.80);
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.75);
+}
+
+button.pw-tile.danger {
+    border-bottom-color: alpha(@magenta, 0.70);
+    background-image: linear-gradient(to bottom,
+                        alpha(@magenta, 0.00) 0%,
+                        alpha(@magenta, 0.00) 60%,
+                        alpha(@magenta, 0.08) 100%);
+}
+
+button.pw-tile.danger:hover {
+    border-color: @magenta;
+    background-color: alpha(@magenta, 0.14);
+    box-shadow: inset 0 -2px 0 alpha(@magenta, 0.75);
+}
+
+button.pw-tile.armed,
+button.pw-tile.armed:hover {
+    background-color: @magenta;
+    background-image: none;
+    border-color: @magenta;
+    box-shadow: none;
+}
+
+button.pw-tile.live,
+button.pw-tile.live:hover {
+    background-color: alpha(@red, 0.90);
+    background-image: none;
+    border-color: @rec-edge;
+    box-shadow: none;
+}
+
+/* The capture panel's HDR-range tile is .live whenever HDR is on: a MODE,
+   not a recording. In the REC red, next to the Record tiles, it read as a
+   capture running, and red here means "bad / ends something". So it is a
+   lit lamp tile like the play button: a peach wash under cream-hi (7.4 /
+   6.1:1), the lamp-lit edge. */
+button.pw-tile.live.cap-rec-range,
+button.pw-tile.live.cap-rec-range:hover {
+    background-color: alpha(@cyan, 0.30);
+    background-image: none;
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.55);
+}
+
+button.pw-tile.live.cap-rec-range label.pw-glyph,
+button.pw-tile.live.cap-rec-range label.pw-label {
+    color: @text-bright;
+}
+
+/* --- Weather: the low in rain blue, the high in light peach --------------------------
+   (The base's high is magenta; here that would read as "bad".) The rain
+   chance is rain blue too, solid: the base's 75% accent was peach in a data
+   role and 4.5:1 over a white window. */
+label.wx-lo   { color: @l-rain; }
+label.wx-hi   { color: @l-peach-lt; }
+label.wx-rain { color: @l-rain; }
+
+label.wx-big-temp {
+    font-family: "Comfortaa", "Nunito", sans-serif;
+    font-weight: bold;
+    color: @cyan;
+}
+
+/* --- Settings > About's card: a peach-to-lilac dusk wash --------------------------
+   The peach end is 8%, not more: the base's captions on the tiles are
+   alpha(@text, 0.6), which fell to 3.5:1 there over a white window. Here
+   they are solid text-dim, 5.9 / 4.8:1 at the peach end, 6.0 / 4.8 at the
+   lilac end. */
+.about-hero {
+    border-radius: 18px;
+    background-image: linear-gradient(135deg, alpha(@cyan, 0.08), alpha(@l-lilac, 0.08) 60%, alpha(@text, 0.03));
+    border: 1px solid alpha(@cyan, 0.30);
+}
+
+.about-hero label.about-name {
+    font-family: "Comfortaa", "Nunito", sans-serif;
+}
+
+.about-hero .about-tile {
+    border-radius: 12px;
+}
+
+.about-hero label.about-cap,
+.about-hero label.about-sub {
+    color: @text-dim;
+}

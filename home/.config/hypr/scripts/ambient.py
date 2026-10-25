@@ -81,10 +81,14 @@ OUTPUTS (each one a switch; the master switch is off as shipped):
     notify       the notification sound's volume (theme-sound.sh reads
                  $XDG_RUNTIME_DIR/ambient-sound.conf): quieter in a focus
                  block and at night
-    soundscape   rain, a cafe or brown noise, rendered HERE with ffmpeg
+    soundscape   rain, a cafe, brown noise or a record crackling over the
+                 rain (vinyl), rendered HERE with ffmpeg
                  (~/.local/share/ambient/sounds, nothing downloaded) and
                  played by mpv --no-video at a low volume, during focus blocks
-                 (and in the evening, if you want); paused while music plays
+                 (and in the evening, if you want); paused while music plays.
+                 sound_kind "weather" is rain on a rainy day, brown otherwise;
+                 "theme" is the current theme's own (THEME_SOUND: lofi's
+                 vinyl, orbit's brown cabin hum), the weather rule for a theme without one
     theme        "theme follows ambience": the theme schedule's pick for the
                  part of the day, and a theme of your own for focus blocks.
                  Off as shipped: the other outputs never switch the theme
@@ -167,7 +171,10 @@ PRESENCE_STALE_S = 120
 HTTP_TIMEOUT_S = 4
 LATE_UNTIL = 5                  # the night after midnight, until 05:00, is "late"
 MOODS = ("day", "relax", "focus", "night", "away")
-SOUND_KINDS = ("rain", "cafe", "brown")
+SOUND_KINDS = ("rain", "cafe", "brown", "vinyl")
+# sound_kind "theme": the soundscape a theme prefers (display.conf theme=);
+# a theme not named here gets the "weather" rule.
+THEME_SOUND = {"lofi": "vinyl", "orbit": "brown"}
 DARK_WEATHER = {"cloud", "fog", "showers", "rain", "heavy", "storm"}
 RAINY_WEATHER = {"showers", "rain", "heavy", "storm"}
 OUTPUTS = ("wallpaper", "accent", "nightlight", "animations", "notify", "soundscape", "theme", "lights")
@@ -192,7 +199,7 @@ LIMITS = {"vol_focus": (0, 100), "vol_night": (0, 100), "sound_volume": (5, 60),
 SWITCHES = ("enabled", "wallpaper", "accent", "nightlight", "animations", "notify", "soundscape", "theme",
             "dnd_focus", "away_lock", "lights_away")
 CHOICES = {"strength": ("subtle", "medium"), "anim_when": ("focus", "night", "both"),
-           "anim_style": ("gentle", "still"), "sound_kind": SOUND_KINDS + ("weather",),
+           "anim_style": ("gentle", "still"), "sound_kind": SOUND_KINDS + ("weather", "theme"),
            "sound_when": ("focus", "relax"), "sound_music": ("pause", "keep"),
            "lights": ("off", "hue", "ha"), **{k: ("on", "off") for k in SWITCHES}}
 STRENGTH = {"subtle": 1.0, "medium": 1.6}
@@ -571,12 +578,25 @@ def observe(now=None, values=None):
     locked = process_running("hyprlock")
     dnd = dnd_on()
     return {"part": part_of_day(now, night_start, night_end, evening, sunset),
-            "weather": kind, "focus": focus_running(), "dnd": dnd,
+            "weather": kind, "theme": current_theme(), "focus": focus_running(), "dnd": dnd,
             "away": away or (locked and on(values, "away_lock")), "locked": locked,
             "presence": presence.get("state") or "", "gamemode": gamemode_on(),
             "music": (on(values, "soundscape") or os.path.exists(NOW_FILE)) and values["sound_music"] == "pause"
             and music_playing(),
             "soundscape_now": os.path.exists(NOW_FILE)}
+
+
+def current_theme():
+    """display.conf's theme= (the theme the desktop is in), or "" without one."""
+    try:
+        with open(DISPLAY_CONF) as handle:
+            for line in handle:
+                key, _, value = line.partition("=")
+                if key.strip() == "theme":
+                    return value.strip()
+    except OSError:
+        pass
+    return ""
 
 
 def mood_of(inputs, values):
@@ -636,6 +656,8 @@ def plan(inputs, values, mood=None, themes=None):
         held = inputs.get("gamemode") or mood == "away" or \
             (inputs.get("music") and values["sound_music"] == "pause")
         kind = values["sound_kind"]
+        if kind == "theme":
+            kind = THEME_SOUND.get(inputs.get("theme") or "", "weather")
         if kind == "weather":
             kind = "rain" if inputs.get("weather") in RAINY_WEATHER else "brown"
         out["soundscape"] = {"kind": kind, "volume": int(values["sound_volume"])} if wanted and not held else ""
@@ -965,6 +987,10 @@ RECIPES = {
     "rain": ("anoisesrc=color=pink:sample_rate=48000:amplitude=0.7:seed=11:d={d}",
              "highpass=f=350,lowpass=f=8000,tremolo=f=0.13:d=0.18,"
              "aecho=0.6:0.4:43|71:0.25|0.18,volume=1.4"),
+    # the rain again, a little quieter, under VINYL_EXTRA's crackle
+    "vinyl": ("anoisesrc=color=pink:sample_rate=48000:amplitude=0.7:seed=11:d={d}",
+              "highpass=f=350,lowpass=f=8000,tremolo=f=0.13:d=0.18,"
+              "aecho=0.6:0.4:43|71:0.25|0.18,volume=1.4,volume=0.9"),
     # A room murmur: brown rumble, two bands of pink noise pulsing at speech's
     # syllable rate, and now and then a cup (two short decaying sines).
     "cafe": ("anoisesrc=color=pink:sample_rate=48000:amplitude=0.6:seed=5:d={d}",
@@ -974,6 +1000,12 @@ CAFE_EXTRA = ("anoisesrc=color=brown:sample_rate=48000:amplitude=0.6:seed=9:d={d
               "aevalsrc='0.12*sin(2*PI*3150*t)*exp(-38*mod(t,7.3))*lt(mod(t,7.3),0.2)"
               "+0.08*sin(2*PI*2420*t)*exp(-30*mod(t+2.9,11.7))*lt(mod(t+2.9,11.7),0.25)'"
               ":s=48000:d={d}[cups];")
+# A record over the rain: the rain chain a little quieter (RECIPES "vinyl"),
+# and the crackle -- a sparse random tick (about 34 a second, each one sample
+# of random size and sign), kept out of the rumble and the hiss by a band
+# 1.2-6 kHz, and swelling a touch once a turn: 0.555 Hz is 33 1/3 rpm.
+VINYL_EXTRA = ("aevalsrc='0.5*gt(random(0),0.9993)*(random(1)-0.5)':s=48000:d={d},"
+               "highpass=f=1200,lowpass=f=6000,tremolo=f=0.555:d=0.08[crackle];")
 
 
 def sound_path(kind):
@@ -988,7 +1020,10 @@ def sound_graph(kind, seconds):
     if kind == "cafe":
         head = (CAFE_EXTRA.format(d=total) + f"{src.format(d=total)},{chain}[talk];"
                 "[talk][room][cups]amix=inputs=3:normalize=0")
-    # loudnorm: the three at the same loudness (-26 LUFS), so the volume
+    elif kind == "vinyl":
+        head = (VINYL_EXTRA.format(d=total) + f"{src.format(d=total)},{chain}[rain];"
+                "[rain][crackle]amix=inputs=2:normalize=0")
+    # loudnorm: every kind at the same loudness (-26 LUFS), so the volume
     # slider means the same for each; then back to 48 kHz (loudnorm works at 192).
     return (f"{head},loudnorm=I=-26:TP=-6:LRA=11,aresample=48000,asplit=3[a][b][c];"
             f"[a]atrim=0:{x},asetpts=PTS-STARTPTS,afade=t=in:d={x}:curve=qsin[h];"

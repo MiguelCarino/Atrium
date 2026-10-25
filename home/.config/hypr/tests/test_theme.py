@@ -59,6 +59,15 @@ class Apps(unittest.TestCase):
         self.assertTrue(theme.app_colours(LIGHT)["light"])
         self.assertEqual(theme.app_colours(DARK, "#ff8800")["accent"], "#ff8800")
 
+    def test_unreadable_accent_falls_back_to_cosmic_accent(self):
+        # luna: the cream cards' deep blue on the console-blue apps is 1.66:1.
+        conf = {"cosmic.background": "#012456", "cosmic.accent": "#6fa8ff"}
+        self.assertEqual(theme.app_colours(conf, "#18439a")["accent"], "#6fa8ff")
+        # A readable accent is kept, and so is a dark one with no spare.
+        self.assertEqual(theme.app_colours(conf, "#ff8800")["accent"], "#ff8800")
+        self.assertEqual(theme.app_colours({"cosmic.background": "#012456"}, "#18439a")["accent"],
+                         "#18439a")
+
     def test_qt_scheme_has_21_roles_per_group(self):
         text = theme.qt_text(theme.app_colours(DARK))
         for group in ("active_colors", "disabled_colors", "inactive_colors"):

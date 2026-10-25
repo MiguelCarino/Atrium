@@ -1,0 +1,38 @@
+# ~/.config/themes/lofi/mako -- mako fragment for the lofi theme, copied to
+# ~/.config/mako/generated/theme by theme.py and included LAST by
+# ~/.config/mako/config (global lines first, then the sections it repeats).
+# accent_follow=no, so no accent include is added after these lines.
+#
+# A notification is a little card from the study room: dark dusk violet
+# (#261f3a, almost opaque -- mako draws no blur, and a dark card is nothing
+# on the HDR panel), cream text, the summary in light peach with a ☾ before
+# it, a soft peach rim like the lamp's glow, round corners (14, the theme's
+# mako radius). On #261f3a: text #e8dccb 11.6:1, the peach summary #f6b48c
+# 8.8:1, the low-urgency mauve #bfaebf 7.5:1.
+# Critical: a berry rim and title (#f58a98, 6.4:1 on #2e2040), no moon --
+# berry means "bad" in this theme, peach never does.
+#
+# font= again after the one theme.py writes ("Nunito, IBM Plex Sans
+# SemiBold 11"): the same face, written out so this file reads on its own.
+# Nunito is variable; fontconfig exposes its SemiBold named instance.
+font=Nunito SemiBold 11
+background-color=#261F3AF2
+text-color=#E8DCCB
+border-color=#F2A477AA
+progress-color=over #F2A47755
+border-size=2
+border-radius=14
+format=<span color="#F6B48C"><b>☾ %s</b></span>\n%b
+
+[grouped]
+format=<span color="#F6B48C"><b>☾ %s</b></span>\n%b\n<small>(%g more)</small>
+
+[urgency=critical]
+border-color=#F58A98
+background-color=#2E2040FF
+format=<span color="#F58A98"><b>%s</b></span>\n%b
+border-size=3
+
+[urgency=low]
+text-color=#BFAEBF
+border-color=#4A3F66

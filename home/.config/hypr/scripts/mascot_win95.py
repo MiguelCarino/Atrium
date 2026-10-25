@@ -182,6 +182,63 @@ TOPIC_LINES = {
     "morning": "Good morning! Windows is starting up...",
     "lunch": "It looks like it's lunch time. Minimize all windows?",
     "weekend": "It looks like it's the weekend! Solitaire, anyone?",
+    "friday": "It looks like it's Friday afternoon. Log off?",
+    # conversation and stage events (tuples: a new variant each time round)
+    "hello": ("Hi! It looks like you're starting something.",
+              "Welcome to Windows 95! Need help?",
+              "Hello! I'm your Office Assistant."),
+    "welcome_back": ("Welcome back! Your desktop has been restored.",
+                     "It looks like you're back! Resume?"),
+    "wake": ("Huh? Resuming from Standby... I'm up!",
+             "Screen saver off! I wasn't sleeping."),
+    "long_prompt": ("It looks like you're writing a novel!",
+                    "Whoa. That's longer than AUTOEXEC.BAT."),
+    "code": ("It looks like you're writing code. Help?",
+             "Code! Opening it in EDIT.COM..."),
+    "image": ("It looks like a picture. Opening Paint...",
+              "Ooh, a bitmap! In 256 colors?"),
+    "aborted": ("Operation cancelled. Click OK.",
+                "Ctrl+Alt+Del! Task ended."),
+    "tests_pass": ("All tests passed. Click OK to continue.",
+                   "ScanDisk found no errors!",
+                   "Tests passed! Shall I run party.exe?"),
+    "tests_fail": ("It looks like a test failed. Retry?",
+                   "Tests failed. Abort, Retry, Fix?"),
+    "commit": ("Your files have been saved to C:\\.",
+               "It looks like you shipped it! Click OK.",
+               "Backup complete. Copied to floppy!"),
+    "fast": ("Done before the hourglass even turned!",
+             "That was fast! Faster than a 486.",
+             "Finished in record time. Click OK."),
+    "busy": ("It looks like you're very busy. Need help?",
+             "Multitasking! Don't press Ctrl+Alt+Del."),
+    "model": ("It looks like you installed {0}!",
+              "New driver loaded: {0}."),
+    "poke": ("It looks like you clicked me! Need help?",
+             "Hey! I'm a paperclip, not a button.",
+             "*wiggles eyebrows* Yes?",
+             "Hi! Would you like a tip?",
+             "Did you mean to double-click?",
+             "Boing! Still here. Still helpful."),
+    "poke_spam": ("It looks like you're clicking a lot. Stop?",
+                  "Stop! You'll bend my wire!",
+                  "Too many clicks! Not responding..."),
+    "pet": ("Aww. Nobody ever pets the paperclip!",
+            "Nicer than 'Hide Assistant'. Thanks!",
+            "Office Assistant is now happy.",
+            "*blushes in 16 colors*"),
+}
+# The reaction sign over the head (mascot_mood.EMOTE_TONES), in the 16-colour
+# palette: it sits on the window's face grey (#acacac), never on the title
+# bar, so each is dark enough for >= 3:1 there. (PANEL is never behind it:
+# the grid paints its own desktop over every cell.)
+EMOTE_COLOURS = {
+    "accent": NAVY,         # 7.1 on GREY
+    "warn": "#6a5000",      # dark olive-gold: 3.4 (YELLOW on grey is 1.7)
+    "bad": MAROON,          # 4.8
+    "good": "#006000",      # 3.5 (GREEN #007a00 is 2.4)
+    "love": "#800080",      # the palette's purple: 4.2
+    "dim": DIM,             # 5.0
 }
 
 WORDS = ("Dear", "Sir", "the", "and", "model", "file", "is", "ok", "to", "please",
@@ -282,6 +339,9 @@ class Mascot(BaseMascot):
             dy = (0, 1, 1, 0, 0, 0)[tick % 6]
         x0, top = self._clip(cv, state, tick, kind, dy, mood, scene)
         self._mood_marks(cv, state, tick, x0, top, mood, scene)
+        # the reaction sign: right of his right brow, a row under the top of
+        # the window's face so its float stays on grey, off the title bar
+        self.head = (x0 + 10, max(self.wy + 2, top + 1))
         px, py = self.wx + 16, self.wy + 2
         if state == "thinking":
             self._bulb(cv, tick, px, py)

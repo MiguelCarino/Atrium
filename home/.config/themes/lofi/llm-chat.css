@@ -1,0 +1,255 @@
+/* ===========================================================================
+   LO-FI -- the LLM chat window (~/.config/hypr/scripts/llm-chat.py, base
+   stylesheet llm-chat.css there). Copied to
+   waybar/generated/theme-llm-chat.css by theme.py and imported LAST.
+
+   LLM ☾ lo-fi: a study room at night. The window is dark dusk violet
+   #211c36 with the theme's film grain over it (grain.png next to this file),
+   the header and bubbles one step up (#2a2342), cream text, the peach lamp
+   as the accent and the lilac as structure. The mascot's stage is the room
+   itself -- #1c1830, the terminal's night (mascot_lofi.PANEL), with a faint
+   lamp glow rising from its bottom edge -- where Miso, the sleepy ginger
+   cat, naps by the rainy window. Everything rounded (window 14, bubbles 14);
+   titles, the speech bubble and the send button in Comfortaa.
+
+   HDR: every surface is dark (window L 0.014, header 0.021); the only
+   fills are small -- the send button, the status dots.
+   Contrast on the window #211c36: text #e8dccb 12.1:1, dim #bfaebf 7.8,
+   peach #f2a477 8.1, light peach #f6b48c 9.2, lilac #b9a3ea 7.4; on
+   #2a2342: text 11.0. Your message (a 16% peach wash): cream 8.8:1. A
+   selection (30% peach): cream-hi 7.2:1. Ink #2a1d2a on the fills: send
+   (peach) 7.9, the stop button (berry) 6.9, the dots honey 11.0 / sage
+   9.7 / berry 6.9. The base's palette names are mapped onto these below,
+   then every rule the lo-fi look changes is repeated.
+   =========================================================================== */
+
+@define-color l-night    #1c1830;
+@define-color l-dusk     #2a2342;
+@define-color l-plum     #3a2f55;
+@define-color l-cream    #e8dccb;
+@define-color l-cream-hi #f3e9dc;
+@define-color l-mauve    #bfaebf;
+@define-color l-haze     #a091aa;
+@define-color l-peach    #f2a477;
+@define-color l-peach-lt #f6b48c;
+@define-color l-lilac    #b9a3ea;
+@define-color l-sage     #a6d6a0;
+@define-color l-honey    #e8d77a;
+@define-color l-berry    #f58a98;
+@define-color l-ink      #2a1d2a;
+@define-color l-shade    rgba(8, 5, 18, 0.55);
+
+
+/* --- the base's PALETTE, in lo-fi ------------------------------------------ */
+@define-color magenta       @l-lilac;          /* structure only, never "bad" */
+@define-color violet        #8a7fb0;
+@define-color yellow        @l-honey;
+@define-color green         @l-sage;
+@define-color mist          @l-mauve;
+@define-color surface       #211c36;
+@define-color surface-2     @l-dusk;
+@define-color edge          alpha(@l-lilac, 0.22);
+@define-color edge-lit      alpha(@cyan, 0.75);
+@define-color text          @l-cream;
+@define-color text-dim      @l-mauve;
+@define-color ink           @l-ink;
+@define-color button-bg     alpha(@l-cream, 0.05);
+@define-color button-hover  alpha(@l-plum, 0.90);
+@define-color stop-bg       @l-berry;
+@define-color stop-fg       @l-ink;
+@define-color user-bg       alpha(#f2a477, 0.16);
+@define-color user-edge     alpha(@cyan, 0.55);
+@define-color user-fg       @l-cream;
+@define-color assistant-bg  alpha(#b9a3ea, 0.06);
+@define-color assistant-edge alpha(#b9a3ea, 0.22);
+@define-color stage-bg      @l-night;          /* = mascot_lofi.PANEL */
+@define-color stage-edge    alpha(@cyan, 0.35);
+@define-color stage-glow    #2a2040;
+@define-color scanline      alpha(#1c1830, 0);
+@define-color stage-fg      @l-cream;
+@define-color bubble-bg     @l-dusk;
+@define-color bubble-fg     @l-cream;
+@define-color bubble-edge   alpha(@cyan, 0.6);
+@define-color code-bg       @l-night;
+@define-color code-fg       @l-cream;
+@define-color code-lang     @l-lilac;
+@define-color code-edge     alpha(@l-lilac, 0.30);
+@define-color chip-bg       alpha(@l-cream, 0.04);
+@define-color chip-edge     alpha(@l-lilac, 0.22);
+@define-color run-bg        #e8d77a;
+@define-color done-bg       #a6d6a0;
+@define-color bad-bg        #f58a98;
+@define-color dot-fg        @l-ink;
+@define-color error-bg      alpha(@l-berry, 0.14);
+@define-color error-edge    @l-berry;
+@define-color note-bg       alpha(@l-cream, 0.05);
+@define-color sel-bg        alpha(#f2a477, 0.30);
+@define-color sel-fg        @l-cream-hi;
+@define-color input-bg      rgba(14, 11, 26, 0.55);
+@define-color input-edge    alpha(@l-lilac, 0.22);
+@define-color input-line    alpha(@cyan, 0.75);
+@define-color caret         #f2a477;
+@define-color send-bg       @cyan;
+@define-color send-fg       @l-ink;
+@define-color send-glow     alpha(@cyan, 0.45);
+@define-color slider        alpha(#b9a3ea, 0.85);
+@define-color tooltip-bg    @l-night;
+@define-color tooltip-fg    @l-cream;
+@define-color rule          alpha(@cyan, 0.45);
+/* reply markup (llm-chat.py reads these with lookup_color, so plain opaque
+   colours): light-peach headings and bullets, mauve quotes, a peach `code`
+   span on a dusk chip (8.0:1 on #2e2648) */
+@define-color md-accent     #f6b48c;
+@define-color md-dim        #bfaebf;
+@define-color md-code-fg    #f6b48c;
+@define-color md-code-bg    #2e2648;
+
+/* --- the window: dusk with film grain -------------------------------------- */
+window#llm-chat {
+    background-image: url("file://~/.config/themes/lofi/grain.png"),
+                      linear-gradient(to bottom, alpha(@l-lilac, 0.04) 0%, alpha(@l-lilac, 0.0) 35%,
+                                      alpha(@l-peach, 0.0) 70%, alpha(@l-peach, 0.05) 100%);
+    background-size: 128px 128px, 100% 100%;
+    background-repeat: repeat, no-repeat;
+}
+
+/* --- header bar: a raised dusk shelf, the lamp line under it ---------------- */
+window#llm-chat headerbar {
+    border-bottom: 1px solid alpha(@l-lilac, 0.22);
+    box-shadow: inset 0 -2px alpha(@cyan, 0.35);
+}
+
+window#llm-chat headerbar .title {
+    font-family: "Comfortaa", "Nunito", sans-serif;
+    font-weight: bold;
+    font-size: 12pt;
+    color: @l-peach-lt;
+}
+
+window#llm-chat headerbar button {
+    border-radius: 10px;
+    border: 1px solid alpha(@l-lilac, 0.22);
+}
+
+window#llm-chat headerbar button:hover {
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.75);
+}
+
+window#llm-chat headerbar button.titlebutton {
+    border-radius: 99px;
+}
+
+window#llm-chat popover#model-menu {
+    border: 1px solid alpha(@l-lilac, 0.30);
+    border-radius: 14px;
+    box-shadow: 0 4px 14px @l-shade;
+}
+
+window#llm-chat popover#model-menu modelbutton,
+window#llm-chat popover#model-menu button {
+    border-radius: 8px;
+}
+
+/* --- the stage: the room at night, the lamp glowing from below ------------- */
+#stage {
+    background-image: radial-gradient(ellipse at bottom, #2a2040 0%, alpha(@l-night, 0.0) 70%);
+    border: 1px solid alpha(@cyan, 0.35);
+    border-radius: 18px;
+    box-shadow: 0 4px 14px @l-shade, inset 0 -2px 0 alpha(@cyan, 0.30);
+}
+
+#bubble {
+    font-family: "Comfortaa", "Nunito", sans-serif;
+    font-size: 11pt;
+    border-radius: 14px;
+    padding: 3px 16px;
+    box-shadow: 0 2px 8px @l-shade;
+}
+
+paned > separator {
+    background-image: linear-gradient(to right, alpha(@l-lilac, 0.0), @rule, alpha(@l-lilac, 0.0));
+}
+
+#transcript-scroll scrollbar slider {
+    border-radius: 99px;
+}
+
+/* --- the conversation ---------------------------------------------------------- */
+label.user {
+    border-radius: 14px 14px 4px 14px;
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.30);
+}
+
+label.user.queued,
+label.user.dropped {
+    border-radius: 14px 14px 4px 14px;
+    box-shadow: none;
+}
+
+.assistant {
+    border-radius: 14px 14px 14px 4px;
+}
+
+label.md link {
+    color: @l-peach-lt;
+}
+
+.codeblock {
+    border-radius: 10px;
+}
+
+.toolchip {
+    border-radius: 12px;
+}
+
+label.tool-icon {
+    border-radius: 99px;
+}
+
+label.tool-name {
+    color: @l-peach-lt;
+}
+
+label.tool-excerpt {
+    border-radius: 8px;
+}
+
+label.note {
+    border-radius: 99px;
+}
+
+label.error-card {
+    border-radius: 12px;
+}
+
+/* --- the input ----------------------------------------------------------------- */
+#bottom {
+    border-top: 1px solid alpha(@l-lilac, 0.22);
+}
+
+#input-scroll {
+    border-radius: 14px;
+}
+
+#placeholder {
+    color: @l-haze;
+}
+
+button#send {
+    font-family: "Comfortaa", "Nunito", sans-serif;
+    font-weight: bold;
+    border-radius: 14px;
+    border: 1px solid alpha(@l-cream-hi, 0.25);
+}
+
+button#send:hover {
+    box-shadow: 0 0 10px @send-glow;
+}
+
+tooltip, tooltip.background {
+    border-radius: 10px;
+}
+
+.md-table separator {
+    background-color: alpha(@l-lilac, 0.30);
+}

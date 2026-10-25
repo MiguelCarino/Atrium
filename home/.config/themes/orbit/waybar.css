@@ -1,0 +1,603 @@
+/* ===========================================================================
+   ORBIT -- the bar and the toolbox card (~/.config/waybar/style.css and
+   style-toolbox.css). Copied to waybar/generated/theme.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST, after the accent, so the
+   palette below wins over the base file's and the rules below win over its
+   rules of the same selector.
+
+   The look in one line: a telemetry strip on a flight-control console.
+   Every pill is a small, square-ish (radius 3) console plate of OPAQUE
+   slate -- the bar's own strip stays a hole, as in every theme -- with
+
+     1. a 1px steel hairline round the plate (#2a3a57), a slightly lighter
+        rule along its bottom (#3d5478), and no gloss, no floor glow, no
+        outer glow, no text shadow;
+     2. the accent as a LIT KEY: a 2px telemetry-teal underline (an inset
+        box-shadow, so nothing moves) on whatever is on, open, running or
+        focused -- the active workspace, an open toolbox, a toggle that is
+        on, a timer counting, the playing player, the project you are in;
+     3. hover: the plate steps up to the raised slate #16223a and the whole
+        hairline to the lighter rule -- a change of light, not of colour;
+     4. the workspaces as small numbered console keys (JetBrains Mono, a 1px
+        key outline drawn inside each one), the clock as a mission clock
+        (JetBrains Mono: every digit one cell wide, so the seconds never
+        twitch; UTC and epoch are second readouts in their own wells), the
+        date in Barlow Semi Condensed with spaced letters, everything else in
+        Barlow (theme.conf font=; theme.py swaps it, IBM Plex Sans as
+        fallback, into every base rule).
+
+   HDR: the pills are DARK and OPAQUE: #0e1626, luminance 0.008, whatever
+   photograph is behind (the wallpapers' top 106 px are faded dark too, but
+   nothing here depends on that). Measured (WCAG) on the plate (S) and on
+   the hovered plate #16223a (H):
+       text        #dbe4f0   14.1 / 12.4
+       text-dim    #8a9bb4    6.4 /  5.6   (the date, idle and clean pills)
+       text-bright #e8edf5   15.4 / 13.5   (readouts: clock, CPU / GPU)
+       accent      #5cc8db    9.3 /  8.1   (lit toggles; the 2px underline,
+                                            a graphic, 9.3)
+       good / warn / bad as text: #4fd18b 9.3, #f2b13c 9.6, #ff7b7e 7.2
+                                   (the base red #f0565a is 5.3: fills, edges and glyphs)
+   The toolbox card #0a101c: text 14.8, dim 6.7. The rules (#2a3a57 1.6,
+   #3d5478 2.4) are hairlines, not information: every state they go with
+   also changes the fill or carries the teal underline.
+   The only light fills are small ones, all opaque: the mic pill and a
+   failed health check (WARNING red #f0565a under ink #04121a, 5.6:1), the
+   location pill and the warn alerts (CAUTION amber under ink, 10.1:1),
+   the "saved" flash (GO green under ink, 9.8:1).
+
+   Accent rules: @cyan is the accent ROLE, telemetry teal #5cc8db from
+   theme.conf (fixed; a custom accent from the display panel replaces it
+   everywhere through @cyan). It means ON / SELECTED / FOCUSED and is never
+   a status: GO green, CAUTION amber and WARNING red keep their own hues
+   (CIEDE2000 from the teal 28, 44, 66). Red is only for real problems:
+   muted audio, a lost network, unpushed work, critical load, a capture
+   running. The base files' STRUCTURAL magenta (the CPU edge, the playing
+   player, the pending updates floor, the replay buffer, the power pill at
+   rest) is put back to steel or teal (the list is at the rule further
+   down), as aero puts it back to sky and lofi to lilac.
+
+   Every wash that REPLACES the plate (a pill has one background-color) is
+   opaque too -- the hue already mixed into the slate -- so a state pill
+   never lets the photograph through. Theme names start with o- and are
+   defined here (stylesheets do not inherit; panel.css defines the ones it
+   uses again).
+   =========================================================================== */
+
+/* --- the theme's own names ---------------------------------------------------- */
+@define-color o-base     #070b14;   /* deepest: the console floor */
+@define-color o-surface  #0e1626;   /* the plate */
+@define-color o-raised   #16223a;   /* hover, wells */
+@define-color o-dense    #0a101c;   /* the toolbox card */
+@define-color o-rule     #2a3a57;   /* 1px hairlines */
+@define-color o-rule-hi  #3d5478;   /* the bottom rule, a hovered plate's hairline */
+@define-color o-text     #dbe4f0;
+@define-color o-dim      #8a9bb4;   /* labels */
+@define-color o-readout  #e8edf5;   /* text-bright: there is no #ffffff in this theme */
+@define-color o-ink      #04121a;   /* text on any light fill */
+@define-color o-good     #4fd18b;   /* GO */
+@define-color o-warn     #f2b13c;   /* CAUTION */
+@define-color o-bad      #f0565a;   /* WARNING: fills, edges, the mic pill */
+@define-color o-bad-fg   #ff7b7e;   /* WARNING as small text */
+@define-color o-crit     #8f1d24;   /* critical fill: readout 7.5 */
+@define-color o-crit-dim #4a1016;   /* the dark end of the blink and the REC pulse: readout 13.0 */
+@define-color o-rec      #9a2228;   /* REC / camera / dictation fill: readout 6.8 */
+@define-color o-ice      #a9c4ec;   /* the UTC readout, cool weather */
+@define-color o-lav      #c4b0f0;   /* the epoch readout */
+@define-color o-sand     #dcc8ac;   /* night light, net up */
+@define-color o-lichen   #c0d0a8;   /* the GPU edge (color.gpu) */
+@define-color o-shade    rgba(0, 0, 0, 0.50);
+
+/* --- PALETTE 1: hues ------------------------------------------------------------
+   @cyan is the accent ROLE: teal #5cc8db from theme.conf, not redefined here.
+   @magenta is the base files' "this ends something / bad" hue; its
+   structural uses are put back to steel / teal further down. */
+@define-color magenta    #f0565a;   /* WARNING red */
+@define-color yellow     #f2b13c;   /* CAUTION amber */
+@define-color green      #4fd18b;   /* GO green */
+@define-color purple     #a9c4ec;   /* UTC clock, work hours: the ice readout */
+@define-color red        #f0565a;   /* the capture glyph's red */
+@define-color mist       #8a9bb4;
+@define-color steel      #9aa6b8;   /* neutral: 7.3 on S */
+@define-color slate      #5d6b84;   /* a darker steel: only ever an edge */
+
+/* --- PALETTE 2: surfaces, edges, text ------------------------------------------ */
+@define-color surface        #0e1626;
+@define-color surface-hover  #16223a;
+@define-color surface-dense  #0a101c;                  /* tray pill, toolbox card */
+@define-color surface-solid  #0e1626;                  /* tray menu: a real popup, no blur */
+@define-color edge           #2a3a57;                  /* the steel hairline */
+@define-color edge-lit       #3d5478;                  /* the bottom rule; the whole hairline on hover */
+/* Accent WASH (a lit fsstate, tray-menu hover): the teal mixed INTO the
+   slate, opaque, and still following @cyan: teal on it 6.4, readout 10.7. */
+@define-color accent         mix(#0e1626, @cyan, 0.18);
+@define-color text           #dbe4f0;
+@define-color text-dim       #8a9bb4;                  /* solid, not the base's alpha(mist) */
+@define-color text-bright    #e8edf5;
+@define-color ink            #04121a;                  /* on a full teal fill: 9.7:1 */
+@define-color ink-warn       #04121a;                  /* on the amber location pill: 10.1:1 */
+
+/* --- PALETTE 3: workspaces: one quiet hue per screen ----------------------------
+   Ice blue, lavender, orchid: told apart by hue (220, 255, 311 degrees),
+   none of them the teal or a status colour (orchid, the nearest to red, is
+   dE 27 from it). An unlit key's number is its screen's hue, 8.7 / 9.3 /
+   8.5:1 on S; the lit key is a 26% wash of the hue over the slate (the
+   readout white on it 8.9 / 8.8 / 9.2:1) with the teal underline (5.4 /
+   5.3 / 5.5 on the wash). */
+@define-color mon1-hue   #8fb4ff;
+@define-color mon2-hue   #c4b0f0;
+@define-color mon3-hue   #e39ad6;
+@define-color mon1       alpha(@mon1-hue, 0.26);
+@define-color mon1-dim   #8fb4ff;
+@define-color mon2       alpha(@mon2-hue, 0.26);
+@define-color mon2-dim   #c4b0f0;
+@define-color mon3       alpha(@mon3-hue, 0.26);
+@define-color mon3-dim   #e39ad6;
+@define-color mon-unknown alpha(@steel, 0.26);         /* readout 9.6 */
+/* workspace-tint.py writes `color: @mon-unknown-dim` for a workspace with no
+   home screen; the base never defines it, so it is defined here (7.3). */
+@define-color mon-unknown-dim #9aa6b8;
+
+/* --- PALETTE 4: clock modes, status, alerts -------------------------------------
+   Each wash is its hue mixed into the opaque slate (the share in each
+   comment), so it replaces the plate without letting the photograph
+   through. Measured fg on wash: */
+@define-color utc        #242e42;                   /* ice 14%:      #a9c4ec 7.6 */
+@define-color utc-fg     #a9c4ec;
+@define-color epoch      #272c42;                   /* lavender 14%: #c4b0f0 7.1 */
+@define-color epoch-fg   #c4b0f0;
+@define-color good       #1a3838;                   /* green 18%:    #4fd18b 6.5 */
+@define-color good-fg    #4fd18b;
+@define-color warn       #37322a;                   /* amber 18%:    #f2b13c 6.7 */
+@define-color warn-fg    #f2b13c;
+@define-color bad        #37222f;                   /* red 18%:      #ff7b7e 5.9 */
+@define-color bad-fg     #ff7b7e;
+/* Critical: the deep red under the readout white (7.5:1); the CPU / GPU
+   labels turn readout-white there too (color.cpu_hot / gpu_hot: a Pango
+   span the CSS colour cannot reach). So the blink below is redefined to
+   end on a darker red under the same white (13.0), not the base's
+   @magenta under @ink, which would put those labels on red at 2.9. */
+@define-color critical   #8f1d24;
+@define-color rec-edge   alpha(#ff7b7e, 0.60);
+@define-color rec-dim    #4a1016;                   /* the dark end of the REC pulse: readout 13.0 */
+/* Night light: a warm sand, not the base's orange (which would sit right
+   on CAUTION amber). Sand 14%: #dcc8ac 8.2. */
+@define-color night      #2b2f39;
+@define-color night-fg   #dcc8ac;
+@define-color night-edge #dcc8ac;
+
+/* ---------------------------------------------------------------------------
+   The plate. Same selector list as the base file's shared pill, so this comes
+   later at equal specificity and wins. Only the properties that MAKE the
+   look are set: the radius, no floor gradient, no shadow. Colour and border
+   colours stay the base's per-pill rules (the CPU edge, the state washes,
+   the power pill), which this list would otherwise flatten -- as aero
+   explains in its file.
+   --------------------------------------------------------------------------- */
+#clock,
+#custom-day,
+#custom-clock,
+#custom-updates,
+#custom-weather,
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#network,
+#custom-network,
+#pulseaudio,
+#backlight,
+#battery,
+#temperature,
+#tray,
+#custom-player,
+#privacy,
+#custom-fsstate,
+#custom-nightlight,
+#custom-awake,
+#custom-keybinds,
+#custom-settings,
+#custom-toolbox,
+#custom-power,
+#custom-capture,
+#custom-repos,
+#custom-timers,
+#custom-workhours,
+#custom-context,
+#custom-notifications,
+#custom-display,
+#language,
+#submap,
+#window {
+    border-radius: 3px;
+    background-image: none;
+    box-shadow: none;
+    text-shadow: none;
+    transition: background-color 120ms ease-out, box-shadow 120ms ease-out,
+                border-color 120ms ease-out;
+}
+
+/* Hover keeps the base's change (the raised slate, the lighter hairline all
+   round) and only makes sure no gradient comes back with it. */
+#clock:hover,
+#custom-day:hover,
+#custom-clock:hover,
+#custom-updates:hover,
+#custom-weather:hover,
+#custom-cpu:hover,
+#custom-gpu:hover,
+#custom-disk:hover,
+#network:hover,
+#custom-network:hover,
+#pulseaudio:hover,
+#tray:hover,
+#custom-player:hover,
+#privacy:hover,
+#custom-fsstate:hover,
+#custom-nightlight:hover,
+#custom-awake:hover,
+#custom-keybinds:hover,
+#custom-settings:hover,
+#custom-toolbox:hover,
+#custom-power:hover,
+#custom-repos:hover,
+#custom-timers:hover,
+#custom-workhours:hover,
+#custom-context:hover,
+#custom-notifications:hover,
+#custom-display:hover,
+#custom-capture:hover {
+    background-image: none;
+}
+
+/* Lit keys -- a toggle that is on, a timer counting, the project you are
+   in, the player playing: the 2px teal underline. (The base writes
+   `box-shadow: none` on several of these at id.class specificity; these
+   come later and win.) */
+#custom-toolbox.open,
+#custom-display.on,
+#custom-fsstate.mode-a,
+#custom-context.active,
+#custom-timers.timer,
+#custom-timers.alarm,
+#custom-timers.stopwatch,
+#custom-player.playing {
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+/* --- Joined capsules: [date | time | weather] and [updates | git | bell] ---
+   One plate each, square inside, 3px at its two outer ends; the parts share
+   a steel seam (the base's is a faint cyan). */
+#custom-day,
+#custom-updates {
+    border-radius: 3px 0px 0px 3px;
+    border-right-color: @edge;
+}
+
+#custom-clock,
+#custom-repos {
+    border-radius: 0px;
+    border-left-color: @edge;
+    border-right-color: @edge;
+}
+
+#custom-weather,
+#custom-notifications {
+    border-radius: 0px 3px 3px 0px;
+    border-left-color: @edge;
+}
+
+/* --- Date and time --------------------------------------------------------------
+   The mission clock: JetBrains Mono in the readout white (15.4:1), a little
+   tracking. Mono, so HH:MM:SS -- and the ten-digit epoch -- hold their width
+   without a min-width. The date beside it is a console label: Barlow Semi
+   Condensed with spaced letters, in the label colour. */
+#custom-clock,
+#custom-clock.local {
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: @text-bright;
+}
+
+/* UTC and epoch: second readouts, each in its own well (the washes above)
+   with its own hue as the bottom rule. The base draws epoch's edges in
+   yellow, which here is CAUTION; lavender instead. */
+#custom-clock.epoch {
+    border-color: alpha(@o-lav, 0.35);
+    border-bottom-color: @o-lav;
+}
+
+#custom-day {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: @text-dim;
+}
+
+/* --- Structural magenta, put back to steel / teal --------------------------------
+   Changed from the base (where @magenta is structure, not "bad"):
+       #custom-cpu              edges: steel, a teal bottom rule (the label's hue)
+       #custom-gpu              edges: steel, a lichen bottom rule
+       #custom-player.playing   bottom edge -> the teal underline (lit keys, above)
+       #custom-updates.pending  bottom edge: teal (the "something to do" floor)
+       #custom-recording.replay bottom edge: the steel rule (a quiet capture
+                                hint; set after the voice rules below, whose
+                                border shorthand would reset it)
+       #custom-power            at rest: neutral; red only under the pointer
+   (panel.css does the same for the calendar's weekdays and the section
+   headings.) The base's magenta uses that DO mean bad stay red: muted
+   audio, a lost network, unpushed work, the fsstate error. */
+#custom-cpu {
+    border-color: @edge;
+    border-bottom-color: alpha(@cyan, 0.60);
+}
+
+#custom-gpu {
+    border-color: @edge;
+    border-bottom-color: alpha(@o-lichen, 0.60);
+}
+
+#custom-player.playing {
+    border-bottom-color: @edge-lit;
+}
+
+#custom-updates.pending {
+    border-bottom-color: alpha(@cyan, 0.70);
+}
+
+/* --- CPU / GPU readouts ------------------------------------------------------------ */
+#custom-cpu,
+#custom-gpu {
+    color: @text-bright;
+}
+
+/* The base gives this a slate wash as its background-color, which would
+   replace the plate with a translucent one; the plain plate keeps it at
+   6.4:1. */
+#custom-gpu.unavailable {
+    background-color: @surface;
+    color: @text-dim;
+    border-bottom-color: @edge-lit;
+}
+
+/* --- Workspaces: one plate, numbered console keys inside --------------------------- */
+#workspaces {
+    border-radius: 3px;
+    background-image: none;
+    box-shadow: none;
+}
+
+/* Each key: JetBrains Mono digits in its screen's hue, a 1px key outline
+   drawn INSIDE (an inset shadow, so it adds no size). The keys set the
+   bar's height, as in the base (its 1px margins, zero vertical padding):
+   JetBrains Mono 15px lays out 21 px tall (Pango), Plex 16px 22 px, both
+   under the GTK theme's 24px button min-height, so the bar stays at the
+   base's 36 px (checked offscreen: every pill 36 tall, as in cyberpunk).
+   No min-height here: a smaller one would lower that floor. */
+#workspaces button {
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 0px 8px;
+    margin: 1px 2px;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px alpha(@o-rule, 0.80);
+    transition: background-color 120ms ease-out, color 120ms ease-out,
+                box-shadow 120ms ease-out;
+}
+
+/* Hover: a faint teal light in the key (#162838: text 11.7:1). */
+#workspaces button:hover {
+    color: @text;
+    box-shadow: inset 0 0 0 1px @edge-lit;
+}
+
+/* The lit key: its screen's wash (the generated rules), the readout white,
+   the steel outline and the teal underline -- no gloss. */
+#workspaces button.active,
+#workspaces button.active:hover {
+    color: @text-bright;
+    background-image: none;
+    box-shadow: inset 0 -2px 0 @cyan, inset 0 0 0 1px @edge-lit;
+}
+
+/* Urgent: the critical red under the readout white (7.5:1). */
+#workspaces button.urgent,
+#workspaces button.active.urgent {
+    color: @text-bright;
+    box-shadow: inset 0 0 0 1px alpha(@o-bad, 0.80);
+}
+
+/* --- Toggles that are on: teal as TEXT (9.3:1; 6.4 on the accent wash) ------------ */
+#custom-toolbox:hover,
+#custom-toolbox.open,
+#custom-display.on,
+#custom-fsstate.mode-a {
+    color: @cyan;
+}
+
+/* --- Power: a neutral plate at rest; the WARNING red under the pointer -------------
+   It ends the session, which is serious but not a fault, so it does not
+   sit red on the bar all day. Hovered: red glyph (6.3:1 on H), red
+   underline. */
+#custom-power {
+    color: @text;
+    border-color: @edge;
+    border-bottom-color: @edge-lit;
+    background-image: none;
+}
+
+#custom-power:hover {
+    color: @bad-fg;
+    background-color: @surface-hover;
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 @o-bad;
+}
+
+/* --- Privacy, recording, voice: small fills, readable at every moment -----------
+   The base writes white text on translucent fills. Here every fill is
+   opaque (the photograph cannot pull it down), a light fill carries ink and
+   a deep one the readout white, so text stays readable at both ends of a
+   pulse:
+       mic       WARNING red, ink            5.6:1
+       camera    deep red #9a2228, readout   6.8:1
+       location  CAUTION amber, ink         10.1:1
+       REC       deep red, readout 6.8 -> rec-dim 13.0
+       voice     critical red #8f1d24, readout 7.5 -> rec-dim 13.0
+       doctor    warn: amber + ink 10.1; fail: red + ink 5.6
+       tasks     attention: amber + ink 10.1 */
+#custom-mic,
+#custom-camera,
+#custom-location,
+#custom-recording,
+#custom-voice,
+#custom-doctor,
+#custom-tasks,
+#custom-drives,
+#custom-phone {
+    border-radius: 3px;
+}
+
+#custom-mic.active      { background-color: @o-bad;  color: @ink;         border-color: alpha(@o-text, 0.30); }
+#custom-camera.active   { background-color: @o-rec;  color: @text-bright; border-color: alpha(@o-text, 0.30); }
+#custom-location.active { background-color: @o-warn; color: @ink-warn;    border-color: alpha(@o-text, 0.30); }
+
+#custom-recording,
+#custom-voice {
+    color: @text-bright;
+    border-color: alpha(@o-text, 0.30);
+}
+
+#custom-recording.recording {
+    background-color: @o-rec;
+    border-bottom-color: @o-bad-fg;
+}
+
+#custom-voice.recording {
+    background-color: @o-crit;
+}
+
+#custom-recording.replay,
+#custom-voice.busy,
+#custom-voice.captions {
+    color: @text-dim;
+    border-color: @edge;
+}
+
+/* The shorthand above resets all four edges; give the replay pill back its
+   quiet steel floor. */
+#custom-recording.replay {
+    border-bottom-color: @edge-lit;
+}
+
+/* The health / tasks / drives / phone pills: the steel hairline (the base's
+   is cyan), and ink on their light alert fills. */
+#custom-doctor,
+#custom-tasks,
+#custom-drives,
+#custom-phone {
+    border-color: @edge;
+    background-image: none;
+}
+
+#custom-doctor.warn,
+#custom-tasks.attention {
+    background-color: @o-warn;
+    color: @ink-warn;
+}
+
+#custom-doctor.fail {
+    background-color: @o-bad;
+    color: @ink;
+}
+
+#custom-phone.low {
+    color: @warn-fg;
+}
+
+/* --- The capture pill while recording -------------------------------------------
+   The base breathes the camera glyph down to alpha(@red, 0.30), which on
+   the slate is 1.6:1 -- the glyph all but gone once a second. Here it
+   breathes between the WARNING red (5.3:1) and a lighter coral #ff9496
+   (8.5:1): a change of light, never a fade-out. Same keyframes name as the
+   base: GTK keeps the last @keyframes of a name, and this file comes after
+   style.css. */
+#custom-capture.recording,
+#custom-capture.recording:hover {
+    color: @o-bad;
+    border-color: alpha(@o-bad, 0.70);
+}
+
+@keyframes cap-pulse {
+    to {
+        color: #ff9496;
+        border-color: alpha(@o-bad, 0.30);
+    }
+}
+
+/* The critical blink (CPU, GPU, battery), redefined for the reason given
+   at @critical above: both ends deep red under the readout white, 7.5:1 at
+   #8f1d24 and 13.0:1 at #4a1016. */
+@keyframes blink {
+    to {
+        background-color: @o-crit-dim;
+        color: @text-bright;
+        text-shadow: none;
+        box-shadow: none;
+    }
+}
+
+/* --- Tray menu: a real popup (no blur behind it), so a solid slate card ---------
+   Hovered item: the accent wash under the readout white (10.7:1). */
+#tray menu {
+    border: 1px solid @edge-lit;
+    border-radius: 3px;
+    padding: 4px;
+    background-color: @surface-solid;
+    background-image: none;
+    color: @text;
+}
+
+#tray menu menuitem {
+    border-radius: 2px;
+    padding: 4px 12px;
+}
+
+#tray menu menuitem:hover {
+    background-color: @accent;
+    color: @text-bright;
+}
+
+/* --- The toolbox card (style-toolbox.css) -----------------------------------------
+   By the bar's name class, so the main bar's own (unpainted) .modules-left
+   is never matched: this file is imported by both bars. A darker console
+   card (#0a101c: text 14.8, dim 6.7), the steel hairline with the lighter
+   bottom rule, 4px corners, a soft black drop; widths are the base's
+   (scripts/toolbox_fit.py sizes the layer to them), so only the look
+   changes here. */
+window#waybar.waybar-toolbox .modules-left {
+    border: 1px solid @edge;
+    border-bottom-color: @edge-lit;
+    border-radius: 4px;
+    background-color: @surface-dense;
+    background-image: none;
+    box-shadow: 0 4px 12px @o-shade;
+}
+
+window#waybar.waybar-toolbox #custom-fsstate,
+window#waybar.waybar-toolbox #custom-nightlight,
+window#waybar.waybar-toolbox #custom-awake,
+window#waybar.waybar-toolbox #custom-display,
+window#waybar.waybar-toolbox #custom-keybinds,
+window#waybar.waybar-toolbox #custom-settings,
+window#waybar.waybar-toolbox #tray {
+    border-radius: 3px;
+}
+
+window#waybar.waybar-toolbox #tray {
+    /* Tray icons are the apps' own art (a white Steam, a black keyboard...):
+       a mid steel well keeps both visible -- #5a6d90, black 4.0:1, white
+       5.2:1, luminance 0.15 over a small area. */
+    background-color: #5a6d90;
+    background-image: none;
+}

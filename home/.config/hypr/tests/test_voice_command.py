@@ -73,7 +73,7 @@ class FakeWorld:
         return {"id": 1, "name": "1"}
 
     def themes(self):
-        return ["cyberpunk", "matrix", "aero", "win95", "moe"]
+        return ["cyberpunk", "matrix", "aero", "win95", "moe", "lofi", "luna", "orbit"]
 
     def current_theme(self):
         return "matrix"
@@ -163,6 +163,7 @@ PHRASES = {
         {"actions": [{"action": "reminder", "time": "17:00", "text": "llamar a mamá"}], "sure": True},
     "wake me up at 7:30": {"actions": [{"action": "alarm", "time": "7:30"}], "sure": True},
     "switch to the aero theme": {"actions": [{"action": "theme", "value": "Aero"}], "sure": True},
+    "switch to the luna theme": {"actions": [{"action": "theme", "value": "luna"}], "sure": True},
     "cambia al tema matrix y ve al escritorio 2":
         {"actions": [{"action": "theme", "value": "matrix"}, {"action": "workspace", "workspace": 2}], "sure": True},
     "open my downloads and pause the music":

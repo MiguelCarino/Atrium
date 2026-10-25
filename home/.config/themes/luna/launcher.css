@@ -1,0 +1,176 @@
+/* ===========================================================================
+   LUNA -- the launcher, the quick note and the clipboard picker
+   (~/.config/hypr/scripts/launcher.css). Copied to
+   waybar/generated/theme-launcher.css by theme.py and imported LAST. Same
+   palette (the l- names) as this theme's waybar.css and panel.css; their
+   headers explain the HDR rule and where each colour lands.
+
+   The XP Start menu, our own drawing of the idea: a cream window with a
+   blue title band across its top (the user strip of the Start menu), a
+   sunken text field with XP's blue field rim for the search, and the best
+   match and the tiles as menu items -- flat until chosen, then the XP
+   selection blue with white text; under the pointer an orange hot-track rim,
+   the colour XP used for "this is where you are". The rainbow scan line is
+   cyberpunk's and goes, animation and all.
+
+   HDR (DP-1): the card is the cream face #c3bea7 (luminance 0.512, XP's
+   #ece9d8 dimmed, the same level as the panels' cards), the field #b8b39c
+   (0.448). Nothing on it is white or near-white except the selection's text.
+
+   Contrast, measured with the WCAG formula:
+     text #1c1a14 on the face 9.3:1, on the field 8.3:1
+     dim  #4e4a36 on the face 4.8:1
+     headings / glyphs #0f3c96 on the face 5.3:1
+     white on the selection #316ac5 5.25:1, its sub line #eef3ff 4.7:1
+
+   @magenta is NOT a status colour in this file: the base uses it only for
+   structure (the caret, the card's bottom edge, the end of the selection
+   gradient) and every one of those is set explicitly below. It is defined
+   as the dark red of panel.css only so nothing ever falls back to neon.
+   =========================================================================== */
+
+@define-color l-face      #c3bea7;
+@define-color l-well      #b8b39c;
+@define-color l-hi        #d8d3bd;
+@define-color l-shadow    #8e8975;
+@define-color l-title-lit #3d86f0;
+@define-color l-title     #2459c8;
+@define-color l-title-lo  #1c47a6;
+@define-color l-sel       #316ac5;
+@define-color l-glow      #f0a030;
+@define-color l-rim       #7f9db9;   /* XP's text-field rim: a common blue-grey */
+@define-color l-button    #003c74;   /* XP's dark push-button rim */
+@define-color l-ink       #1c1a14;
+@define-color l-navy-text #0f3c96;
+
+@define-color magenta    #8e1c16;    /* structure only here; see the header */
+@define-color violet     @l-title;   /* scrollbar */
+@define-color mist       #4e4a36;
+@define-color sel-mid    @l-sel;
+@define-color surface    @l-face;
+@define-color groove     @l-well;
+@define-color edge       @l-title-lo;
+@define-color edge-lit   @l-glow;
+@define-color text       @l-ink;
+@define-color text-dim   #4e4a36;
+@define-color text-bright @l-ink;    /* typed text, the best match's name: ink on cream */
+@define-color ink        #ffffff;    /* text on the blue selection */
+/* The search field's placeholder: GTK3 draws it in the named colour
+   placeholder_text_color if the provider defines one, else a fixed 50% grey
+   (#808080), which is 1.9:1 on the sunken field #b8b39c. The chat's deeper
+   ink instead: 4.9:1. */
+@define-color placeholder_text_color #44402c;
+
+* {
+    font-weight: normal;
+}
+
+/* The menu. The title band is the first 10px of the background (lit line,
+   XP blue, deeper blue, then the cream face), drawn inside the base's 24px
+   top padding, so the card keeps its size. XP's Start menu rounded only its
+   top corners; so does this one, nearly (3px at the bottom). */
+#card {
+    border: 1px solid @l-title-lo;
+    border-bottom: 1px solid @l-title-lo;
+    border-radius: 8px 8px 3px 3px;
+    animation: none;
+    background-color: @l-face;
+    background-image: linear-gradient(to bottom,
+            @l-title-lit 0px, @l-title 2px, @l-title-lo 10px, @l-face 10px);
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+}
+
+/* --- Search: the sunken XP text field ------------------------------------- */
+#search {
+    color: @text;
+    caret-color: @l-navy-text;
+    border: 1px solid @l-rim;
+    border-bottom: 1px solid @l-rim;
+    border-radius: 2px;
+    background-color: @l-well;
+    box-shadow: inset 0 1px 2px alpha(@l-shadow, 0.9);
+}
+
+#search image {
+    color: @l-navy-text;
+}
+
+#search selection {
+    background-color: @l-sel;
+    color: @ink;
+}
+
+/* --- The best match: a menu item ------------------------------------------ */
+#hero {
+    border: 1px solid transparent;
+    border-left: 1px solid transparent;
+    border-radius: 3px;
+    background-color: transparent;
+    background-image: none;
+    transition: none;
+}
+
+#hero.selected {
+    background-color: @l-sel;
+    background-image: none;
+    border-color: @l-title-lo;
+    border-left-color: @l-title-lo;
+}
+
+label.hero-name {
+    font-weight: bold;
+}
+
+/* The key hint ("Enter"): a small XP push button. It keeps its cream face
+   on the selected row too, so its ink stays 11.6:1. */
+label.hero-hint {
+    color: @text;
+    border: 1px solid @l-button;
+    border-radius: 3px;
+    background-image: linear-gradient(to bottom, @l-hi, @l-face);
+}
+
+#hero.selected label.hero-name,
+#hero.selected label.clip-hero-text { color: @ink; }
+#hero.selected label.hero-sub       { color: #eef3ff; }
+#hero.selected label.hero-hint {
+    color: @text;
+    border-color: @l-button;
+}
+
+/* --- Tiles: menu items; an orange hot-track rim under the pointer --------- */
+.tile {
+    border: 1px solid transparent;
+    border-bottom: 1px solid transparent;
+    border-radius: 3px;
+    background-color: transparent;
+    background-image: none;
+    transition: none;
+}
+
+.tile:hover {
+    background-color: transparent;
+    border-color: transparent;
+    box-shadow: inset 0 0 0 2px @l-glow;
+}
+
+.tile.selected,
+.tile.selected:hover {
+    background-color: @l-sel;
+    background-image: none;
+    border-color: @l-title-lo;
+    border-bottom-color: @l-title-lo;
+    box-shadow: none;
+}
+
+.tile.selected label.tile-name,
+.tile.selected label.clip-text,
+.tile.selected label.clip-caption {
+    color: @ink;
+}
+
+scrollbar slider {
+    min-width: 4px;
+    border-radius: 2px;
+}

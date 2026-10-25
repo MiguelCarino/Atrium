@@ -1,0 +1,410 @@
+/* ===========================================================================
+   LUNA -- libadwaita / GTK4 (Nautilus). Becomes ~/.config/gtk-4.0/gtk.css
+   (theme.py; a hand-written gtk.css is kept as gtk.css.before-themes).
+   gsettings does the rest: color-scheme prefer-DARK, accent-color blue
+   (theme.conf gtk_*). It reads as "GNOME in XP Explorer colours": the
+   layout is libadwaita's, only the paint is changed, and none of it is
+   Microsoft's artwork -- the colours are measured, the shapes are ours.
+
+     * the header bar is the XP title bar: a lit line at the top, the XP
+       blue, deep blue at the bottom, the title in bold white (6.3:1 on
+       #2459c8). Unfocused, it goes XP's pale inactive blue (#9db0e0 ->
+       #7a90c8) with a navy title (#0a1e50, 5.1:1 at the dark end);
+     * the sidebar is the XP task pane: a soft blue-lavender (#a7b7de) with
+       navy text (#0f2a6e, 6.6:1);
+     * the file view is the window's "white" list, dimmed to #bfbdb3 for
+       HDR; the window face, dialogs and popovers the cream face #c3bea7;
+     * selection is the XP selection blue #316ac5 under white (5.25:1);
+       accent TEXT is the deep blue #18439a (4.83:1 on the view);
+     * push buttons are XP push buttons: a dark blue rim (#003c74), a cream
+       face that lights a little toward the top, and an orange hot-track rim
+       (#f0a030) under the pointer;
+     * the window's close button is a red-orange square with a white x
+       (5.8:1 at its darker end), XP's idea of a close button drawn plainly.
+
+   HDR (DP-1), luminance of each large field: view 0.507, face 0.512,
+   sidebar 0.474, header bar 0.117. Nothing large goes above 0.56, which
+   matches moe's view (~0.51); libadwaita's stock #ffffff view (1.0) is the
+   thing this file exists to avoid.
+
+   Contrast, measured with the WCAG formula:
+     ink #1c1a14 on the view 9.2:1, on the face 9.3:1, on the cards 10.0:1
+     sidebar text #0f2a6e on #a7b7de 6.6:1
+     status text on the view: success #14540f 4.84, warning #5c4600 4.78,
+       error #8e1c16 4.79; as fills, white on #2e7d32 5.1, ink on #e3c04a
+       9.9, white on #b8281e 6.25
+   libadwaita's dimmed text is the foreground at --dim-opacity (55% by
+   default): ink at 55% on the view is under 4:1, so it is raised to 75%.
+
+   It is OPAQUE (XP had no glass), so hypr.lua sets no nautilus-glass rule.
+
+   Why prefer-dark for a light theme: win95's gtk4.css explains it. In
+   short, gsettings is live in every running libadwaita app and this file is
+   not, so under prefer-light the always-open Nautilus would drop to a
+   #ffffff view until it restarts. Every variable libadwaita sets
+   differently per scheme is set below, so this file draws the same colours
+   under either scheme -- including the dark-only ones (--active-toggle-*,
+   --overview-*).
+   =========================================================================== */
+
+:root {
+    --accent-bg-color: #316ac5;
+    --accent-fg-color: #ffffff;
+    --accent-color: #18439a;
+
+    --destructive-bg-color: #b8281e;
+    --destructive-fg-color: #ffffff;
+    --destructive-color: #8e1c16;
+    --success-bg-color: #2e7d32;
+    --success-fg-color: #ffffff;
+    --success-color: #14540f;
+    --warning-bg-color: #e3c04a;
+    --warning-fg-color: #1c1a14;
+    --warning-color: #5c4600;
+    --error-bg-color: #b8281e;
+    --error-fg-color: #ffffff;
+    --error-color: #8e1c16;
+
+    --window-bg-color: #c3bea7;
+    --window-fg-color: #1c1a14;
+    --view-bg-color: #bfbdb3;
+    --view-fg-color: #1c1a14;
+    --headerbar-bg-color: #2459c8;
+    --headerbar-fg-color: #ffffff;
+    --headerbar-border-color: #1c47a6;
+    --headerbar-backdrop-color: #7a90c8;
+    --headerbar-shade-color: rgba(0, 16, 40, 0.3);
+    --headerbar-darker-shade-color: rgba(0, 16, 40, 0.45);
+    --sidebar-bg-color: #a7b7de;
+    --sidebar-fg-color: #0f2a6e;
+    --sidebar-backdrop-color: #b4c3e4;
+    --sidebar-border-color: #8e8975;
+    --sidebar-shade-color: rgba(0, 16, 40, 0.2);
+    --secondary-sidebar-bg-color: #a7b7de;
+    --secondary-sidebar-fg-color: #0f2a6e;
+    --secondary-sidebar-backdrop-color: #b4c3e4;
+    --secondary-sidebar-border-color: #8e8975;
+    --secondary-sidebar-shade-color: rgba(0, 16, 40, 0.2);
+    --card-bg-color: #cac5ae;
+    --card-fg-color: #1c1a14;
+    --card-shade-color: rgba(0, 0, 0, 0.12);
+    --overview-bg-color: #c3bea7;
+    --overview-fg-color: #1c1a14;
+    /* Dark-scheme-only (the selected segment of a toggle group): a pressed
+       XP button, the sunken well colour. */
+    --active-toggle-bg-color: #b8b39c;
+    --active-toggle-fg-color: #1c1a14;
+    --thumbnail-bg-color: #c3bea7;
+    --thumbnail-fg-color: #1c1a14;
+    --dialog-bg-color: #c3bea7;
+    --dialog-fg-color: #1c1a14;
+    --popover-bg-color: #c3bea7;
+    --popover-fg-color: #1c1a14;
+    --popover-shade-color: rgba(0, 16, 40, 0.25);
+    --shade-color: rgba(0, 0, 0, 0.12);
+    --scrollbar-outline-color: rgba(255, 255, 255, 0.2);
+    --border-color: rgba(28, 26, 20, 0.25);
+
+    --dim-opacity: 0.75;
+    --window-radius: 8px;
+    --document-font-family: "Tahoma", "IBM Plex Sans";
+    --monospace-font-family: "Liberation Mono", "IBM Plex Mono";
+}
+
+/* The UI face is a gsettings key (font-name), not a variable; a CSS rule
+   reaches every widget of these apps without touching the desktop-wide key.
+   Wine's Tahoma lacks some scripts; IBM Plex Sans draws those. */
+* {
+    font-family: "Tahoma", "IBM Plex Sans", "Noto Color Emoji", sans-serif;
+}
+
+/* --- The title bar ------------------------------------------------------------
+   Every header bar, the sidebar pane's included: libadwaita gives the
+   sidebar pane's header the SIDEBAR's foreground (navy here), which on the
+   blue would be navy on blue -- so the white is set on the header bar
+   itself, at a specificity that beats the pane rules (win95's gtk4.css has
+   the selector story). Both panes carry the same vertical gradient, so they
+   meet without a seam. */
+headerbar,
+.sidebar-pane headerbar,
+.content-pane headerbar,
+toolbarview > .top-bar headerbar,
+.sidebar-pane toolbarview > .top-bar headerbar {
+    background-color: #2459c8;
+    background-image: linear-gradient(to bottom, #3d86f0, #2459c8 15%, #1c47a6);
+    color: #ffffff;
+    box-shadow: inset 0 -1px #143680;
+}
+
+headerbar .title,
+headerbar label.title {
+    font-weight: bold;
+    color: #ffffff;
+}
+
+/* Unfocused: XP's pale inactive title. libadwaita also fades the whole top
+   bar of an unfocused window to 50% (filter: opacity), which would put the
+   path bar -- content, not decoration -- at a washed-out contrast; off. */
+headerbar:backdrop > windowhandle,
+toolbarview > .top-bar:backdrop > windowhandle {
+    filter: none;
+}
+
+headerbar:backdrop,
+.sidebar-pane headerbar:backdrop,
+.content-pane headerbar:backdrop,
+toolbarview > .top-bar headerbar:backdrop,
+.sidebar-pane toolbarview > .top-bar headerbar:backdrop {
+    background-image: linear-gradient(to bottom, #9db0e0, #7a90c8);
+    color: #0a1e50;
+}
+
+headerbar:backdrop .title,
+headerbar:backdrop label.title {
+    color: #0a1e50;
+}
+
+/* Buttons ON the title bar stay flat and take its white glyphs (XP drew
+   Explorer's toolbar flat until the pointer touched a button); under the
+   pointer a pale lit plate with the orange hot-track rim. */
+headerbar button,
+headerbar button.flat,
+headerbar .linked > button,
+headerbar menubutton > button {
+    border-radius: 3px;
+    background-image: none;
+}
+
+headerbar button:hover,
+headerbar button:not(.flat):hover,
+headerbar .linked > button:hover,
+headerbar menubutton > button:hover {
+    background-color: rgba(255, 255, 255, 0.16);
+    box-shadow: inset 0 0 0 1px #f0a030;
+}
+
+/* Pressed or toggled on: a darker, sunken plate. The :not(.flat) pair is
+   here to outrank the push-button rules below, which would otherwise paint
+   a held title-bar button cream under its white glyph. */
+headerbar button:active,
+headerbar button:checked,
+headerbar button:not(.flat):active,
+headerbar button:not(.flat):checked {
+    background-image: none;
+    background-color: rgba(0, 16, 40, 0.35);
+    box-shadow: inset 0 1px 2px rgba(0, 8, 20, 0.6);
+}
+
+/* The window's close button: a red-orange square with a white x, a light
+   rim, 3px corners. libadwaita draws window controls as a disc ON THE IMAGE
+   inside the button, so the disc goes and the button itself is the plate.
+   The long selector outranks the push-button and title-bar rules below and
+   above (a window control may or may not carry .flat). */
+windowcontrols > button,
+headerbar windowcontrols > button:not(.flat):not(.suggested-action):not(.destructive-action) {
+    min-width: 22px;
+    min-height: 22px;
+    padding: 0;
+    margin: 0 3px;
+    border-radius: 3px;
+    background-color: #b8381a;
+    background-image: linear-gradient(to bottom, #cc4a24, #b03416);
+    color: #ffffff;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+
+windowcontrols > button > image {
+    background: none;
+    box-shadow: none;
+    color: #ffffff;
+}
+
+windowcontrols > button:hover,
+headerbar windowcontrols > button:not(.flat):hover {
+    background-color: #b8381a;
+    box-shadow: inset 0 0 0 1px #ffffff, inset 0 0 0 2px #f0a030;
+}
+
+windowcontrols > button:hover > image,
+windowcontrols > button:active > image {
+    background: none;
+}
+
+/* --- Push buttons --------------------------------------------------------------
+   Every button drawn as a button (not the flat ones on the title bar and in
+   the sidebar): the XP push button. */
+button:not(.flat):not(.suggested-action):not(.destructive-action),
+dropdown > button,
+.linked > button {
+    border-radius: 3px;
+    background-color: #c3bea7;
+    background-image: linear-gradient(to bottom, #d8d3bd, #c3bea7);
+    color: #1c1a14;
+    box-shadow: inset 0 0 0 1px #003c74;
+}
+
+headerbar button:not(.flat):not(.suggested-action):not(.destructive-action),
+headerbar .linked > button {
+    /* On the title bar they stay flat and white (above). */
+    background-color: transparent;
+    background-image: none;
+    color: inherit;
+    box-shadow: none;
+}
+
+button:not(.flat):hover {
+    box-shadow: inset 0 0 0 1px #003c74, inset 0 0 0 3px #f0a030;
+}
+
+button:not(.flat):active,
+button:not(.flat):checked {
+    background-image: none;
+    background-color: #b8b39c;
+    box-shadow: inset 0 0 0 1px #003c74, inset 0 2px 2px rgba(0, 0, 0, 0.18);
+}
+
+button.suggested-action {
+    border-radius: 3px;
+    background-image: linear-gradient(to bottom, #3d78d8, #316ac5);
+    box-shadow: inset 0 0 0 1px #1c47a6;
+}
+
+button.destructive-action {
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px #6a140e;
+}
+
+/* --- Text fields: sunken, XP's blue-grey field rim ------------------------------- */
+entry,
+spinbutton,
+searchbar entry {
+    border-radius: 2px;
+    background-color: #b8b39c;
+    color: #1c1a14;
+    caret-color: #18439a;
+    box-shadow: inset 0 0 0 1px #7f9db9;
+}
+
+entry:focus-within {
+    box-shadow: inset 0 0 0 1px #316ac5, inset 0 0 0 2px rgba(49, 106, 197, 0.35);
+}
+
+/* --- The sidebar: the XP task pane ------------------------------------------------ */
+.navigation-sidebar > row {
+    border-radius: 3px;
+    margin: 1px 6px;
+}
+
+.navigation-sidebar > row:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+}
+
+/* --- Selection: the XP blue, white text -------------------------------------------- */
+gridview > child,
+listview > row,
+columnview > listview > row {
+    border-radius: 3px;
+}
+
+gridview > child:selected,
+listview > row:selected,
+columnview > listview > row:selected,
+.navigation-sidebar > row:selected,
+list > row:selected {
+    background-color: #316ac5;
+    color: #ffffff;
+}
+
+gridview > child:selected label,
+listview > row:selected label,
+columnview > listview > row:selected label,
+.navigation-sidebar > row:selected label {
+    color: #ffffff;
+}
+
+/* The dragged selection box: XP's dotted-feel blue rectangle, as a soft
+   blue wash with a solid blue line. */
+rubberband {
+    background-color: rgba(49, 106, 197, 0.25);
+    border: 1px solid #316ac5;
+    border-radius: 0px;
+}
+
+/* --- Floating things --------------------------------------------------------------- */
+popover > contents,
+popover.menu > contents {
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px #8e8975,
+                0 3px 8px rgba(0, 16, 40, 0.40);
+}
+
+popover.menu modelbutton {
+    border-radius: 0px;
+}
+
+popover.menu modelbutton:hover,
+popover.menu modelbutton:selected {
+    background-color: #316ac5;
+    color: #ffffff;
+}
+
+/* A toast is an XP balloon tip: the dimmed cream-yellow under ink. */
+toast {
+    border-radius: 10px;
+    background-color: #cbc7a3;
+    color: #1c1a14;
+    box-shadow: inset 0 0 0 1px #1c1a14, 0 3px 8px rgba(0, 16, 40, 0.40);
+}
+
+tooltip,
+tooltip > * {
+    border-radius: 3px;
+}
+
+tooltip {
+    background-color: #cbc7a3;
+    color: #1c1a14;
+    box-shadow: inset 0 0 0 1px #1c1a14;
+}
+
+/* --- Scrollbars and progress -------------------------------------------------------- */
+scrollbar slider {
+    background-color: rgba(36, 89, 200, 0.70);
+    border-radius: 3px;
+}
+
+scrollbar slider:hover {
+    background-color: #2459c8;
+}
+
+/* XP's green progress blocks: 8px green, 2px gap, in a dark trough.
+   libadwaita's own trough is the ink at ~15% over the cream (#aaa591), and
+   the green is 1.2:1 on that -- the bar barely showed. On the dark
+   green-grey #2a3428 (a small well, fine on the HDR screen; 6.9:1 against
+   the face, so the trough itself reads too) the blocks are 4.2:1, and the
+   2px gaps between them show the trough, so the blocks separate. The
+   progress node's own fill is transparent for that reason. */
+progressbar > trough,
+levelbar trough {
+    background-color: #2a3428;
+}
+
+progressbar > trough > progress {
+    background-color: transparent;
+    background-image: repeating-linear-gradient(to right, #3fa83a 0px, #3fa83a 8px,
+                                                transparent 8px, transparent 10px);
+    border-radius: 2px;
+}
+
+levelbar block.filled {
+    background-color: #3fa83a;
+}
+
+/* An unlit level block: a step up from the trough, so the scale is seen. */
+levelbar block.empty {
+    background-color: #3c4a3a;
+}
+
+*:focus-visible {
+    outline-color: rgba(24, 67, 154, 0.75);
+}

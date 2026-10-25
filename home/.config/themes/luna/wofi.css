@@ -1,0 +1,132 @@
+/* ===========================================================================
+   LUNA -- wofi (~/.config/wofi/style.css): the SUPER+W window switcher and
+   the SUPER+V clipboard picker. Copied to waybar/generated/theme-wofi.css by
+   theme.py, which also writes `@define-color cyan #18439a` above this text
+   (theme.conf accent=; wofi never imports generated/accent.css).
+
+   The XP Alt+Tab box, not the Start menu: a deep-blue rounded box with a lit
+   top line, white text, and the chosen row in the XP selection blue with an
+   orange hot-track rim. It is dark on purpose, so SUPER+W never looks like
+   the launcher (ALT+E), which is the cream Start menu -- two pickers that
+   look the same get mixed up.
+
+   @cyan (the injected accent #18439a) is NOT used as text here: on this blue
+   it would be 1.3:1. It only reaches the base rules' alpha() tints, and
+   every one of those is replaced below.
+
+   HDR (DP-1): the box is #1c47a6 (luminance 0.075), the field #143680
+   (0.043); the only light pixels are text.
+
+   Contrast, measured with the WCAG formula:
+     white on the box 8.4:1, dim #d2e0fa on the box 6.3:1
+     white on the field 11.2:1, the hint #a9bde6 on the field 5.9:1
+     white on the selection #316ac5 5.25:1
+   =========================================================================== */
+
+@define-color l-box       #1c47a6;
+@define-color l-box-lit   #2a5dc8;
+@define-color l-field     #143680;
+@define-color l-line      #5a8cf0;   /* the lit top line */
+@define-color l-dark      #0a2a6e;   /* the outer rim */
+@define-color l-sel       #316ac5;
+@define-color l-glow      #f0a030;
+
+@define-color magenta    @l-glow;    /* the caret and the box's bottom edge: structure */
+@define-color violet     @l-line;    /* scrollbar */
+@define-color mist       #d2e0fa;
+@define-color sel-mid    @l-sel;
+@define-color surface    @l-box;
+@define-color groove     @l-field;
+@define-color edge       @l-dark;
+@define-color edge-lit   @l-line;
+@define-color text       #ffffff;
+@define-color text-dim   #d2e0fa;
+@define-color text-bright #ffffff;
+@define-color ink        #ffffff;    /* text on the selected row */
+
+/* The field's hint ("window", "clipboard"). GTK3 draws an entry's
+   placeholder in the named colour placeholder_text_color (win95's wofi.css
+   explains why nothing else reaches it); a pale XP blue, 5.9:1 on the
+   field and still plainly fainter than typed white. */
+@define-color placeholder_text_color #a9bde6;
+
+* {
+    font-weight: normal;
+}
+
+/* The box: a lighter blue at the top fading to the deep blue, a 1px lit
+   line inside the top edge, a dark outer rim. XP's box was rounded; 8px. */
+#outer-box {
+    border: 1px solid @l-dark;
+    border-bottom: 1px solid @l-dark;
+    border-radius: 8px;
+    animation: none;
+    background-color: @l-box;
+    background-image: linear-gradient(to bottom, @l-box-lit 0px, @l-box 60px);
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    box-shadow: inset 0 1px @l-line;
+}
+
+#input,
+#input:focus {
+    color: @text;
+    caret-color: @l-glow;
+    border: 1px solid @l-dark;
+    border-bottom: 1px solid @l-dark;
+    border-radius: 3px;
+    background-color: @l-field;
+    box-shadow: inset 0 1px 2px alpha(#000814, 0.55);
+}
+
+#input image {
+    color: @text-dim;
+}
+
+#input selection {
+    background-color: @l-sel;
+    color: @ink;
+}
+
+#entry {
+    border: 1px solid transparent;
+    border-left: 1px solid transparent;
+    border-radius: 3px;
+    transition: none;
+}
+
+#entry:hover {
+    background-color: alpha(#ffffff, 0.08);
+    border-color: transparent;
+}
+
+/* The chosen row: XP's selection blue and the orange hot-track rim. No
+   slide-in (the base pads the row 10px further): XP's box did not move. */
+#entry:selected {
+    padding-left: 14px;
+    background-color: @l-sel;
+    background-image: none;
+    border: 1px solid @l-dark;
+    border-left: 1px solid @l-dark;
+    box-shadow: inset 0 0 0 2px @l-glow;
+}
+
+#entry:selected #text {
+    color: @ink;
+    font-weight: bold;
+}
+
+scrollbar slider {
+    min-width: 4px;
+    border-radius: 2px;
+}
+
+/* The rows in the theme's monospace face (font_mono=, Liberation Mono).
+   window-switcher.py lays its rows out as space-padded columns (workspace,
+   app, title); in a proportional face like Tahoma those columns start at
+   different x positions (win95's wofi.css measured it). In a fixed face
+   every column lines up. The field above keeps Tahoma. */
+#text {
+    font-family: "Liberation Mono", "IBM Plex Mono", "Noto Color Emoji", monospace;
+    font-size: 14px;
+}

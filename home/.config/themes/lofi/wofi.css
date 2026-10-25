@@ -1,0 +1,125 @@
+/* ===========================================================================
+   LO-FI -- wofi (the SUPER+W window switcher and the SUPER+V clipboard
+   picker; ~/.config/wofi/style.css). Copied to waybar/generated/theme-wofi.css
+   by theme.py, which also writes `@define-color cyan #f2a477` above this text
+   (theme.conf accent=; wofi never imports accent.css). Not redefined here:
+   accent_follow=no, so that line IS the accent role, and a custom accent
+   from the display panel arrives the same way.
+
+   Kept in step with launcher.css: the dark dusk card (radius 16) with the
+   film grain and a soft shadow, the lamp-to-rain strip along its top drifting
+   slowly (16 s a pass), a dark search well with a lilac caret and a peach
+   glow line, the selected row a peach -> lilac fill under ink text.
+
+   HDR and contrast as launcher.css: the card #1e1930 (L 0.012) over a dark
+   backdrop; text 12.6:1, dim 8.1:1; ink on the selection stops 7.3-7.9:1.
+   @magenta is lilac structure, never a status.
+   =========================================================================== */
+
+/* GTK3's entry placeholder ("window", "clipboard") is a neutral #808080
+   unless this name is set: the dim haze #a091aa instead, 6.3:1 on the
+   well (#141123 over the card), plainly
+   fainter than typed text. */
+@define-color placeholder_text_color #a091aa;
+
+@define-color l-plum     #3a2f55;
+@define-color l-cream    #e8dccb;
+@define-color l-cream-hi #f3e9dc;
+@define-color l-mauve    #bfaebf;
+@define-color l-peach    #f2a477;
+@define-color l-lilac    #b9a3ea;
+@define-color l-ink      #2a1d2a;
+@define-color l-shade    rgba(8, 5, 18, 0.55);
+
+@define-color magenta    @l-lilac;
+@define-color violet     #8a7fb0;
+@define-color mist       @l-mauve;
+@define-color sel-mid    #e8a888;
+@define-color scan-1     #f2a477;
+@define-color scan-2     #e8a888;
+@define-color scan-3     #c9a0c8;
+@define-color scan-4     #b9a3ea;
+@define-color scan-5     #8fbfe0;
+@define-color surface    rgba(30, 25, 48, 0.95);
+@define-color groove     rgba(14, 11, 26, 0.60);
+@define-color edge       alpha(@cyan, 0.22);
+@define-color edge-lit   alpha(@cyan, 0.80);
+@define-color text       @l-cream;
+@define-color text-dim   @l-mauve;
+@define-color text-bright @l-cream-hi;
+@define-color ink        @l-ink;
+
+/* The grain is a third background layer, so the drift gets keyframes that
+   move only the strip (the base's move two layers). */
+@keyframes lofi-scan {
+    from { background-position: 0px 0px, 0% 0%, 0% 0%; }
+    to   { background-position: 0px 0px, 200% 0%, 0% 0%; }
+}
+
+#outer-box {
+    border-radius: 16px;
+    border: 1px solid alpha(@l-lilac, 0.22);
+    border-bottom: 2px solid alpha(@l-lilac, 0.55);
+    background-image:
+        url("file://~/.config/themes/lofi/grain.png"),
+        linear-gradient(to right,
+            @scan-1, @scan-2, @scan-3, @scan-4, @scan-5, @scan-1,
+            @scan-2, @scan-3, @scan-4, @scan-5, @scan-1),
+        linear-gradient(to bottom,
+            alpha(@cyan, 0.05) 0%,
+            alpha(@cyan, 0.00) 30%,
+            alpha(@l-lilac, 0.00) 75%,
+            alpha(@l-lilac, 0.05) 100%);
+    background-size: 128px 128px, 200% 3px, 100% 100%;
+    background-repeat: repeat, repeat-x, no-repeat;
+    animation: lofi-scan 16s linear infinite;
+    box-shadow: 0 4px 14px @l-shade;
+}
+
+#input {
+    border-radius: 12px;
+    border: 1px solid alpha(@l-lilac, 0.22);
+    border-bottom: 2px solid alpha(@cyan, 0.55);
+    caret-color: @l-lilac;
+    color: @l-cream-hi;
+}
+
+#input:focus {
+    border-color: alpha(@l-lilac, 0.30);
+    border-bottom-color: alpha(@cyan, 0.80);
+}
+
+#input image {
+    color: @cyan;
+}
+
+#input selection {
+    background-color: alpha(@l-peach, 0.30);
+    color: @l-cream-hi;
+}
+
+/* Rows: rounded, the lamp line under the hovered one. The selected row
+   still slides its text in, as in the base -- at the theme's slow pace. */
+#entry {
+    border-radius: 12px;
+    border: 1px solid transparent;
+    border-left: 1px solid transparent;
+    transition: padding 260ms ease-out, background-color 260ms ease-out,
+                border-color 260ms ease-out;
+}
+
+#entry:hover {
+    background-color: alpha(@l-plum, 0.55);
+    border-color: alpha(@l-lilac, 0.22);
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.75);
+}
+
+#entry:selected {
+    border: 1px solid alpha(@l-cream-hi, 0.30);
+    border-left: 1px solid alpha(@l-cream-hi, 0.30);
+    box-shadow: 0 0 10px alpha(@cyan, 0.30);
+}
+
+scrollbar slider {
+    border-radius: 99px;
+}

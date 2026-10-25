@@ -1,0 +1,47 @@
+# ~/.config/themes/orbit/mako -- mako fragment for the orbit theme, copied to
+# ~/.config/mako/generated/theme by theme.py and included LAST by
+# ~/.config/mako/config (global lines first, then the sections it repeats).
+# accent_follow=no, so no accent include is added after these lines.
+#
+# A notification is a console message card: the slate face (#0e1626 at 95%,
+# mako draws no blur; dark, so nothing on the HDR panel), a 1 px steel
+# hairline, 3 px corners, the summary as a console label -- a teal ▸, then
+# the title in Barlow Semi Condensed SemiBold, letter-spaced -- and the body
+# in Barlow Medium. mako draws one border colour all round, so the spec's
+# "accent left edge" is the teal ▸ at the start of the title instead.
+# Critical: a 2 px WARNING-red border and a red ▸; the text keeps its
+# colours (urgency is the frame, not a red paragraph). Low urgency: the body
+# in the dim label colour.
+#
+# Contrast (WCAG), on the card -- over a dark window #0e1626 / over a white
+# one #1a2231, the worst case: text #dbe4f0 14.1 / 12.4, teal ▸ #5cc8db
+# 9.3 / 8.2, the low-urgency dim #8a9bb4 6.4 / 5.6; the critical red ▸
+# #f0565a on the critical card (#0e1626 at 98%, #131b2a over white) 5.3 /
+# 5.1. The borders: steel #3d5478 2.4:1 is decoration; the critical red
+# 5.3:1 is the signal and clears 3:1.
+#
+# font= again after the one theme.py writes ("Barlow, IBM Plex Sans
+# SemiBold 11"): Barlow's SemiBold is heavy for a paragraph, so the body is
+# Medium; the title gets its weight from the markup.
+font=Barlow Medium 11
+background-color=#0E1626F2
+text-color=#DBE4F0
+border-color=#3D5478
+progress-color=over #5CC8DB55
+border-size=1
+border-radius=3
+format=<span color="#5CC8DB">▸</span> <span font_family="Barlow Semi Condensed" weight="600" letter_spacing="900">%s</span>\n%b
+
+[grouped]
+format=<span color="#5CC8DB">▸</span> <span font_family="Barlow Semi Condensed" weight="600" letter_spacing="900">%s</span>\n%b\n<small>(%g more)</small>
+
+[urgency=critical]
+border-color=#F0565A
+border-size=2
+background-color=#0E1626FA
+text-color=#DBE4F0
+format=<span color="#F0565A">▸</span> <span font_family="Barlow Semi Condensed" weight="600" letter_spacing="900">%s</span>\n%b
+
+[urgency=low]
+text-color=#8A9BB4
+border-color=#2A3A57

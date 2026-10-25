@@ -1,0 +1,94 @@
+The luna theme's faces (~/.config/themes/luna/).
+
+Tahoma -- the UI face (theme.conf font=): the bar, the toolbox, the popup
+    panels, the launcher, mako, mpv's OSD and subtitles, the LLM chat's
+    headings, Nautilus's document face.
+    This is WINE's Tahoma, not Microsoft's file. Wine ships its own
+    replacement so Windows programs that ask for "Tahoma" by name get a
+    face with the right metrics: drawn by Larry Snyder in 2004 from
+    Bitstream Vera Sans, renamed as Vera's licence requires, and kept in
+    Wine's source tree as FontForge .sfd files. Its family name is exactly
+    "Tahoma" (PostScript names WineTahoma / WineTahomaBold), which is why
+    the stylesheets can just say Tahoma. Nothing here comes from Windows.
+    Regular and Bold, both with tabular figures (every digit 1118/2048 em in
+    Regular, 1304/2048 in Bold, read with fontTools), so the bar's clock and
+    readouts never twitch and need no min-width. Tahoma's metrics, not
+    Vera's: narrower than IBM Plex Sans, with a 1.21 em line against Plex's
+    1.30, so most panels come out a little shorter than cyberpunk's --
+    ~/.config/themes/luna/panel.css's header has the measured sizes.
+    Coverage: Latin and Cyrillic (846 code points in Regular); no Greek and
+    no arrows. IBM Plex Sans is the per-glyph fallback (theme.conf font=
+    lists it second), Font Awesome the icon fallback as everywhere.
+    Files:  tahoma.ttf, tahomabd.ttf   (built here, see below)
+            tahoma.sfd, tahomabd.sfd   (the sources, kept for a rebuild)
+    Source: https://gitlab.winehq.org/wine/wine/-/raw/wine-9.0/fonts/tahoma.sfd
+            https://gitlab.winehq.org/wine/wine/-/raw/wine-9.0/fonts/tahomabd.sfd
+            (Wine tag wine-9.0)
+    Licence: LGPL-2.1-or-later, as part of Wine:
+                COPYING.LIB          https://gitlab.winehq.org/wine/wine/-/raw/wine-9.0/COPYING.LIB
+                LICENSE-wine.txt     https://gitlab.winehq.org/wine/wine/-/raw/wine-9.0/LICENSE
+             plus the Bitstream Vera licence for the base design:
+                LICENSE-Bitstream-Vera.txt   the Vera section of
+                https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts/master/LICENSE
+                (DejaVu quotes it verbatim; only that section is kept)
+
+    Built with the installed FontForge (20251009), one call per weight:
+        fontforge -lang=ff -c 'Open($1); Generate($2)' tahoma.sfd tahoma.ttf
+        fontforge -lang=ff -c 'Open($1); Generate($2)' tahomabd.sfd tahomabd.ttf
+    (FontForge warns about unused Arabic glyphs in a lookup subtable; the
+    face has no Arabic, so the warning is harmless.)
+
+    Then ONE metrics fix, the only change to Wine's design: the .sfd sets
+    USE_TYPO_METRICS with typo metrics that add up to exactly 1.0 em
+    (ascender 1566, descender -423, gap 59 of 2048), so Pango -- which
+    honours that flag -- set every line solid: panels came out 12-16%
+    shorter than cyberpunk's, accents touching the line above. Windows lays
+    Tahoma out by its win metrics (2049 / 423, a 1.21 em line), so the typo
+    and hhea metrics are set to those and the flag cleared, with fontTools
+    (python3-fonttools). The same step writes a change notice INTO each
+    font (name ID 10, the description), as LGPL-2.1 section 2(b) asks of a
+    modified file, so the notice travels with the .ttf even without this
+    README; the family "Tahoma" and the PostScript names are kept, so the
+    stylesheets and fontconfig still match. For each of tahoma.ttf and
+    tahomabd.ttf (STEM = tahoma / tahomabd):
+        python3 -I - IN.ttf OUT.ttf STEM <<'PY'
+        import sys
+        from fontTools.ttLib import TTFont
+        f = TTFont(sys.argv[1]); o, h = f["OS/2"], f["hhea"]
+        o.sTypoAscender, o.sTypoDescender, o.sTypoLineGap = o.usWinAscent, -o.usWinDescent, 0
+        o.fsSelection &= ~(1 << 7)
+        h.ascent, h.descent, h.lineGap = o.usWinAscent, -o.usWinDescent, 0
+        note = (f"Modified 2026-10-24 from Wine's {sys.argv[3]}.sfd (wine-9.0) for the Atrium "
+                "luna theme: OS/2 typo and hhea metrics set to the win metrics, "
+                "USE_TYPO_METRICS cleared. No outline changed.")
+        f["name"].setName(note, 10, 3, 1, 0x409)
+        f["name"].setName(note, 10, 1, 0, 0)
+        f.save(sys.argv[2])
+        PY
+    Then
+        fc-cache -f ~/.local/share/fonts
+    and checked with `fc-list | grep -i tahoma`: family Tahoma, styles
+    Regular and Bold.
+
+Liberation Mono -- the terminal face (term.font=, font_mono=): COSMIC
+    Terminal, kitty, mpv's console, code in the LLM chat, Nautilus's
+    monospace. Courier New's metrics, the XP console's TrueType choice;
+    Regular / Bold / Italic / Bold Italic, spacing=100.
+    NOT copied here: it is a Fedora package. At fetch time
+    `rpm -q liberation-mono-fonts` = liberation-mono-fonts-2.1.5-15.fc44.noarch
+    (licence OFL-1.1-RFN). If it is ever removed:
+    `sudo dnf install liberation-mono-fonts`, or upstream at
+    https://github.com/liberationfonts/liberation-fonts (OFL).
+
+Fetched 2026-10-24.
+
+sha256
+    0c1a3182a3a6b3d444113421121cbacf87322111aff245ee616109bd47479710  tahoma.sfd
+    4bcb3903e03751074b2bd23b4ca815ac3259a194a50228f39512f3fb4f947761  tahomabd.sfd
+    e4976d18c8fcdc3043d38c8fc83b63c66584885fe5429a78349d2471274af4b0  tahoma.ttf
+    607f54d3e05ba9860e706606aaef2a656313742e8ff90d5f870c08e88b8ee68a  tahomabd.ttf
+    e237fa56668030e928551ddd60f05df5fe957f75eab874bbd017e085ed722e7c  COPYING.LIB
+    51433d87540ee2f30e3cff986e00e1477880002bf993106a13775ed60d4e0af4  LICENSE-wine.txt
+    dc8ad311d7b1ae648665a11143d460830118dcadaa62d3f6ec73fb4d8667c33d  LICENSE-Bitstream-Vera.txt
+(The .ttf hashes are of this build, metrics fix and notice included; another
+FontForge version may write different bytes from the same .sfd.)

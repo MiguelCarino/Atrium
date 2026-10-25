@@ -1,0 +1,43 @@
+# ~/.config/themes/luna/mako -- mako fragment for the luna theme, copied to
+# ~/.config/mako/generated/theme by theme.py and included LAST by
+# ~/.config/mako/config (global lines first, then the sections it repeats).
+# theme.py writes font= (Tahoma, IBM Plex Sans SemiBold) above these lines;
+# the font= below overrides its weight. accent_follow=no, so no accent
+# include is added: the frame is the ink line below.
+#
+# The XP balloon tip, our own drawing of it: a pale cream-yellow bubble with
+# a thin dark line round it and round corners, the title bold in XP's navy,
+# the body in ink. XP's balloon was #ffffe1; that near-white would be the
+# brightest thing on the HDR screen, so it is dimmed to #cbc7a3 (luminance
+# 0.562 -- the lightest surface of this theme, and allowed because a toast
+# is small). At F5 (~96%) it is nearly opaque, as the balloon was.
+#
+# Contrast, measured with the WCAG formula, on the balloon:
+#   body #1C1A14 10.1:1, title #0F3C96 5.8:1, critical title #8E1C16 5.3:1,
+#   the low-urgency body #4E4A36 5.2:1.
+# Regular weight, as XP's balloon body was. theme.py's head line asks for
+# SemiBold, and Tahoma has only Regular and Bold, so fontconfig picked the
+# Bold for the body and it read like a second title (seen on screen). This
+# later line wins; the title stays bold through its <b> markup.
+font=Tahoma, IBM Plex Sans 11
+background-color=#CBC7A3F5
+text-color=#1C1A14
+border-color=#1C1A14
+border-size=1
+border-radius=10
+progress-color=over #316AC566
+format=<span color="#0F3C96"><b>%s</b></span>\n%b
+
+# Sections from ~/.config/mako/sections, recoloured. Critical: a 2px dark-red
+# line and a dark-red title; the body stays ink.
+[grouped]
+format=<span color="#0F3C96"><b>%s</b></span>\n%b\n<small>(%g more)</small>
+
+[urgency=critical]
+border-color=#8E1C16
+border-size=2
+text-color=#1C1A14
+format=<span color="#8E1C16"><b>%s</b></span>\n%b
+
+[urgency=low]
+text-color=#4E4A36

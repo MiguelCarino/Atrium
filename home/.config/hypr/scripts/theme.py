@@ -71,7 +71,10 @@ Where a theme lives
                                                -> ~/.config/mpv/theme.conf
                       (mpv.conf includes it, before its first [profile];
                       read at mpv's start, so from the next video). None =
-                      mpv's stock controls.
+                      mpv's stock controls. ~/.config/themes/mpv-base.conf
+                      (how the controls behave: when they show, the
+                      controls row, message and subtitle sizes) is written
+                      above it for every theme; the theme's lines win.
         hypr.lua      optional: Hyprland window/layer rules for this theme
                       only (read by lua/display.lua, see there)
 A missing file means "no override": the generated copy is still written
@@ -148,7 +151,7 @@ theme.conf KEYS (cyberpunk's file lists every one with its value)
     icon_theme=Adwaita         gsettings icon-theme (GTK apps, live) and
                                mako's icon-path: a folder name in
                                ~/.local/share/icons or /usr/share/icons.
-                               Win95, Phosphor and Neon are BUILT by
+                               Win95, Phosphor, Neon, Moe, Lofi and Luna are BUILT by
                                make-icon-theme.py (rerun it after installing
                                an app); `check` says when one is missing
     cursor_theme=Adwaita       the pointer: a cursor theme's folder name in
@@ -319,6 +322,8 @@ ANSI = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
 TERM_SCHEME_ID = 7000       # our entry in cosmic-term's colour scheme map
 MPV = os.path.join(HOME, ".config", "mpv")
 MPV_SKINS = ("uosc", "glass")
+# How mpv's interface behaves in every theme; mpv_text() puts it first.
+MPV_BASE = os.path.join(THEMES_DIR, "mpv-base.conf")
 # v2: the version this libcosmic reads (v1 is an older format with float
 # colours, ignored -- writing there changed nothing, found the hard way).
 COSMIC_STOCK = "/usr/share/cosmic/com.system76.CosmicTheme.Dark/v2"
@@ -802,47 +807,53 @@ def cosmic_theme_files(conf):
 
 
 def mpv_text(conf):
-    """~/.config/mpv/theme.conf: the theme's mpv.conf under a header. Like
-    the stylesheets it does not inherit -- a theme without one gets mpv's
-    stock controls, not cyberpunk's."""
-    src = os.path.join(theme_dir(conf["id"]), "mpv.conf")
-    try:
-        with open(src) as handle:
-            body = handle.read()
-    except OSError:
-        body = ""
+    """~/.config/mpv/theme.conf: the shared behaviour (themes/mpv-base.conf),
+    then the theme's mpv.conf, under a header. The theme's file does not
+    inherit from cyberpunk's -- a theme without one gets mpv's stock controls
+    -- but it comes after the base, so it can override a base line."""
+    def read(path):
+        try:
+            with open(path) as handle:
+                return handle.read()
+        except OSError:
+            return ""
+    base = read(MPV_BASE)
+    body = read(os.path.join(theme_dir(conf["id"]), "mpv.conf"))
     head = (f"# {MARK} from theme '{conf['id']}' -- do not edit.\n"
-            f"# Source: ~/.config/themes/{conf['id']}/mpv.conf{'' if body else ' (none: stock mpv)'}.\n")
-    return head + ("\n" + body if body else "")
+            f"# Source: ~/.config/themes/mpv-base.conf, then "
+            f"~/.config/themes/{conf['id']}/mpv.conf{'' if body else ' (none: stock mpv)'}.\n")
+    return head + ("\n" + base if base else "") + ("\n" + body if body else "")
 
 
 def check_mpv(name):
-    """Problems in a theme's mpv.conf: lines that are not option=value, and
-    a skin directory or input file it names that is not there."""
-    src = os.path.join(theme_dir(name), "mpv.conf")
-    try:
-        with open(src) as handle:
-            lines = handle.read().splitlines()
-    except OSError:
-        return []
+    """Problems in a theme's mpv.conf and in the shared mpv-base.conf: lines
+    that are not option=value, and a skin directory or input file named that
+    is not there."""
     problems = []
-    for n, line in enumerate(lines, 1):
-        line = line.strip()
-        if not line or line.startswith("#"):
+    for src in (MPV_BASE, os.path.join(theme_dir(name), "mpv.conf")):
+        label = os.path.basename(src)
+        try:
+            with open(src) as handle:
+                lines = handle.read().splitlines()
+        except OSError:
             continue
-        if line.startswith("[") or "=" not in line:
-            problems.append(f"mpv.conf line {n}: not option=value ({line[:40]!r}); "
-                            "a [profile] here would swallow everything after it")
-            continue
-        key, value = line.split("=", 1)
-        if value.startswith("#"):
-            problems.append(f"mpv.conf line {n}: {key}={value}: quote it -- # starts a comment in mpv's config")
-        if key in ("scripts-append", "input-conf"):
-            path = value.replace("~~", MPV, 1)
-            # A script is a folder with a main.lua (the skins) or one .lua file (the HUD).
-            want = os.path.join(path, "main.lua") if key == "scripts-append" and not path.endswith(".lua") else path
-            if not os.path.exists(want):
-                problems.append(f"mpv.conf line {n}: {value} is not installed (~/.config/mpv/skins/README)")
+        for n, line in enumerate(lines, 1):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("[") or "=" not in line:
+                problems.append(f"{label} line {n}: not option=value ({line[:40]!r}); "
+                                "a [profile] here would swallow everything after it")
+                continue
+            key, value = line.split("=", 1)
+            if value.startswith("#"):
+                problems.append(f"{label} line {n}: {key}={value}: quote it -- # starts a comment in mpv's config")
+            if key in ("scripts-append", "input-conf"):
+                path = value.replace("~~", MPV, 1)
+                # A script is a folder with a main.lua (the skins) or one .lua file (the HUD).
+                want = os.path.join(path, "main.lua") if key == "scripts-append" and not path.endswith(".lua") else path
+                if not os.path.exists(want):
+                    problems.append(f"{label} line {n}: {value} is not installed (~/.config/mpv/skins/README)")
     return problems
 
 
@@ -1155,6 +1166,16 @@ def app_colours(conf, accent=None):
     bg = conf.get("cosmic.background") or conf.get("term.background") or "#0d1018"
     fg = conf.get("cosmic.foreground") or conf.get("term.foreground") or "#c8d3e6"
     accent = accent or conf.get("accent") or conf.get("cosmic.accent") or "#00f0ff"
+    # The accent ROLE is made for the theme's own surfaces, which may not be
+    # these apps': luna's #18439a is a text colour for the cream cards, and on
+    # the console-blue window here it is 1.66:1 -- Qt's links and selection,
+    # Firefox's highlight and Chrome's seed would all vanish. Below 3:1 (a UI
+    # colour's floor) cosmic.accent, the accent chosen for this dark
+    # background, stands in, if it reads better.
+    spare = conf.get("cosmic.accent")
+    if spare and contrast(hex_rgb(accent), hex_rgb(bg)) < READABLE_COLOURS \
+            and contrast(hex_rgb(spare), hex_rgb(bg)) > contrast(hex_rgb(accent), hex_rgb(bg)):
+        accent = spare
     light = contrast(hex_rgb(bg), [0, 0, 0]) > contrast(hex_rgb(bg), [1, 1, 1])
     return {"bg": bg, "fg": fg, "accent": accent, "light": light}
 
@@ -1718,7 +1739,7 @@ def cmd_check(name):
             problems.append(f"term.font={face[0]!r} has no Bold face: COSMIC Terminal will not use it")
     icons = conf.get("icon_theme")
     if not icon_theme_dir(icons):
-        hint = (" (make-icon-theme.py --all builds it)" if icons in ("Win95", "Phosphor", "Neon", "Moe")
+        hint = (" (make-icon-theme.py --all builds it)" if icons in ("Win95", "Phosphor", "Neon", "Moe", "Lofi", "Luna")
                 else " (sudo dnf install oxygen-icon-theme)" if icons == "oxygen"
                 else " (Chicago95: see ~/.local/share/icons/Chicago95/README)" if icons == "Chicago95" else "")
         problems.append(f"icon_theme={icons!r}: no such icon theme, Adwaita until there is{hint}")

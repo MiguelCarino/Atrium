@@ -1,0 +1,896 @@
+/* ===========================================================================
+   LUNA -- every popup card (~/.config/waybar/panel.css): media, calendar,
+   shortcuts, audio, network, CPU / GPU, disks, weather, power, capture,
+   display, repos, notifications, updates -- and, through the same file, the
+   OSD (osd.py) and the focus guard's "Still want X?" card (focus-guard.py
+   overlay). Copied to waybar/generated/theme-panel.css by theme.py and
+   imported LAST. Same palette names as this theme's waybar.css (its header
+   explains the bar), but a different surface: the bar is dark blue, a card
+   is cream.
+
+   A panel is an XP window: a blue title band across the top of a cream
+   face, XP's rounded top corners (8px; 3px at the bottom), a soft navy drop
+   shadow. On it:
+     * section headings (.kb-heading) are the XP task-pane header: a pale
+       blue band, navy bold text;
+     * every control is an XP push button: a light cream face, the dark
+       XP-blue rim #003c74, and on hover the orange hot-track rim inside it;
+       pressed while held; an ON row's icon and a selected row are the
+       selection blue #316ac5 under white;
+     * sliders and the disk bars are XP's green block progress bar;
+     * the CPU / GPU / network graphs sit in black Task Manager wells, the
+       weather rows in sky wells (the well rule below says why).
+
+   HDR: the face is #c3bea7 -- XP's #ece9d8 dimmed -- at luminance 0.512,
+   about moe's card (0.53), above win95's 0.41. It is the largest light field
+   on the desktop; nothing on a card is lighter than the button face #d8d3bd
+   (0.649, small) and the title band is dark (0.117 / 0.075).
+
+   Text on the face (WCAG):
+       text        #1c1a14   9.3:1
+       text-dim    #4e4a36   4.8
+       text-dimmer #56523e   4.2   (hints only, like moe's 4.0)
+       accent      #18439a   4.9   (values, the month, glyphs on buttons 6.1)
+       heading     #0f3c96   5.3 on the face, 5.6 / 4.85 on the pane band
+       good / warn / bad as text: #14540f 4.9, #5c4600 4.8, #8e1c16 4.8
+   Fills: white on the selection blue #316ac5 5.25, on the muted / armed red
+   #8e1c16 9.0 and #b8281e 6.25; ink on the push-button face #d8d3bd 11.6.
+
+   THE WELL RULE. The colours the panels DRAW are theme.conf color.* keys,
+   and the same keys colour the blue bar: CPU sky, GPU green, network sky and
+   amber, weather glyphs in light pastels. No colour is >= 3:1 on both the
+   bar (L 0.10) and this cream (L 0.51), so the parts that draw them sit in
+   dark wells: .sn-section and .ns-stats (the CPU, GPU, memory and network
+   graphs) are black Task Manager wells #0c140e (light labels 14.4:1, the
+   graphs 10.4-13.0:1), and .wx-now / .wx-hours / .wx-days are sky wells
+   #1d4fae (white 7.55:1, glyphs 4.55-5.76:1). A GTK3 DrawingArea paints no
+   CSS background (tested offscreen), so the wells go on these PARENT
+   boxes, not on the graphs. The weather's temperature graph (.wx-graph)
+   stays on the cream, so color.wx_temp is the dark accent blue (4.87:1);
+   the day ranges in .wx-days are drawn in color.wx_cool / wx_warm, light
+   for the sky well.
+
+   Panel sizes follow the font. Tahoma is Tahoma-metric (narrower than
+   Plex) with a shorter line (1.21 em against Plex's 1.30), so most panels
+   come out a little SHORTER than cyberpunk's, as aero's do. Measured
+   2026-10-24, each panel built offscreen (never applied) with its theme's
+   generated css and the same live data, natural size of the whole window,
+   14px gutters included -- the method gives cyberpunk's calendar and audio
+   exactly as lofi's header has them:
+                          cyberpunk    luna       lofi
+       disk               650x630      660x617    659x653
+       display (opening)  454x1281     454x1241   454x1280
+       calendar           286x330      275x310    285x334
+       audio              430x378      427x368    432x388
+       weather            421x466      426x459    421x453
+       CPU / network      455 / 657 wide, 505 / 665 here (the wells'
+                          padding and the pane bands), both 412 tall
+   Disk, display, audio and weather are within 3%; the calendar is 6%
+   shorter (aero's is 277x310), from the line height, not a layout
+   change.
+   The CARD_HEIGHT=412 cards (CPU, GPU, network, updates, notifications)
+   keep their height (panelui.py); nothing here resizes them.
+
+   Theme names start with l- (as in waybar.css; stylesheets do not inherit).
+   =========================================================================== */
+
+/* --- the theme's own names ---------------------------------------------------- */
+@define-color l-face      #c3bea7;   /* the cream face (XP #ece9d8, dimmed) */
+@define-color l-well      #b8b39c;   /* sunken fields, troughs */
+@define-color l-hi        #d8d3bd;   /* the push-button face, bevel light */
+@define-color l-shadow    #8e8975;   /* bevel shadow, hairlines */
+@define-color l-title     #2459c8;   /* the title band */
+@define-color l-title-lo  #1c47a6;
+@define-color l-pane      #b4c3e4;   /* the task-pane heading band */
+@define-color l-pane-lo   #a3b5de;
+@define-color l-navy-text #0f3c96;   /* headings */
+@define-color l-sel       #316ac5;   /* selection fill under white */
+@define-color l-rim       #003c74;   /* XP's dark push-button rim */
+@define-color l-glow      #f0a030;   /* the hot-track orange: hover only */
+@define-color l-tm        #0c140e;   /* Task Manager well */
+@define-color l-tm-text   #d8e6d0;
+@define-color l-tm-dim    #9fb39a;
+@define-color l-sky       #1d4fae;   /* weather well */
+@define-color l-sky-dim   #d2e0fa;
+@define-color l-crit      #b8281e;
+@define-color l-block     #3fa83a;   /* XP progress block: its lit centre */
+@define-color l-block-lo  #1e6b1e;   /* ...its edges (3.1:1 on the trough) */
+@define-color l-ink       #1c1a14;
+@define-color l-shade     alpha(#001028, 0.45);
+
+/* --- PALETTE 1: hues (@cyan = the accent role, #18439a, via accent.css) ---------
+   @magenta is "this ends something / bad": muted rows, errors, the danger
+   power tiles, a full disk. Its STRUCTURAL uses in the base (the calendar's
+   weekdays, the section underlines, the weather's high, the About card's
+   wash) are put back to blue by the rules below. */
+@define-color magenta    #8e1c16;
+@define-color yellow     #5c4600;
+@define-color green      #14540f;
+@define-color red        #b8281e;   /* .live tiles: white 6.25:1 */
+@define-color mist       #4e4a36;
+
+/* --- PALETTE 2: surfaces, edges, text ------------------------------------------ */
+@define-color surface        @l-face;
+@define-color surface-deep   @l-well;
+@define-color surface-video  @l-tm;
+@define-color knob           @l-hi;
+@define-color edge           @l-shadow;
+@define-color edge-lit       @l-title;
+@define-color accent         alpha(#316ac5, 0.35);
+@define-color accent-lit     #316ac5;
+@define-color text           #1c1a14;
+@define-color text-dim       #4e4a36;
+@define-color text-dimmer    #56523e;
+@define-color text-bright    #ffffff;
+@define-color ink            #ffffff;      /* on the accent / selection fills */
+@define-color rec-edge       #1c1a14;
+
+/* --- The window ------------------------------------------------------------------
+   The title band is drawn INSIDE the base's 14px padding (lit 2px line,
+   the title blue, deep blue at 9px, then the face), so the card's size does
+   not change. The shadow fits the base's 14px gutter (GTK clips a shadow to
+   the toplevel). */
+#panel-window {
+    background: transparent;
+}
+
+#panel {
+    border-radius: 8px 8px 3px 3px;
+    border: 1px solid @l-title-lo;
+    background-color: @l-face;
+    background-image: linear-gradient(to bottom,
+                        #3d86f0 0px,
+                        @l-title 2px,
+                        @l-title-lo 8px,
+                        @l-face 9px);
+    box-shadow: 0 3px 10px @l-shade;
+}
+
+/* --- Headings: the XP task-pane section header -----------------------------------
+   A pale blue band fading to the right, rounded on top, navy bold text. The
+   base's spaced 10px caps become 12px with no tracking: Tahoma's caps are
+   compact, and XP's pane headers were plain bold. */
+label.kb-heading {
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0px;
+    padding: 3px 8px;
+    margin-bottom: 4px;
+    border-radius: 4px 4px 0px 0px;
+    color: @l-navy-text;
+    background-image: linear-gradient(to right, @l-pane, @l-pane-lo);
+}
+
+/* A heading inside a section card keeps the base's accent bar under it, in
+   the title blue (the base's is magenta, "bad" here). */
+.ctl-group label.kb-heading {
+    border-bottom: 2px solid @l-title;
+}
+
+.ctl-group {
+    border-radius: 4px;
+    background-color: alpha(#ffffff, 0.10);
+    border: 1px solid alpha(@l-shadow, 0.70);
+}
+
+#kb-title,
+#cal-month {
+    letter-spacing: 0.5px;
+    color: @l-navy-text;
+}
+
+#title {
+    color: @text;
+}
+
+/* --- Push buttons -------------------------------------------------------------------
+   XP's: the light face fading to the cream, the dark blue rim, 3px corners.
+   Hover = the orange hot-track rim inside; pressed = the sunken well face;
+   glyphs in the accent blue (6.1:1 on the face), captions in ink. */
+button.control,
+#cal-prev,
+#cal-next,
+.ctl-icon,
+button.ctl-link,
+button.sn-link,
+button.pw-tile,
+label.kb-cap {
+    color: @text;
+    border: 1px solid @l-rim;
+    border-radius: 3px;
+    background-color: @l-hi;
+    background-image: linear-gradient(to bottom, @l-hi, @l-face);
+    box-shadow: none;
+    text-shadow: none;
+}
+
+.ctl-icon,
+#cal-prev,
+#cal-next {
+    color: @cyan;
+}
+
+button.control:hover,
+#cal-prev:hover,
+#cal-next:hover,
+button.ctl-icon:hover,
+button.ctl-link:hover,
+button.sn-link:hover,
+button.pw-tile:hover {
+    color: @text;
+    border-color: @l-rim;
+    background-color: @l-hi;
+    background-image: linear-gradient(to bottom, @l-hi, @l-face);
+    box-shadow: inset 0 0 0 2px @l-glow;
+}
+
+#cal-prev:hover,
+#cal-next:hover,
+button.ctl-icon:hover {
+    color: @cyan;
+}
+
+button.control:active,
+#cal-prev:active,
+#cal-next:active,
+button.ctl-icon:active,
+button.ctl-link:active,
+button.sn-link:active,
+button.pw-tile:active {
+    background-color: @l-well;
+    background-image: none;
+    box-shadow: inset 0 1px 2px alpha(#000000, 0.30);
+}
+
+/* A greyed-out button: dim caption, the face kept (the base's 0.4 opacity
+   fade would wash the rim into the cream). */
+button.ctl-link:disabled {
+    opacity: 1;
+    color: #7a7562;
+    border-color: @l-shadow;
+}
+
+button.ctl-link {
+    padding: 2px 10px;
+}
+
+/* Play is the DEFAULT button: XP drew a blue inner ring on the button Enter
+   would press. */
+#play {
+    color: @text;
+    background-image: linear-gradient(to bottom, @l-hi, @l-face);
+    border-color: @l-rim;
+    box-shadow: inset 0 0 0 1px #7da2ce,
+                inset 0 0 0 2px #b9d1ea;
+}
+
+#play:hover {
+    box-shadow: inset 0 0 0 2px @l-glow;
+}
+
+/* Held down: the sunken well face, like every other push button. #play is
+   an id rule, so button.control:active (two classes) cannot reach it and
+   the raised gradient would stay on top while pressed. */
+#play:active {
+    background-color: @l-well;
+    background-image: none;
+    box-shadow: inset 0 1px 2px alpha(#000000, 0.30);
+}
+
+/* --- Text fields, spin buttons, drop-downs (the display panel's Arrangement) ------
+   Stock GTK widgets the base leaves alone, which drew stock WHITE fields on
+   the cream. XP's text field instead: its blue rim #7f9db9, a dimmed light
+   face (the push-button face, 0.649 -- not #ffffff), ink text 11.6:1; the
+   +/- and the drop-down arrow are push buttons. */
+#panel entry,
+#panel spinbutton {
+    color: @text;
+    border: 1px solid #7f9db9;
+    border-radius: 2px;
+    background-color: @l-hi;
+    background-image: none;
+    box-shadow: none;
+}
+
+#panel spinbutton entry {
+    border: none;
+    background-color: transparent;
+}
+
+#panel spinbutton button,
+#panel combobox button {
+    color: @text;
+    border: 1px solid @l-rim;
+    border-radius: 3px;
+    background-color: @l-hi;
+    background-image: linear-gradient(to bottom, @l-hi, @l-face);
+    box-shadow: none;
+}
+
+#panel spinbutton button {
+    border-width: 0px 0px 0px 1px;
+    border-color: #7f9db9;
+    border-radius: 0px;
+}
+
+#panel spinbutton button:hover,
+#panel combobox button:hover {
+    box-shadow: inset 0 0 0 2px @l-glow;
+}
+
+#panel spinbutton button:disabled {
+    color: #7a7562;
+}
+
+/* --- Key caps: small push buttons ------------------------------------------------ */
+label.kb-cap {
+    color: @l-ink;
+    padding: 0px 6px;
+    border-bottom-width: 2px;
+}
+
+/* --- Values: the accent blue on the face ------------------------------------------ */
+.ctl-value,
+label.pw-uptime,
+label.pw-glyph {
+    color: @cyan;
+}
+
+/* --- Rows that are ON or MUTED ---------------------------------------------------- */
+.ctl-row.on .ctl-icon {
+    color: #ffffff;
+    background-color: @l-sel;
+    background-image: none;
+    border-color: @l-title-lo;
+}
+
+.ctl-row.muted .ctl-icon {
+    color: #ffffff;
+    background-color: @magenta;
+    background-image: none;
+    border-color: #5a100c;
+}
+
+.ctl-sub {
+    color: @text-dim;
+}
+
+.ctl-row.error .ctl-sub {
+    color: @magenta;
+}
+
+.ctl-sep,
+.ctl-vsep {
+    background-color: @l-shadow;
+}
+
+/* --- Sliders: XP's green block progress bar in a sunken trough -------------------
+   The run is drawn as blocks: a vertical gradient (dark green edges, the lit
+   #3fa83a centre -- the XP block), with the 2px gaps between blocks painted
+   in the trough colour by a top layer (win95's disk bars use the same
+   repeat trick; GTK3 has no double-position stops). The knob is a small
+   rounded push button. */
+#seek trough,
+scale.ctl-slider trough {
+    min-height: 8px;
+    border: 1px solid @l-shadow;
+    border-radius: 3px;
+    background-color: @l-well;
+    background-image: none;
+    box-shadow: inset 0 1px 1px alpha(#000000, 0.20);
+}
+
+#seek highlight,
+scale.ctl-slider highlight {
+    border: none;
+    border-radius: 2px;
+    background-color: @l-block;
+    background-image: linear-gradient(to right, transparent 8px, @l-well 8px),
+                      linear-gradient(to bottom, @l-block-lo, @l-block 45%, @l-block-lo);
+    background-size: 10px 100%, 100% 100%;
+    background-repeat: repeat-x, no-repeat;
+    box-shadow: none;
+}
+
+#seek slider,
+scale.ctl-slider slider {
+    min-width: 12px;
+    min-height: 18px;
+    margin: -6px -3px;
+    border: 1px solid @l-rim;
+    border-radius: 3px;
+    background-color: @l-hi;
+    background-image: linear-gradient(to bottom, #e2ddc8, @l-hi);
+    box-shadow: none;
+}
+
+#seek slider:hover,
+scale.ctl-slider slider:hover {
+    background-color: @l-hi;
+    box-shadow: inset 0 0 0 2px @l-glow;
+}
+
+/* Muted: the run goes the muted red, solid (no blocks). */
+.ctl-row.muted scale.ctl-slider highlight {
+    background-color: @magenta;
+    background-image: none;
+}
+
+/* --- Switches: a sunken track; on = the selection blue; the thumb a push button -- */
+switch {
+    border: 1px solid @l-shadow;
+    border-radius: 3px;
+    background-color: @l-well;
+    background-image: none;
+    box-shadow: inset 0 1px 1px alpha(#000000, 0.20);
+}
+
+switch:checked {
+    background-color: @l-sel;
+    border-color: @l-title-lo;
+}
+
+switch slider,
+switch:checked slider {
+    border: 1px solid @l-rim;
+    border-radius: 2px;
+    background-color: @l-hi;
+    background-image: linear-gradient(to bottom, #e2ddc8, @l-hi);
+}
+
+/* --- Calendar ------------------------------------------------------------------- */
+label.cal-weekday {
+    color: @l-navy-text;
+    letter-spacing: 0.5px;
+}
+
+/* The base's 0.22 is ~1.3:1 on the cream. These are still dates to read,
+   so #5e5a46: 3.7:1, over the 3:1 floor, and still clearly fainter than
+   this month's ink (9.3) and dim text (4.8) -- "not this month". */
+label.cal-adjacent {
+    color: #5e5a46;
+}
+
+label.cal-today {
+    color: #ffffff;
+    background-color: @l-sel;
+    font-weight: bold;
+}
+
+/* --- Lists: device pickers, chips, repos, updates ----------------------------------
+   Flat until touched; under the pointer a light face with the hot-track rim;
+   the current one is the selection: blue, white text (5.25:1), as a selected
+   file in Explorer. */
+button.dev-pick,
+button.dk-fs {
+    color: @text-dim;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+button.dev-pick:hover,
+button.dk-fs:hover {
+    color: @text;
+    border-color: @l-shadow;
+    background-color: alpha(#ffffff, 0.18);
+    box-shadow: inset 0 0 0 1px alpha(@l-glow, 0.80);
+}
+
+button.dev-pick.active,
+button.dev-pick.active:hover,
+button.dev-pick.chip.active {
+    color: #ffffff;
+    font-weight: bold;
+    background-color: @l-sel;
+    background-image: none;
+    border: 1px solid @l-title-lo;
+    box-shadow: none;
+}
+
+button.dev-pick.active label.dev-name,
+button.dev-pick.active label.dev-kind {
+    color: #ffffff;
+}
+
+.dev-dot {
+    border: 1px solid @l-shadow;
+    background-color: @l-hi;
+}
+
+button.dev-pick.active .dev-dot {
+    border-color: #ffffff;
+    background-color: #ffffff;
+    box-shadow: inset 0 0 0 2px @l-sel;
+}
+
+/* The audio panel's device lists are CHOICES, not commands, though they sit
+   in a box inside a grid cell (which the command rule further down picks
+   out): flat list rows again, as in Explorer -- quiet until touched, the
+   current one the selection blue. Two classes outrank that rule's one. */
+.dev-list button.dev-pick {
+    padding: 3px 8px;
+    color: @text-dim;
+    border: 1px solid transparent;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+.dev-list button.dev-pick:hover {
+    color: @text;
+    border-color: @l-shadow;
+    background-color: alpha(#ffffff, 0.18);
+    background-image: none;
+    box-shadow: inset 0 0 0 1px alpha(@l-glow, 0.80);
+}
+
+/* Unplugged: a dim row with no rim (the command rule's disabled rim would
+   draw a box round it). */
+.dev-list button.dev-pick:disabled {
+    border-color: transparent;
+}
+
+.dev-list button.dev-pick.active,
+.dev-list button.dev-pick.active:hover {
+    color: #ffffff;
+    background-color: @l-sel;
+    background-image: none;
+    border: 1px solid @l-title-lo;
+    box-shadow: none;
+}
+
+/* Chips (themes, frames, filters): every option a push button. */
+button.dev-pick.chip {
+    color: @text;
+    border: 1px solid @l-rim;
+    background-color: @l-hi;
+    background-image: linear-gradient(to bottom, @l-hi, @l-face);
+}
+
+button.dev-pick.chip:hover {
+    border-color: @l-rim;
+    box-shadow: inset 0 0 0 2px @l-glow;
+}
+
+/* Commands, not choices: the same dev-pick class also draws the panels'
+   ACTION buttons -- updates' Upgrade, the process tables' End, the swap and
+   cache Clear, the repos panel's Pull / Sync / Commit, the focus card's two
+   answers. win95's panel.css explains how they are told apart (where the
+   code puts them: a grid cell, a box in a grid cell, straight under the
+   card). The disk panel's big-file question (Move to Trash / Delete for
+   good) is none of those -- a box in the .dk-ask box in a column -- so it
+   is named by its class. XP drew every command as a push button, so these
+   are too; ARMED (.active: "Sure?" waiting for the second click) stays a
+   pressed push button on the light face, because the code writes "Sure?"
+   in color.danger: the deep red #8e1c16 is 6.0:1 at the face's top
+   (#d8d3bd) and 4.8:1 at its foot (#c3bea7), but 4.3:1 on the sunken well
+   and 1.7:1 on the selection blue. So the armed face keeps the gradient and
+   only the inset shadow says "pressed"; the well is for the moment a
+   button is held down, when no "Sure?" is showing. */
+grid > button.dev-pick,
+grid > box > button.dev-pick,
+#panel > button.dev-pick,
+#panel > box > button.dev-pick,
+.dk-ask button.dev-pick {
+    padding: 1px 8px;
+    color: @text;
+    border: 1px solid @l-rim;
+    background-color: @l-hi;
+    background-image: linear-gradient(to bottom, @l-hi, @l-face);
+}
+
+#panel > button.dev-pick,
+#panel > box > button.dev-pick {
+    padding: 3px 12px;
+}
+
+grid > button.dev-pick:hover,
+grid > box > button.dev-pick:hover,
+#panel > button.dev-pick:hover,
+#panel > box > button.dev-pick:hover,
+.dk-ask button.dev-pick:hover {
+    color: @text;
+    border-color: @l-rim;
+    background-color: @l-hi;
+    background-image: linear-gradient(to bottom, @l-hi, @l-face);
+    box-shadow: inset 0 0 0 2px @l-glow;
+}
+
+grid > button.dev-pick:active,
+grid > box > button.dev-pick:active,
+#panel > button.dev-pick:active,
+#panel > box > button.dev-pick:active,
+.dk-ask button.dev-pick:active {
+    color: @text;
+    font-weight: normal;
+    border: 1px solid @l-rim;
+    background-color: @l-well;
+    background-image: none;
+    box-shadow: inset 0 1px 2px alpha(#000000, 0.30);
+}
+
+/* Armed: pressed in (the inset shadow), the face kept light for the red
+   "Sure?" (>= 4.8:1 everywhere on it). The .dk-ask pair outranks the list
+   rows' button.dev-pick.active, which would paint the selection blue. */
+grid > button.dev-pick.active,
+grid > button.dev-pick.active:hover,
+.dk-ask button.dev-pick.active,
+.dk-ask button.dev-pick.active:hover {
+    color: @text;
+    font-weight: normal;
+    border: 1px solid @l-rim;
+    background-color: @l-hi;
+    background-image: linear-gradient(to bottom, @l-hi, @l-face);
+    box-shadow: inset 0 1px 2px alpha(#000000, 0.30);
+}
+
+/* Greyed out ("in use", nothing to clear, a countdown): dim, face kept.
+   #7a7562 is 2.5:1 -- an insensitive caption, as XP's grey ones were. */
+grid > button.dev-pick:disabled,
+grid > box > button.dev-pick:disabled,
+#panel > button.dev-pick:disabled,
+#panel > box > button.dev-pick:disabled,
+.dk-ask button.dev-pick:disabled {
+    opacity: 1;
+    color: #7a7562;
+    border-color: @l-shadow;
+}
+
+grid > button.dev-pick:disabled label,
+grid > box > button.dev-pick:disabled label,
+#panel > button.dev-pick:disabled label,
+#panel > box > button.dev-pick:disabled label,
+.dk-ask button.dev-pick:disabled label {
+    color: #7a7562;
+}
+
+/* The CPU panel's right column: "APPS BY MEMORY" follows the TOP CPU list
+   with nothing between, so its band sat on that list's last line. */
+label.sn-procs + label.kb-heading {
+    margin-top: 8px;
+}
+
+/* --- Task Manager wells: the CPU / GPU / memory / network graphs ------------------
+   Black, a 1px bevel-shadow frame, light green-grey labels (14.4:1; the
+   sub-lines 8.4:1), the graphs in theme.conf's colours (10.4-13.0:1). The
+   heading inside keeps its pane band; buttons inside (htop, Advanced,
+   swap Clear) stay cream push buttons with ink captions. */
+.sn-section,
+.ns-stats {
+    background-color: @l-tm;
+    border: 1px solid @l-shadow;
+    border-radius: 3px;
+    padding: 6px;
+}
+
+.sn-section label,
+.ns-stats label {
+    color: @l-tm-text;
+}
+
+.sn-section label.ctl-sub,
+.ns-stats label.ctl-sub,
+.sn-section label.sn-label,
+.ns-stats label.sn-label {
+    color: @l-tm-dim;
+}
+
+.sn-section label.kb-heading,
+.ns-stats label.kb-heading {
+    color: @l-navy-text;
+}
+
+.sn-section button label,
+.ns-stats button label {
+    color: @text;
+}
+
+/* The memory bars inside the well: the trough a dark grey-green so the
+   blocks and the trough edge read on black too. */
+.sn-section levelbar.dk-bar trough {
+    background-color: #2a3428;
+    border-color: #4a5648;
+}
+
+/* --- Disk and memory bars: the XP progress bar -------------------------------------
+   Green blocks (the slider's), then dark-yellow blocks from 85% and red from
+   95% -- the base's thresholds. Each block's edge is >= 3:1 on the trough
+   (green 3.1, ochre 3.3, red 4.3), its centre the lit colour. */
+levelbar.dk-bar trough {
+    min-height: 10px;
+    padding: 1px;
+    border: 1px solid @l-shadow;
+    border-radius: 3px;
+    background-color: @l-well;
+    background-image: none;
+}
+
+levelbar.dk-bar block.filled {
+    min-height: 8px;
+    border: none;
+    border-radius: 1px;
+    background-color: @l-block;
+    background-image: linear-gradient(to right, transparent 8px, @l-well 8px),
+                      linear-gradient(to bottom, @l-block-lo, @l-block 45%, @l-block-lo);
+    background-size: 10px 100%, 100% 100%;
+    background-repeat: repeat-x, no-repeat;
+}
+
+levelbar.dk-bar.warning block.filled {
+    background-color: #c8aa00;
+    background-image: linear-gradient(to right, transparent 8px, @l-well 8px),
+                      linear-gradient(to bottom, #6e5800, #c8aa00 45%, #6e5800);
+}
+
+levelbar.dk-bar.critical block.filled {
+    background-color: @l-crit;
+    background-image: linear-gradient(to right, transparent 8px, @l-well 8px),
+                      linear-gradient(to bottom, #8e1c16, #d8483a 45%, #8e1c16);
+}
+
+/* Inside the black well the gaps are the well's trough colour. */
+.sn-section levelbar.dk-bar block.filled {
+    background-image: linear-gradient(to right, transparent 8px, #2a3428 8px),
+                      linear-gradient(to bottom, @l-block-lo, @l-block 45%, @l-block-lo);
+}
+
+.sn-section levelbar.dk-bar.warning block.filled {
+    background-image: linear-gradient(to right, transparent 8px, #2a3428 8px),
+                      linear-gradient(to bottom, #6e5800, #c8aa00 45%, #6e5800);
+}
+
+.sn-section levelbar.dk-bar.critical block.filled {
+    background-image: linear-gradient(to right, transparent 8px, #2a3428 8px),
+                      linear-gradient(to bottom, #8e1c16, #d8483a 45%, #8e1c16);
+}
+
+/* --- Weather: sky wells for the rows that carry the glyphs -------------------------
+   White text 7.55:1, the dim facts and hours #d2e0fa 5.7, the low / rain sky
+   #b4daff 5.2, the high a peach #ffc890 5.0 (the base's high is magenta:
+   "bad" here). The temperature graph between them stays on the cream. */
+.wx-now,
+.wx-hours,
+.wx-days {
+    background-color: @l-sky;
+    border: 1px solid @l-title-lo;
+    border-radius: 4px;
+    padding: 4px 6px;
+}
+
+.wx-hours,
+.wx-days {
+    margin-top: 2px;
+    margin-bottom: 6px;
+}
+
+.wx-now label,
+.wx-hours label,
+.wx-days label {
+    color: #ffffff;
+}
+
+.wx-now label.wx-fact,
+.wx-hours label.wx-hour {
+    color: @l-sky-dim;
+}
+
+/* The footer (sunrise, sunset, "updated") is on the cream, not in a well. */
+.wx-footer label.wx-fact {
+    color: @text-dim;
+}
+
+label.wx-big-temp {
+    color: #ffffff;
+}
+
+label.wx-lo,
+label.wx-rain {
+    color: #b4daff;
+}
+
+label.wx-hi {
+    color: #ffc890;
+}
+
+.wx-footer {
+    border-top: 1px solid @l-shadow;
+}
+
+/* --- Power and capture tiles -------------------------------------------------------- */
+button.pw-tile.danger label.pw-glyph {
+    color: @magenta;
+}
+
+button.pw-tile.danger:hover {
+    background-color: @l-hi;
+    background-image: linear-gradient(to bottom, @l-hi, @l-face);
+    border-color: @l-rim;
+    box-shadow: inset 0 0 0 2px @l-crit;
+}
+
+/* Armed (first click taken, waiting for the second): the critical red, white. */
+button.pw-tile.armed,
+button.pw-tile.armed:hover {
+    background-color: @l-crit;
+    background-image: none;
+    border-color: #5a100c;
+    box-shadow: none;
+}
+
+button.pw-tile.armed label.pw-glyph,
+button.pw-tile.armed label.pw-label {
+    color: #ffffff;
+}
+
+/* A capture in progress: the REC red, white. */
+button.pw-tile.live,
+button.pw-tile.live:hover {
+    background-color: @red;
+    background-image: none;
+    border-color: #5a100c;
+    box-shadow: none;
+}
+
+/* The HDR capture-range tile shares .live with the recording tiles but means
+   "a mode is on", not "recording now"; red here means bad. It is an ON
+   control instead: the selection blue, white -- what an ON row's icon is. */
+button.pw-tile.live.cap-rec-range,
+button.pw-tile.live.cap-rec-range:hover {
+    background-color: @l-sel;
+    background-image: none;
+    border-color: @l-title-lo;
+}
+
+button.pw-tile.live.cap-rec-range label.pw-glyph,
+button.pw-tile.live.cap-rec-range label.pw-label {
+    color: #ffffff;
+}
+
+/* --- The media preview: a black sunken field ---------------------------------------- */
+#preview-frame {
+    border: 1px solid @l-shadow;
+    border-radius: 3px;
+}
+
+/* --- The focus guard's card ("Still want X?", focus-guard.py overlay) --------------
+   Built from panel classes only: the card above, an icon label .ctl-icon,
+   the question as .kb-heading (the pane band), the text as .ctl-sub, and two
+   push buttons (the #panel > box > button.dev-pick rules above). The icon is
+   XP's round information badge: the selection blue under white. */
+#panel > box > box > label.kb-heading {
+    font-size: 14px;
+}
+
+#panel > box > label.ctl-icon {
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 18px;
+    color: #ffffff;
+    background-color: @l-sel;
+    background-image: none;
+    border: 1px solid @l-title-lo;
+}
+
+/* --- Settings > About's card: a soft XP-blue wash ------------------------------------
+   The base's wash mixes in @magenta (the deep red here); this one is blue
+   only, and the captions are solid text-dim (the base's alpha(@text, 0.6)
+   fell to 3.6:1). */
+.about-hero {
+    border-radius: 8px;
+    background-image: linear-gradient(135deg, alpha(@l-sel, 0.18), alpha(@l-title, 0.06) 60%, alpha(#ffffff, 0.06));
+    border: 1px solid alpha(@l-title, 0.55);
+}
+
+.about-hero .about-tile {
+    border-radius: 4px;
+    background-color: alpha(#ffffff, 0.14);
+}
+
+.about-hero label.about-model,
+.about-hero label.about-cap,
+.about-hero label.about-sub {
+    color: @text-dim;
+}

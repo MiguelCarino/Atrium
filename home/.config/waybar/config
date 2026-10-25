@@ -140,9 +140,12 @@
     },
 
     // The old built-in clock is split in two: the date opens the calendar panel,
-    // the time cycles local → UTC → epoch. Neither is something waybar's clock
-    // can do — it has no epoch format, and its calendar is a tooltip that
-    // vanishes the moment you move the pointer toward it.
+    // the time opens the clock card (clock_panel.py: local, UTC and epoch side
+    // by side, world clocks, alarms, a countdown, the stopwatch); right click
+    // on the time still cycles the pill itself local → UTC → epoch. Neither is
+    // something waybar's clock can do — it has no epoch format, and its
+    // calendar is a tooltip that vanishes the moment you move the pointer
+    // toward it.
     //
     // custom/clock has no interval: clock.py holds the second hand itself and
     // is woken by SIGUSR1 when the mode changes, so the new reading appears on
@@ -163,7 +166,8 @@
         "return-type": "json",
         "restart-interval": 5,
         "format": "{}",
-        "on-click": "$HOME/.config/waybar/scripts/clock.py cycle"
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle clock",
+        "on-click-right": "$HOME/.config/waybar/scripts/clock.py cycle"
     },
 
     // Icon (box-open -- deliberately NOT a cloud: it used to be welded to the

@@ -8,9 +8,10 @@ A plain GTK3 window (not layer-shell: it is a place to read, scroll and come
 back to, so it tiles and takes focus like any app; app id "llm-chat").
 The top is the mascot's stage -- the theme's ASCII animation (mascots.py:
 moe's cat-eared girl, matrix's hacker, win95's paperclip, aero's glass orb,
-cyberpunk's android) on the theme's dark card, a speech bubble over it --
-the middle the conversation, the bottom a box to type the next message in
-and a status line.
+cyberpunk's android, lofi's sleepy cat, luna's manila folder, orbit's little
+probe) on the theme's
+dark card, a speech bubble over it -- the middle the conversation, the
+bottom a box to type the next message in and a status line.
 
     llm-chat.py                           open it, the input box focused
     llm-chat.py PROMPT ...                open it and send PROMPT at once (the
@@ -287,10 +288,16 @@ back on top.
 It animates at 10 fps while something happens, slows to 2.5 fps after 10 s of
 quiet and stops after two minutes, until the next key or run.
 Her mood is mascot_mood.py's (for a mascot that draws moods): the window tells it
-what happens -- each prompt and finished reply (word matching), tool errors
-and successes, the result, a run past a minute -- and draws its View every
-frame: the mood and scene go to the mascot, the topic (an event soon, the
-weather, "go home") to the bubble, worded by the mascot's say(). The
+what happens -- each prompt (word matching; a first hello, a welcome back,
+waking her after a doze, a picture, a code block, a long one), finished
+replies, tool starts, errors and successes (a Bash line's tests passing or
+failing, a git commit or push), the result (a quick one, a long one), a stop,
+a model pick, and a click on her (a poke; a double click, a pat; too many
+pokes and she says so) -- and draws its View every frame: the mood and scene
+go to the mascot, the topic (an event soon, the weather, "go home") to the
+bubble, worded by the mascot's say(), and a reaction's emote ("!", "?", "<3"
+...) over her head (mascots.emote_markup, at the anchor her render leaves).
+Pressing the stage is handled by on_art_click. The
 surroundings are re-read on a thread every minute; a changed scene is drawn
 even while the animation sleeps. The header's mascot menu (Ctrl+J) shows the
 mood and scene now and switches the moods, random only, and each signal on or
@@ -342,6 +349,9 @@ TITLES = {
     "matrix": "llm@matrix:~",
     "win95": "LLM Chat Assistant",
     "aero": "LLM chat",
+    "lofi": "LLM ☾ lo-fi",
+    "luna": "LLM Chat · Luna",
+    "orbit": "LLM · CAPCOM",
 }
 UI_EN = {"stop": "■ Stop", "send": "Send", "wait": "Queue", "stopping": "Stopping…",
          "done": "✓ done", "placeholder": "Ask {model}…  (Enter send · Shift+Enter newline)",
@@ -372,10 +382,19 @@ UI_THEME = {
     "win95": {"stop": "Stop", "send": "Send", "wait": "Queue", "done": "✓ Done",
               "placeholder": "Type your question for {model} here, and then click Send."},
     "aero": {"done": "✓ Done", "perm_bubble": "Waiting for your permission"},
+    "lofi": {"stop": "■ pause", "send": "send ♫", "wait": "queue ♫", "done": "✓ done ~",
+             "placeholder": "ask {model}, take it slow…  (Enter send · Shift+Enter newline)"},
+    "luna": {"stop": "■ Stop", "send": "Send ▸", "wait": "Queue ▸", "done": "✓ Done",
+             "placeholder": "Type a question for {model}, then press Enter…  (Shift+Enter newline)"},
+    "orbit": {"stop": "■ ABORT", "send": "TRANSMIT ▸", "wait": "QUEUE ▸", "done": "✓ NOMINAL",
+              "placeholder": "CAPCOM to {model}…  (Enter transmit · Shift+Enter newline)"},
 }
 UI_THEME["cyberpunk"]["perm_bubble"] = "Auth required, choom…"
 UI_THEME["matrix"]["perm_bubble"] = "> awaiting authorization_"
 UI_THEME["win95"]["perm_bubble"] = "It looks like the AI needs your permission."
+UI_THEME["lofi"]["perm_bubble"] = "mrrp? waiting for your ok…"
+UI_THEME["luna"]["perm_bubble"] = "Action needed: click Allow to continue."
+UI_THEME["orbit"]["perm_bubble"] = "Standing by for your GO."
 UI_JA = {"stop": "■ 止める", "send": "送信 ♡", "wait": "待つ ♡", "stopping": "止めてる…",
          "done": "✿ できた",
          "placeholder": "ねえ、なにする？  Ask {model}…  (Enter send · Shift+Enter newline)",
@@ -395,7 +414,8 @@ UI_JA = {"stop": "■ 止める", "send": "送信 ♡", "wait": "待つ ♡", "s
          "n_perm": "モデルが許可を待ってるよ", "n_open": "開く",
          "unload": "{model} をおろす", "unload_all": "ローカルモデルを全部おろす"}
 # The face reply headings are drawn in, where the theme has one for it.
-HEADING_FONT = {"moe": "Hachi Maru Pop", "aero": "Selawik", "win95": "W95FA"}
+HEADING_FONT = {"moe": "Hachi Maru Pop", "aero": "Selawik", "win95": "W95FA",
+                "lofi": "Comfortaa", "luna": "Tahoma", "orbit": "Barlow Semi Condensed"}
 
 # A --permission-mode (or a Permissions key: ask, auto, acceptEdits, plan)
 # that wins over the saved pick when the window opens; unset = the pick.
@@ -502,8 +522,15 @@ class _StandIn:
 
 
 def make_mascot(cols, rows, theme="moe"):
+    global mascots
     if mascots is not None:
         try:
+            if theme not in mascots.MODULES:
+                # A theme newer than this window: its mascot was registered
+                # after the chat started, so read the registry again rather
+                # than show moe's stand-in until the next restart.
+                import importlib
+                mascots = importlib.reload(mascots)
             return mascots.Mascot(cols, rows, theme=theme)
         except Exception as exc:
             print(f"llm-chat: Mascot({cols}, {rows}, {theme}) failed: {exc}", file=sys.stderr)
@@ -1519,6 +1546,8 @@ class ToolChip(Gtk.Box):
         self.name = name
         self.kind = kind or name    # the shape its input has (tool_summary's name)
         self.running = True
+        self.input = {}             # the tool's input, once known (the mascot reads a Bash line)
+        self.fresh = True           # not yet counted as started (the mascot's "busy")
         self.set_halign(Gtk.Align.START)
         if nested:
             self.set_margin_start(28)
@@ -1545,6 +1574,7 @@ class ToolChip(Gtk.Box):
         self.summary.hide()
 
     def set_input(self, data):
+        self.input = data if isinstance(data, dict) else {}
         text = one_line(tool_summary(self.kind, data), 140)
         self.summary.set_text(text)
         self.summary.set_tooltip_text(str(tool_summary(self.kind, data))[:2000] or None)
@@ -1972,6 +2002,10 @@ class Front(Gtk.Window):
         self.art_scroll.add(self.art)
         self.art_scroll.get_child().set_name("art-view")
         self.art_scroll.connect("size-allocate", self.on_stage_size)
+        # A click on her is a poke, a double click a pat (mascot_mood: she
+        # reacts, and five pokes in a row is too many).
+        self.art_scroll.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.art_scroll.connect("button-press-event", self.on_art_click)
         self.art.connect("style-updated", lambda *_: setattr(self, "cell", None))
         stage.pack_start(self.art_scroll, True, True, 0)
         stage_wrap = Gtk.Box()
@@ -2410,7 +2444,11 @@ class Front(Gtk.Window):
         view = self.mood_view(state)
         mood, scene = (view.mood, view.scene) if view else (None, ())
         try:
-            markup = self.mascot.markup(state, tick, self.tool, mood, scene)
+            emote = view.emote if view else None
+            if emote and mascots is not None:
+                markup = mascots.emote_markup(self.mascot, state, tick, self.tool, mood, scene, emote)
+            else:
+                markup = self.mascot.markup(state, tick, self.tool, mood, scene)
             Pango.parse_markup(markup, -1, "\0")
             self.art.set_markup(markup)
         except Exception as exc:
@@ -2444,6 +2482,18 @@ class Front(Gtk.Window):
         except Exception as exc:
             print(f"llm-chat: mood: {exc}", file=sys.stderr)
             return None
+
+    def on_art_click(self, _widget, event):
+        if event.button != 1:
+            return False
+        if event.type == Gdk.EventType._2BUTTON_PRESS:
+            self.mood_event("pet")
+        elif event.type == Gdk.EventType.BUTTON_PRESS:
+            self.mood_event("poke")
+        else:
+            return False
+        self.draw_frame()
+        return True
 
     def mood_event(self, event, **kw):
         if self.moods is not None and not self.replaying:
@@ -2844,7 +2894,7 @@ class Front(Gtk.Window):
             self.forget_conversation()
         self.fresh_said = False
         if not ready:
-            self.mood_event("prompt", text=prompt)
+            self.mood_event("prompt", text=prompt, images=len(images or ()))
         if kind == "native":
             if engine is None:
                 self.error("llm_chat_engine.py is missing next to this script: only Claude models work")
@@ -3073,6 +3123,9 @@ class Front(Gtk.Window):
         if data is not None:
             chip.set_input(data)
         if chip.running:
+            if chip.fresh:
+                chip.fresh = False
+                self.mood_event("tool_start")
             self.set_state("tool", name)
 
     def handle_user(self, msg):
@@ -3086,9 +3139,11 @@ class Front(Gtk.Window):
             chip = self.chips.get(tid)
             if chip is None or not chip.running:
                 continue
-            chip.finish(result_text(block.get("content")), bool(block.get("is_error")))
+            output = result_text(block.get("content"))
+            chip.finish(output, bool(block.get("is_error")))
             self.active_tools.pop(tid, None)
-            self.mood_event("tool_error" if block.get("is_error") else "tool_ok")
+            self.mood_event("tool_error" if block.get("is_error") else "tool_ok", tool=chip.name,
+                            command=str(chip.input.get("command") or ""), output=output)
         if self.active_tools:
             last = list(self.active_tools.values())[-1]
             self.set_state("tool", last)
@@ -3508,13 +3563,18 @@ class Front(Gtk.Window):
             self.chips[data["id"]] = chip
             self.active_tools[data["id"]] = data["name"]
             chip.set_input(data["input"])
+            chip.fresh = False
+            self.mood_event("tool_start")
             self.set_state("tool", data["canon"])
         elif kind == "tool_done":
             chip = self.chips.get(data["id"])
             if chip is not None and chip.running:
                 chip.finish(data["output"], data["is_error"])
             self.active_tools.pop(data["id"], None)
-            self.mood_event("tool_error" if data["is_error"] else "tool_ok")
+            self.mood_event("tool_error" if data["is_error"] else "tool_ok",
+                            tool=chip.name if chip is not None else data.get("name"),
+                            command=str((chip.input if chip is not None else {}).get("command") or ""),
+                            output=data.get("output") or "")
             if self.active_tools:
                 self.set_state("tool", list(self.active_tools.values())[-1])
             else:
@@ -4339,6 +4399,7 @@ class Front(Gtk.Window):
         before = self.choice
         self.choice = model
         self.update_model_button()
+        self.mood_event("model", name=model.name)
         if model.local:
             self.refresh_loaded()
         where = {"local": " (local, LM Studio)", "server": " (the OpenAI-compatible server)"}.get(model.kind, "")

@@ -235,6 +235,35 @@ class BaseMascot:
         raise NotImplementedError
 
 
+# The reaction sign over the head (mascot_mood.View.emote): fallback colours
+# for a mascot without EMOTE_COLOURS of its own.
+EMOTE_FALLBACK = {"accent": "#7fd4ff", "warn": "#f2c14e", "bad": "#ff6b6b",
+                  "good": "#6ee08a", "love": "#ff8fb8", "dim": "#9aa3b2"}
+
+
+def draw_emote(cv, emote, anchor, colours=None):
+    """Draw a View.emote -- (text, tone, age in seconds) -- with its first
+    character at anchor (x, y), the cell just above the right side of the
+    mascot's head. It pops in (a dot for a quarter second), floats up one
+    row after 1.5 s and blinks out in its last second (REACT_S's hold ends
+    it; the age is all it knows). Clipped to the canvas, never wider than
+    it; single-column ASCII only, like everything on the grid."""
+    if not emote or not anchor:
+        return
+    text, tone, age = emote[0], emote[1], float(emote[2])
+    colour = (colours or {}).get(tone) or EMOTE_FALLBACK.get(tone) or EMOTE_FALLBACK["accent"]
+    if age < 0.25:
+        text = "."
+    elif age > 7.5 and int(age * 4) % 2:
+        return
+    x, y = anchor
+    if age >= 1.5:
+        y -= 1
+    x = max(0, min(x, cv.cols - len(text)))
+    y = max(0, min(y, cv.rows - 1))
+    cv.put(x, y, text, colour)
+
+
 def blink(tick, period=53):
     """True on the frames the eyes are shut: every few seconds, and a double
     blink now and then."""
@@ -285,6 +314,27 @@ def check_size(job):
                 fails += _check_canvas(cv, cols, rows, where)
                 if len(fails) > 5:
                     return n, fails
+        # The reaction signs: every one, at each stage of its life, over
+        # the head anchor the render leaves (m.head, inside the canvas).
+        from mascot_mood import EMOTES
+        for state, mood in (("idle", "happy"), ("thinking", "curious"), ("done", "excited"),
+                            ("error", "worried"), ("tool", "focused")):
+            for tick in list(ticks)[:2]:
+                cv = m._render(state, tick, "Bash" if state == "tool" else None, mood, frozenset({"night"}))
+                head = getattr(m, "head", None)
+                where = "%s %dx%d %s %s t%d" % (theme, cols, rows, state, mood, tick)
+                if not head or not (0 <= head[0] < cols and 0 <= head[1] < rows):
+                    fails.append("%s: head anchor %r outside the canvas" % (where, head))
+                    return n, fails
+                for text, tone in set(EMOTES.values()):
+                    for age in (0.1, 1.0, 2.0, 8.2):
+                        n += 1
+                        cv = m._render(state, tick, "Bash" if state == "tool" else None, mood,
+                                       frozenset({"night"}))
+                        draw_emote(cv, (text, tone, age), m.head)
+                        fails += _check_canvas(cv, cols, rows, where + " emote %s@%.1f" % (text, age))
+                        if len(fails) > 5:
+                            return n, fails
     return n, fails
 
 

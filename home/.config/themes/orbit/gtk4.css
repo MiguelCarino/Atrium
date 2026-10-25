@@ -1,0 +1,451 @@
+/* ===========================================================================
+   ORBIT -- libadwaita / GTK4 (Nautilus). Becomes ~/.config/gtk-4.0/gtk.css
+   (theme.py). theme.conf keeps gtk_color_scheme=prefer-dark and
+   gtk_accent_color=teal; this file sets every colour libadwaita varies by
+   scheme, as lofi's, moe's and win95's do, so a running Nautilus draws the
+   same colours under either scheme (under prefer-light it fell back to
+   stock white until restarted).
+
+   Nautilus as a flight-control console: OPAQUE slate-navy panes (no glass,
+   so hypr.lua sets no nautilus-glass rule), 1 px steel hairlines between
+   them, 3 px corners, no gloss and no glow. The file view is the darkest
+   field (the console floor #070b14), the window face and dialogs the slate
+   #0e1626, the sidebar a step between (#0b1220), the header bar a raised
+   shelf (#121c30) with a steel rule under it. One cool accent, telemetry
+   teal #5cc8db: the caret, the focus line, the 2 px underline of a hovered
+   or focused control, a selected file's wash and edge. A selection is a
+   translucent teal wash with a teal edge -- never a lit block, since a grid
+   of selected icons would otherwise be a large light field. Barlow for the
+   UI, the window title in Barlow Semi Condensed SemiBold, letter-spaced;
+   JetBrains Mono for monospace. Folders are blue-grey, the steel of the
+   rules (icon_theme=Orbit, built by make-icon-theme.py; theme.conf).
+
+   Status colours stay apart from the teal: GO green #4fd18b, CAUTION amber
+   #f2b13c, WARNING red #f0565a (as text), and as fills under the ink
+   #04121a. Teal never means "good" here; it only means "this one".
+
+   HDR (DP-1), luminance of each large field: view 0.003, window 0.008,
+   sidebar 0.006, header 0.012, popovers 0.012, the selected-file wash
+   #1a3540 0.031. The only light pixels are text and small fills (a
+   suggested button, a switch, the progress bar).
+
+   Contrast, measured with the WCAG formula:
+     text #dbe4f0 on the view 15.3, window 14.1, sidebar 14.6, header 13.3,
+       a raised button #16223a 12.4
+     dim labels #8a9bb4 on the view 7.0, window 6.4, header 6.0, raised 5.6;
+       libadwaita's --dim-opacity (text at 55%) 5.1 / 5.0 / 4.9, kept
+     accent text #5cc8db on the view 10.1, window 9.3, header 8.7
+     status text on the window: success 9.3, warning 9.6, error 5.3 (view
+       5.8, header 5.0)
+     ink #04121a on fills: teal 9.7, green 9.8, amber 10.1, red 5.6
+     a selected file (22% teal over the view, #1a3540): #e8edf5 11.0
+     the sidebar's selected row (#16223a + the teal edge): #e8edf5 13.5
+     a hovered row #111b2f: text 13.4; a hovered key #1a2843: text 11.5
+     a pressed / checked key (16% teal over #16223a, #213d54): #e8edf5 9.6
+     ink on a hovered suggested button #7dd6e6 11.4, destructive #f47477 6.9
+   UI graphics: the teal focus line / edge 10.1 on the view, 8.1 on raised;
+   a switch's knob #dbe4f0 on its off track #2a3a57 8.9, the ink knob on the
+   teal track 9.7; the teal progress on its #2a3a57 trough 5.8; the
+   scrollbar's steel slider #5a7399 4.1 on the view. The steel hairlines
+   #2a3a57 / #3d5478 (1.6 / 2.4) separate panes only.
+   =========================================================================== */
+
+:root {
+    --accent-bg-color: #5cc8db;
+    --accent-fg-color: #04121a;
+    --accent-color: #5cc8db;
+
+    --destructive-bg-color: #f0565a;
+    --destructive-fg-color: #04121a;
+    --destructive-color: #f0565a;
+    --success-bg-color: #4fd18b;
+    --success-fg-color: #04121a;
+    --success-color: #4fd18b;
+    --warning-bg-color: #f2b13c;
+    --warning-fg-color: #04121a;
+    --warning-color: #f2b13c;
+    --error-bg-color: #f0565a;
+    --error-fg-color: #04121a;
+    --error-color: #f0565a;
+
+    --window-bg-color: #0e1626;
+    --window-fg-color: #dbe4f0;
+    --view-bg-color: #070b14;
+    --view-fg-color: #dbe4f0;
+    --headerbar-bg-color: #121c30;
+    --headerbar-fg-color: #dbe4f0;
+    --headerbar-border-color: #2a3a57;
+    --headerbar-backdrop-color: #0e1626;
+    --headerbar-shade-color: rgba(2, 4, 10, 0.45);
+    --headerbar-darker-shade-color: rgba(2, 4, 10, 0.60);
+    --sidebar-bg-color: #0b1220;
+    --sidebar-fg-color: #dbe4f0;
+    --sidebar-backdrop-color: #0b1220;
+    --sidebar-border-color: #2a3a57;
+    --sidebar-shade-color: rgba(2, 4, 10, 0.40);
+    --secondary-sidebar-bg-color: #0b1220;
+    --secondary-sidebar-fg-color: #dbe4f0;
+    --secondary-sidebar-backdrop-color: #0b1220;
+    --secondary-sidebar-border-color: #2a3a57;
+    --secondary-sidebar-shade-color: rgba(2, 4, 10, 0.40);
+    --card-bg-color: #111a2d;
+    --card-fg-color: #dbe4f0;
+    --card-shade-color: rgba(2, 4, 10, 0.40);
+    --overview-bg-color: #0b1220;
+    --overview-fg-color: #dbe4f0;
+    /* Dark-scheme-only (the selected segment of a toggle group): a raised
+       key with the text kept. */
+    --active-toggle-bg-color: #16223a;
+    --active-toggle-fg-color: #e8edf5;
+    --thumbnail-bg-color: #0e1626;
+    --thumbnail-fg-color: #dbe4f0;
+    --dialog-bg-color: #0e1626;
+    --dialog-fg-color: #dbe4f0;
+    --popover-bg-color: #121c30;
+    --popover-fg-color: #dbe4f0;
+    --popover-shade-color: rgba(2, 4, 10, 0.55);
+    --shade-color: rgba(2, 4, 10, 0.45);
+    --scrollbar-outline-color: rgba(2, 4, 10, 0.5);
+    --border-color: #2a3a57;
+
+    --window-radius: 4px;
+    --document-font-family: "Barlow", "IBM Plex Sans";
+    --monospace-font-family: "JetBrains Mono", "IBM Plex Mono";
+}
+
+/* The UI face is a gsettings key (font-name), not a variable; a CSS rule
+   reaches every widget of these apps without touching the desktop-wide key. */
+* {
+    font-family: "Barlow", "IBM Plex Sans", "Noto Color Emoji", sans-serif;
+}
+
+/* --- The header bar: a raised shelf, a steel rule under it ---------------------
+   Both panes' header bars, the sidebar's included, so they meet without a
+   seam; unfocused, the shelf sinks to the window face. */
+headerbar,
+.sidebar-pane headerbar,
+.content-pane headerbar,
+toolbarview > .top-bar headerbar,
+.sidebar-pane toolbarview > .top-bar headerbar {
+    background-color: #121c30;
+    background-image: none;
+    color: #dbe4f0;
+    box-shadow: inset 0 -1px #2a3a57;
+}
+
+headerbar:backdrop,
+.sidebar-pane headerbar:backdrop,
+.content-pane headerbar:backdrop,
+toolbarview > .top-bar headerbar:backdrop,
+.sidebar-pane toolbarview > .top-bar headerbar:backdrop {
+    background-color: #0e1626;
+}
+
+/* libadwaita fades an unfocused window's whole top bar to 50% (filter:
+   opacity), which would put the path bar -- content -- at text 50% over
+   the shelf (about 4:1); off, the shelf colour alone says "unfocused". */
+headerbar:backdrop > windowhandle,
+toolbarview > .top-bar:backdrop > windowhandle {
+    filter: none;
+}
+
+/* The title: a console label -- Semi Condensed, letter-spaced. Not upper-
+   cased: it is a folder name, and case is part of a file name. */
+headerbar .title,
+headerbar label.title {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+}
+
+/* "Files" over the sidebar: the one short label that IS a label --
+   uppercase, letter-spaced, in the dim label colour (6.0:1 on the shelf). */
+.sidebar-pane headerbar .title {
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    color: #8a9bb4;
+}
+
+/* --- Buttons: flat console keys ---------------------------------------------------- */
+button,
+headerbar button,
+.path-bar button,
+.linked > button,
+.linked > button:first-child,
+.linked > button:last-child,
+dropdown > button,
+menubutton > button,
+splitbutton > button,
+splitbutton > menubutton > button {
+    border-radius: 3px;
+}
+
+headerbar button:not(.flat),
+headerbar .linked > button,
+button:not(.flat):not(.suggested-action):not(.destructive-action) {
+    background-color: #16223a;
+    background-image: none;
+    color: #dbe4f0;
+    box-shadow: inset 0 0 0 1px #2a3a57;
+}
+
+/* Hover: the steel hairline lights a step and the 2 px teal line appears
+   along the bottom -- the one focus mark of this theme. */
+button:hover,
+headerbar button:hover {
+    background-color: #1a2843;
+    box-shadow: inset 0 0 0 1px #3d5478,
+                inset 0 -2px 0 #5cc8db;
+}
+
+/* Pressed / toggled on: a sunken key with a teal wash and the teal line.
+   Text stays #e8edf5 (on the wash over a key, #213d54: 9.6:1; over the
+   shelf, #1e384b: 10.4:1). */
+button:checked,
+button:active,
+button:not(.flat):checked,
+button:not(.flat):active {
+    background-color: rgba(92, 200, 219, 0.16);
+    color: #e8edf5;
+    box-shadow: inset 0 0 0 1px rgba(92, 200, 219, 0.55),
+                inset 0 -2px 0 #5cc8db;
+}
+
+button.suggested-action {
+    box-shadow: inset 0 0 0 1px #5cc8db;
+}
+
+button.suggested-action:hover {
+    background-color: #7dd6e6;
+    box-shadow: inset 0 0 0 1px #5cc8db;
+}
+
+button.destructive-action {
+    box-shadow: inset 0 0 0 1px #f0565a;
+}
+
+button.destructive-action:hover {
+    background-color: #f47477;
+    box-shadow: inset 0 0 0 1px #f0565a;
+}
+
+/* --- Window controls: a square key; close goes WARNING red under the
+   pointer (it ends something), ink glyph on it 5.6:1. ---------------------------- */
+windowcontrols > button > image {
+    border-radius: 3px;
+    background-color: #16223a;
+    box-shadow: inset 0 0 0 1px #2a3a57;
+}
+
+windowcontrols > button:hover > image {
+    background-color: #1a2843;
+    box-shadow: inset 0 0 0 1px #3d5478;
+}
+
+windowcontrols > button.close:hover > image {
+    background-color: #f0565a;
+    color: #04121a;
+    box-shadow: none;
+}
+
+windowcontrols > button:hover,
+windowcontrols > button:active {
+    box-shadow: none;
+    background-color: transparent;
+}
+
+/* --- Entries: readout wells, a teal caret, the teal line when focused ------------ */
+entry,
+searchbar entry,
+spinbutton,
+.path-bar entry {
+    border-radius: 3px;
+    background-color: #070b14;
+    color: #e8edf5;
+    box-shadow: inset 0 0 0 1px #2a3a57;
+    caret-color: #5cc8db;
+}
+
+entry:focus-within,
+spinbutton:focus-within {
+    box-shadow: inset 0 0 0 1px #3d5478,
+                inset 0 -2px 0 #5cc8db;
+    outline: none;
+}
+
+/* --- Switches and checks ----------------------------------------------------------- */
+switch {
+    border-radius: 3px;
+    background-color: #2a3a57;
+    box-shadow: inset 0 0 0 1px #3d5478;
+}
+
+switch:checked {
+    background-color: #5cc8db;
+    box-shadow: none;
+}
+
+switch > slider {
+    border-radius: 2px;
+    background-color: #dbe4f0;
+}
+
+switch:checked > slider {
+    background-color: #04121a;
+}
+
+checkbutton check,
+checkbutton radio {
+    box-shadow: inset 0 0 0 1px #3d5478;
+}
+
+checkbutton check {
+    border-radius: 2px;
+}
+
+/* --- The sidebar: places as console rows ------------------------------------------- */
+.navigation-sidebar > row {
+    border-radius: 3px;
+    margin: 1px 6px;
+}
+
+.navigation-sidebar > row:hover {
+    background-color: #111b2f;
+}
+
+/* Selected: a raised row with a 3 px teal edge at its left, text bright. */
+.navigation-sidebar > row:selected,
+.navigation-sidebar > row:selected:hover {
+    background-color: #16223a;
+    color: #e8edf5;
+    box-shadow: inset 3px 0 0 #5cc8db;
+}
+
+.navigation-sidebar > row:selected label,
+.navigation-sidebar > row:selected image {
+    color: #e8edf5;
+}
+
+/* --- Files: a teal wash and a teal edge when selected ------------------------------ */
+gridview > child,
+listview > row,
+columnview > listview > row {
+    border-radius: 3px;
+}
+
+gridview > child:hover,
+listview > row:hover,
+columnview > listview > row:hover {
+    background-color: #111b2f;
+}
+
+gridview > child:selected,
+gridview > child:selected:hover {
+    background-color: rgba(92, 200, 219, 0.22);
+    color: #e8edf5;
+    box-shadow: inset 0 0 0 1px rgba(92, 200, 219, 0.60);
+}
+
+listview > row:selected,
+columnview > listview > row:selected,
+list > row:selected {
+    background-color: rgba(92, 200, 219, 0.22);
+    color: #e8edf5;
+}
+
+gridview > child:selected label,
+listview > row:selected label,
+columnview > listview > row:selected label {
+    color: #e8edf5;
+}
+
+.dim-label,
+columnview label.dim-label {
+    color: #8a9bb4;
+    opacity: 1;
+}
+
+rubberband {
+    background-color: rgba(92, 200, 219, 0.12);
+    border: 1px solid #5cc8db;
+    border-radius: 2px;
+}
+
+/* Pane separators: the steel hairline. */
+separator,
+paned > separator {
+    background-color: #2a3a57;
+}
+
+/* --- Floating things: console cards with a steel hairline --------------------------- */
+popover > contents,
+popover.menu > contents {
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px #2a3a57,
+                0 4px 14px rgba(2, 4, 10, 0.60);
+}
+
+popover.menu modelbutton {
+    border-radius: 2px;
+}
+
+popover.menu modelbutton:hover,
+popover.menu modelbutton:selected {
+    background-color: #16223a;
+    color: #e8edf5;
+    box-shadow: inset 2px 0 0 #5cc8db;
+}
+
+toast {
+    border-radius: 3px;
+    background-color: #121c30;
+    color: #dbe4f0;
+    box-shadow: inset 0 0 0 1px #3d5478,
+                inset 0 -2px 0 #5cc8db,
+                0 4px 14px rgba(2, 4, 10, 0.60);
+}
+
+tooltip,
+tooltip > * {
+    border-radius: 2px;
+}
+
+tooltip {
+    background-color: #070b14;
+    color: #dbe4f0;
+    box-shadow: inset 0 0 0 1px #3d5478;
+}
+
+/* --- Scrollbars and progress: steel and teal ---------------------------------------- */
+scrollbar slider {
+    background-color: #5a7399;
+    border-radius: 2px;
+}
+
+scrollbar slider:hover {
+    background-color: #7a92b8;
+}
+
+scrollbar slider:active {
+    background-color: #5cc8db;
+}
+
+progressbar > trough,
+levelbar trough {
+    background-color: #2a3a57;
+    border-radius: 2px;
+}
+
+progressbar > trough > progress,
+levelbar block.filled {
+    background-color: #5cc8db;
+    border-radius: 2px;
+}
+
+levelbar block.empty {
+    background-color: #16223a;
+}
+
+*:focus-visible {
+    outline-color: rgba(92, 200, 219, 0.70);
+}

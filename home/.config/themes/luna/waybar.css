@@ -1,0 +1,877 @@
+/* ===========================================================================
+   LUNA -- the bar and the toolbox card (~/.config/waybar/style.css and
+   style-toolbox.css). Copied to waybar/generated/theme.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST, after the accent, so the
+   palette below wins over the base file's and the rules below win over its
+   rules of the same selector.
+
+   The look in one line: the XP taskbar, docked at the top. The bar itself is
+   painted -- one opaque blue strip, lit along its top edge -- and on it:
+
+     1. every pill is an XP taskbar button: a blue face with a soft gloss
+        (lighter at the top, a shade darker at the bottom), a 1px dark-blue
+        rim, 3px corners, white text with a faint dark drop;
+     2. hover is XP's hot-track: the face a step lighter and a 2px ORANGE
+        line inside the bottom edge. On hover only -- a warning is always
+        yellow text plus its glyph, so the two never meet;
+     3. a toggle that is ON (toolbox open, a lit screen filter, a fullscreen
+        mode, night light, keep awake) and the focused window's title are
+        PRESSED task buttons: a darker face, no gloss, an inner top shadow.
+        The title is bold, as the active task's name was;
+     4. the [day | clock | weather] and [updates | git | bell] capsules are
+        the tray: a lighter, flat-blue well with a lit inner top line and a
+        dark left edge, no hover glow;
+     5. #workspaces, the leftmost thing on the bar, is the green "start"
+        button: flush to the left edge, its right end round, the numbers
+        bold with a dark drop (XP's start label was bold italic; italic
+        cannot be shown on numbers, so bold and the shadow stand in for it).
+
+   HDR: the bar is DARK. The strip runs #1d4cb0 -> #163d94 (luminance 0.086 /
+   0.056) across all 3440 px; the pills are #2152bc (0.100, its gloss ends
+   #315ec1 / #1e4bab), hover #2a5dc8 (0.125), the wells #0e66b0 (0.127), the
+   start button #2b7f2b (0.159). The only light fields are small fills: the
+   location pill, a failed health check's warn, the night light. The cards
+   (panel.css, luminance 0.512) are the largest light area on the desktop.
+
+   Measured (WCAG) on the MID pill colour #2152bc, the well #0e66b0 and the
+   start green #2b7f2b (text sits mid-height, where the gloss is ~0):
+       text        #ffffff   7.0 pill, 6.0 at the gloss top, 5.9 well
+       text-dim    #d2e0fa   5.3 pill (the day, in the well, is #eef4ff 4.6-4.8)
+       CPU label   #b4daff   4.8     GPU label #a8e890 4.9    (theme.conf)
+       lit         #b4daff   4.8     (a timer counting, the project you are in)
+       power glyph #ffb0a4   4.0     (a glyph: >= 3; 3.4 on its hover face)
+   Those pale labels drop under 4.5 on the hover face #2a5dc8 (CPU 4.1,
+   GPU 4.2), so the CPU, GPU, timers and context pills keep the resting
+   face under the pointer and the orange line alone says "hover".
+       pending     #ffc890   3.9 well (a glyph)
+       weather     3.6-5.5 well      (color.wx_*, glyphs)
+       white on the lit workspace fills: mon1 #1a48a4 8.4, mon2 #6a3a9a 7.8,
+       mon3 #0e6a74 6.3, unknown #5a6470 6.0; the unlit numbers on the
+       green: 4.63 / 4.65 / 4.51 / 4.56; a hovered one, white on the
+       green darkened 12%, 6.1
+   Status fills (each with its own text colour; the gloss lies over them
+   too): good #1f5a46 / #c4f5b0 6.5, warn #4a4a2a / #ffe68a 7.4, bad
+   #6a2440 / #ffc4cc 7.2 (also the git pill's dirty / unpushed), critical #b8281e / white 6.25, UTC #5a3a9a / white
+   8.4, epoch #7a5a00 / white 6.4, night #d8902a / ink 6.6, the location
+   and warn alert fill #e3c04a / ink 9.9; camera and REC #b8281e / white
+   6.25, the mic and voice #9c3a10 / white 6.9.
+
+   Where the colours the bar DRAWS land (theme.conf color.*): the CPU / GPU
+   labels on the blue pills; the weather glyph and the pending box in the
+   tray well. The same keys are drawn on the cards too, which is why
+   panel.css puts graphs and weather rows in dark wells: no colour can be
+   >= 3:1 on both the blue bar (L 0.10) and the cream card (L 0.51).
+
+   Theme names start with l- and are defined here (stylesheets do not
+   inherit: panel.css defines the ones it uses again).
+   =========================================================================== */
+
+/* --- the theme's own names (not in the base palette) ----------------------- */
+@define-color l-strip     #1d4cb0;   /* the taskbar strip (its gradient is in the rule) */
+@define-color l-task      #2152bc;   /* a taskbar button's face */
+@define-color l-task-hov  #2a5dc8;   /* ...under the pointer */
+@define-color l-pressed   #143680;   /* a pressed button: the focused title, a toggle ON */
+@define-color l-tray      #0e66b0;   /* the tray well */
+@define-color l-tray-edge #0a4a8a;   /* its dark left edge */
+@define-color l-tray-hi   #3d95e6;   /* its lit inner top line */
+@define-color l-start     #2b7f2b;   /* the start button */
+@define-color l-start-rim #1d5a1d;
+@define-color l-glow      #f0a030;   /* XP hot-track orange: hover only */
+@define-color l-rim       #143a8c;   /* every button's 1px rim */
+@define-color l-face      #c3bea7;   /* the cream face: tray menu, toolbox (XP #ece9d8, dimmed) */
+@define-color l-title     #2459c8;   /* title-bar band */
+@define-color l-title-lo  #1c47a6;
+@define-color l-sel       #316ac5;   /* selection fill under white */
+@define-color l-crit      #b8281e;   /* critical / camera / REC fill under white */
+@define-color l-mic       #9c3a10;   /* the mic's fill: a burnt red apart from the camera's */
+@define-color l-warn-fill #e3c04a;   /* small light fills under ink */
+@define-color l-night     #d8902a;
+@define-color l-ink       #1c1a14;   /* text on cream and on the light fills */
+@define-color l-lit       #b4daff;   /* "lit" text on the blue: a sky blue, never a status */
+@define-color l-power     #ffb0a4;   /* the power glyph: a coral, 4.0:1 on the pill, 3.4 hovered */
+
+/* --- PALETTE 1: hues ---------------------------------------------------------
+   @cyan is the ACCENT role: #18439a from theme.conf (accent_follow=no), not
+   redefined here. It is a DARK blue -- text-safe on the cream cards -- so on
+   this blue bar it is never used as text: every base rule that writes
+   `color: @cyan` on a pill (the clock, the toolbox handle, a lit filter,
+   fullscreen mode A, timers, the project pill) is given a light colour
+   below. @magenta, the base's "ends something / bad" hue, is a light coral,
+   for lines on the blue. */
+@define-color magenta    #ff8a7a;
+@define-color yellow     #ffe27a;   /* warn floors and the low-battery phone glyph */
+@define-color green      #a8e890;
+@define-color purple     #c8b8ff;
+@define-color red        #e0503c;   /* lines only: white on it is 3.9:1, so fills use @l-crit */
+@define-color mist       #d2e0fa;
+@define-color steel      #9fb0d0;
+@define-color slate      #7f90b0;
+
+/* --- PALETTE 2: surfaces, edges, text --------------------------------------- */
+@define-color surface        @l-task;
+@define-color surface-hover  @l-task-hov;
+@define-color surface-dense  #1b47a8;      /* the tray pill */
+@define-color surface-solid  @l-face;      /* the tray menu: an XP cream menu */
+@define-color edge           @l-rim;
+@define-color edge-lit       @l-glow;
+@define-color accent         alpha(#316ac5, 0.55);
+@define-color text           #ffffff;
+@define-color text-dim       #d2e0fa;
+@define-color text-bright    #ffffff;
+@define-color ink            #ffffff;      /* "text on a full accent fill": the fills are dark */
+@define-color ink-warn       @l-ink;       /* on the light location / alert fills */
+
+/* --- PALETTE 3: workspaces ----------------------------------------------------
+   One deep hue per screen as the SOLID fill of the lit button under a white
+   number (blue, plum, teal -- none of them the start green, a status or the
+   accent), and a near-white tint of each for the unlit numbers on the green
+   (blue-white, cream, pink-white), so a workspace's screen still shows. */
+@define-color mon1-hue   #1a48a4;
+@define-color mon2-hue   #6a3a9a;
+@define-color mon3-hue   #0e6a74;
+@define-color mon1       #1a48a4;
+@define-color mon2       #6a3a9a;
+@define-color mon3       #0e6a74;
+@define-color mon1-dim   #f0f6ff;
+@define-color mon2-dim   #fff6d6;
+@define-color mon3-dim   #ffeef8;
+@define-color mon-unknown     #5a6470;
+/* workspace-tint.py writes `color: @mon-unknown-dim` for a workspace with no
+   home screen; the base never defines it, so it is defined here. */
+@define-color mon-unknown-dim #f4f4ee;
+
+/* --- PALETTE 4: clock modes, status, alerts ----------------------------------
+   Solid fills, not the base's washes: the base sets each as the pill's
+   background-color, which REPLACES the blue face, and a thin wash would
+   show the strip through it. The gloss (a translucent background-image)
+   still lies over every one of them. */
+@define-color utc        #5a3a9a;
+@define-color utc-fg     #ffffff;
+@define-color epoch      #7a5a00;
+@define-color epoch-fg   #ffffff;
+@define-color good       #1f5a46;
+@define-color good-fg    #c4f5b0;
+@define-color warn       #4a4a2a;
+@define-color warn-fg    #ffe68a;
+@define-color bad        #6a2440;
+@define-color bad-fg     #ffc4cc;
+@define-color critical   @l-crit;
+@define-color rec-edge   #ffc4cc;
+@define-color rec-dim    #6a1a14;   /* the dim end of the REC pulse: white 11.9:1 */
+@define-color night      @l-night;
+@define-color night-fg   @l-ink;
+@define-color night-edge #8a5a10;
+
+/* ---------------------------------------------------------------------------
+   The taskbar strip. Only the main bar (by its name class: the toolbox is
+   window#waybar too, and its layer must stay transparent round the card).
+   A lit 1-2px line along the top, the blue deepening downwards, a dark line
+   along the bottom edge, which faces the windows. Opaque: there is no blur
+   behind it (theme.conf hypr.blur=no), and the gaps between pills show the
+   strip, not the wallpaper.
+   --------------------------------------------------------------------------- */
+window#waybar.waybar-main {
+    background-color: @l-strip;
+    background-image: linear-gradient(to bottom, #3d74e0 0px, #2456c4 2px,
+                                      #1d4cb0 50%, #163d94 100%);
+    box-shadow: inset 0 1px #5a8cf0,
+                inset 0 -1px #0e2a6a;
+}
+
+/* Tahoma at 13px, regular: XP's taskbar used its 8pt UI face, not bold. */
+* {
+    font-size: 13px;
+    font-weight: normal;
+    letter-spacing: 0px;
+}
+
+/* ---------------------------------------------------------------------------
+   The taskbar button. Same selector list as the base file's shared pill, so
+   this comes later at equal specificity and wins. min-height 26 + the 1px
+   rim top and bottom + the base's 4px margins = 36px: the base bar's height
+   (GTK3 min-height is the CONTENT box; moe's 28 + rim makes 38).
+   The gloss is TRANSLUCENT -- white 7% at the top, clear by 45%, a 10% navy
+   shade at the bottom -- laid over background-color, so the base's state
+   rules, which change only background-color (good, warn, bad, critical,
+   UTC...), still show through it: an opaque gradient would hide them.
+   Over the #2152bc face it comes out #315ec1 -> #1e4bab.
+   --------------------------------------------------------------------------- */
+#clock,
+#custom-day,
+#custom-clock,
+#custom-updates,
+#custom-weather,
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#network,
+#custom-network,
+#pulseaudio,
+#backlight,
+#battery,
+#temperature,
+#tray,
+#custom-player,
+#privacy,
+#custom-fsstate,
+#custom-nightlight,
+#custom-awake,
+#custom-keybinds,
+#custom-settings,
+#custom-toolbox,
+#custom-power,
+#custom-capture,
+#custom-repos,
+#custom-timers,
+#custom-workhours,
+#custom-context,
+#custom-notifications,
+#custom-display,
+#language,
+#submap,
+#window {
+    min-height: 26px;
+    padding-left: 10px;
+    padding-right: 10px;
+    border-radius: 3px;
+    border: 1px solid @l-rim;
+    background-image: linear-gradient(to bottom,
+                        alpha(#ffffff, 0.07) 0%,
+                        alpha(#ffffff, 0.00) 45%,
+                        alpha(#000814, 0.10) 100%);
+    box-shadow: inset 0 1px alpha(#ffffff, 0.22);
+    text-shadow: 0 1px alpha(#000814, 0.45);
+    font-size: 13px;
+    font-weight: normal;
+    transition: background-color 90ms ease-out, box-shadow 90ms ease-out;
+}
+
+/* Hover: the hot-track. A lighter face (the base's @surface-hover) and the
+   orange 2px line inside the bottom edge. The base hover also lights the
+   whole rim in @edge-lit (orange here); the rim stays dark blue instead, so
+   the glow is the one orange line. */
+#clock:hover,
+#custom-day:hover,
+#custom-clock:hover,
+#custom-updates:hover,
+#custom-weather:hover,
+#custom-cpu:hover,
+#custom-gpu:hover,
+#custom-disk:hover,
+#network:hover,
+#custom-network:hover,
+#pulseaudio:hover,
+#tray:hover,
+#custom-player:hover,
+#privacy:hover,
+#custom-fsstate:hover,
+#custom-nightlight:hover,
+#custom-awake:hover,
+#custom-keybinds:hover,
+#custom-settings:hover,
+#custom-toolbox:hover,
+#custom-power:hover,
+#custom-repos:hover,
+#custom-timers:hover,
+#custom-workhours:hover,
+#custom-context:hover,
+#custom-notifications:hover,
+#custom-display:hover,
+#custom-capture:hover {
+    border-color: @l-rim;
+    box-shadow: inset 0 1px alpha(#ffffff, 0.22),
+                inset 0 -2px @l-glow;
+}
+
+/* ...except where the text is a pale colour: the CPU (#b4daff) and GPU
+   (#a8e890) labels and a lit timer or project (#b4daff) are 4.8-4.9:1 on
+   the resting face but 4.1-4.2 on the lighter hover face. These keep the
+   resting face; the orange line above is the hot-track. Placed before the
+   critical rules (same specificity), so a critical pill stays red under
+   the pointer. */
+#custom-cpu:hover,
+#custom-gpu:hover,
+#custom-timers:hover,
+#custom-context:hover {
+    background-color: @l-task;
+}
+
+/* --- Structural magenta, put back to the rim --------------------------------
+   The base draws the CPU pill's edge, the playing player's floor and the
+   power pill's edge in @magenta, its STRUCTURAL second accent. Here the
+   coral means "bad / this ends something", so those edges are the plain
+   rim; the GPU's green edge goes too (green is "good"). The coral floors
+   that DO mean bad stay: muted audio, a lost network, the fsstate error. */
+#custom-cpu,
+#custom-gpu,
+#custom-player.playing {
+    border-color: @l-rim;
+}
+
+/* --- Pressed: the focused title and every toggle that is ON ------------------
+   XP's pressed task button: a darker face, no gloss, an inner shadow from
+   the top. The toolbox handle, a lit screen filter and fullscreen mode A
+   take the pressed face; the toggles that have a state colour of their own
+   keep it (night light amber, keep awake and mode B green -- the base's
+   "different hues on purpose") and only take the shadow, as win95 keeps a
+   pressed button's colour. The base writes `box-shadow: none` on several of
+   these at id.class specificity; these come later and win. */
+#window,
+#custom-toolbox.open,
+#custom-display.on,
+#custom-fsstate.mode-a {
+    color: @text;
+    background-color: @l-pressed;
+    background-image: none;
+    border-color: @l-rim;
+    box-shadow: inset 0 2px 3px alpha(#000814, 0.55);
+}
+
+#custom-fsstate.mode-b,
+#custom-nightlight.on,
+#custom-awake.activated {
+    background-image: none;
+    border-color: @l-rim;
+    box-shadow: inset 0 2px 3px alpha(#000814, 0.55);
+}
+
+/* Night light's dark ink would sit under the base's white text drop. */
+#custom-nightlight.on {
+    text-shadow: none;
+}
+
+/* The title is a LABEL inside the #window box (hyprland/window draws the app
+   icon beside it), and `*` above matches that label itself, so the bold
+   goes on the label -- on the box it would only be inherited, and `*` wins
+   over inheritance. Same for the workspace numbers further down. */
+#window label {
+    font-weight: bold;
+}
+
+#window {
+    padding-left: 10px;
+    padding-right: 12px;
+}
+
+/* --- Lit, not pressed: a timer counting, the project you are in -----------
+   The base writes these in @cyan, the dark accent; here they are sky blue
+   text (4.8:1) with a sky line inside the bottom edge. */
+#custom-context.active,
+#custom-timers.timer,
+#custom-timers.alarm,
+#custom-timers.stopwatch {
+    color: @l-lit;
+    border-color: @l-rim;
+    box-shadow: inset 0 1px alpha(#ffffff, 0.22),
+                inset 0 -2px alpha(@l-lit, 0.70);
+}
+
+#custom-toolbox:hover {
+    color: @text;
+}
+
+/* --- The tray wells: [day | clock | weather] and [updates | git | bell] -----
+   One flat lighter-blue well each, XP's notification area: no rim, a lit
+   1px line along the inside top, a dark 1px edge at the left end; rounded
+   only at the two outer ends, square where the parts meet. The gloss is a
+   faint sky light from the top (#156db8 at the top edge). */
+#custom-day,
+#custom-clock,
+#custom-weather,
+#custom-updates,
+#custom-repos,
+#custom-notifications {
+    border: none;
+    background-color: @l-tray;
+    background-image: linear-gradient(to bottom,
+                        alpha(@l-tray-hi, 0.20) 0%,
+                        alpha(@l-tray-hi, 0.00) 100%);
+    box-shadow: inset 0 1px @l-tray-hi;
+}
+
+#custom-day,
+#custom-updates {
+    border-radius: 3px 0px 0px 3px;
+    padding-left: 10px;
+    padding-right: 6px;
+    box-shadow: inset 0 1px @l-tray-hi,
+                inset 1px 0 @l-tray-edge;
+}
+
+#custom-clock,
+#custom-repos {
+    border-radius: 0px;
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+#custom-weather,
+#custom-notifications {
+    border-radius: 0px 3px 3px 0px;
+    padding-left: 6px;
+    padding-right: 10px;
+}
+
+/* No hover of its own: XP's tray did not light up either. Repeated for each
+   part, so the base's (and this file's) hover rule changes nothing. The
+   three-part split matches the shadows above. */
+#custom-day:hover,
+#custom-updates:hover {
+    background-color: @l-tray;
+    box-shadow: inset 0 1px @l-tray-hi,
+                inset 1px 0 @l-tray-edge;
+}
+
+#custom-clock:hover,
+#custom-repos:hover,
+#custom-weather:hover,
+#custom-notifications:hover {
+    background-color: @l-tray;
+    box-shadow: inset 0 1px @l-tray-hi;
+}
+
+/* The day: a light blue-white. Measured on the well's real pixels (the
+   gloss lifts its top to #1470c0): 4.63:1 at the top edge, 4.8 on average,
+   5.36 on the flat @l-tray. The earlier #e0eafc measured 4.4 on the shot
+   (4.89 only against the flat colour), and the plain text-dim is lower. */
+#custom-day {
+    color: #eef4ff;
+}
+
+/* The clock: white, regular, as XP's was (the base draws it in the accent,
+   which is a dark blue here). Tahoma's figures are tabular (its README), so
+   no min-width is needed to hold the well still while the seconds tick. */
+#custom-clock,
+#custom-clock.local {
+    font-size: 14px;
+    font-weight: normal;
+    letter-spacing: 0.5px;
+    color: @text;
+}
+
+/* UTC and epoch keep shouting: the well fills with the mode's colour. The
+   base also writes a border, which the well does not have. */
+#custom-clock.utc {
+    background-color: @utc;
+    color: @utc-fg;
+    border: none;
+}
+
+#custom-clock.epoch {
+    background-color: @epoch;
+    color: @epoch-fg;
+    border: none;
+}
+
+#custom-weather,
+#custom-updates {
+    font-size: 14px;
+}
+
+/* A failed or stale state in the well: the day's blue-white, 4.6-4.8:1. */
+#custom-weather.stale,
+#custom-weather.unavailable,
+#custom-updates.updated,
+#custom-updates.error,
+#custom-repos.clean,
+#custom-notifications.dnd {
+    color: #eef4ff;
+}
+
+/* The git pill's states, made into fills, as moe and win95 do. The well
+   has no border, so the base's coral floor for "unpushed" is gone, and its
+   pale text colours alone measured 3.95:1 (unpushed) and 4.78 (dirty) on
+   the well -- and three pale tints were hard to tell apart. The status
+   fills instead: warn 7.4:1, bad 7.2. The :hover twins are not needed for
+   specificity (these come after the well's no-hover rule) but say so. */
+#custom-repos.dirty,
+#custom-repos.dirty:hover {
+    background-color: @warn;
+    color: @warn-fg;
+    border: none;
+}
+
+#custom-repos.unpushed,
+#custom-repos.unpushed:hover {
+    background-color: @bad;
+    color: @bad-fg;
+    border: none;
+}
+
+/* Many updates: the warn fill; the well keeps its shape (no rim). */
+#custom-updates.many {
+    border: none;
+}
+
+/* --- Workspaces: the start button --------------------------------------------
+   Flush to the left edge of the bar, the round right end of XP's start
+   button, the start green with a gloss, a darker green rim (none on the
+   left, where it meets the screen edge). Its buttons are transparent on it;
+   the lit one is filled with its screen's hue (the generated
+   workspace-tint-active rules) and pressed in.
+   Height: 4 + 1 + (1 + 24 + 1) + 1 + 4 = 36px, the bar's. */
+#workspaces {
+    margin: 4px 8px 4px 0px;
+    padding: 0px 10px 0px 6px;
+    border: 1px solid @l-start-rim;
+    border-left-width: 0px;
+    border-radius: 0px 14px 14px 0px;
+    background-color: @l-start;
+    background-image: linear-gradient(to bottom,
+                        #45a03c 0%,
+                        #2b7f2b 50%,
+                        #236b23 100%);
+    box-shadow: inset 0 1px alpha(#ffffff, 0.30);
+}
+
+/* The colour is a fallback: workspace-tint.py writes each number's colour
+   (its screen's tint), but for a moment after a workspace appears, or with
+   the daemon stopped, the base's @text-dim would be 3.8:1 on the green;
+   @mon-unknown-dim is 4.56. The tint rules (:nth-child) outrank this. The
+   font size is on the label below, not here. */
+#workspaces button {
+    color: @mon-unknown-dim;
+    min-height: 24px;
+    min-width: 12px;
+    padding: 0px 8px;
+    margin: 1px 1px;
+    border: none;
+    border-radius: 3px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    text-shadow: 0 1px alpha(#0a2a0a, 0.60);
+    transition: background-color 90ms ease-out;
+}
+
+/* The number's weight and size go on the label: `*` above matches the
+   label itself and wins over anything it would inherit from the button
+   (checked offscreen: a size on the button never reached the label). */
+#workspaces button label {
+    font-weight: bold;
+    font-size: 15px;
+}
+
+#workspaces button.hidden label {
+    font-size: 13px;
+}
+
+/* Hover on the green: a faint shade, and the hot-track line under the
+   number (the base writes the accent wash, a dark blue here). A shade, not
+   a light: 12% white over the green put the white number at 4.0:1; 12%
+   black gives 6.1. */
+#workspaces button:hover {
+    color: @text;
+    background-color: alpha(#000000, 0.12);
+    box-shadow: inset 0 -2px @l-glow;
+}
+
+/* The shown workspace: its screen's fill (generated rules set the colour),
+   white number, pressed in, no gloss. */
+#workspaces button.active {
+    color: @text-bright;
+    background-image: none;
+    box-shadow: inset 0 2px 3px alpha(#000000, 0.45);
+}
+
+#workspaces button.urgent,
+#workspaces button.active.urgent {
+    color: @text-bright;
+    background-color: @critical;
+    box-shadow: inset 0 2px 3px alpha(#000000, 0.45);
+}
+
+/* --- CPU / GPU ----------------------------------------------------------------
+   The labels are theme.conf color.cpu / color.gpu in the scripts' markup (sky
+   and green); the numbers white. Critical: the red fill, white labels too
+   (color.cpu_hot), and the blink below. */
+#custom-cpu,
+#custom-gpu {
+    color: @text-bright;
+}
+
+#custom-cpu.critical,
+#custom-gpu.critical {
+    background-color: @critical;
+    color: @text-bright;
+}
+
+/* The base's faint slate wash would replace the face with the strip showing
+   through; the plain face keeps text-dim at 5.3:1. */
+#custom-gpu.unavailable {
+    background-color: @surface;
+    color: @text-dim;
+    border-color: @l-rim;
+}
+
+/* The critical blink (CPU, GPU, battery), redefined: the base ends it on
+   @magenta under @ink -- white on the coral, 2.4:1, and the CPU / GPU labels
+   are white Pango spans the CSS colour cannot reach. Here it breathes from
+   the critical red down to a deep red, white 9.0:1 at that end. Same name as
+   the base's: GTK keeps the last @keyframes of a name, and this file comes
+   after style.css. */
+@keyframes blink {
+    to {
+        background-color: #8e1c16;
+        color: @text-bright;
+        text-shadow: none;
+        box-shadow: none;
+    }
+}
+
+/* --- Power: a coral glyph on the blue button; the hot-track line turns red --- */
+#custom-power {
+    color: @l-power;
+    border-color: @l-rim;
+    background-image: linear-gradient(to bottom,
+                        alpha(#ffffff, 0.07) 0%,
+                        alpha(#ffffff, 0.00) 45%,
+                        alpha(#000814, 0.10) 100%);
+    box-shadow: inset 0 1px alpha(#ffffff, 0.22);
+}
+
+#custom-power:hover {
+    color: @l-power;
+    background-color: @surface-hover;
+    border-color: @l-rim;
+    box-shadow: inset 0 1px alpha(#ffffff, 0.22),
+                inset 0 -2px @red;
+}
+
+/* --- Privacy, recording, voice: solid fills ----------------------------------
+   The base writes white on alpha(@magenta / @red / @yellow) washes; the
+   coral and the light red here would put white under 4:1, so they are solid
+   deep fills: the camera and REC in the critical red (white 6.25:1), the
+   mic and dictation in a burnt red (6.9:1) so the two can be told apart,
+   the location in the light warn fill under ink (9.9:1). */
+#custom-mic,
+#custom-camera,
+#custom-location,
+#custom-recording,
+#custom-voice,
+#custom-doctor,
+#custom-tasks,
+#custom-drives,
+#custom-phone {
+    min-height: 26px;
+    border-radius: 3px;
+    border: 1px solid @l-rim;
+    text-shadow: 0 1px alpha(#000814, 0.45);
+}
+
+#custom-mic.active      { background-color: @l-mic; }
+#custom-camera.active   { background-color: @l-crit; }
+#custom-location.active { background-color: @l-warn-fill; color: @ink-warn; text-shadow: none; }
+
+#custom-recording.recording {
+    background-color: @l-crit;
+    border-color: @rec-edge;
+}
+
+#custom-voice.recording {
+    background-color: @l-mic;
+}
+
+#custom-recording.replay,
+#custom-voice.busy,
+#custom-voice.captions {
+    color: @text-dim;
+    border-color: @l-rim;
+}
+
+/* The shorthand above resets all four edges: give the replay pill back its
+   quiet coral floor (the base's "this is a capture" hint). */
+#custom-recording.replay {
+    border-bottom-color: alpha(@magenta, 0.55);
+}
+
+/* The health / tasks / drives / phone pills: blue buttons like the rest
+   (the base rims them in the accent); their alert fills solid. */
+#custom-doctor,
+#custom-tasks,
+#custom-drives,
+#custom-phone {
+    background-color: @surface;
+    background-image: linear-gradient(to bottom,
+                        alpha(#ffffff, 0.07) 0%,
+                        alpha(#ffffff, 0.00) 45%,
+                        alpha(#000814, 0.10) 100%);
+    box-shadow: inset 0 1px alpha(#ffffff, 0.22);
+}
+
+#custom-doctor.warn,
+#custom-tasks.attention {
+    background-color: @l-warn-fill;
+    color: @ink-warn;
+    text-shadow: none;
+}
+
+#custom-doctor.fail {
+    background-color: @l-crit;
+    color: @text-bright;
+}
+
+/* --- The capture pill while recording ------------------------------------------
+   The base breathes the camera glyph between @red and alpha(@red, 0.30);
+   red on this blue is 1.8:1 and the dim end would vanish. Here it breathes
+   between the coral #ff8a7a (3.1:1) and a lighter pink-coral (4.2:1): a
+   change of light, never a fade-out. Same keyframes names as the base. */
+#custom-capture.recording,
+#custom-capture.recording:hover {
+    color: @magenta;
+    border-color: @l-rim;
+}
+
+@keyframes cap-pulse {
+    to {
+        color: #ffb8ae;
+        border-color: @l-rim;
+    }
+}
+
+/* "Saved": the base flashes @ink on @green -- white on this pale green is
+   1.5:1. A deep green flash under white (5.1:1) instead. */
+@keyframes cap-saved {
+    from {
+        color: #ffffff;
+        background-color: #2e7d32;
+        border-color: #1d5a1d;
+    }
+}
+
+/* --- Tray menu: an XP cream menu ------------------------------------------------- */
+#tray menu {
+    border: 1px solid #8e8975;
+    border-radius: 3px;
+    padding: 2px;
+    background-color: @l-face;
+    background-image: none;
+    color: @l-ink;
+    text-shadow: none;
+}
+
+#tray menu menuitem {
+    border-radius: 0px;
+    padding: 3px 18px;
+    color: @l-ink;
+}
+
+#tray menu menuitem:hover {
+    background-color: @l-sel;
+    color: #ffffff;
+}
+
+/* --- The toolbox card (style-toolbox.css): a small XP window ----------------------
+   By the bar's name class, so the main bar's own .modules-left box (which
+   also exists, unpainted) is never matched: this file is imported by both
+   bars. A blue title band across the top (the background gradient: lit
+   line, title blue, then the cream face from 9px), XP's top corners, a 1px
+   deep-blue frame. Widths are the base's on purpose -- rows 150 + 2 x 14
+   padding + 2 x 1 rim, card 2 x 8 padding + 2 x 1 frame = 198px, which
+   scripts/toolbox_fit.py sizes the toolbox layer to (win95 explains what a
+   narrower card did: a strip of the layer beside it swallowed clicks). Only
+   the top padding grows, to clear the band. */
+window#waybar.waybar-toolbox .modules-left {
+    padding: 13px 8px 8px 8px;
+    border: 1px solid @l-title-lo;
+    border-radius: 8px 8px 3px 3px;
+    background-color: @l-face;
+    background-image: linear-gradient(to bottom,
+                        #3d86f0 0px,
+                        @l-title 2px,
+                        @l-title-lo 8px,
+                        @l-face 9px);
+    box-shadow: none;
+}
+
+/* Rows: XP menu items on the cream -- no face of their own, ink text (9.3:1),
+   the rim kept but transparent so the widths above still add up. */
+window#waybar.waybar-toolbox #custom-fsstate,
+window#waybar.waybar-toolbox #custom-nightlight,
+window#waybar.waybar-toolbox #custom-awake,
+window#waybar.waybar-toolbox #custom-display,
+window#waybar.waybar-toolbox #custom-keybinds,
+window#waybar.waybar-toolbox #custom-settings {
+    /* The base toolbox's own padding again: this file's shared pill rule
+       (10px sides) is imported after style-toolbox.css and would narrow
+       every row by 8px -- the card came out 190px, not 198. */
+    padding: 4px 14px;
+    min-height: 0px;
+    color: @l-ink;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+/* Under the pointer: the selection blue, white text (5.25:1), as an XP menu
+   highlights; no orange line (that is the bar's hot-track). */
+window#waybar.waybar-toolbox #custom-fsstate:hover,
+window#waybar.waybar-toolbox #custom-nightlight:hover,
+window#waybar.waybar-toolbox #custom-awake:hover,
+window#waybar.waybar-toolbox #custom-display:hover,
+window#waybar.waybar-toolbox #custom-keybinds:hover,
+window#waybar.waybar-toolbox #custom-settings:hover {
+    color: #ffffff;
+    background-color: @l-sel;
+    border-color: @l-title-lo;
+    box-shadow: none;
+}
+
+/* ON: the selection blue with white, pressed in a little -- night light, keep
+   awake, a screen filter, fullscreen mode A. Mode B keeps the good green
+   (opposite behaviours, different hues, as the base intends): its good-fg
+   on the good fill, 6.5:1. The idle / off rows are a dim ink, #4e4a36 4.8:1
+   (the base's text-dim is a light blue made for the bar). */
+window#waybar.waybar-toolbox #custom-fsstate.mode-a,
+window#waybar.waybar-toolbox #custom-nightlight.on,
+window#waybar.waybar-toolbox #custom-awake.activated,
+window#waybar.waybar-toolbox #custom-display.on {
+    color: #ffffff;
+    background-color: @l-sel;
+    border-color: @l-title-lo;
+    box-shadow: inset 0 1px 2px alpha(#000814, 0.45);
+}
+
+window#waybar.waybar-toolbox #custom-fsstate.mode-b {
+    color: @good-fg;
+    background-color: @good;
+    border-color: @l-title-lo;
+    box-shadow: inset 0 1px 2px alpha(#000814, 0.45);
+}
+
+window#waybar.waybar-toolbox #custom-fsstate.other {
+    color: @l-ink;
+    background-color: @l-warn-fill;
+}
+
+window#waybar.waybar-toolbox #custom-fsstate.error {
+    color: #ffffff;
+    background-color: @l-crit;
+}
+
+window#waybar.waybar-toolbox #custom-fsstate.idle,
+window#waybar.waybar-toolbox #custom-fsstate.none,
+window#waybar.waybar-toolbox #custom-nightlight.off,
+window#waybar.waybar-toolbox #custom-awake.deactivated {
+    color: #4e4a36;
+}
+
+/* The tray row: a sunken mid-blue well, not the cream. Tray icons are the
+   apps' own art, light or dark (a white Steam, a black keyboard): the
+   tray-well blue #0e66b0 keeps a white icon at 5.9:1 and a black one at
+   3.55:1 -- both over the 3:1 a graphic needs, which the cream would not
+   give a white icon (1.9:1), nor the bar's denser tray pill a black one
+   (#1b47a8, 2.5:1). */
+window#waybar.waybar-toolbox #tray,
+window#waybar.waybar-toolbox #tray:hover {
+    padding: 6px 14px;
+    min-height: 0px;
+    border: 1px solid @l-tray-edge;
+    border-radius: 3px;
+    background-color: @l-tray;
+    background-image: none;
+    box-shadow: inset 0 1px 2px alpha(#000814, 0.45);
+}

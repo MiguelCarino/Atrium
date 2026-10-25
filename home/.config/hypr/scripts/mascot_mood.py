@@ -14,7 +14,7 @@ llm-chat.py keeps one Mood and asks it, every frame, for a View:
                                       thread, about once a minute: the
                                       calendar is a D-Bus round trip)
     mood.react(event, text=..., ...)  something happened in the conversation
-    v = mood.view(state)              View(mood, scene, line)
+    v = mood.view(state)              View(mood, scene, line, emote)
 
 `mood` is one of MOODS. `scene` is a frozenset of SCENES, the things drawn
 around her. `line` is None or a topic tuple for the mascot to word:
@@ -98,11 +98,21 @@ GPU_HOT, CPU_HOT = 80, 85
 EVENT_SOON_MIN = 15
 
 REACT_S = 9             # a reaction's hold
+AWAY_S = 2 * 3600       # a prompt after this long without one: "welcome back"
+DOZE_S = 20 * 60        # idle this long, she has dozed off: the next prompt wakes her
+LONG_PROMPT = 1200      # characters: "that's a long one"
+FAST_S = 4.0            # a whole run in under this: "quick one!"
+BUSY_TOOLS = 12         # tool calls in one run: "busy busy"
+POKE_SPAM = (5, 4.0)    # this many pokes in this many seconds: "stop poking!"
 PERMISSION_HOLD_S = 600  # "permission": curious while the model waits for a yes (cut short by the answer)
 TALK_HALF_LIFE = 300.0  # the talk score halves in five minutes
 CHANCE_S = (180, 420)   # chance picks a new mood this often
 
-View = namedtuple("View", "mood scene line")
+# emote: None, or (text, tone, age) -- the little sign that pops up over the
+# mascot's head with a reaction ("!", "?", "<3", "zZ"...), its tone (EMOTE_TONES,
+# which each mascot colours in its own palette) and how many seconds it has
+# been up (the mascot pops it in, floats it, fades it).
+View = namedtuple("View", "mood scene line emote", defaults=(None,))
 
 # What each topic says when the mascot has no voice of its own: str.format
 # with the topic's arguments ({0}, {1}).
@@ -136,14 +146,94 @@ DEFAULT_LINES = {
     "morning": "good morning!",
     "lunch": "lunch time?",
     "weekend": "it's the weekend~",
+    "friday": "it's Friday afternoon~",
+    # conversation and stage events (Mood.react)
+    "hello": "hi! what are we doing today?",
+    "welcome_back": "welcome back!",
+    "wake": "huh? oh -- I'm up, I'm up!",
+    "long_prompt": "whoa, that's a long one...",
+    "code": "code! let me take a look",
+    "image": "ooh, a picture",
+    "aborted": "stopping!",
+    "tests_pass": "tests are green!",
+    "tests_fail": "tests failed...",
+    "commit": "shipped!",
+    "fast": "quick one!",
+    "busy": "busy busy...",
+    "model": "new model: {0}",
+    "poke": "hey there!",
+    "poke_spam": "hey! stop poking!",
+    "pet": "aww...",
 }
+
+# The sign over the head for each topic (and for the quiet reactions, by
+# their mood): (text, tone). Single-column ASCII only -- the mascot grid
+# turns anything wide into "?". Tones: accent (the theme's own), warn
+# (yellow), bad (red), good (green), love (pink/rose), dim (grey).
+EMOTE_TONES = ("accent", "warn", "bad", "good", "love", "dim")
+EMOTES = {
+    "thanks": ("<3", "love"), "pet": ("<3", "love"),
+    "worried": ("!", "warn"), "frustrated": ("#", "bad"), "poke_spam": ("#", "bad"),
+    "relieved": ("~", "accent"), "determined": ("!", "accent"),
+    "proud": ("*", "warn"), "sad": ("...", "dim"), "happy": ("^^", "accent"),
+    "hello": ("o/", "accent"), "welcome_back": ("o/", "accent"), "wake": ("!", "warn"),
+    "long_prompt": ("!?", "warn"), "code": ("{}", "accent"), "image": ("[o]", "accent"),
+    "aborted": ("!", "warn"), "tests_pass": ("+", "good"), "tests_fail": ("x", "bad"),
+    "commit": ("*", "warn"), "fast": ("+", "accent"), "busy": ("...", "accent"),
+    "model": ("?", "accent"), "poke": ("!", "accent"),
+    "event": ("!", "warn"), "event_now": ("!", "bad"),
+    # quiet reactions (no line), by mood
+    "@curious": ("?", "accent"), "@happy": ("^^", "accent"), "@worried": ("!", "warn"),
+    "@calm": ("-", "dim"),
+}
+
+# Test runners' summary lines (pytest, unittest, go, cargo, jest, mocha,
+# npm test, this desktop's run.sh): the last match decides.
+_TESTS_PASS = re.compile(r"\b(\d+ passed|OK(?: \(|\s*$)|ok\s+\S+\s+[\d.]+s|test result: ok|"
+                         r"Tests?:\s+\d+ passed|\d+ passing)\b", re.M)
+_TESTS_FAIL = re.compile(r"\b(\d+ failed|FAILED(?: \(|\b)|FAIL\s+\S+|test result: FAILED|"
+                         r"Tests?:\s+\d+ failed|\d+ failing)", re.M)
+_TEST_CMD = re.compile(r"\b(pytest|unittest|run\.sh|go test|cargo test|npm (?:run )?test|"
+                       r"yarn test|pnpm test|jest|mocha|make (?:test|check)|ctest|tox)\b")
+_COMMIT_CMD = re.compile(r"\bgit\s+(?:-C\s+\S+\s+)?(commit|push)\b")
+
+
+def tool_topic(tool, command, output, is_error):
+    """A Bash run's outcome worth a word: ("tests_pass",), ("tests_fail",),
+    ("commit",) -- or None. command is the shell line, output its text."""
+    if (tool or "") != "Bash" or not command:
+        return None
+    if _TEST_CMD.search(command):
+        out = output or ""
+        fails = _TESTS_FAIL.search(out)
+        passes = _TESTS_PASS.search(out)
+        if fails or (is_error and not passes):
+            return ("tests_fail",)
+        if passes or not is_error:
+            return ("tests_pass",)
+    if _COMMIT_CMD.search(command) and not is_error:
+        return ("commit",)
+    return None
 TOPICS = tuple(DEFAULT_LINES)
+
+
+_VARIANT = {}      # (table id, topic name) -> (index, until): the variant being said
 
 
 def word(table, topic):
     """A topic in a mascot's words: table[topic name].format(*arguments),
-    DEFAULT_LINES when the table lacks it."""
+    DEFAULT_LINES when the table lacks it. A table entry may be a tuple of
+    variants: the next one is taken each time the topic comes round again
+    (after REACT_S), the same one while it is being said -- the bubble asks
+    ten times a second -- so five pokes get five different answers."""
     fmt = table.get(topic[0]) or DEFAULT_LINES.get(topic[0], topic[0])
+    if isinstance(fmt, (tuple, list)):
+        key, now = (id(table), topic[0]), time.monotonic()
+        index, until = _VARIANT.get(key, (-1, 0.0))
+        if now >= until:
+            index = (index + 1) % len(fmt)
+        _VARIANT[key] = (index, now + REACT_S / 3)
+        fmt = fmt[index % len(fmt)]
     try:
         return fmt.format(*topic[1:])
     except (IndexError, KeyError, ValueError):
@@ -536,7 +626,12 @@ class Mood:
         self._env = {"now": dt.datetime.now(), "hour": dt.datetime.now().hour}
         self._scene = frozenset()
         self._lock = threading.Lock()
-        self.reaction = None        # (mood, until, topic)
+        self.reaction = None        # (mood, until, topic, emote, started)
+        self.last_prompt = None     # when you last sent something (None: not this session)
+        self.last_activity = clock()
+        self.tools_this_run = 0
+        self.busy_said = False
+        self.pokes = []             # the recent pokes' times
         self.talk = 0.0             # [-1, 1]
         self.talk_at = 0.0
         self.errors_in_row = 0
@@ -563,48 +658,99 @@ class Mood:
             self.refreshed = self.clock()
         return changed
 
-    def react(self, event, text=None, duration=None):
-        """A conversation event: "prompt" (text: what you sent), "reply"
-        (text: a finished reply), "tool_error", "tool_ok", "result_ok",
-        "result_error" (duration: the run's seconds), "stopped", "tick"
-        (a run is going: checks for the long-run reaction), "permission"
-        (the model waits for a yes: curious until it is answered),
-        "permission_allowed", "permission_denied"."""
+    def react(self, event, text=None, duration=None, tool=None, command=None, output=None,
+              images=0, name=None):
+        """A conversation or stage event:
+          "prompt"        text: what you sent; images: how many pictures came
+                          with it. Greets the first of a session, welcomes you
+                          back after AWAY_S, wakes her after DOZE_S idle, and
+                          notices thanks, worry, a question, a long prompt, a
+                          code block, a picture.
+          "reply"         text: a finished reply (the talk score)
+          "tool_ok", "tool_error"   tool: its name; command / output: a Bash
+                          line and its text (tests passing or failing, a git
+                          commit / push get a word)
+          "tool_start"    a tool began (counts the run's calls: "busy")
+          "result_ok", "result_error"   duration: the run's seconds
+          "stopped"       you stopped the run ("aborted")
+          "tick"          a run is going: the long-run reaction
+          "permission", "permission_allowed", "permission_denied"
+          "model"         name: the model you just picked
+          "poke", "pet"   a click / double click on the mascot."""
         now = self.clock()
         talk_on = self.signals.get("talk", True)
+        if event not in ("tick", "reply"):
+            idle_for = now - self.last_activity
+        else:
+            idle_for = 0.0
+        if event in ("prompt", "poke", "pet", "model"):
+            self.last_activity = now
         if event == "prompt":
+            first, away = self.last_prompt is None, self.last_prompt is not None and now - self.last_prompt > AWAY_S
+            self.last_prompt = now
             self.run_started, self.errors_this_run, self.long_said = now, 0, False
+            self.tools_this_run, self.busy_said = 0, False
             if not talk_on:
                 return
             score, thanks, question = read_text(text)
             self._nudge(score * 2.0)
+            body = text or ""
             if thanks:
                 self._react("shy", "thanks", now)
             elif score <= -0.3:
                 self._react("worried", "worried", now)
+            elif first:
+                self._react("happy", "hello", now)
+            elif away:
+                self._react("happy", "welcome_back", now)
+            elif idle_for > DOZE_S:
+                self._react("excited", "wake", now, hold=REACT_S / 2)
+            elif images:
+                self._react("curious", "image", now, hold=REACT_S / 2)
+            elif "```" in body:
+                self._react("focused", "code", now, hold=REACT_S / 2)
+            elif len(body) >= LONG_PROMPT:
+                self._react("excited", "long_prompt", now, hold=REACT_S / 2)
             elif question:
                 self._react("curious", None, now, hold=REACT_S / 2)
         elif event == "reply":
             if talk_on:
                 score, _, _ = read_text(text)
                 self._nudge(score)
+        elif event == "tool_start":
+            self.tools_this_run += 1
+            if talk_on and self.tools_this_run >= BUSY_TOOLS and not self.busy_said:
+                self.busy_said = True
+                self._react("focused", "busy", now, hold=REACT_S / 2)
         elif event == "tool_error":
             self.errors_in_row += 1
             self.errors_this_run += 1
             if talk_on:
-                if self.errors_in_row >= 2:
+                topic = tool_topic(tool, command, output, True)
+                if topic:
+                    self._react("worried", topic[0], now)
+                elif self.errors_in_row >= 2:
                     self._react("worried", "frustrated", now)
                 else:
                     self._react("worried", None, now, hold=REACT_S / 2)
                 self._nudge(-0.15)
         elif event == "tool_ok":
             self.errors_in_row = 0
+            topic = tool_topic(tool, command, output, False) if talk_on else None
+            if topic == ("tests_fail",):
+                self._react("worried", "tests_fail", now)
+                self._nudge(-0.15)
+            elif topic:
+                self._react("excited", topic[0], now)
+                self._nudge(0.15)
         elif event == "result_ok":
             if talk_on:
                 if self.errors_this_run:
                     self._react("happy", "relieved", now)
                 elif duration and duration > 60:
                     self._react("excited", "proud", now)
+                elif duration is not None and duration < FAST_S:
+                    self._react("happy", "fast", now, hold=REACT_S / 2)
                 else:
                     self._react("happy", None, now, hold=REACT_S / 2)
                 self._nudge(0.2)
@@ -616,6 +762,8 @@ class Mood:
             self.run_started = None
         elif event == "stopped":
             self.run_started = None
+            if talk_on:
+                self._react("worried", "aborted", now, hold=REACT_S / 2)
         elif event == "permission":
             # Quiet (no line: the window's bubble asks), held until answered.
             self._react("curious", None, now, hold=PERMISSION_HOLD_S)
@@ -625,6 +773,23 @@ class Mood:
         elif event == "permission_denied":
             self.reaction = None
             self._react("calm", None, now, hold=REACT_S / 2)
+        elif event == "model":
+            if talk_on and name:
+                self.reaction = ("curious", now + REACT_S / 2, ("model", name), EMOTES["model"], now)
+        elif event == "poke":
+            # Not gated by the talk signal: a click is a direct ask.
+            self.pokes = [t for t in self.pokes if now - t < POKE_SPAM[1]] + [now]
+            if len(self.pokes) >= POKE_SPAM[0]:
+                self.pokes = []
+                self.reaction = None
+                self._react("worried", "poke_spam", now, hold=REACT_S / 2)
+            else:
+                self.reaction = None
+                self._react("happy" if idle_for < DOZE_S else "excited", "poke", now, hold=REACT_S / 3)
+        elif event == "pet":
+            self.pokes = []
+            self.reaction = None
+            self._react("shy", "pet", now, hold=REACT_S / 2)
         elif event == "tick":
             if talk_on and self.run_started and not self.long_said and now - self.run_started > 60:
                 self.long_said = True
@@ -636,7 +801,8 @@ class Mood:
         # saying "you're welcome".
         if topic is None and self.reaction and self.reaction[2] and now < self.reaction[1]:
             return
-        self.reaction = (mood, now + hold, (topic,) if topic else None)
+        emote = EMOTES.get(topic) if topic else EMOTES.get("@" + mood)
+        self.reaction = (mood, now + hold, (topic,) if topic else None, emote, now)
 
     def _nudge(self, delta):
         self.talk = max(-1.0, min(1.0, self._talk_now() + delta * 0.5))
@@ -659,7 +825,11 @@ class Mood:
         mood, line = self._mood(state, env, now)
         if state in ACTIVE and mood == "sleepy":
             mood = "focused"
-        return View(mood, scene, line)
+        emote = None
+        r = self.reaction
+        if r and len(r) > 4 and r[3] and now < r[1]:
+            emote = (r[3][0], r[3][1], now - r[4])
+        return View(mood, scene, line, emote)
 
     def _mood(self, state, env, now):
         sig = self.signals
@@ -673,7 +843,8 @@ class Mood:
         if ev and ("event",) + ev[1:] not in self.announced:
             self.announced.add(("event",) + ev[1:])
             topic = ("event_now", ev[1]) if ev[0] <= 1 else ("event", ev[1], ev[0])
-            self.reaction = ("worried" if ev[0] <= 5 else "curious", now + REACT_S * 2, topic)
+            self.reaction = ("worried" if ev[0] <= 5 else "curious", now + REACT_S * 2, topic,
+                             EMOTES[topic[0]], now)
             return self.reaction[0], topic
         # 2. the talk
         talk = self._talk_now() if sig.get("talk") else 0.0
@@ -765,6 +936,8 @@ class Mood:
                 out.append(("lunch",))
             if now.weekday() >= 5 and 9 <= h < 21:
                 out.append(("weekend",))
+            elif now.weekday() == 4 and 15 <= h < 19:
+                out.append(("friday",))
         if sig.get("pc"):
             if (env.get("gpu") or 0) >= GPU_HOT:
                 out.append(("gpu_hot", env["gpu"]))

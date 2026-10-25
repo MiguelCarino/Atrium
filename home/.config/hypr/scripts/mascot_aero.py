@@ -194,6 +194,62 @@ TOPIC_LINES = {
     "morning": "Good morning! Your desktop is ready ☀",
     "lunch": "Lunch break? You've earned it!",
     "weekend": "It's the weekend! Enjoy ✓",
+    "friday": "Friday afternoon! Weekend sync in progress ✓",
+    # conversation and stage events (tuples: a new variant each time round)
+    "hello": ("Hi there! Ready when you are ✓",
+              "Hello! Fresh desktop, clear skies ☀",
+              "Welcome! Let's make something shiny"),
+    "welcome_back": ("Welcome back! All right where you left it ✓",
+                     "You're back! Resuming your session…"),
+    "wake": ("Oh! Waking from sleep mode… I'm up!",
+             "Resuming… hi! I was only dimmed"),
+    "long_prompt": ("Big one! Loading all of it…",
+                    "Whoa, that's a lot. Reading it all!"),
+    "code": ("Code! Let me take a clear look",
+             "Ooh, code. Opening it in glass view"),
+    "image": ("A picture! Opening Photo Viewer…",
+              "Ooh, nice image. Let me see!"),
+    "aborted": ("Stopped! Ready for the next one ✓",
+                "Cancelled. No harm done!"),
+    "tests_pass": ("All tests passed ✓ Looking good!",
+                   "Green across the board ✓",
+                   "Tests: all clear skies ☀"),
+    "tests_fail": ("Some tests failed… let's take a look",
+                   "Tests didn't pass. We'll fix it!"),
+    "commit": ("Changes saved and synced ✓",
+               "Committed! Your work is backed up ✓",
+               "Shipped! Off it floats to the cloud ☁"),
+    "fast": ("Done in a blink ✓",
+             "That was quick! ✓",
+             "Speedy! Already finished ✓"),
+    "busy": ("Lots of tasks running… on it!",
+             "Busy busy! Multitasking like a pro"),
+    "model": ("Switched to {0} ✓",
+              "Now running on {0}. Shiny!"),
+    "poke": ("Hi! That tickles the glass ☺",
+             "Boop! Still shiny ✓",
+             "Hey there! Need anything?",
+             "Ooh, a click! Hello ✓",
+             "*wobbles* Wheee!",
+             "You found me! Hi ☺"),
+    "poke_spam": ("Whoa, easy! You'll smudge the glass",
+                  "Too many clicks! Glass overheating…",
+                  "Hey! I'm getting fingerprints!"),
+    "pet": ("Aww… polishing my glow ✓",
+            "Hehe, that's nice ☺",
+            "So smooth… thank you!",
+            "Mmm, extra gloss ✓"),
+}
+# The reaction sign over the head (mascot_mood.EMOTE_TONES) in its palette:
+# each >= 3:1 on PANEL and on every sky the sign can float over (the day
+# rows and the aurora glow; the palest, #21609c, is the worst case).
+EMOTE_COLOURS = {
+    "accent": "#7fd0ff",    # aurora sky:   7.6 on PANEL, 3.8 on #21609c
+    "warn": AMBER,          # #ffc46b:      8.2,          4.2
+    "bad": "#ffa0a8",       # a light rose-red: 6.7,      3.4
+    "good": GREEN,          # #8fe07a:      8.1,          4.1
+    "love": BLUSH,          # #ff9cc0:      6.6,          3.4
+    "dim": "#a8bcd4",       # misted glass: 6.6,          3.4
 }
 
 
@@ -317,6 +373,9 @@ class Mascot(BaseMascot):
         if "clock" in scene:
             self._alarm(cv, tick, high=kind == "helpers")
         self._orb(cv, state, tick, ox, top, mood, scene, fidget)
+        # the reaction sign: on the orb's right shoulder, beside the top of
+        # the outline (where the z's and the "?" float), riding the bob
+        self.head = (ox + 12, max(0, top))
         self._mood_marks(cv, state, tick, ox, top, mood, scene, fidget)
         if "party" in scene:
             self._hat(cv, tick, ox, top)

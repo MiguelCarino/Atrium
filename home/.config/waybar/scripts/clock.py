@@ -2,7 +2,9 @@
 """The bar's clock, in whichever of three readings you last asked for.
 
     clock.py watch    continuous JSON for custom/clock — one line a second
-    clock.py cycle    local → UTC → epoch → local, redrawn immediately
+    clock.py cycle    local → UTC → epoch → local, redrawn immediately (the
+                      pill's right click; its left click opens the clock
+                      card, clock_panel.py)
     clock.py day      one-shot JSON for custom/day, which opens the calendar
 
 Local time is the default and what you get back after a full cycle; UTC is for

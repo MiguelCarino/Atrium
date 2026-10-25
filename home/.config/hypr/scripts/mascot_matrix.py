@@ -87,6 +87,10 @@ SWEAT = "#7fd0ff"
 SCARF = ("#d04040", "#eef5ef")
 MUSIC = "#5fd7ff"
 PILL = ("#ff3030", "#3d7dff")
+# The reaction sign over the head (mascot_mood.EMOTE_TONES), all >= 4:1 on
+# PANEL (the rain behind it has no background).
+EMOTE_COLOURS = {"accent": HEAD, "warn": AMBER, "bad": RED, "good": TEXT,
+                 "love": BLUSH, "dim": HOOD_DIM}
 CONFETTI = ("#ff5fd7", "#ffb000", "#5fd7ff", "#00ff41", "#ff3030", "#eef5ef")
 
 GLYPHS = "0123456789ABCDEFZ:.=*+-<>|\"^~;!?#$%&"
@@ -218,6 +222,29 @@ TOPIC_LINES = {
     "morning": "> wake up, neo… good morning.",
     "lunch": "> lunch? even the oracle bakes cookies.",
     "weekend": "> weekend. unplug from the matrix.",
+    "friday": "> friday. the weekend is a construct too.",
+    "hello": ("> hello, operator. what's the task?", "> knock knock. i'm listening.",
+              "> connection open. ready."),
+    "welcome_back": "> you're back. the matrix kept your seat.",
+    "wake": "> huh? i'm awake. i'm in.",
+    "long_prompt": "> long transmission. decoding…",
+    "code": ("> code. i don't even see it anymore.", "> source incoming. reading…"),
+    "image": "> an image. blonde, brunette, redhead…",
+    "aborted": "> ctrl-c. jacking out.",
+    "tests_pass": ("> tests green. there is no bug.", "> all pass. exit 0.",
+                   "> green across the board."),
+    "tests_fail": ("> tests red. a glitch in the code.", "> fail. déjà vu… let's look."),
+    "commit": ("> committed to the mainframe.", "> pushed. it's in the system now.",
+               "> shipped. zion will see it."),
+    "fast": ("> done. that was fast.", "> bullet time.", "> faster than an agent."),
+    "busy": "> many programs running. hold on…",
+    "model": "> new program loaded: {0}",
+    "poke": ("> hey. i'm mid-hack here.", "> what? the phone's not ringing.",
+             "> yes, i'm real. probably.", "> ping received. hi.",
+             "> that tickles the mainframe.", "> careful. that's the red pill."),
+    "poke_spam": ("> stop. you're tripping the alarms.", "> enough! the agents will notice."),
+    "pet": ("> …thanks. the matrix feels warmer.", "> ok. that was nice.",
+            "> head pats. not in the training program."),
 }
 
 CAT = (" /\\_/\\ ", "(=o.o=)")
@@ -297,6 +324,9 @@ class Mascot(BaseMascot):
         cv = Canvas(self.cols, self.rows)
         kind = prop_kind(tool) if state == "tool" else None
         fidget = self._fidget(tick, mood, scene) if state == "idle" and given else None
+        # the emote anchor: just right of the hood's crown, where his "?"
+        # floats -- off the face, below the umbrella's rim, left of the monitor
+        self.head = (self.cx + 17, self.top + 1)
         self._rain(cv, state, tick, mood, scene)
         self._sky(cv, state, tick, scene)
         if "festive" in scene:

@@ -52,11 +52,130 @@ The choice is theme=<name> in ~/.local/state/hypr/display.conf and survives
                  + moe-hud.lua in mpv, sakura / Fuji / yozakura / kawaii
                  wallpapers (make-moe-wallpaper.py --all) and falling petals
                  (make-moe-sakura.py --all)
+    lofi/        Lo-fi: a study room at dusk -- a rainy window, a desk
+                 lamp, a sleepy cat, vinyl and cassettes. Dark dusky violet
+                 glass for HDR (pills luminance 0.018-0.029, cards <= 0.027,
+                 Nautilus's view 0.016; only small fills are light) with
+                 cream text #e8dccb (never white), soft round corners (pills
+                 12, cards 18), slow easing (anim=smooth) and a faint film
+                 grain (grain.png, laid over every pane, plus blur_noise in
+                 Hyprland's frosting). Nunito for the UI, Comfortaa for
+                 headings and the clock, Rec Mono Casual in the terminal
+                 (~/.local/share/fonts/themes/lofi/README: sources + OFL;
+                 Comfortaa is Fedora's aajohan-comfortaa-fonts). The accent
+                 ROLE is a fixed peach lamp #f2a477 (accent_follow=no): a
+                 dusk wallpaper's hue vote lands on neon orange (reads as
+                 warn) or violet, and violet tempered into peach comes out
+                 as the bad berry -- so, like moe, it stays put; the display
+                 panel's custom colour still replaces it. Status: sage good,
+                 honey warn, berry bad, never the peach; structural magenta
+                 is put back to lilac, as aero puts it back to sky. Papirus-
+                 Dark with pale orange folders (icon_theme=Lofi), the
+                 Catppuccin peach cursor, a Rhodes-and-crackle sound set
+                 (make-theme-sounds.py lofi), uosc in peach and lilac +
+                 lofi-hud.lua in mpv, a moon-and-music-note prompt, and
+                 Miso, a sleepy ginger cat by a rainy window, as the LLM
+                 chat's mascot (mascot_lofi.py). Wallpapers drawn from
+                 scratch: ~/.config/hypr/scripts/make-lofi-wallpaper.py
+                 --all (lofi-{rain,desk,rooftop,sunset,vinyl}.png; the top
+                 106 px kept dark for the pills' contrast numbers). Panel
+                 sizes stay within 2-3% of cyberpunk's (panel.css header):
+                 disk 901x1298 vs 900x1279, display 705x1662 vs 717x1663
+                 (Theme page), calendar 285x334 vs 286x330, audio 432x388
+                 vs 430x378. The ambient soundscape has a "vinyl" kind (a
+                 record over the rain) and a "theme" choice that picks it
+                 while lofi is on (ambient.py THEME_SOUND)
+    luna/        Luna: an original homage to the Windows XP years, the
+                 third of the nostalgia set after win95 and aero. The bar
+                 is the XP taskbar docked at the top: a mid-blue strip,
+                 blue gradient task-button pills, the workspaces as the
+                 green round-ended "start" button at the far left, the two
+                 centre capsules as tray wells, an orange hot-track glow on
+                 hover only, and the focused title / ON toggles as pressed
+                 buttons. Panels, the launcher (the Start menu) and
+                 Nautilus (Explorer) are cream XP windows with a blue
+                 title-bar band; wofi is the dark-blue Alt+Tab box; mako is
+                 a balloon tip. Dimmed for HDR: the cards are luminance
+                 0.512 (XP's #ece9d8 brought down to #c3bea7, about moe's
+                 card), Nautilus's view 0.507, the bar 0.056-0.125, and
+                 nothing larger than the toast goes over 0.56. Graphs sit
+                 in dark Task Manager wells (#0c140e) and the weather rows
+                 in sky wells (#1d4fae), because no colour is >= 3:1 on
+                 both the blue bar and the cream cards. Tahoma for the UI
+                 -- WINE's open Tahoma (Bitstream Vera based, LGPL-2.1+),
+                 not Microsoft's file; ~/.local/share/fonts/themes/luna/
+                 README: source, build, licences -- and Liberation Mono in
+                 the XP-era PowerShell-blue terminal (Fedora's package). The
+                 accent ROLE is a fixed deep selection blue #18439a
+                 (accent_follow=no): the green hill would vote green (reads
+                 as good) and the autumn one orange (reads as warn); the
+                 display panel's custom colour still replaces it. Papirus
+                 with yellow, manila folders (icon_theme=Luna, built), the
+                 Catppuccin light cursor, bright bell chimes of our own
+                 (make-theme-sounds.py luna), uosc with an XP-green
+                 timeline, an underline-cursor terminal, and Folio, a
+                 cheerful manila folder on a green hill above a tiny
+                 taskbar, as the LLM chat's mascot (mascot_luna.py).
+                 Wallpapers drawn from scratch -- no Bliss, no Microsoft
+                 picture: ~/.config/hypr/scripts/make-luna-wallpaper.py
+                 --all (luna-{autumn,azure,hill,swoosh,wheat}.png at each
+                 screen's logical size; skies <= 0.50 luminance, clouds
+                 <= 0.70 and <= 20% of the frame). Panel sizes against
+                 cyberpunk are in panel.css's header
+    orbit/       Orbit: a mission-control console -- the calm, technical
+                 look of a flight control room, over real space
+                 photographs. Dark slate-navy consoles (floor #070b14,
+                 face #0e1626, wells #16223a), 1 px steel hairlines
+                 (#2a3a57, #3d5478 focused), radius 3, no gloss or glow; a
+                 2 px teal underline marks focus. Small letter-spaced
+                 uppercase labels in Barlow Semi Condensed, values in
+                 Barlow (tabular figures where digits change), JetBrains
+                 Mono in the terminal and the readouts
+                 (~/.local/share/fonts/themes/orbit/README: sources + OFL).
+                 The accent ROLE is a fixed "telemetry teal" #5cc8db
+                 (accent_follow=no: the nebulae would vote orange, which
+                 reads as warn). Status as a control room has it: green GO
+                 #4fd18b, amber CAUTION #f2b13c, red WARNING #f0565a only
+                 for real problems. The bar is a telemetry strip, the clock
+                 a mission clock, the panels console cards. Papirus-Dark
+                 with blue-grey (steel) folders (icon_theme=Orbit, built),
+                 Quindar-style tones of our own (make-theme-sounds.py
+                 orbit: a 2525 Hz beep, the 2525 / 2475 Hz pair, a soft
+                 two-tone caution chime; its own 5 kHz low-pass and a lower
+                 peak), plain uosc in teal on slate, no mpv HUD, a brown-
+                 noise cabin hum as its ambient soundscape (ambient.py
+                 THEME_SOUND), and Pip, a little probe with a dish, two
+                 solar panels and a blinking status LED, as the LLM chat's
+                 mascot (mascot_orbit.py). Generic flight words (CAPCOM,
+                 GO / NO-GO, T+, nominal) only: no agency's name, logo,
+                 insignia or mission patch anywhere in the UI. Wallpapers:
+                 ~/.config/hypr/scripts/make-orbit-wallpaper.py --all
+                 (orbit-{earthrise,marble,aurora,nightpass,cliffs,pillars,
+                 deepfield}.jpg at each screen's logical size; the top
+                 106 px faded dark under the bar, highlights capped for
+                 HDR), from these photographs (--credits prints this list):
+                   earthrise  as08-14-2383   NASA / Bill Anders, Apollo 8
+                   marble     as17-148-22727 NASA, Apollo 17 crew
+                   aurora     iss072e159172  NASA, ISS Expedition 72 crew
+                   nightpass  iss043e059141  NASA, ISS Expedition 43 crew
+                     public domain in the US (NASA media guidelines; no
+                     endorsement implied); https://images.nasa.gov/details/<id>
+                   cliffs     weic2205a      NASA, ESA, CSA, and STScI
+                   pillars    weic2216a      NASA, ESA, CSA, STScI;
+                                             J. DePasquale, A. Koekemoer,
+                                             A. Pagan (STScI)
+                   deepfield  weic2209a      NASA, ESA, CSA, and STScI
+                     Webb images, CC BY 4.0
+                     (https://creativecommons.org/licenses/by/4.0/), cropped,
+                     scaled and darkened at the top;
+                     https://esawebb.org/images/<id>/
     icons        icon_theme= in theme.conf (gsettings icon-theme, live in
                  GTK apps; mako's icon-path): cyberpunk Adwaita, aero
                  oxygen (needs `sudo dnf install oxygen-icon-theme`; Adwaita
-                 until then), matrix Phosphor, win95 Win95. Phosphor and
-                 Win95 are BUILT, not installed:
+                 until then), matrix Phosphor, win95 Win95, moe Moe, lofi
+                 Lofi, luna Luna, orbit Orbit. Phosphor, Win95, Moe, Lofi,
+                 Luna and Orbit are BUILT, not installed (Moe, Lofi, Luna
+                 and Orbit are Papirus with recoloured folders):
                  ~/.config/hypr/scripts/make-icon-theme.py --all (rerun
                  after installing an app; --sheet <variant> shows a before/
                  after sheet). Win95 inherits Chicago95
@@ -90,6 +209,12 @@ A theme folder
                   no window open, else waits for the last one to close
                   (the toast offers "Restart Files now"); gsettings parts
                   change live
+    mpv.conf      mpv's colours, faces and shape (uosc-color/opacity,
+                  radius, osd-/sub- font and colour). How the player's
+                  interface BEHAVES is shared: mpv-base.conf in this folder
+                  is written above every theme's mpv.conf (when controls
+                  show, the controls row, message and subtitle sizes;
+                  nothing over playing video). A theme line still wins.
     hypr.lua      optional: return { window_rules = {...}, layer_rules = {...} }
                   enabled only while this theme is current (lua/display.lua)
 Missing file = no override. After editing any of them: theme.py apply.

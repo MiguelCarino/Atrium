@@ -1,0 +1,150 @@
+/* ===========================================================================
+   LO-FI -- the launcher, quick note and clipboard (~/.config/hypr/scripts/
+   launcher.css). Copied to waybar/generated/theme-launcher.css by theme.py
+   and imported LAST.
+
+   A study room at dusk: a dark violet-indigo card (radius 18) with the
+   theme's faint film grain on it (grain.png next to this file, the first
+   background layer) and a soft shadow; the base's scan strip along the top
+   is the room's light going from the peach lamp to the rainy window --
+   peach, apricot, mauve, lilac, rain blue -- and it drifts slowly (16 s a
+   pass, not the base's 4 s scroll). The search box is a dark well with a
+   lilac caret and a peach lamp-glow line under it; the selected result is
+   a peach -> lilac fill with ink text; the hero name is in Comfortaa.
+
+   Here @magenta is NOT a status colour: the base uses it for structure only
+   (caret, the card's bottom edge, the end of the selection gradient), so in
+   this theme it is lilac, as aero makes it sky. Red-pink means "bad" only.
+
+   HDR: the card rgba(30,25,48,0.95) is #1e1930 over a dark backdrop
+   (luminance 0.012) and #272339 over a white window (0.019) -- no light
+   field anywhere; the only light fills are the selection and a tile.
+   Contrast on the card (dark / white backdrop): text #e8dccb 12.6 / 11.2,
+   dim #bfaebf 8.1 / 7.2 (a solid colour, not the base's alpha), peach
+   8.4 / 7.5, lilac 7.7 / 6.8. Ink #2a1d2a on the selection stops: peach
+   #f2a477 7.9, apricot #e8a888 7.9, lilac #b9a3ea 7.3.
+   =========================================================================== */
+
+@define-color l-night    #1c1830;
+@define-color l-plum     #3a2f55;
+@define-color l-cream    #e8dccb;
+@define-color l-cream-hi #f3e9dc;
+@define-color l-mauve    #bfaebf;
+@define-color l-peach    #f2a477;
+@define-color l-lilac    #b9a3ea;
+@define-color l-ink      #2a1d2a;
+@define-color l-shade    rgba(8, 5, 18, 0.55);
+
+/* --- PALETTE --------------------------------------------------------------------- */
+@define-color magenta    @l-lilac;        /* structure: caret, bottom edge, selection end */
+@define-color violet     #8a7fb0;         /* scrollbar */
+@define-color mist       @l-mauve;
+@define-color sel-mid    #e8a888;         /* apricot, between peach and lilac */
+@define-color scan-1     #f2a477;         /* the lamp */
+@define-color scan-2     #e8a888;
+@define-color scan-3     #c9a0c8;
+@define-color scan-4     #b9a3ea;
+@define-color scan-5     #8fbfe0;         /* the rain -> back to the lamp (the strip repeats) */
+@define-color surface    rgba(30, 25, 48, 0.95);
+@define-color groove     rgba(14, 11, 26, 0.60);
+@define-color edge       alpha(@cyan, 0.22);
+@define-color edge-lit   alpha(@cyan, 0.80);
+@define-color text       @l-cream;
+@define-color text-dim   @l-mauve;
+@define-color text-bright @l-cream-hi;    /* typed text and the hero name: cream, never #ffffff */
+@define-color ink        @l-ink;          /* on the peach / lilac selection */
+
+/* --- The card ---------------------------------------------------------------------
+   Three background layers now: the grain (tiled), the base's scan strip and
+   its faint top/bottom wash. The base's keyframes move two layers, so the
+   drift has its own keyframes that leave the grain still. */
+@keyframes lofi-scan {
+    from { background-position: 0px 0px, 0% 0%, 0% 0%; }
+    to   { background-position: 0px 0px, 200% 0%, 0% 0%; }
+}
+
+#card {
+    border-radius: 18px;
+    border: 1px solid alpha(@l-lilac, 0.22);
+    border-bottom: 2px solid alpha(@l-lilac, 0.55);
+    background-image:
+        url("file://~/.config/themes/lofi/grain.png"),
+        linear-gradient(to right,
+            @scan-1, @scan-2, @scan-3, @scan-4, @scan-5, @scan-1,
+            @scan-2, @scan-3, @scan-4, @scan-5, @scan-1),
+        linear-gradient(to bottom,
+            alpha(@cyan, 0.05) 0%,
+            alpha(@cyan, 0.00) 30%,
+            alpha(@l-lilac, 0.00) 75%,
+            alpha(@l-lilac, 0.05) 100%);
+    background-size: 128px 128px, 200% 3px, 100% 100%;
+    background-repeat: repeat, repeat-x, no-repeat;
+    animation: lofi-scan 16s linear infinite;
+    box-shadow: 0 4px 14px @l-shade;
+}
+
+/* --- The search box: a dark well, the lamp glowing under it ------------------------- */
+#search {
+    border-radius: 14px;
+    border: 1px solid alpha(@l-lilac, 0.22);
+    border-bottom: 2px solid alpha(@cyan, 0.75);
+    caret-color: @l-lilac;
+    color: @l-cream-hi;
+}
+
+#search image {
+    color: @cyan;
+}
+
+#search selection {
+    background-color: alpha(@l-peach, 0.30);
+    color: @l-cream-hi;
+}
+
+/* --- The hero: a soft rounded card, lit from below ----------------------------------- */
+#hero {
+    border-radius: 16px;
+    border: 1px solid alpha(@l-lilac, 0.22);
+    border-left: 1px solid alpha(@l-lilac, 0.22);
+    background-color: rgba(255, 240, 225, 0.04);
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.30);
+}
+
+#hero.selected {
+    border: 1px solid alpha(@l-cream-hi, 0.30);
+    border-left: 1px solid alpha(@l-cream-hi, 0.30);
+    box-shadow: 0 0 12px alpha(@cyan, 0.30);
+}
+
+label.hero-name {
+    font-family: "Comfortaa", "Nunito", sans-serif;
+    font-weight: bold;
+}
+
+label.hero-hint {
+    border-radius: 10px;
+    border-color: alpha(@l-lilac, 0.40);
+}
+
+/* --- Tiles: rounded, the lamp line on hover ------------------------------------------ */
+.tile {
+    border-radius: 14px;
+    background-color: rgba(255, 240, 225, 0.03);
+    border: 1px solid alpha(@l-lilac, 0.16);
+    border-bottom: 1px solid alpha(@l-lilac, 0.22);
+}
+
+.tile:hover {
+    background-color: alpha(@l-plum, 0.55);
+    border-color: alpha(@l-lilac, 0.30);
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.75);
+}
+
+.tile.selected {
+    border: 1px solid alpha(@l-cream-hi, 0.30);
+    border-bottom: 1px solid alpha(@l-cream-hi, 0.30);
+}
+
+scrollbar slider {
+    border-radius: 99px;
+}

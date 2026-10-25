@@ -29,6 +29,13 @@ it is repos.py (the pill's script), so the pill and the panel never disagree.
 The last scan is shown at once from tmpfs, then a local rescan (no fetch)
 follows; Rescan adds the fetch.
 
+The card is panelui.CARD_HEIGHT tall whatever the list holds (the same as
+the CPU, network and updates cards), and the list scrolls inside it. When
+the rows are more than fit, a filter box appears above them: typing keeps
+the repos whose name or branch has the text in it -- the clean ones too,
+so a repo with nothing to do can still be found and pulled -- and Esc
+clears it (a second Esc closes the card).
+
     repos_panel.py [x,y]   desktop position of the click that opened it
 """
 
@@ -41,7 +48,8 @@ import threading
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import GLib, Gtk, Pango  # noqa: E402
+gi.require_version("Gdk", "3.0")
+from gi.repository import Gdk, GLib, Gtk, Pango  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -69,11 +77,18 @@ def pick(text, on_click, sensitive=True):
     return button
 
 
+def matches(repo, text):
+    """The filter: every word of text in the repo's name or branch."""
+    hay = f"{repo['name']} {repo.get('branch') or ''}".lower()
+    return all(word in hay for word in text.lower().split())
+
+
 class Repos(panelui.Panel):
     def build(self):
         self.status = {}            # path -> one-line result of the last pull
         self.busy = set()           # paths with a pull running
         self.fetching = False
+        self.card.set_size_request(-1, panelui.CARD_HEIGHT)
 
         head = Gtk.Box(spacing=8)
         self.title = label("REPOS", "kb-heading")
@@ -85,8 +100,23 @@ class Repos(panelui.Panel):
         head.pack_end(self.rescan_button, False, False, 0)
         self.card.pack_start(head, False, False, 0)
 
+        # Shown only when the list is longer than the card (fit_check).
+        self.filter = Gtk.Entry()
+        self.filter.set_placeholder_text("Filter repos by name or branch")
+        self.filter.get_style_context().add_class("panel-entry")
+        self.filter.set_margin_top(4)
+        self.filter.set_no_show_all(True)
+        self.filter.connect("changed", lambda _e: self.draw())
+        self.card.pack_start(self.filter, False, False, 0)
+
+        self.scroll = Gtk.ScrolledWindow()
+        self.scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.scroll.set_propagate_natural_width(True)
+        self.scroll.set_vexpand(True)
+        self.scroll.set_margin_top(4)
         self.body = Gtk.Grid(column_spacing=8, row_spacing=2)
-        self.card.pack_start(self.body, False, False, 0)
+        self.scroll.add(self.body)
+        self.card.pack_start(self.scroll, True, True, 0)
         self.repos = None
         try:
             with open(repos.CACHE) as handle:
@@ -182,11 +212,18 @@ class Repos(panelui.Panel):
     def draw(self):
         for child in self.body.get_children():
             self.body.remove(child)
+        text = self.filter.get_text().strip()
         if self.repos is None:
             self.body.attach(label("scanning...", "ctl-sub"), 0, 0, 3, 1)
             self.body.show_all()
             return
         todo = [r for r in self.repos if repos.needs_attention(r)]
+        everything = len(todo)
+        if text:
+            # Filtering looks through every repo, the clean ones included.
+            shown = [r for r in self.repos if matches(r, text)]
+            todo = [r for r in shown if repos.needs_attention(r)] + \
+                   sorted((r for r in shown if not repos.needs_attention(r)), key=lambda r: r["name"].lower())
         # The change counter: files changed or new across every repo, plus
         # dotfiles drift, plus commits not pushed.
         changes = sum(r["changed"] + r["untracked"] + r.get("drift", 0) for r in self.repos)
@@ -195,21 +232,48 @@ class Repos(panelui.Panel):
         if unpushed:
             counts.append(f"{unpushed} unpushed")
         self.title.set_text("REPOS" + (f"  \u00b7  {', '.join(counts)}" if counts else ""))
-        # Unpushed first: those are the ones at risk.
-        todo.sort(key=lambda r: (-(r["ahead"] > 0 or not r["upstream"]), r["name"].lower()))
+        # Unpushed first: those are the ones at risk (a filter keeps its own
+        # order: the ones with work, then the clean ones it found).
+        if not text:
+            todo.sort(key=lambda r: (-(r["ahead"] > 0 or not r["upstream"]), r["name"].lower()))
         row = 0
         if not todo:
-            self.body.attach(label(f"all {len(self.repos)} repos clean and pushed", "ctl-sub"),
+            self.body.attach(label(f"no repo matches \u201c{text}\u201d" if text else
+                                   f"all {len(self.repos)} repos clean and pushed", "ctl-sub"),
                              0, row, 3, 1)
             row += 1
         for repo in todo:
             row = self.repo_rows(repo, row)
-        clean = len(self.repos) - len(todo)
-        if todo and clean:
+        clean = len(self.repos) - everything
+        if todo and clean and not text:
             note = label(f"{clean} more clean and pushed", "ctl-sub")
             note.set_margin_top(6)
             self.body.attach(note, 0, row, 3, 1)
         self.body.show_all()
+        if not text:
+            GLib.idle_add(self.fit_check)
+
+    def fit_check(self):
+        """The filter box only when the full list does not fit the card. Read
+        after the rows are laid out, and only from the unfiltered list -- a
+        filtered one is short by design, and hiding the box under the
+        pointer while you type would lose the text."""
+        need = self.body.get_preferred_height()[1]
+        room = self.scroll.get_allocated_height() + (self.filter.get_allocated_height()
+                                                     if self.filter.get_visible() else 0)
+        self.filter.set_visible(room > 1 and need > room)
+        return False
+
+    def on_key(self, widget, event):
+        if event.keyval == Gdk.KEY_Escape and self.filter.get_text():
+            self.filter.set_text("")
+            return True
+        # Typing anywhere in the card goes to the filter, once it is there.
+        if self.filter.get_visible() and not self.filter.has_focus() and event.string \
+                and event.string.isprintable() and not event.state & Gdk.ModifierType.CONTROL_MASK:
+            self.filter.grab_focus_without_selecting()
+            return self.filter.event(event)
+        return super().on_key(widget, event)
 
     def repo_rows(self, repo, row):
         path = repo["path"]

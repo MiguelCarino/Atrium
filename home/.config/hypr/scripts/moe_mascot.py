@@ -116,7 +116,12 @@ INK = "#d8a6f0"
 SUN = "#ffd98a"
 SNOW = "#f3ecf7"
 FOG = "#7d6a85"
+BAD = "#ff6470"          # a coral red, for the "x"/"#" signs (her pinks read as love)
 CONFETTI = ("#ff7a9c", "#8fe3e0", "#ffd98a", "#9be6b4", "#9fc4f5", "#d8a6f0")
+
+# The reaction sign over her head (mascot_mood.EMOTE_TONES), all >= 5:1 on PANEL.
+EMOTE_COLOURS = {"accent": EYE, "warn": SPARKLE, "bad": BAD, "good": GRASS,
+                 "love": HEART, "dim": CLOUD}
 
 # --- the mascot --------------------------------------------------------------
 # 21 columns, mirror-symmetric about column 10. Rows 0-6 are the head (ears,
@@ -292,6 +297,29 @@ TOPIC_LINES = {
     "morning": "おはよう！ good morning ☀",
     "lunch": "おひるごはん？ lunch time",
     "weekend": "しゅうまつだ〜 weekend ♪",
+    "friday": "金曜日だ〜！ almost the weekend ♪",
+    # conversation and stage events (tuples rotate: a new one each time)
+    "hello": ("こんにちは！ what shall we do? ✧", "やっほー！ hi hi ♡",
+              "おはなししよ？ let's make something ♪"),
+    "welcome_back": "おかえりなさい！ welcome back ♡",
+    "wake": "はっ！ねてないよ！ I'm up! (⊙_⊙)",
+    "long_prompt": ("わぁ、ながい！ a long one… (°o°)", "よむね…！ reading it all ( •̀ω•́ )"),
+    "code": "コードだ！ let me see ( •̀ω•́ )",
+    "image": "え、写真？ ooh, a picture ✧",
+    "aborted": "ストップ！ stopping (・_・)ゞ",
+    "tests_pass": ("テスト合格！ all green ✧", "ぜんぶパス！ tests pass ♪",
+                   "みどり〜！ green green (ﾉ◕ヮ◕)ﾉ"),
+    "tests_fail": ("テスト失敗… tests failed (´;ω;`)", "あかい… red tests (・_・;)"),
+    "commit": ("コミット！ shipped ✧", "おくったよ！ pushed ♡", "できあがり！ it's out (ﾉ◕ヮ◕)ﾉ"),
+    "fast": ("はやっ！ quick one ✧", "いっしゅん！ done in a blink", "らくしょう♪ easy peasy"),
+    "busy": ("いそがしい〜 busy busy (>_<)", "まだまだ！ so many tools ٩(ˊᗜˋ)و"),
+    "model": "あたらしい子？ hello, {0} ✧",
+    "poke": ("ひゃっ！ hey! (〃ω〃)", "なぁに？ yes? (・・ )?", "つんつんしないで〜 (>ω<)",
+             "にゃっ！ nya! ♪", "えへへ、くすぐったい (〃▽〃)", "あそぶ？ wanna play? ✧"),
+    "poke_spam": ("もう！やめて〜！ stop poking! (｀ε´)", "つつきすぎ！ too many pokes! (>_<)",
+                  "むぅ…おこるよ！ I'll get mad! (｀へ´)"),
+    "pet": ("ふにゃ〜 ♡ (´ω`)", "なでなで…うれしい ♡", "もっと〜 more pats please ♡",
+            "ごろごろ… purr ♡ (=^･ω･^=)"),
 }
 
 STREAM_WORDS = ("moe", "nya", "ok", "so", "code", "fix", "yay", "the", "sakura",
@@ -392,6 +420,11 @@ class Mascot:
             self._alarm(cv, tick)
 
         hx = self._mascot(cv, state, tick, top, kind, dy, mood, scene)
+        # the reaction sign's anchor: just above and right of her right ear
+        # (ear tip at column 17 of the head), following the hop and the tilt;
+        # a column further out under the parasol, whose canopy reaches 18.
+        rainy = bool(scene & {"rain", "storm"})
+        self.head = (self.x0 + hx + (19 if rainy else 18), max(0, top - 1))
         self._mood_marks(cv, state, tick, top, hx, mood, scene)
         if "party" in scene:
             self._hat(cv, tick, top, hx)

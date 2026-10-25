@@ -1,0 +1,619 @@
+/* ===========================================================================
+   ORBIT -- every popup card (~/.config/waybar/panel.css): media, calendar,
+   shortcuts, audio, network, CPU / GPU, disks, weather, power, capture,
+   display, repos, notifications, updates -- and, through the same file, the
+   OSD (osd.py) and the focus guard's "Still want X?" card (focus-guard.py
+   overlay). Copied to waybar/generated/theme-panel.css by theme.py and
+   imported LAST. Same palette and rules as this theme's waybar.css (its
+   header explains them): slate consoles, steel hairlines, telemetry teal as
+   the accent role, never a status.
+
+   Each card is a console card: a slate pane with 3px corners, a 1px steel
+   hairline (a lighter rule along the top, where the card hangs from the
+   bar), and a soft black drop in the 14px gutter the base keeps for exactly
+   that (GTK clips a shadow to the toplevel). On it:
+     * section headings (.kb-heading) are console labels: Barlow Semi
+       Condensed, spaced, in the label colour, over a thin steel header rule;
+       titles (#kb-title, the month) the same face in the readout white;
+     * values are text, not accent: the teal is kept for what is lit -- an
+       ON row's icon, the chosen device or chip (with the 2px teal underline
+       the bar uses), today, a switch that is on, the gauges' runs;
+     * every control is a small console key: raised slate, steel hairline,
+       lighter on hover; the keyboard caps are JetBrains Mono keys.
+
+   HDR: the card is DARK. rgba(14, 22, 38, 0.96) is #0e1625 over a dark
+   backdrop (luminance 0.008, "cd") and #151d2c over a white window after
+   the blur (0.75 brightness: #bfbfbf behind; 0.012, "cw"). Measured (WCAG)
+   on cd / cw:
+       text        #dbe4f0   14.1 / 13.2
+       text-dim    #8a9bb4    6.4 / 6.0    (labels, headings, subtitles)
+       text-dimmer #7a8aa4    5.2 / 4.8    (hints only)
+       text-bright #e8edf5   15.4 / 14.4   (titles, the big temperature)
+       accent      #5cc8db    9.3 / 8.6    (icons, glyphs, the lit pick)
+       bad text    #ff7b7e    7.2 / 6.7    (a row's error)
+       ice / sand  #a9c4ec 10.2 / 9.5, #dcc8ac 11.1 / 10.4  (weather lo / hi)
+       adjacent    #5d6b84    3.4 / 3.1    (the calendar's other-month days:
+                                            "not this month", not to read)
+   Controls: a key at rest #16223a (text 12.4, dim 5.6, teal 8.1), hovered
+   #1d2c48 (text 10.9, teal 7.1), pressed a 30% teal wash (text 7.3 / 6.8);
+   a chosen chip a 22% teal wash under the readout white (8.6 / 8.0); a
+   section card's faint wash (text 12.7 / 11.7, dim 5.8 / 5.3).
+   Fills: ink #04121a on teal 9.7:1 (today, an ON icon, a switch's knob
+   track), on WARNING red 5.6:1 (a muted row's icon, an armed power tile);
+   the capture panel's .live tile is a deep red #9a2228 under the readout
+   white, 6.8:1 (but the HDR-range tile, a mode and not a recording, is a
+   teal-lit key, as in lofi). The play button: teal on its 16% wash 6.8 /
+   6.2, 5.0 / 4.6 hovered. The About card's captions are text-dim on its
+   tiles, 5.0 / 4.6.
+
+   Panel sizes follow the font: see the table further down (measured with
+   each theme's generated css, never applied).
+
+   Colours the panels DRAW (graphs, "Sure?") are theme.conf color.* keys.
+   Theme names start with o- (as in waybar.css; stylesheets do not inherit).
+   =========================================================================== */
+
+/* Panel sizes. Barlow is narrower than IBM Plex Sans with a shorter line
+   (1.20 em against 1.30), so most panels come out a little SMALLER than
+   cyberpunk's, as aero's and luna's do. Measured 2026-10-24, each panel
+   built offscreen with its theme's generated css and the same live data,
+   natural size of the whole window, 14px gutters included (the method
+   lofi's and luna's headers describe; it gives cyberpunk's numbers exactly
+   as luna's table has them):
+                          cyberpunk    orbit
+       disk               650x630      630x591
+       display (opening)  454x1281     454x1241
+       calendar           286x330      271x312
+       audio              430x378      429x362
+       weather            421x466      417x463
+       keybinds           1581x1579    1601x1600
+       power              620x204      620x207
+       capture            734x354      734x360
+       CPU / network      455 / 657 wide, 437 / 631 here, both 412 tall
+   Disk, display, audio, weather and the power / capture tiles are within
+   6% (disk 3% narrower and 6% shorter, from the shorter line); the
+   calendar is 5% narrower and shorter (the narrower digits and line), as
+   aero's is (277x310). The shortcuts card is
+   1% larger: its key caps are JetBrains Mono, wider than Barlow, and every
+   section heading carries the 1px header rule.
+   The CARD_HEIGHT=412 cards (CPU, GPU, network, updates, notifications)
+   keep their height (panelui.py); nothing here resizes them. */
+
+/* --- the theme's own names ---------------------------------------------------- */
+@define-color o-base     #070b14;
+@define-color o-raised   #16223a;   /* a key at rest, tracks */
+@define-color o-raised-hi #1d2c48;  /* a hovered key */
+@define-color o-rule     #2a3a57;
+@define-color o-rule-hi  #3d5478;
+@define-color o-text     #dbe4f0;
+@define-color o-dim      #8a9bb4;
+@define-color o-readout  #e8edf5;
+@define-color o-ink      #04121a;
+@define-color o-bad-fg   #ff7b7e;
+@define-color o-ice      #a9c4ec;
+@define-color o-sand     #dcc8ac;
+@define-color o-adjacent #5d6b84;
+@define-color o-shade    rgba(0, 0, 0, 0.50);
+
+/* --- PALETTE 1: hues (@cyan = the accent role, teal, via accent.css) ----------
+   @magenta is "this ends something / bad" here: muted rows, errors, the
+   danger and armed power tiles, a full disk. Its STRUCTURAL uses in the base
+   (headings, the calendar's weekdays, section underlines, the About card's
+   wash, the weather's high) are put back to steel / sand by the rules
+   below. */
+@define-color magenta    #f0565a;
+@define-color yellow     #f2b13c;
+@define-color green      #4fd18b;
+/* .live tiles (a capture running) carry the readout white, so the red is
+   deep (6.8:1); the base's alpha 0.85 is made opaque below. */
+@define-color red        #9a2228;
+@define-color mist       #8a9bb4;
+
+/* --- PALETTE 2: surfaces, edges, text ------------------------------------------ */
+@define-color surface        rgba(14, 22, 38, 0.96);
+@define-color surface-deep   rgba(7, 11, 20, 0.80);
+@define-color surface-video  rgba(4, 7, 12, 0.92);    /* the media preview's floor */
+@define-color knob           #16223a;
+@define-color edge           #2a3a57;
+@define-color edge-lit       #3d5478;
+@define-color accent         alpha(@cyan, 0.16);
+@define-color accent-lit     alpha(@cyan, 0.28);
+@define-color text           #dbe4f0;
+@define-color text-dim       #8a9bb4;
+@define-color text-dimmer    #7a8aa4;
+@define-color text-bright    #e8edf5;
+@define-color ink            #04121a;
+@define-color rec-edge       alpha(#ff7b7e, 0.55);
+
+/* --- The card ------------------------------------------------------------------- */
+#panel-window {
+    background: transparent;
+}
+
+#panel {
+    border-radius: 3px;
+    background-color: @surface;
+    background-image: none;
+    border: 1px solid @edge;
+    border-top-color: @edge-lit;
+    border-bottom-color: @edge;
+    box-shadow: 0 4px 12px @o-shade;
+}
+
+#preview-frame {
+    border-radius: 3px;
+}
+
+/* --- Headings: console labels over a thin header rule --------------------------------
+   Barlow Semi Condensed SemiBold, spaced about 0.12 em, in the label colour
+   (6.4 / 6.0). The base's are magenta caps; the words are already
+   upper-case where the scripts write them so (GTK3 CSS has no
+   text-transform). */
+label.kb-heading {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: @text-dim;
+    padding: 2px 0px 4px 0px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid @edge;
+}
+
+#kb-title,
+#cal-month {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: @text-bright;
+}
+
+#kb-title {
+    font-size: 15px;
+}
+
+#cal-month {
+    font-size: 14px;
+}
+
+#title {
+    color: @text-bright;
+}
+
+/* Section cards (display panel, Settings): 3px corners, the steel hairline;
+   the rule under a heading is the steel hairline, not the base's 2px
+   magenta (which means "bad" here). */
+.ctl-group {
+    border-radius: 3px;
+    border-color: @edge;
+}
+
+.ctl-group label.kb-heading {
+    font-size: 12px;
+    border-bottom: 1px solid @edge-lit;
+}
+
+/* --- Sliders: a teal run in a raised groove, a small fader cap ----------------------- */
+#seek trough,
+scale.ctl-slider trough {
+    min-height: 4px;
+    border-radius: 1px;
+    background-color: @o-raised;
+    box-shadow: inset 0 0 0 1px @edge;
+}
+
+#seek highlight,
+scale.ctl-slider highlight {
+    border: none;
+    border-radius: 1px;
+    /* The colour too, not only the image: GTK's own highlight colour (a
+       blue) shows at the run's ends without it (lofi found this). */
+    background-color: @cyan;
+    background-image: none;
+}
+
+#seek slider,
+scale.ctl-slider slider {
+    border-radius: 2px;
+    border: 1px solid @cyan;
+    background-color: @knob;
+}
+
+#seek slider:hover,
+scale.ctl-slider slider:hover {
+    background-color: @cyan;
+}
+
+/* Muted: the run goes WARNING red, as the base's does in its magenta. */
+.ctl-row.muted scale.ctl-slider highlight {
+    background-color: alpha(@magenta, 0.70);
+    background-image: none;
+}
+
+/* --- Switches: a raised key; on, a teal-lit track and a teal knob (4.2:1, a
+   graphic) ------------------------------------------------------------------------- */
+switch {
+    border-radius: 2px;
+    border: 1px solid @edge;
+    background-color: @o-raised;
+}
+
+switch:checked {
+    background-color: alpha(@cyan, 0.35);
+    border-color: @cyan;
+}
+
+switch slider {
+    border-radius: 1px;
+    background-color: @o-dim;
+}
+
+switch:checked slider {
+    background-color: @cyan;
+}
+
+/* --- Buttons: console keys -------------------------------------------------------- */
+button.control,
+#cal-prev,
+#cal-next,
+.ctl-icon,
+button.ctl-icon,
+button.ctl-link,
+button.sn-link,
+button.dev-pick,
+button.dk-fs {
+    border-radius: 3px;
+}
+
+button.control,
+#cal-prev,
+#cal-next {
+    color: @text;
+    background-color: @o-raised;
+    border: 1px solid @edge;
+}
+
+button.control:hover,
+#cal-prev:hover,
+#cal-next:hover,
+button.ctl-icon:hover {
+    background-color: @o-raised-hi;
+    border-color: @edge-lit;
+}
+
+button.control:active,
+#cal-prev:active,
+#cal-next:active {
+    background-color: alpha(@cyan, 0.30);
+}
+
+/* Play/pause: the one lit control, teal on its wash with the underline. */
+#play {
+    color: @cyan;
+    background-color: @accent;
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+#play:hover {
+    background-color: @accent-lit;
+    border-color: @edge-lit;
+}
+
+/* --- Rows: icons, values, subtitles -------------------------------------------- */
+.ctl-icon {
+    color: @cyan;
+    background-color: @o-raised;
+    border: 1px solid @edge;
+}
+
+.ctl-row.on .ctl-icon {
+    color: @ink;
+    background-color: @cyan;
+    border-color: @cyan;
+}
+
+.ctl-row.muted .ctl-icon {
+    color: @ink;
+    background-color: @magenta;
+    border-color: @magenta;
+}
+
+.ctl-value,
+label.pw-uptime {
+    color: @text;
+}
+
+.ctl-sub {
+    color: @text-dim;
+}
+
+.ctl-row.error .ctl-sub {
+    color: @o-bad-fg;
+}
+
+.ctl-sep,
+.ctl-vsep {
+    background-color: @edge;
+}
+
+/* --- Picks: device rows and chips --------------------------------------------------
+   A pick at rest is quiet text; hovered, a raised key; the chosen device is
+   teal text (8.3 / 7.8) on a faint teal wash with the teal underline. A
+   chosen chip (themes, frames, filters, presets, the display panel's tabs)
+   is a 22% teal wash under the readout white, with the underline -- the
+   base's outer glow is gone. */
+button.dev-pick:hover {
+    color: @text;
+    border-color: @edge;
+    background-color: @o-raised;
+}
+
+button.dev-pick.active,
+button.dev-pick.active:hover {
+    color: @cyan;
+    border-color: @edge;
+    background-color: alpha(@cyan, 0.06);
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+button.dev-pick.active label.dev-kind {
+    color: @text-dim;
+}
+
+button.dev-pick.chip {
+    border-radius: 3px;
+    color: @text;
+    border: 1px solid @edge;
+}
+
+button.dev-pick.chip:hover {
+    background-color: @o-raised-hi;
+    border-color: @edge-lit;
+}
+
+button.dev-pick.chip.active,
+button.dev-pick.chip.active:hover {
+    color: @text-bright;
+    font-weight: bold;
+    background-color: alpha(@cyan, 0.22);
+    border: 1px solid @edge-lit;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+/* Insensitive picks ("unplugged", the focus card's counting-down "Open it"):
+   the base's dimmer at 0.6 opacity is 2.6:1 here; the label colour at 0.75
+   is 4.2 / 4.0 -- still "not now", but readable. */
+button.dev-pick.unplugged,
+button.dev-pick:disabled {
+    color: @text-dim;
+    opacity: 0.75;
+}
+
+/* --- The focus guard's card ("Still want X?", focus-guard.py overlay) ------------
+   Built from panel classes only: #panel-window / #panel (the card above), an
+   icon label .ctl-icon, the question as .kb-heading, the text as .ctl-sub,
+   and two buttons .dev-pick in a row straight under the card (the other
+   small question cards that copy this layout -- display-confirm,
+   screen-ask -- get the same look). The question is a sentence, not a
+   section label: larger, readout white, no header rule; the two answers
+   are real keys. The question is picked as "the heading in the box NEXT TO
+   the icon": the shorter #panel > box > box > label.kb-heading (lofi's and
+   luna's) also matches the CPU panel's TOP CPU / APPS BY MEMORY and the
+   disk panel's DISKS / SHADER CACHES headings, which are section labels. */
+#panel > box > label.ctl-icon + box > label.kb-heading {
+    font-size: 15px;
+    letter-spacing: 0.5px;
+    color: @text-bright;
+    border-bottom: none;
+    margin-bottom: 0px;
+}
+
+#panel > box > label.ctl-icon {
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 17px;
+    border-radius: 3px;
+    color: @cyan;
+    background-color: @o-raised;
+    border: 1px solid @edge-lit;
+}
+
+#panel > box > label.ctl-icon + box > label.ctl-sub {
+    color: @text-dim;
+    font-size: 13px;
+}
+
+#panel > box > button.dev-pick {
+    color: @text;
+    padding: 5px 14px;
+    background-color: @o-raised;
+    border: 1px solid @edge;
+}
+
+#panel > box > button.dev-pick:hover {
+    background-color: @o-raised-hi;
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+#panel > box > button.dev-pick.active {
+    color: @ink;
+    background-color: @cyan;
+    border-color: @cyan;
+    box-shadow: none;
+}
+
+#panel > box > button.dev-pick:disabled {
+    color: @text-dim;
+    opacity: 0.75;
+}
+
+/* --- Keyboard caps: JetBrains Mono console keys ------------------------------------
+   Text on a raised key (12.4:1), a heavier steel rule under it, like a key's
+   front edge. Teal is not used: a cap is a label, not something lit. */
+label.kb-cap {
+    font-family: "JetBrains Mono", "IBM Plex Mono", "Font Awesome 6 Free Solid", monospace;
+    font-size: 11px;
+    border-radius: 2px;
+    color: @text;
+    background-color: @o-raised;
+    border: 1px solid @edge;
+    border-bottom: 2px solid @edge-lit;
+}
+
+/* --- Calendar: label-coloured weekdays, today as the one lit key -------------------- */
+label.cal-weekday {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    font-weight: 600;
+    color: @text-dim;
+    letter-spacing: 1.5px;
+}
+
+label.cal-day {
+    border-radius: 2px;
+}
+
+/* The base's alpha(mist, 0.22) was 1.6:1 on this card; #5d6b84 is 3.4 /
+   3.1, clearly "not this month". */
+label.cal-adjacent {
+    color: @o-adjacent;
+}
+
+label.cal-today {
+    border-radius: 2px;
+    color: @ink;
+    background-color: @cyan;
+    font-weight: bold;
+}
+
+/* --- Disks and level bars: a teal run in a raised groove, amber then red ------------ */
+levelbar.dk-bar trough {
+    border-radius: 1px;
+    background-color: @o-raised;
+}
+
+levelbar.dk-bar block.filled {
+    border-radius: 1px;
+    background-color: @cyan;
+}
+
+levelbar.dk-bar.warning block.filled {
+    background-color: @yellow;
+}
+
+levelbar.dk-bar.critical block.filled {
+    background-color: @magenta;
+}
+
+button.dk-fs:hover {
+    border-color: @edge;
+    background-color: @o-raised;
+}
+
+/* --- Power tiles: raised keys; the ones that end the session have a red glyph -------- */
+button.pw-tile {
+    border-radius: 3px;
+    background-color: alpha(@o-raised, 0.70);
+    background-image: none;
+    border: 1px solid @edge;
+    border-bottom-color: @edge-lit;
+}
+
+button.pw-tile:hover {
+    background-color: @o-raised-hi;
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+button.pw-tile:active {
+    background-color: alpha(@cyan, 0.30);
+}
+
+/* The danger glyph is the WARNING red at 26px (4.9 / 4.8: large text); the
+   tile itself stays neutral until hovered. */
+button.pw-tile.danger:hover {
+    border-color: alpha(@magenta, 0.70);
+    background-color: alpha(@magenta, 0.12);
+    box-shadow: inset 0 -2px 0 @magenta;
+}
+
+button.pw-tile.armed,
+button.pw-tile.armed:hover {
+    background-color: @magenta;
+    background-image: none;
+    border-color: @magenta;
+    box-shadow: none;
+}
+
+button.pw-tile.live,
+button.pw-tile.live:hover {
+    background-color: @red;
+    background-image: none;
+    border-color: @rec-edge;
+    box-shadow: none;
+}
+
+/* The capture panel's HDR-range tile is .live whenever HDR is on: a MODE,
+   not a recording. In the REC red, next to the Record tiles, it would read
+   as a capture running, and red here means a problem. So it is a lit key:
+   the teal wash under the readout white (8.3 / 7.7), the underline. */
+button.pw-tile.live.cap-rec-range,
+button.pw-tile.live.cap-rec-range:hover {
+    background-color: alpha(@cyan, 0.28);
+    background-image: none;
+    border-color: @edge-lit;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+button.pw-tile.live.cap-rec-range label.pw-glyph,
+button.pw-tile.live.cap-rec-range label.pw-label {
+    color: @text-bright;
+}
+
+/* --- Weather: the low in ice blue, the high in sand ----------------------------------
+   (The base's high is magenta; here that would read as a warning, and amber
+   as CAUTION.) The rain chance is ice blue too, solid: the base's 75% accent
+   put the teal in a data role. The big temperature is a readout. */
+label.wx-lo   { color: @o-ice; }
+label.wx-hi   { color: @o-sand; }
+label.wx-rain { color: @o-ice; }
+
+label.wx-big-temp {
+    color: @text-bright;
+}
+
+/* --- Settings > About's card: a faint teal console face ---------------------------
+   The base's teal-to-magenta wash becomes a 6% teal one; its captions are
+   alpha(@text, 0.6), solid text-dim here (5.0 / 4.6 on the tiles). */
+.about-hero {
+    border-radius: 3px;
+    background-image: none;
+    background-color: alpha(@cyan, 0.06);
+    border: 1px solid alpha(@cyan, 0.30);
+}
+
+.about-hero label.about-name {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    letter-spacing: 1px;
+}
+
+.about-hero label.about-model {
+    color: @text-dim;
+}
+
+.about-hero .about-tile {
+    border-radius: 3px;
+    border-color: @edge;
+}
+
+.about-hero label.about-cap {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: @text-dim;
+}
+
+.about-hero label.about-sub {
+    color: @text-dim;
+}

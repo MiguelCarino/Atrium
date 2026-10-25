@@ -74,6 +74,12 @@ RAIN = "#1d5f6e"
 BUILDING = ("#0d1424", "#111a30", "#0b1020")
 VISOR = "#1e0a22"
 HOLO = "#04161e"
+PINK = "#ff6ec7"
+
+# The reaction sign over the head (mascot_mood.EMOTE_TONES), all >= 4.4:1 on
+# PANEL and on the towers behind the anchor (BUILDING).
+EMOTE_COLOURS = {"accent": CYAN, "warn": YELLOW, "bad": MAGENTA, "good": GREEN,
+                 "love": PINK, "dim": CYAN_DIM}
 
 W, H = 21, 11
 DROID = [
@@ -178,6 +184,30 @@ TOPIC_LINES = {
     "morning": "Morning, choom. Systems booting.",
     "lunch": "Lunch break? Even androids recharge.",
     "weekend": "Weekend. No gigs, just neon.",
+    "friday": "Friday night. The neon's calling, choom.",
+    "hello": ("Online. What's the gig, choom?", "[SYS] link up. Ready to run.",
+              "Hey, choom. Jack in, let's work."),
+    "welcome_back": "Welcome back, choom. Kept the neon warm.",
+    "wake": "[SYS] exiting low power... I'm up!",
+    "long_prompt": "Big data dump. Buffering, choom...",
+    "code": "Code-chrome incoming. Scanning it.",
+    "image": ("Optics engaged. Nice pic, choom.", "Running it through the optics..."),
+    "aborted": "[ABORT] Jacking out. Run killed.",
+    "tests_pass": ("Tests green. Preem.", "[OK] All checks passed. Nova!",
+                   "ICE cleared: the suite's green."),
+    "tests_fail": ("[FAIL] Tests flatlined, choom.", "Red on the board. Rerouting..."),
+    "commit": ("Pushed to the net. Shipped.", "Commit burned to shard. Preem.",
+               "[SYS] payload delivered."),
+    "fast": ("Quick hack. Too easy.", "In and out. Zero trace.",
+             "Done before the ICE woke up."),
+    "busy": "Running a dozen daemons at once...",
+    "model": "[SYS] new wetware loaded: {0}",
+    "poke": ("Hey! Watch the chrome, choom.", "[PING] ...pong.", "Easy, the visor's sensitive.",
+             "Need something? I'm all sensors.", "Tap registered. Hi, choom.",
+             "Careful. I bite in binary."),
+    "poke_spam": ("[ALERT] Input flood! Back off, choom!", "Poke me again and I call MaxTac."),
+    "pet": ("...preem. Keep that up, choom.", "[SYS] affection.exe: running.",
+            "Visor's going pink... d-don't stop."),
 }
 
 
@@ -268,6 +298,9 @@ class Mascot(BaseMascot):
         elif idle and "music" in scene and mood not in ("sad", "sleepy"):
             dy = (tick // 4) % 2
         top = self.top - min(dy, self.top - 1)
+        # the emote anchor: just right of the helmet's crown, clear of the
+        # visor, under the umbrella's rim; never up in the papel picado band
+        self.head = (self.cx + 15, max(top + 1, sky))
 
         self._sky(cv, tick, scene, sky)
         self._skyline(cv, tick, day="day" in scene)

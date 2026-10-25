@@ -404,6 +404,101 @@ class Mood(unittest.TestCase):
         m.react("permission_denied")
         self.assertEqual(m.reaction[0], "calm")
 
+    def clocked(self):
+        t = [1000.0]
+        m = mood.Mood(signals={k: True for k in mood.SIGNALS}, clock=lambda: t[0])
+        return m, t
+
+    def test_greetings_and_waking(self):
+        m, t = self.clocked()
+        m.react("prompt", text="hi")
+        self.assertEqual(m.reaction[2], ("hello",))
+        self.assertEqual(m.view("idle").emote[:2], ("o/", "accent"))
+        t[0] += mood.DOZE_S + 60
+        m.react("prompt", text="back to it")
+        self.assertEqual(m.reaction[2], ("wake",))
+        t[0] += mood.AWAY_S + 60
+        m.react("prompt", text="ok")
+        self.assertEqual(m.reaction[2], ("welcome_back",))
+
+    def test_prompt_kinds(self):
+        m, t = self.clocked()
+        m.react("prompt", text="hi")
+        for text, images, topic in (("look", 1, "image"), ("```py\nx = 1\n```", 0, "code"),
+                                    ("x" * mood.LONG_PROMPT, 0, "long_prompt")):
+            t[0] += 20
+            m.react("prompt", text=text, images=images)
+            self.assertEqual(m.reaction[2], (topic,), topic)
+
+    def test_tool_outcomes(self):
+        topic = mood.tool_topic
+        self.assertEqual(topic("Bash", "python3 -m pytest -q", "12 passed in 0.3s", False), ("tests_pass",))
+        self.assertEqual(topic("Bash", "pytest", "3 failed, 9 passed", True), ("tests_fail",))
+        self.assertEqual(topic("Bash", "pytest", "3 failed, 9 passed", False), ("tests_fail",))
+        self.assertEqual(topic("Bash", "git -C repo push", "", False), ("commit",))
+        self.assertIsNone(topic("Bash", "git push", "rejected", True))
+        self.assertIsNone(topic("Bash", "ls", "", False))
+        self.assertIsNone(topic("Read", "pytest", "", False))
+        m, _ = self.clocked()
+        m.react("tool_ok", tool="Bash", command="cargo test", output="test result: ok. 4 passed")
+        self.assertEqual(m.reaction[2], ("tests_pass",))
+        m.react("tool_error", tool="Bash", command="npm test", output="Tests: 2 failed")
+        self.assertEqual(m.reaction[2], ("tests_fail",))
+
+    def test_run_reactions(self):
+        m, t = self.clocked()
+        m.react("prompt", text="go")
+        for _ in range(mood.BUSY_TOOLS):
+            m.react("tool_start")
+        self.assertEqual(m.reaction[2], ("busy",))
+        m.react("result_ok", duration=2.0)
+        self.assertEqual(m.reaction[2], ("fast",))
+        m.react("stopped")
+        self.assertEqual(m.reaction[2], ("aborted",))
+        m.react("model", name="qwen3")
+        self.assertEqual(m.view("idle").line, ("model", "qwen3"))
+
+    def test_pokes(self):
+        m, t = self.clocked()
+        m.react("poke")
+        self.assertEqual(m.reaction[2], ("poke",))
+        for _ in range(mood.POKE_SPAM[0] - 1):
+            t[0] += 0.3
+            m.react("poke")
+        self.assertEqual(m.reaction[2], ("poke_spam",))
+        self.assertEqual(m.view("idle").emote[:2], ("#", "bad"))
+        m.react("pet")
+        self.assertEqual(m.reaction[2], ("pet",))
+
+    def test_emote_ages_and_ends(self):
+        m, t = self.clocked()
+        m.react("poke")
+        t[0] += 1.0
+        self.assertAlmostEqual(m.view("idle").emote[2], 1.0)
+        t[0] += mood.REACT_S
+        self.assertIsNone(m.view("idle").emote)
+
+    def test_variants_rotate(self):
+        table = {"poke": ("a", "b", "c")}
+        first = mood.word(table, ("poke",))
+        self.assertEqual(mood.word(table, ("poke",)), first)       # held while said
+        mood._VARIANT[(id(table), "poke")] = (0, 0.0)              # its turn is over
+        self.assertEqual(mood.word(table, ("poke",)), "b")
+
+    def test_every_mascot_has_every_topic_and_an_anchor(self):
+        import mascots
+        for theme in mascots.THEMES:
+            m = mascots.Mascot(64, 18, theme=theme)
+            if not getattr(m, "moods", False):
+                continue
+            for topic in mood.TOPICS:
+                args = ("x", 5)[:mood.DEFAULT_LINES[topic].count("{")]
+                self.assertTrue(m.say((topic,) + args), (theme, topic))
+            m._render("idle", 3, None, "happy", frozenset())
+            self.assertIsNotNone(getattr(m, "head", None), theme)
+            markup = mascots.emote_markup(m, "idle", 3, None, "happy", frozenset(), ("!?", "warn", 1.0))
+            self.assertIn("!?", markup.replace("<", "\n").replace(">", "\n"), theme)
+
 
 class Words(unittest.TestCase):
     def test_every_theme_has_every_word(self):
@@ -412,7 +507,7 @@ class Words(unittest.TestCase):
         for key in ("perm_title", "perm_once", "perm_session", "perm_deny", "perm_note", "perm_keys",
                     "perm_bubble", "n_done", "n_perm", "unload", "unload_all"):
             self.assertIn(key, front.UI_JA, key)
-        for theme in ("moe", "cyberpunk", "matrix", "win95", "aero"):
+        for theme in ("moe", "cyberpunk", "matrix", "win95", "aero", "lofi", "luna", "orbit"):
             ui = front.ui_strings(theme, conf={"lang": "ja" if theme == "moe" else "en"})
             for key in keys:
                 self.assertIn(key, ui)

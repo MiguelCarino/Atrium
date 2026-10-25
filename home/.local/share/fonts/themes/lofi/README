@@ -1,0 +1,58 @@
+The lofi theme's faces (~/.config/themes/lofi/). All SIL Open Font License 1.1.
+Nothing here is subset or instanced: the files are exactly as upstream ships
+them (sha256 below), so a later fetch can be compared byte for byte.
+
+Nunito -- the UI face (theme.conf font=): the bar, the toolbox, the popup
+    panels, the launcher, mako (Nunito SemiBold 11), Nautilus's document face.
+    A well-balanced rounded sans: soft terminals, open shapes, the "round
+    everything" of the theme without a display face's quirks at 13-15px.
+    Kept VARIABLE (wght 200-1000): it is only the UI face, never a terminal
+    face, and fontconfig exposes its named instances (Regular, SemiBold,
+    Bold...) to GTK and Pango, so nothing needs a static cut. About as wide
+    as IBM Plex Sans at UI sizes with slightly taller lines, so the panels
+    come out within 2-3% of cyberpunk's (the measured numbers are in
+    ~/.config/themes/lofi/panel.css's header).
+    Files: Nunito[wght].ttf, Nunito-Italic[wght].ttf
+    Source: https://raw.githubusercontent.com/google/fonts/main/ofl/nunito/Nunito%5Bwght%5D.ttf
+            https://raw.githubusercontent.com/google/fonts/main/ofl/nunito/Nunito-Italic%5Bwght%5D.ttf
+            (Vernon Adams, Cyreal, Jacques Le Bailly; google/fonts)
+    Licence: OFL-Nunito.txt (from .../ofl/nunito/OFL.txt)
+
+Rec Mono Casual -- the terminal face (term.font=, font_mono=): COSMIC
+    Terminal, kitty, code in the LLM chat and Nautilus's monospace.
+    Recursive's monospace "Casual" cut: brushy, friendly letterforms that
+    match the hand-drawn lo-fi mood while staying a real code face
+    (fontconfig spacing=100, mono). Upstream already ships it as STATIC
+    Regular / Bold / Italic / BoldItalic, which is what COSMIC Terminal
+    needs (it lists a family only with a Regular AND a Bold face).
+    Files: RecMonoCasual-{Regular,Bold,Italic,BoldItalic}-1.085.ttf
+    Source: https://github.com/arrowtype/recursive/releases/download/v1.085/ArrowType-Recursive-1.085.zip
+            path ArrowType-Recursive-1.085/Recursive_Code/RecMonoCasual/
+            (Arrow Type / Stephen Nixon). Only these four files and the
+            licence were taken from the zip.
+    Licence: LICENSE-Recursive.txt (the zip's ArrowType-Recursive-1.085/LICENSE.txt)
+
+Comfortaa -- headings and little touches: the bar's clock, the cards'
+    headings, the launcher's hero name, the LLM chat's titles, the mpv
+    "paused · side A" card. A rounded geometric display face (Johan Aakerlund).
+    NOT copied here: it is a Fedora package, aajohan-comfortaa-fonts
+    (/usr/share/fonts/aajohan-comfortaa-fonts/, Light..Bold OTF). At fetch
+    time: `rpm -q aajohan-comfortaa-fonts` =
+        aajohan-comfortaa-fonts-3.105-0.9.20210729git2a87ac6.fc44.noarch
+    If it is ever removed: `sudo dnf install aajohan-comfortaa-fonts`, or the
+    upstream copy at https://github.com/google/fonts/tree/main/ofl/comfortaa
+    (OFL). Without it the headings fall back to Nunito.
+
+Fetched 2026-10-24. Installed with `fc-cache -f`; checked with
+`fc-list : family style spacing | grep -i "rec mono"` (Rec Mono Casual,
+spacing=100, Regular / Bold / Italic / Bold Italic).
+
+sha256
+    bb55a5ca5c2042335b3991af27c4d0705d0ef41cac6164ac737fd8f2a1e85207  Nunito[wght].ttf
+    b520cc871868b0acfca1beda875df7f4a44ebce914f8a89f83977fc9c09529c8  Nunito-Italic[wght].ttf
+    0f534445f3b591608b69d68de74e9cc81e5030f6a3c855db461d8a1f481cc233  RecMonoCasual-Regular-1.085.ttf
+    539892e40f53251caf14db86e44a9d2458b6b773adc4421b8d2892341898ba4b  RecMonoCasual-Bold-1.085.ttf
+    4afcdb84e4ef44af2c4640f5b8f04f70c097eaaf7cc22766a8dc46ed6ee0c957  RecMonoCasual-Italic-1.085.ttf
+    93ffeb304f3d431e5182fd9a5eaab7e4991efd090d2938e7a6b74bd6335db1b2  RecMonoCasual-BoldItalic-1.085.ttf
+    580df76c95a1ec5ab878ceb25bb3d85c6a076804e9c970c8c6972aea775fdf65  OFL-Nunito.txt
+    f9f539cf7549bd417159dbdb9c400943a5b60a7366c2c6fbde9f095173d82479  LICENSE-Recursive.txt

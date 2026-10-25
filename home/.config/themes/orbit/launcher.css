@@ -1,0 +1,203 @@
+/* ===========================================================================
+   ORBIT -- the launcher, quick note and clipboard (~/.config/hypr/scripts/
+   launcher.css). Copied to waybar/generated/theme-launcher.css by theme.py
+   and imported LAST.
+
+   A mission-control console card: slate-navy face (#0e1626), a 1 px steel
+   hairline round it, 3 px corners, no glow and no gloss. Across the top a
+   static header rule -- a short telemetry-teal segment at the left, then
+   steel to the end -- in place of the base's scrolling rainbow (no
+   animation: a console does not shimmer). The search box is a dark readout
+   well with a teal caret and a 2 px teal underline; the best match and the
+   tiles are console keys: flat until chosen, then a raised key (#16223a)
+   with a teal edge and the 2 px teal underline. Nothing turns into a light
+   fill -- the selection is marked by the teal line, not by a lit block.
+   The hero name is in Barlow Semi Condensed SemiBold, letter-spaced like a
+   console label; the key hint ("Enter") is a small JetBrains Mono key cap.
+
+   Here @magenta is NOT a status colour: the base uses it for structure only
+   (caret, the card's bottom edge, the end of the selection gradient, the
+   search glyph), so it is the focused steel hairline; the caret and the
+   glyph are set to the accent below. Red means "bad" only.
+
+   The launcher's hint text is not CSS: launcher.py's THEME_PLACEHOLDER
+   gives orbit its own console wording ("▸ apps, windows, files ... > CMD
+   = CALC ..."), over PLACEHOLDER's per-language text (theme.conf lang=).
+   The search glyph is an icon name set in code; only its colour is here.
+
+   HDR: the card rgba(14,22,38,0.96) is #0e1625 over a dark backdrop
+   (luminance 0.008) and #181f2f over a white window (0.014); the selected
+   key #16223a is 0.016. No light field anywhere.
+
+   Contrast, WCAG, on the card (dark / white backdrop):
+     text #dbe4f0 14.1 / 12.8, dim #8a9bb4 6.4 / 5.8 (solid, not the base's
+     alpha), teal #5cc8db 9.3 / 8.4, typed / hero text #e8edf5 15.4 / 14.0
+   in the search well (#080d17): typed text 16.5, the placeholder (dim)
+     6.9, a text selection (30% teal, #214552) under #e8edf5 8.8
+   on a selected key #16223a: name #e8edf5 13.5, sub / caption dim 5.6;
+     the key cap keeps its own floor #070b14: dim 7.0, teal (selected)
+     10.1; a hovered tile (#131d32): text 13.1
+   UI lines: the teal edge / underline 9.3 on the card, 8.1 on the key;
+   the steel hairlines (#2a3a57 1.6, #3d5478 2.4) are decoration only --
+   no state depends on them.
+   =========================================================================== */
+
+@define-color o-base     #070b14;
+@define-color o-panel    #0e1626;
+@define-color o-raised   #16223a;
+@define-color o-rule     #2a3a57;
+@define-color o-rule-hi  #3d5478;
+@define-color o-text     #dbe4f0;
+@define-color o-dim      #8a9bb4;
+@define-color o-bright   #e8edf5;
+@define-color o-shade    rgba(2, 4, 10, 0.55);
+
+/* --- PALETTE --------------------------------------------------------------------- */
+@define-color magenta    @o-rule-hi;      /* structure only, never "bad" */
+@define-color violet     @o-rule-hi;      /* scrollbar */
+@define-color mist       @o-dim;
+@define-color sel-mid    @o-raised;
+@define-color scan-1     @o-rule;         /* unused (the strip is replaced below); */
+@define-color scan-2     @o-rule;         /* defined so nothing falls back to neon */
+@define-color scan-3     @o-rule;
+@define-color scan-4     @o-rule;
+@define-color scan-5     @o-rule;
+@define-color surface    rgba(14, 22, 38, 0.96);
+@define-color groove     rgba(7, 11, 20, 0.85);
+@define-color edge       @o-rule;
+@define-color edge-lit   @o-rule-hi;
+@define-color text       @o-text;
+@define-color text-dim   @o-dim;
+@define-color text-bright @o-bright;      /* typed text and the hero name, never #ffffff */
+@define-color ink        @o-bright;       /* text on a selected key: the key stays dark */
+/* GTK3 draws an entry's placeholder in this name when the provider has it,
+   else a fixed #808080; the dim label colour instead, 6.9:1 in the well. */
+@define-color placeholder_text_color #8a9bb4;
+
+/* --- The card: a console face with a header rule --------------------------------- */
+#card {
+    border-radius: 3px;
+    border: 1px solid @o-rule;
+    border-bottom: 1px solid @o-rule;
+    animation: none;
+    background-color: @surface;
+    background-image: linear-gradient(to right,
+            @cyan 0%, @cyan 14%, @o-rule-hi 14%, @o-rule 100%);
+    background-size: 100% 2px;
+    background-position: 0% 0%;
+    background-repeat: no-repeat;
+    box-shadow: 0 4px 14px @o-shade;
+}
+
+/* --- Search: the readout well ---------------------------------------------------- */
+#search {
+    border-radius: 3px;
+    border: 1px solid @o-rule;
+    border-bottom: 1px solid @o-rule;
+    box-shadow: inset 0 -2px 0 @cyan;
+    caret-color: @cyan;
+    color: @o-bright;
+    letter-spacing: 0.02em;
+}
+
+#search image {
+    color: @cyan;
+}
+
+#search selection {
+    background-color: alpha(@cyan, 0.30);
+    color: @o-bright;
+}
+
+/* --- The best match: a console key ------------------------------------------------ */
+#hero {
+    border-radius: 3px;
+    border: 1px solid @o-rule;
+    border-left: 3px solid @o-rule;
+    background-color: alpha(@o-raised, 0.35);
+    background-image: none;
+    transition: background-color 100ms ease-out, border-color 100ms ease-out;
+}
+
+#hero.selected {
+    background-color: @o-raised;
+    background-image: none;
+    border-color: alpha(@cyan, 0.55);
+    border-left-color: @cyan;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+label.hero-name {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+}
+
+/* The key hint: a small mono key cap on the floor colour. */
+label.hero-hint {
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    font-size: 12px;
+    color: @o-dim;
+    background-color: @o-base;
+    border: 1px solid @o-rule-hi;
+    border-radius: 2px;
+}
+
+#hero.selected label.hero-name,
+#hero.selected label.clip-hero-text { color: @o-bright; }
+#hero.selected label.hero-sub       { color: @o-dim; }
+#hero.selected label.hero-hint {
+    color: @cyan;
+    border-color: alpha(@cyan, 0.55);
+}
+
+label.empty {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    letter-spacing: 0.08em;
+}
+
+/* --- Tiles: console keys; the teal line marks the chosen one ---------------------- */
+.tile {
+    border-radius: 3px;
+    background-color: alpha(@o-raised, 0.25);
+    background-image: none;
+    border: 1px solid alpha(@o-rule, 0.70);
+    border-bottom: 1px solid @o-rule;
+    transition: background-color 100ms ease-out, border-color 100ms ease-out;
+}
+
+.tile:hover {
+    background-color: alpha(@o-raised, 0.60);
+    border-color: @o-rule-hi;
+    border-bottom-color: @o-rule-hi;
+}
+
+.tile.selected,
+.tile.selected:hover {
+    background-color: @o-raised;
+    background-image: none;
+    border: 1px solid alpha(@cyan, 0.55);
+    border-bottom: 1px solid alpha(@cyan, 0.55);
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+.tile.selected label.tile-name {
+    color: @o-bright;
+}
+
+.tile.selected label.clip-text {
+    color: @o-bright;
+}
+
+.tile.selected label.clip-caption {
+    color: @o-dim;
+}
+
+label.clip-caption {
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+}
+
+scrollbar slider {
+    min-width: 3px;
+    border-radius: 2px;
+}

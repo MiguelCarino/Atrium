@@ -1,0 +1,591 @@
+/* ===========================================================================
+   LO-FI -- the bar and the toolbox card (~/.config/waybar/style.css and
+   style-toolbox.css). Copied to waybar/generated/theme.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST, after the accent, so the
+   palette below wins over the base file's and the rules below win over its
+   rules of the same selector.
+
+   The look in one line: a study room at dusk. Every pill is a soft, round
+   (radius 12) piece of dusky violet-indigo glass floating over the wallpaper
+   -- the bar's own strip stays a hole, as in moe -- with
+
+     1. a faint FILM GRAIN over the glass (grain.png, the first
+        background-image layer: 128x128, each pixel white or black at random,
+        alpha |N(0, 9)| clipped to 24/255, numpy default_rng(1729) -- so it is
+        the same grain every time it is rebuilt). Re-checked on a pill:
+        cream on the grained glass averages 11.1:1 against 11.5:1 without
+        (pd; 9.5 against 9.8 over pb) -- a 0.3-0.4 shift, white grains
+        lightening a little more than black ones darken -- and even a 2x2
+        patch of the very brightest grains stays at 9.5:1 (8.1 over pb);
+     2. a 1px lilac hairline (alpha 0.22) round the pane;
+     3. the accent as LAMPLIGHT: a warm floor rising from the bottom edge, the
+        base's lit bottom edge in peach, and on lit items and on hover a soft
+        2px lamp glow inside that edge (inset, 0.55 at rest, 0.75 on hover);
+     4. cream text, never white, and no text shadow;
+     5. the clock in Comfortaa, everything else in Nunito (theme.conf font=;
+        theme.py swaps it, IBM Plex Sans as fallback, into every base rule).
+
+   HDR: the pills are DARK. rgba(42, 34, 68, 0.80) over the wallpaper's dark
+   top band (#191528) is #271f3e, luminance 0.018 ("pd"); over the brightest
+   band make-lofi-wallpaper.py allows (#5a4a6e, its QUIET cap) it is #342a4c,
+   0.029 ("pb"). Measured (WCAG) on pd / pb:
+       text        #e8dccb   11.5 / 9.8   (cream)
+       text-dim    #bfaebf    7.4 / 6.3   (mauve)
+       haze        #a091aa    5.3 / 4.5   (hints only)
+       accent      #f2a477    7.7 / 6.5   (peach: the clock is cream, lit
+                                           glyphs and toggles peach)
+       peach-lt    #f6b48c    8.7 / 7.5
+       lilac       #b9a3ea    7.0 / 6.0   (structure: ex-magenta)
+       sage/honey/berry as text: 9.4 / 8.1, 10.7 / 9.1, 6.6 / 5.7
+   Hover is rgba(56, 45, 86, 0.86): #372d55 over pb, cream 9.3:1, L 0.033.
+   The night light's peach wash: #f6c8a4 on it 7.2 / 6.7:1.
+   The only light fills are small ones, all set opaque or near it so the
+   backdrop cannot pull them down: the location pill (honey 0.85, ink
+   8.3:1), the mic pill (berry, opaque, ink 6.9:1), the camera pill and the
+   failed health check (capture red, opaque, ink 5.8:1).
+
+   Accent rules: @cyan is the accent ROLE, peach #f2a477 from theme.conf
+   (fixed; a custom accent from the display panel replaces it everywhere
+   through @cyan). It is light and lamp, NEVER a status: good is sage, warn
+   honey, bad berry, critical a deep berry fill under cream -- and warn/bad
+   pills always keep their glyph too. The base files' STRUCTURAL magenta is
+   put back to lilac (the list is at the rule further down), as aero puts it
+   back to sky, so a red-pink edge means "bad / this ends something" only.
+
+   Theme names start with l- and are defined here (stylesheets do not
+   inherit; panel.css, launcher.css... define the ones they use again).
+   =========================================================================== */
+
+/* --- the theme's own names ---------------------------------------------------- */
+@define-color l-night    #1c1830;   /* deepest: terminal, mascot stage */
+@define-color l-dusk     #2a2342;   /* raised surfaces */
+@define-color l-plum     #3a2f55;   /* hover, knob track */
+@define-color l-cream    #e8dccb;   /* text */
+@define-color l-cream-hi #f3e9dc;   /* text-bright: there is no #ffffff in this theme */
+@define-color l-mauve    #bfaebf;   /* dim text */
+@define-color l-haze     #a091aa;   /* dimmer: hints only */
+@define-color l-peach    #f2a477;   /* = accent=; a FIXED peach, where a custom accent must not reach */
+@define-color l-peach-lt #f6b48c;   /* peach as text where a lighter tone reads better */
+@define-color l-lilac    #b9a3ea;   /* structure (the base's magenta), second accent */
+@define-color l-rain     #8fbfe0;   /* cool: net down, rain, monitor 2 */
+@define-color l-teal     #84cbc8;   /* monitor 3 */
+@define-color l-sage     #a6d6a0;   /* good */
+@define-color l-honey    #e8d77a;   /* warn */
+@define-color l-berry    #f58a98;   /* bad */
+@define-color l-crit     #9c3352;   /* critical fill: cream 5.5, cream-hi 6.2 over pb */
+@define-color l-capture  #f2737d;   /* REC / camera: redder than berry */
+@define-color l-rec      #a82c3c;   /* the REC pill's lit fill: cream-hi 6.2:1 */
+@define-color l-ink      #2a1d2a;   /* text on any light fill */
+@define-color l-shade    rgba(8, 5, 18, 0.55);
+
+/* --- PALETTE 1: hues ------------------------------------------------------------
+   @cyan is the accent ROLE: peach #f2a477 from theme.conf, not redefined here.
+   @magenta is the base files' "this ends something / bad" hue; its
+   structural uses are put back to lilac further down. */
+@define-color magenta    #f58a98;   /* bad / ends-something only */
+@define-color yellow     #e8d77a;   /* warn: honey */
+@define-color green      #a6d6a0;   /* good: sage */
+@define-color purple     #c8b4f0;   /* UTC clock, work hours */
+@define-color red        #f2737d;   /* REC, camera */
+@define-color mist       #bfaebf;
+@define-color steel      #9d93ad;   /* neutral: 4.6:1 on pb */
+@define-color slate      #7d7392;   /* a darker steel: only ever a faint wash */
+
+/* --- PALETTE 2: surfaces, edges, text ------------------------------------------ */
+@define-color surface        rgba(42, 34, 68, 0.80);
+@define-color surface-hover  rgba(56, 45, 86, 0.86);
+@define-color surface-dense  rgba(36, 30, 58, 0.88);   /* tray pill, toolbox card: #261f3c over pb */
+@define-color surface-solid  #241e3a;                  /* tray menu: a real popup, no blur (cream 11.7) */
+@define-color edge           alpha(#b9a3ea, 0.22);     /* the lilac hairline */
+@define-color edge-lit       alpha(@cyan, 0.75);       /* the lamp-lit bottom edge, hover */
+@define-color accent         alpha(@cyan, 0.26);       /* accent WASH: cream on it 6.6 / 5.8 */
+@define-color text           #e8dccb;
+@define-color text-dim       #bfaebf;                  /* solid, not the base's alpha(mist) */
+@define-color text-bright    #f3e9dc;
+@define-color ink            #2a1d2a;                  /* on a full peach fill: 7.9:1 */
+@define-color ink-warn       #2a1d2a;                  /* on the honey location pill: 8.3:1 */
+
+/* --- PALETTE 3: workspaces: one quiet hue per screen ----------------------------
+   Lilac, rain blue, teal: told apart by hue, none of them the accent or a
+   status colour. The lit pill is a 26% wash of its hue (cream on it 5.9 /
+   5.7 / 5.6:1 over pb, 6.8 / 6.5 / 6.4 over pd); the unlit numbers are the
+   hue lifted towards cream, 7.6 / 8.2 / 8.7:1 over pb. */
+@define-color mon1-hue   #b9a3ea;
+@define-color mon2-hue   #8fbfe0;
+@define-color mon3-hue   #84cbc8;
+@define-color mon1       alpha(@mon1-hue, 0.26);
+@define-color mon1-dim   #cbbcf0;
+@define-color mon2       alpha(@mon2-hue, 0.26);
+@define-color mon2-dim   #acd0ea;
+@define-color mon3       alpha(@mon3-hue, 0.26);
+@define-color mon3-dim   #a3dbd8;
+@define-color mon-unknown alpha(@steel, 0.30);
+/* workspace-tint.py writes `color: @mon-unknown-dim` for a workspace with no
+   home screen; the base never defines it, so it is defined here. */
+@define-color mon-unknown-dim #b3aac2;
+
+/* --- PALETTE 4: clock modes, status, alerts -------------------------------------
+   The base sets these washes as the pill's background-color, and a pill
+   has only one: the wash REPLACES the dusk surface rather than lying on
+   it. A thin 16-24% wash would then sit straight on the wallpaper, and
+   over the brightest band allowed (pb) its text fell to 3.5-4.2:1. So each
+   wash is the hue already mixed into the opaque dusk rgb(42, 34, 68) (the
+   first number in each comment is that hue's share), at 0.92: the
+   backdrop barely shows, the pills stay dark and still differ by hue.
+   Measured fg on wash, over pd / pb: */
+@define-color utc        rgba(80, 69, 109, 0.92);   /* purple 24% */
+@define-color utc-fg     #d6c8ff;                   /* 6.0 / 5.6 */
+@define-color epoch      rgba(72, 63, 77, 0.92);    /* honey 16% */
+@define-color epoch-fg   #f2e4a0;                   /* 8.2 / 7.7 */
+@define-color good       rgba(67, 70, 86, 0.92);    /* sage 20% */
+@define-color good-fg    #bfe5b8;                   /* 7.1 / 6.7 */
+@define-color warn       rgba(80, 70, 79, 0.92);    /* honey 20% */
+@define-color warn-fg    #f2e4a0;                   /* 7.5 / 7.0 */
+/* bad-fg is a shade lighter than the first draft's #f8acb6; #fab8c0 is
+   the lightest berry that still reads as berry. */
+@define-color bad        rgba(87, 57, 86, 0.92);    /* berry 22% */
+@define-color bad-fg     #fab8c0;                   /* 6.3 / 5.9 */
+/* Critical: the deep berry under cream-hi (6.3 / 6.2:1); the CPU / GPU
+   labels turn cream-hi there too (color.cpu_hot draws them in a Pango
+   span, which the CSS colour cannot reach). So the blink below is
+   redefined to end on a dimmer berry under cream-hi too (9.4 / 6.4:1),
+   not the base's @magenta under @ink, which put the cream-hi labels on
+   berry at 1.9:1. */
+@define-color critical   alpha(#9c3352, 0.92);
+@define-color rec-edge   rgba(242, 115, 125, 0.60);
+@define-color rec-dim    rgba(90, 20, 40, 0.85);   /* the dim end of the REC pulse: cream-hi 11.4 */
+/* Night light: a lamp, so warm peach-honey rather than the base's orange
+   (which would sit right between the accent and warn). */
+@define-color night      rgba(78, 57, 77, 0.92);    /* peach 18% */
+@define-color night-fg   #f6c8a4;                   /* 7.2 / 6.7 */
+@define-color night-edge #f2a477;
+
+/* Nunito is a little wider and rounder than Plex; 14px and semi-bold keep
+   it crisp on the glass. */
+* {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* ---------------------------------------------------------------------------
+   The pill. Same selector list as the base file's shared pill, so this comes
+   later at equal specificity and wins. Only the properties that MAKE the
+   look are set: shape, the grain and the lamp floor, the (absent) shadow.
+   Colour and border colours stay the base's per-pill rules (the CPU edge,
+   the state washes, the power pill), which this list would otherwise
+   flatten -- as aero explains in its file.
+   --------------------------------------------------------------------------- */
+#clock,
+#custom-day,
+#custom-clock,
+#custom-updates,
+#custom-weather,
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#network,
+#custom-network,
+#pulseaudio,
+#backlight,
+#battery,
+#temperature,
+#tray,
+#custom-player,
+#privacy,
+#custom-fsstate,
+#custom-nightlight,
+#custom-awake,
+#custom-keybinds,
+#custom-settings,
+#custom-toolbox,
+#custom-power,
+#custom-capture,
+#custom-repos,
+#custom-timers,
+#custom-workhours,
+#custom-context,
+#custom-notifications,
+#custom-display,
+#language,
+#submap,
+#window {
+    border-radius: 12px;
+    background-image: url("file://~/.config/themes/lofi/grain.png"),
+                      linear-gradient(to bottom,
+                        alpha(@cyan, 0.00) 0%,
+                        alpha(@cyan, 0.00) 60%,
+                        alpha(@cyan, 0.08) 100%);
+    box-shadow: none;
+    text-shadow: none;
+    transition: background-color 260ms ease-out, box-shadow 260ms ease-out,
+                border-color 260ms ease-out;
+}
+
+/* Hover: the lamp comes up -- the warm floor climbs higher and a soft 2px
+   glow lights inside the bottom edge. Slow, like everything here. */
+#clock:hover,
+#custom-day:hover,
+#custom-clock:hover,
+#custom-updates:hover,
+#custom-weather:hover,
+#custom-cpu:hover,
+#custom-gpu:hover,
+#custom-disk:hover,
+#network:hover,
+#custom-network:hover,
+#pulseaudio:hover,
+#tray:hover,
+#custom-player:hover,
+#privacy:hover,
+#custom-fsstate:hover,
+#custom-nightlight:hover,
+#custom-awake:hover,
+#custom-keybinds:hover,
+#custom-settings:hover,
+#custom-toolbox:hover,
+#custom-power:hover,
+#custom-repos:hover,
+#custom-timers:hover,
+#custom-workhours:hover,
+#custom-context:hover,
+#custom-notifications:hover,
+#custom-display:hover,
+#custom-capture:hover {
+    background-image: url("file://~/.config/themes/lofi/grain.png"),
+                      linear-gradient(to bottom,
+                        alpha(@cyan, 0.00) 0%,
+                        alpha(@cyan, 0.00) 40%,
+                        alpha(@cyan, 0.14) 100%);
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.75);
+}
+
+/* Lit items -- a toggle that is on, a timer counting, the project you are
+   in: the lamp glow at rest. (The base writes `box-shadow: none` on several
+   of these at id.class specificity; these come later and win.) */
+#custom-toolbox.open,
+#custom-display.on,
+#custom-fsstate.mode-a,
+#custom-context.active,
+#custom-timers.timer,
+#custom-timers.alarm,
+#custom-timers.stopwatch {
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.55);
+}
+
+/* --- Joined capsules: [date | time | weather] and [updates | git | bell] ---
+   One pane each, rounded only at its two outer ends; the parts share a
+   faint lilac seam. */
+#custom-day,
+#custom-updates {
+    border-radius: 12px 0px 0px 12px;
+    border-right-color: alpha(#b9a3ea, 0.14);
+}
+
+#custom-clock,
+#custom-repos {
+    border-radius: 0px;
+    border-left-color: alpha(#b9a3ea, 0.14);
+    border-right-color: alpha(#b9a3ea, 0.14);
+}
+
+#custom-weather,
+#custom-notifications {
+    border-radius: 0px 12px 12px 0px;
+    border-left-color: alpha(#b9a3ea, 0.14);
+}
+
+/* --- Date and time --------------------------------------------------------------
+   The clock in Comfortaa, cream: a quiet readout, the lamp is elsewhere.
+   Comfortaa's digits are proportional (it has no tabular figures: a "1" is
+   two thirds of a "4"), so the width is held -- HH:MM:SS at 15px is at most
+   ~64px wide. Epoch mode (a ten-digit count that ticks every second) is set
+   in Nunito instead, whose digits are tabular, so it never twitches. */
+#custom-clock,
+#custom-clock.local {
+    font-family: "Comfortaa", "Nunito", sans-serif;
+    font-size: 15px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    color: @text;
+    min-width: 66px;
+}
+
+#custom-clock.epoch {
+    font-family: "Nunito", "IBM Plex Sans", sans-serif;
+}
+
+#custom-day {
+    color: @text-dim;
+}
+
+/* --- Structural magenta, put back to lilac ----------------------------------------
+   Changed from the base (where @magenta is structure, not "bad"):
+       #custom-cpu              edge and bottom edge
+       #custom-player.playing   bottom edge
+       #custom-updates.pending  bottom edge (the "something to do" floor)
+       #custom-recording.replay bottom edge (a quiet capture hint; set
+                                after the voice rules below, whose border
+                                shorthand would reset it)
+   (panel.css does the same for the calendar's weekdays and the section
+   underlines; its headings are peach-lt Comfortaa.) The base's magenta uses
+   that DO mean bad or "ends something" stay berry: muted audio, a lost
+   network, unpushed work, power, the fsstate error. */
+#custom-cpu {
+    border-color: alpha(#b9a3ea, 0.30);
+    border-bottom-color: alpha(#b9a3ea, 0.85);
+}
+
+#custom-gpu {
+    border-color: alpha(@green, 0.22);
+    border-bottom-color: alpha(@green, 0.80);
+}
+
+#custom-player.playing {
+    border-bottom-color: @l-lilac;
+}
+
+#custom-updates.pending {
+    border-bottom-color: @l-lilac;
+}
+
+/* --- CPU / GPU: hold their width while digits tick ------------------------------ */
+#custom-cpu,
+#custom-gpu {
+    color: @text;
+}
+
+/* The base gives this a faint slate wash as its background-color, which
+   replaces the dusk surface (text-dim on it 3.4:1 over pb); the plain
+   surface keeps it at 7.4 / 6.3. */
+#custom-gpu.unavailable {
+    background-color: @surface;
+    color: @text-dim;
+}
+
+/* --- Workspaces: one grained pane, round number buttons inside ------------------- */
+#workspaces {
+    border-radius: 12px;
+    background-image: url("file://~/.config/themes/lofi/grain.png"),
+                      linear-gradient(to bottom,
+                        alpha(@cyan, 0.00) 60%,
+                        alpha(@cyan, 0.08) 100%);
+    box-shadow: none;
+}
+
+#workspaces button {
+    border-radius: 10px;
+    transition: background-color 260ms ease-out, color 260ms ease-out;
+}
+
+#workspaces button:hover {
+    background-color: alpha(@l-plum, 0.70);
+    color: @text;
+}
+
+/* The lit pill: its screen's wash (the generated rules), cream number, a
+   faint lilac ring, no gloss -- a lamp-lit spot, not a button. */
+#workspaces button.active {
+    color: @text;
+    background-image: none;
+    box-shadow: inset 0 0 0 1px alpha(@l-cream, 0.16);
+}
+
+#workspaces button.active label {
+    font-weight: 800;
+}
+
+#workspaces button.urgent,
+#workspaces button.active.urgent {
+    color: @text-bright;
+    box-shadow: none;
+}
+
+/* --- Toggles that are on: peach as TEXT (7.7:1), a warm wash under it ----------- */
+#custom-toolbox:hover,
+#custom-toolbox.open,
+#custom-display.on,
+#custom-fsstate.mode-a {
+    color: @cyan;
+}
+
+/* --- Power: berry glyph and floor, a dark pane -- "this ends something" ----------- */
+#custom-power {
+    border-color: alpha(@magenta, 0.30);
+    border-bottom-color: alpha(@magenta, 0.85);
+    background-image: url("file://~/.config/themes/lofi/grain.png"),
+                      linear-gradient(to bottom,
+                        alpha(@magenta, 0.00) 0%,
+                        alpha(@magenta, 0.00) 60%,
+                        alpha(@magenta, 0.10) 100%);
+}
+
+#custom-power:hover {
+    color: @bad-fg;
+    background-image: url("file://~/.config/themes/lofi/grain.png"),
+                      linear-gradient(to bottom,
+                        alpha(@magenta, 0.00) 0%,
+                        alpha(@magenta, 0.00) 40%,
+                        alpha(@magenta, 0.16) 100%);
+    box-shadow: inset 0 -2px 0 alpha(@magenta, 0.75);
+}
+
+/* --- Privacy, recording, voice: small fills, readable at every moment -----------
+   The base writes white text on these fills. Here a light fill (berry mic,
+   red camera) carries ink, and a fill that breathes (REC, voice) is deep,
+   so cream stays readable at both ends of the pulse. The light fills are
+   set here, not left to the base: its berry 0.75 / red 0.85 let the dark
+   wallpaper through and dropped ink to 4.3-4.5:1. Measured over pd:
+       mic       berry, opaque, ink     6.9:1
+       camera    red, opaque, ink       5.8:1  (cream would be 2.9)
+       doctor    (failed) the same red, ink 5.8:1
+       location  honey 0.85, ink        8.3:1
+       REC       #a82c3c 0.90, cream-hi 6.2:1 -> rec-dim 11.4:1
+       voice     berry #9c3352 0.90, cream-hi 6.4:1 -> rec-dim */
+#custom-mic,
+#custom-camera,
+#custom-location,
+#custom-recording,
+#custom-voice,
+#custom-doctor,
+#custom-tasks,
+#custom-drives,
+#custom-phone {
+    border-radius: 12px;
+}
+
+#custom-mic.active      { background-color: @l-berry;   color: @ink; border-color: alpha(@l-cream, 0.30); }
+#custom-camera.active   { background-color: @l-capture; color: @ink; border-color: alpha(@l-cream, 0.30); }
+#custom-location.active { border-color: alpha(@l-cream, 0.30); }
+
+#custom-recording,
+#custom-voice {
+    color: @text-bright;
+    border-color: alpha(@l-cream, 0.30);
+}
+
+#custom-recording.recording {
+    background-color: alpha(@l-rec, 0.90);
+    border-bottom-color: @l-capture;
+}
+
+#custom-voice.recording {
+    background-color: alpha(@l-crit, 0.90);
+}
+
+#custom-recording.replay,
+#custom-voice.busy,
+#custom-voice.captions {
+    color: @text-dim;
+    border-color: @edge;
+}
+
+/* The shorthand above resets all four edges; give the replay pill back its
+   lilac floor (the structural block's quiet capture hint). */
+#custom-recording.replay {
+    border-bottom-color: alpha(#b9a3ea, 0.55);
+}
+
+/* The health / tasks / drives / phone pills: the lilac hairline, and ink on
+   their light alert fills (the base writes white on red there). */
+#custom-doctor,
+#custom-tasks,
+#custom-drives,
+#custom-phone {
+    border-color: @edge;
+    background-image: url("file://~/.config/themes/lofi/grain.png");
+}
+
+#custom-doctor.fail {
+    background-color: @l-capture;
+    color: @ink;
+}
+
+#custom-phone.low {
+    color: @warn-fg;
+}
+
+/* --- The capture pill while recording -------------------------------------------
+   The base breathes the camera glyph between @red and alpha(@red, 0.30); on
+   this dusk glass that dim end measured 1.6:1, the glyph all but gone once a
+   second. Here it breathes between the capture red (5.6 / 4.8:1) and a
+   lighter coral (6.9 / 5.9:1): a change of light, never a fade-out. Same
+   keyframes name as the base: GTK keeps the last @keyframes of a name, and
+   this file comes after style.css. */
+#custom-capture.recording,
+#custom-capture.recording:hover {
+    color: @l-capture;
+    border-color: alpha(@l-capture, 0.70);
+}
+
+@keyframes cap-pulse {
+    to {
+        color: #f8a8ae;
+        border-color: alpha(@l-capture, 0.30);
+    }
+}
+
+/* The critical blink (CPU, GPU, battery), redefined for the same reason as
+   cap-pulse above. The base ends on @magenta under @ink, but the CPU / GPU
+   labels are cream-hi Pango spans that ignore the CSS colour, so they sat
+   on berry at 1.9:1. Here both ends are deep berry under cream-hi: 0.92
+   (6.2:1 over pb) breathing down to 0.55 (6.4 over pb, 9.4 over pd). */
+@keyframes blink {
+    to {
+        background-color: alpha(@l-crit, 0.55);
+        color: @text-bright;
+        text-shadow: none;
+        box-shadow: none;
+    }
+}
+
+/* --- Tray menu: a real popup (no blur behind it), so a solid dusk card ----------- */
+#tray menu {
+    border: 1px solid @edge;
+    border-radius: 12px;
+    padding: 6px;
+    background-color: @surface-solid;
+    background-image: url("file://~/.config/themes/lofi/grain.png");
+    color: @text;
+}
+
+#tray menu menuitem {
+    border-radius: 8px;
+    padding: 4px 14px;
+}
+
+#tray menu menuitem:hover {
+    background-color: alpha(@cyan, 0.30);
+    color: @text-bright;
+}
+
+/* --- The toolbox card (style-toolbox.css) -----------------------------------------
+   By the bar's name class, so the main bar's own (unpainted) .modules-left
+   is never matched: this file is imported by both bars. A denser pane (cream
+   11.6:1, dim 7.5:1 over pb), radius 16, the grain, and a soft shadow;
+   widths are the base's (scripts/toolbox_fit.py sizes the layer to them),
+   so only the look changes here. */
+window#waybar.waybar-toolbox .modules-left {
+    border: 1px solid @edge;
+    border-bottom-color: alpha(@cyan, 0.45);
+    border-radius: 16px;
+    background-color: @surface-dense;
+    background-image: url("file://~/.config/themes/lofi/grain.png");
+    box-shadow: 0 4px 12px @l-shade;
+}
+
+window#waybar.waybar-toolbox #custom-fsstate,
+window#waybar.waybar-toolbox #custom-nightlight,
+window#waybar.waybar-toolbox #custom-awake,
+window#waybar.waybar-toolbox #custom-display,
+window#waybar.waybar-toolbox #custom-keybinds,
+window#waybar.waybar-toolbox #custom-settings,
+window#waybar.waybar-toolbox #tray {
+    border-radius: 10px;
+}
+
+window#waybar.waybar-toolbox #tray {
+    /* Tray icons are the apps' own art (a white Steam, a black keyboard...):
+       a mid dusk well keeps both visible. */
+    background-color: #4a3f66;
+    background-image: none;
+}

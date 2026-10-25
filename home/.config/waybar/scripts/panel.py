@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Lifetime of the bar's popup panels: media, calendar, shortcuts, audio, network, cpu, gpu, disk, weather, power, language, capture, display, repos, notifications, updates.
+"""Lifetime of the bar's popup panels: media, calendar, clock, shortcuts, audio, network, cpu, gpu, disk, weather, power, language, capture, display, repos, notifications, updates.
 
-    panel.py toggle <flyout|calendar|keybinds|audio|network|cpu|gpu|disk|weather|power|language|capture|display|repos|notifications|updates|logs>    show it, or hide it if it is already up
-    panel.py close  <flyout|calendar|keybinds|audio|network|cpu|gpu|disk|weather|power|language|capture|display|repos|notifications|updates|logs>    hide it unconditionally
+    panel.py toggle <flyout|calendar|clock|keybinds|audio|network|cpu|gpu|disk|weather|power|language|capture|display|repos|notifications|updates|logs>    show it, or hide it if it is already up
+    panel.py close  <flyout|calendar|clock|keybinds|audio|network|cpu|gpu|disk|weather|power|language|capture|display|repos|notifications|updates|logs>    hide it unconditionally
     panel.py close-all                   used when the bar itself goes away
     panel.py toggle power                the session menu: lock, suspend, log out, reboot, power off
     panel.py toggle <name> --at X,Y      open centred on X,Y instead of the pointer
@@ -30,6 +30,7 @@ RUNTIME = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "waybar-panels
 PANELS = {
     "flyout": "flyout.py",
     "calendar": "calendar_panel.py",
+    "clock": "clock_panel.py",
     "keybinds": "keybinds_panel.py",
     "audio": "audio_panel.py",
     "network": "network_panel.py",

@@ -10,7 +10,8 @@ what each output does and what it never does).
     THEME         "theme follows ambience" (off as shipped) and a theme for
                   focus blocks
     SOUND         the notification sound's volume in focus / at night; the
-                  soundscape (rain, cafe, brown noise), when, how loud
+                  soundscape (rain, cafe, brown noise, vinyl, the weather's or the
+                  theme's), when, how loud
     SMART LIGHTS  off / Philips Hue / Home Assistant: finding them on the
                   network, pairing (Hue's button) or the address + token (Home
                   Assistant), the brightness per mood, lights off when away,
@@ -30,7 +31,7 @@ import os  # noqa: E402
 
 PAGE = {"id": "ambient", "title": "Ambient", "icon": "\uf185", "group": "Look", "order": 20, "parent": "theme", "tab": "Ambient",
         "keywords": ["ambience", "ambiente", "mood", "weather", "time of day", "soundscape", "rain sound",
-                     "brown noise", "white noise", "cafe", "focus music", "smart lights", "philips hue", "hue",
+                     "brown noise", "white noise", "cafe", "vinyl", "crackle", "focus music", "smart lights", "philips hue", "hue",
                      "home assistant", "luces", "lights", "scene", "warm", "calm animations",
                      "notification volume", "wallpaper dim", "tint"]}
 
@@ -48,7 +49,7 @@ LOOK = [
 ]
 SOUND = [
     ("notify", "\uf0f3", "Quieter notification sounds", "in a focus block and at night"),
-    ("soundscape", "\uf001", "Soundscape", "rain, a cafe or brown noise, played softly"),
+    ("soundscape", "\uf001", "Soundscape", "rain, a cafe, brown noise or vinyl, played softly"),
 ]
 MORE = [
     ("dnd_focus", "\uf140", "Do Not Disturb counts as focus", "not only a focus block"),
@@ -58,7 +59,8 @@ MOOD_NAMES = {"day": "Day", "relax": "Evening", "focus": "Focus", "night": "Nigh
 STRENGTH = [("subtle", "Subtle"), ("medium", "Noticeable")]
 ANIM_WHEN = [("focus", "In focus blocks"), ("night", "At night"), ("both", "Both")]
 ANIM_STYLE = [("gentle", "Gentle"), ("still", "Fades only")]
-KINDS = [("rain", "Rain"), ("cafe", "Cafe"), ("brown", "Brown noise"), ("weather", "Like the weather")]
+KINDS = [("rain", "Rain"), ("cafe", "Cafe"), ("brown", "Brown noise"), ("vinyl", "Vinyl & rain"),
+         ("weather", "Like the weather"), ("theme", "The theme's")]
 SOUND_WHEN = [("focus", "Focus blocks"), ("relax", "Focus blocks and evenings")]
 MUSIC = [("pause", "Quiet while music plays"), ("keep", "Even with music")]
 PROVIDERS = [("off", "Off"), ("hue", "Philips Hue"), ("ha", "Home Assistant")]

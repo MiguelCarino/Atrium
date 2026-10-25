@@ -44,7 +44,8 @@ SOCKETS = "/tmp/mpvSockets"
 # The names and what each looks like; the fields are in lua/mpvframe.lua.
 FRAMES = {
     "theme":   "the theme's own (aero: a wide glass pane; cyberpunk: neon; "
-               "moe: a pastel ribbon; matrix: a phosphor line; win95: a raised bevel)",
+               "moe: a pastel ribbon; matrix: a phosphor line; win95: a raised bevel; lofi: a peach-lilac cassette band; "
+               "luna: a blue XP title-bar frame; orbit: a teal-to-steel console hairline)",
     "cinema":  "no border, square corners, no shadow",
     "thin":    "a 1 px border",
     "bold":    "a 4 px border",

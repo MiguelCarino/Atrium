@@ -1,0 +1,309 @@
+/* ===========================================================================
+   LO-FI -- libadwaita / GTK4 (Nautilus). Becomes ~/.config/gtk-4.0/gtk.css
+   (theme.py). theme.conf keeps gtk_color_scheme=prefer-dark and this file
+   sets every colour libadwaita varies by scheme, as moe's and win95's do:
+   under prefer-light a running Nautilus fell back to stock white until
+   restarted.
+
+   A dark dusk Nautilus: the window, sidebar and view are violet-indigo a
+   little translucent (hypr.lua next to this file keeps blur on for
+   Nautilus, and the frost carries the wallpaper's dusk through), the header
+   a shade lighter like a raised shelf, cream text, peach for the accent
+   (text and selection fills, ink #2a1d2a on it 7.9:1), lilac hairlines,
+   everything rounded (14). Folders are pale orange (icon_theme=Lofi:
+   Papirus-Dark, paleorange).
+
+   HDR: the view is the largest field, so it is the darkest -- rgba(30,25,
+   48,0.97), #241f35-ish over a dark desktop (luminance 0.016); even over a
+   WHITE window behind it, the worst case, every field stays dark:
+       view     #252036  L 0.017   text 11.6  dim 7.5  peach 7.7  berry 6.7
+       window   #2d2742  L 0.024   text 10.5  dim 6.8  peach 7.0  berry 6.1
+       sidebar  #332c4a  L 0.030   text  9.7  dim 6.3
+       header   #3a3055  L 0.037   text  9.0  dim 5.8
+   (text #e8dccb, dim #bfaebf, peach #f2a477, berry #f58a98). The only light
+   fills are small: a selected tile, a switch, the progress bar.
+   =========================================================================== */
+
+:root {
+    --accent-bg-color: #f2a477;
+    --accent-fg-color: #2a1d2a;
+    --accent-color: #f2a477;
+
+    /* Destructive / error: the deep berry fill under cream (5.6:1), the
+       light berry as text. Success and warning are the bar's sage and
+       honey fills under ink. */
+    --destructive-bg-color: #9c3352;
+    --destructive-fg-color: #f3e9dc;
+    --destructive-color: #f58a98;
+    --success-bg-color: #a6d6a0;
+    --success-fg-color: #2a1d2a;
+    --success-color: #a6d6a0;
+    --warning-bg-color: #e8d77a;
+    --warning-fg-color: #2a1d2a;
+    --warning-color: #e8d77a;
+    --error-bg-color: #9c3352;
+    --error-fg-color: #f3e9dc;
+    --error-color: #f58a98;
+
+    --window-bg-color: rgba(36, 30, 58, 0.96);
+    --window-fg-color: #e8dccb;
+    --view-bg-color: rgba(30, 25, 48, 0.97);
+    --view-fg-color: #e8dccb;
+    --headerbar-bg-color: rgba(52, 42, 80, 0.97);
+    --headerbar-fg-color: #e8dccb;
+    --headerbar-border-color: rgba(185, 163, 234, 0.22);
+    --headerbar-backdrop-color: rgba(42, 35, 66, 0.97);
+    --headerbar-shade-color: rgba(8, 5, 18, 0.40);
+    --headerbar-darker-shade-color: rgba(8, 5, 18, 0.55);
+    --sidebar-bg-color: rgba(42, 35, 66, 0.96);
+    --sidebar-fg-color: #e8dccb;
+    --sidebar-backdrop-color: rgba(38, 32, 60, 0.96);
+    --sidebar-border-color: rgba(185, 163, 234, 0.18);
+    --sidebar-shade-color: rgba(8, 5, 18, 0.35);
+    --secondary-sidebar-bg-color: rgba(42, 35, 66, 0.96);
+    --secondary-sidebar-fg-color: #e8dccb;
+    --secondary-sidebar-backdrop-color: rgba(38, 32, 60, 0.96);
+    --secondary-sidebar-border-color: rgba(185, 163, 234, 0.18);
+    --secondary-sidebar-shade-color: rgba(8, 5, 18, 0.35);
+    --card-bg-color: rgba(255, 240, 225, 0.05);
+    --card-fg-color: #e8dccb;
+    --card-shade-color: rgba(8, 5, 18, 0.35);
+    --overview-bg-color: #1e1a30;
+    --overview-fg-color: #e8dccb;
+    --thumbnail-bg-color: #2a2342;
+    --thumbnail-fg-color: #e8dccb;
+    --dialog-bg-color: #2a2342;
+    --dialog-fg-color: #e8dccb;
+    --popover-bg-color: #2a2342;
+    --popover-fg-color: #e8dccb;
+    --popover-shade-color: rgba(8, 5, 18, 0.45);
+    --shade-color: rgba(8, 5, 18, 0.40);
+    --scrollbar-outline-color: rgba(8, 5, 18, 0.5);
+    --border-color: rgba(185, 163, 234, 0.18);
+
+    --window-radius: 14px;
+    --document-font-family: "Nunito";
+    --monospace-font-family: "Rec Mono Casual";
+}
+
+* {
+    font-family: "Nunito", "IBM Plex Sans", "Noto Color Emoji", sans-serif;
+}
+
+/* --- The title bar: a raised dusk shelf, the lamp line under it ----------------- */
+headerbar,
+.content-pane headerbar,
+toolbarview > .top-bar headerbar {
+    background-image: linear-gradient(to bottom, rgba(58, 47, 85, 0.97), rgba(50, 40, 76, 0.97));
+    box-shadow: inset 0 -1px rgba(185, 163, 234, 0.22),
+                0 1px rgba(8, 5, 18, 0.40);
+}
+
+.sidebar-pane headerbar,
+.sidebar-pane toolbarview > .top-bar headerbar {
+    background-image: none;
+    background-color: rgba(46, 38, 72, 0.97);
+}
+
+/* "Files" over the sidebar: Comfortaa in light peach (8.0:1 on the shelf). */
+.sidebar-pane headerbar .title {
+    font-family: "Comfortaa", "Nunito", sans-serif;
+    font-weight: bold;
+    color: #f6b48c;
+}
+
+headerbar label.title {
+    font-weight: bold;
+}
+
+/* --- Buttons: soft dusk pebbles -------------------------------------------------- */
+button,
+headerbar button,
+.path-bar button,
+.linked > button,
+.linked > button:first-child,
+.linked > button:last-child,
+dropdown > button,
+menubutton > button {
+    border-radius: 10px;
+}
+
+headerbar button:not(.flat),
+headerbar .linked > button,
+button:not(.flat):not(.suggested-action):not(.destructive-action) {
+    background-color: rgba(255, 240, 225, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(185, 163, 234, 0.22),
+                0 1px 2px rgba(8, 5, 18, 0.35);
+}
+
+/* Hover: the lamp glow rising from the bottom edge. */
+button:hover,
+headerbar button:hover {
+    background-color: rgba(58, 47, 85, 0.90);
+    box-shadow: inset 0 0 0 1px rgba(185, 163, 234, 0.30),
+                inset 0 -2px 0 rgba(242, 164, 119, 0.75);
+}
+
+button:checked,
+button:active {
+    background-color: #f2a477;
+    color: #2a1d2a;
+}
+
+/* The close button: a round pebble, berry under the pointer (it ends
+   something -- the theme's only red-pink meaning). */
+windowcontrols > button > image {
+    border-radius: 50%;
+    background-color: rgba(255, 240, 225, 0.08);
+}
+
+windowcontrols > button:hover > image {
+    background-color: #f58a98;
+    color: #2a1d2a;
+}
+
+/* --- Entries: dark wells, a lilac caret, the lamp line when focused ------------- */
+entry,
+searchbar entry,
+spinbutton {
+    border-radius: 10px;
+    background-color: rgba(14, 11, 26, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(185, 163, 234, 0.22);
+    caret-color: #b9a3ea;
+}
+
+entry:focus-within {
+    box-shadow: inset 0 0 0 1px rgba(185, 163, 234, 0.30),
+                inset 0 -2px 0 #f2a477;
+}
+
+/* --- Switches: pill-round, peach when on, an ink knob ---------------------------- */
+switch {
+    border-radius: 99px;
+    background-color: #3a2f55;
+}
+
+switch:checked {
+    background-color: #f2a477;
+}
+
+switch > slider {
+    border-radius: 99px;
+    background-color: #e8dccb;
+}
+
+switch:checked > slider {
+    background-color: #2a1d2a;
+}
+
+/* --- The sidebar: peach pebbles ------------------------------------------------- */
+.navigation-sidebar > row {
+    border-radius: 10px;
+    margin: 1px 6px;
+}
+
+.navigation-sidebar > row:hover {
+    background-color: rgba(58, 47, 85, 0.80);
+}
+
+.navigation-sidebar > row:selected {
+    background-color: #f2a477;
+    color: #2a1d2a;
+}
+
+/* --- Files: a peach wash when selected (cream on it ~7:1) -------------------------
+   A wash rather than the solid fill: a grid of selected icons would be a
+   large lit area. The single-row list keeps the wash too, for the same. */
+gridview > child {
+    border-radius: 14px;
+}
+
+gridview > child:hover {
+    background-color: rgba(58, 47, 85, 0.70);
+}
+
+gridview > child:selected {
+    background-color: rgba(242, 164, 119, 0.30);
+    color: #f3e9dc;
+    box-shadow: inset 0 0 0 1px rgba(242, 164, 119, 0.55);
+}
+
+listview > row,
+columnview > listview > row {
+    border-radius: 8px;
+}
+
+listview > row:selected,
+columnview > listview > row:selected {
+    background-color: rgba(242, 164, 119, 0.30);
+    color: #f3e9dc;
+}
+
+.dim-label,
+columnview label.dim-label {
+    color: #bfaebf;
+    opacity: 1;
+}
+
+rubberband {
+    background-color: rgba(242, 164, 119, 0.18);
+    border: 1px solid #f2a477;
+    border-radius: 8px;
+}
+
+/* --- Floating things: rounded dusk cards with a soft shade ------------------------ */
+popover > contents,
+popover.menu > contents {
+    border-radius: 16px;
+    box-shadow: inset 0 0 0 1px rgba(185, 163, 234, 0.22),
+                0 4px 14px rgba(8, 5, 18, 0.55);
+}
+
+popover.menu modelbutton {
+    border-radius: 8px;
+}
+
+popover.menu modelbutton:hover,
+popover.menu modelbutton:selected {
+    background-color: rgba(242, 164, 119, 0.30);
+    color: #f3e9dc;
+}
+
+toast {
+    border-radius: 14px;
+    background-color: rgba(42, 35, 66, 0.97);
+    color: #e8dccb;
+    box-shadow: inset 0 0 0 1px rgba(185, 163, 234, 0.22),
+                inset 0 -2px 0 rgba(242, 164, 119, 0.55),
+                0 4px 14px rgba(8, 5, 18, 0.55);
+}
+
+tooltip,
+tooltip > * {
+    border-radius: 10px;
+}
+
+tooltip {
+    background-color: rgba(28, 24, 48, 0.96);
+    color: #e8dccb;
+}
+
+/* --- Scrollbars and progress: lilac and peach --------------------------------------- */
+scrollbar slider {
+    background-color: rgba(185, 163, 234, 0.55);
+    border-radius: 99px;
+}
+
+scrollbar slider:hover {
+    background-color: #b9a3ea;
+}
+
+progressbar > trough > progress,
+levelbar block.filled {
+    background-color: #f2a477;
+    border-radius: 99px;
+}
+
+*:focus-visible {
+    outline-color: rgba(242, 164, 119, 0.70);
+}

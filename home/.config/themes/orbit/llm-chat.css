@@ -1,0 +1,353 @@
+/* ===========================================================================
+   ORBIT -- the LLM chat window (~/.config/hypr/scripts/llm-chat.py, base
+   stylesheet llm-chat.css there). Copied to
+   waybar/generated/theme-llm-chat.css by theme.py and imported LAST.
+
+   LLM · CAPCOM: the chat as a flight-controller's console. The window is
+   the slate console face #0e1626, the header bar and the input strip a
+   raised shelf (#121c30) parted from it by 1 px steel hairlines, 3 px
+   corners, no glow and no gloss. The title is a console label in Barlow
+   Semi Condensed SemiBold, letter-spaced, in telemetry teal; replies sit on
+   faint raised panels, your messages on a 12% teal wash with a teal edge;
+   code and tool output on the console floor #070b14 in JetBrains Mono.
+   The mascot's stage is the console face #0e1626 (= mascot_orbit.PANEL,
+   which Pip's colours are tuned against) with a faint teal raster -- a telemetry scope -- where Pip, the
+   little probe, keeps station. Send (TRANSMIT) is the one teal key under
+   ink; Stop (ABORT) is WARNING red under ink. The words are llm-chat.py's
+   (UI_THEME); this file only paints them.
+
+   Status colours, never the teal: a tool's dot is CAUTION amber while it
+   runs, GO green when done, WARNING red when it failed. @magenta, the
+   base's second accent, is steel structure here, never "bad", and every
+   rule that drew it as a glow is repeated below without one.
+
+   HDR: every surface is dark (window L 0.008, shelf 0.012, stage 0.008);
+   the only fills are small -- the send key, the stop key, the status dots.
+
+   Contrast, measured with the WCAG formula:
+     text #dbe4f0 on the window 14.1, on the shelf 13.3, on a reply
+       (#121d31) 13.1; dim #8a9bb4 6.4 / 6.0 / 6.0
+     the title teal #5cc8db on the shelf 8.7; links / headings 8.6 on a reply
+     your message (12% teal, #172b3c): text 11.3; queued (6%) 12.7; a
+       dropped one's dim text 6.1
+     a selection (30% teal) under #e8edf5: on a reply 7.4, on yours 6.4
+     a header key #16223a: text 12.4, hovered (#1a2843) 11.5
+     ink #04121a on Send (teal) 9.7, hovered (#7dd6e6) 11.4, pressed
+       (#4ab3c6) 7.7; on Stop (red) 5.6, hovered (#f47477) 6.9; on the dots amber 10.1 / green 9.8 / red 5.6
+     code #c9d3e0 on the floor 13.0, the language / ⧉ copy teal 10.1, the
+       copy hovered on #16223a 8.1; `code` spans #a9c7f0 on #16223a 9.2
+     the input well (#090e18): text 15.1, the placeholder 6.8
+     a tool chip: text 13.3, its summary (dim) 6.0, its name (teal) 8.7
+     an error card (12% red, #291e2c): text 12.4; the armed session delete
+       #f47477 on its red wash over the menu (#2d2335) 5.4
+     a note (#161e2e): dim 5.9; the stage text #c9d3e0 11.9; Pip's bubble
+       text on #0e1626 14.1; a tooltip on the floor 15.3
+   =========================================================================== */
+
+@define-color o-base     #070b14;
+@define-color o-panel    #0e1626;
+@define-color o-shelf    #121c30;
+@define-color o-raised   #16223a;
+@define-color o-hover    #1a2843;
+@define-color o-rule     #2a3a57;
+@define-color o-rule-hi  #3d5478;
+@define-color o-text     #dbe4f0;
+@define-color o-dim      #8a9bb4;
+@define-color o-bright   #e8edf5;
+@define-color o-console  #c9d3e0;
+@define-color o-steel    #a9c7f0;
+@define-color o-ink      #04121a;
+@define-color o-good     #4fd18b;
+@define-color o-warn     #f2b13c;
+@define-color o-bad      #f0565a;
+@define-color o-shade    rgba(2, 4, 10, 0.55);
+
+/* --- the base's PALETTE, in orbit -------------------------------------------- */
+@define-color magenta       @o-rule-hi;        /* structure only, never "bad" */
+@define-color violet        @o-rule-hi;
+@define-color yellow        @o-warn;
+@define-color green         @o-good;
+@define-color mist          @o-dim;
+@define-color surface       @o-panel;
+@define-color surface-2     @o-shelf;
+@define-color edge          @o-rule;
+@define-color edge-lit      alpha(@cyan, 0.70);
+@define-color text          @o-text;
+@define-color text-dim      @o-dim;
+@define-color ink           @o-ink;
+@define-color button-bg     @o-raised;
+@define-color button-hover  @o-hover;
+@define-color stop-bg       @o-bad;
+@define-color stop-fg       @o-ink;
+@define-color user-bg       alpha(#5cc8db, 0.12);
+@define-color user-edge     alpha(@cyan, 0.45);
+@define-color user-fg       @o-text;
+@define-color assistant-bg  alpha(#16223a, 0.55);
+@define-color assistant-edge @o-rule;
+@define-color stage-bg      @o-panel;          /* = mascot_orbit.PANEL */
+@define-color stage-edge    @o-rule-hi;
+@define-color stage-glow    alpha(#5cc8db, 0.06);
+@define-color scanline      alpha(#5cc8db, 0.025);
+@define-color stage-fg      @o-console;
+@define-color bubble-bg     @o-panel;
+@define-color bubble-fg     @o-text;
+@define-color bubble-edge   alpha(@cyan, 0.55);
+@define-color code-bg       @o-base;
+@define-color code-fg       @o-console;
+@define-color code-lang     #5cc8db;
+@define-color code-edge     @o-rule;
+@define-color chip-bg       alpha(@o-text, 0.03);
+@define-color chip-edge     @o-rule;
+@define-color run-bg        @o-warn;
+@define-color done-bg       @o-good;
+@define-color bad-bg        @o-bad;
+@define-color dot-fg        @o-ink;
+@define-color error-bg      alpha(#f0565a, 0.12);
+@define-color error-edge    #f47477;           /* the armed delete's text on its red wash: 5.4:1
+                                                  (#f0565a was 4.4 over the menu) */
+@define-color note-bg       alpha(@o-text, 0.04);
+@define-color sel-bg        alpha(#5cc8db, 0.30);
+@define-color sel-fg        @o-bright;
+@define-color input-bg      rgba(7, 11, 20, 0.85);
+@define-color input-edge    @o-rule;
+@define-color input-line    @cyan;
+@define-color caret         @cyan;
+@define-color send-bg       @cyan;
+@define-color send-fg       @o-ink;
+@define-color send-glow     alpha(@cyan, 0.0);
+@define-color slider        #5a7399;
+@define-color tooltip-bg    @o-base;
+@define-color tooltip-fg    @o-text;
+@define-color rule          @o-rule-hi;
+/* reply markup (llm-chat.py reads these with lookup_color, so plain opaque
+   colours): teal headings and bullets, dim quotes, a steel-blue `code`
+   span on a raised chip (9.2:1) -- not amber, which is CAUTION here */
+@define-color md-accent     #5cc8db;
+@define-color md-dim        #8a9bb4;
+@define-color md-code-fg    #a9c7f0;
+@define-color md-code-bg    #16223a;
+@define-color placeholder_text_color #8a9bb4;
+
+/* --- the window: a flat console face ------------------------------------------- */
+window#llm-chat {
+    background-image: none;
+}
+
+/* --- header bar: the shelf, a steel rule under it -------------------------------- */
+window#llm-chat headerbar {
+    border-bottom: 1px solid @o-rule;
+    box-shadow: none;
+}
+
+window#llm-chat headerbar .title {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    font-weight: 600;
+    font-size: 12pt;
+    letter-spacing: 0.10em;
+    color: @cyan;
+}
+
+window#llm-chat headerbar .subtitle {
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+}
+
+window#llm-chat headerbar button {
+    border-radius: 3px;
+    border: 1px solid @o-rule;
+}
+
+window#llm-chat headerbar button:hover {
+    border-color: @o-rule-hi;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+window#llm-chat headerbar button.stop {
+    border-color: @o-bad;
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    letter-spacing: 0.08em;
+}
+
+window#llm-chat headerbar button.stop:hover {
+    background-color: #f47477;
+    box-shadow: none;
+}
+
+window#llm-chat headerbar button.titlebutton {
+    border-radius: 3px;
+}
+
+window#llm-chat popover#model-menu {
+    border: 1px solid @o-rule-hi;
+    border-radius: 3px;
+    box-shadow: 0 4px 14px @o-shade;
+}
+
+window#llm-chat popover#model-menu modelbutton,
+window#llm-chat popover#model-menu button {
+    border-radius: 2px;
+}
+
+window#llm-chat popover#model-menu modelbutton:hover,
+window#llm-chat popover#model-menu modelbutton:focus {
+    background-color: @o-raised;
+    box-shadow: inset 2px 0 0 @cyan;
+}
+
+/* The menu's section heads: console labels, letter-spaced. */
+window#llm-chat popover#model-menu .model-heading {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.10em;
+}
+
+/* --- the stage: a dark scope with a faint raster ---------------------------------- */
+#stage {
+    border: 1px solid @o-rule-hi;
+    border-radius: 3px;
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.35);
+}
+
+#bubble {
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    font-size: 10pt;
+    border-radius: 3px;
+    box-shadow: 0 2px 6px @o-shade;
+}
+
+paned > separator {
+    background-image: none;
+    background-color: @o-rule;
+    min-height: 1px;
+    margin: 0 18px;
+}
+
+#transcript-scroll scrollbar slider {
+    border-radius: 2px;
+}
+
+/* --- the conversation ------------------------------------------------------------- */
+label.user {
+    border-radius: 3px;
+    box-shadow: inset 0 -2px 0 alpha(@cyan, 0.55);
+}
+
+label.user.queued,
+label.user.dropped {
+    border-radius: 3px;
+    box-shadow: none;
+}
+
+.assistant {
+    border-radius: 3px;
+}
+
+label.md link {
+    color: #5cc8db;
+}
+
+.codeblock {
+    border-radius: 3px;
+}
+
+.codeblock label.code-lang {
+    letter-spacing: 0.06em;
+}
+
+.toolchip {
+    border-radius: 3px;
+}
+
+label.tool-icon {
+    border-radius: 2px;
+}
+
+label.tool-name {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    letter-spacing: 0.06em;
+}
+
+label.tool-excerpt {
+    border-radius: 3px;
+}
+
+label.note {
+    border-radius: 2px;
+}
+
+label.error-card {
+    border-radius: 3px;
+}
+
+box.perm-card {
+    border-radius: 3px;
+}
+
+box.perm-card label.perm-title {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    letter-spacing: 0.06em;
+}
+
+box.perm-card label.perm-what {
+    color: @o-console;
+    border-radius: 2px;
+}
+
+box.perm-card button,
+button.retry {
+    border-radius: 3px;
+}
+
+box.perm-card button:hover,
+box.perm-card button:focus,
+button.retry:hover {
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+/* Allow is the teal key: its hover lightens the key (ink 11.4:1) rather
+   than drawing the teal line on teal. */
+box.perm-card button.perm-allow:hover,
+box.perm-card button.perm-allow:focus {
+    background-color: #7dd6e6;
+    box-shadow: none;
+}
+
+#search entry {
+    border-radius: 3px;
+}
+
+/* --- the input: a readout well and the TRANSMIT key -------------------------------- */
+#bottom {
+    border-top: 1px solid @o-rule;
+}
+
+#input-scroll {
+    border-radius: 3px;
+    border-bottom: 1px solid @o-rule;
+    box-shadow: inset 0 -2px 0 @cyan;
+}
+
+button#send {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    font-weight: bold;
+    letter-spacing: 0.10em;
+    border-radius: 3px;
+    border: 1px solid @cyan;
+}
+
+button#send:hover {
+    background-color: #7dd6e6;
+    box-shadow: none;
+}
+
+button#send:active {
+    background-color: #4ab3c6;
+}
+
+tooltip, tooltip.background {
+    border: 1px solid @o-rule-hi;
+    border-radius: 2px;
+}
+
+.md-table separator {
+    background-color: @o-rule-hi;
+}

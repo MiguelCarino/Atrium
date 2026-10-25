@@ -238,6 +238,15 @@ class WallpaperMakers(unittest.TestCase):
     def test_moe_uses_the_logical_size(self):
         self.run_all("make-moe-wallpaper.py", want_logical=True)
 
+    def test_lofi(self):
+        self.run_all("make-lofi-wallpaper.py", want_logical=True)
+
+    def test_luna(self):
+        self.run_all("make-luna-wallpaper.py", want_logical=True)
+
+    def test_orbit(self):
+        self.run_all("make-orbit-wallpaper.py", want_logical=True)
+
 
 if __name__ == "__main__":
     unittest.main()

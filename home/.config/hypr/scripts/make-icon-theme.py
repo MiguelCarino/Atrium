@@ -37,6 +37,25 @@ with, which the stylesheets recolour anyway) falls through unchanged:
            Papirus (the light one: moe's chrome is pastel) with PINK folders:
            what papirus-folders does, done as links in this theme rather than
            edits to Papirus itself (folder_links()). No filter.
+    lofi   ~/.local/share/icons/Lofi/, Inherits=Papirus-Dark,Papirus,Adwaita,
+           hicolor. The same recolouring with PALE ORANGE folders (the lamp's
+           peach), over Papirus-DARK: lofi's chrome is dusk violet, so the
+           symbolic and panel icons want the light-on-dark set. The folder
+           links point into Papirus's places (the folders are the same art in
+           both). No filter, so no NATIVE sizes.
+    luna   ~/.local/share/icons/Luna/, Inherits=Papirus,Adwaita,hicolor.
+           The same recolouring with YELLOW folders: Papirus's folder-yellow
+           is the nearest open match to the manila folders the XP era is
+           remembered by (drawing XP's own icons, or a set that copies them,
+           would be Microsoft's trade dress). Over the LIGHT Papirus, as moe:
+           luna's cards are cream, and Papirus's dark symbolic icons suit
+           them. No filter, so no NATIVE sizes.
+    orbit  ~/.local/share/icons/Orbit/, Inherits=Papirus-Dark,Papirus,
+           Adwaita,hicolor. Built as lofi is: Papirus-DARK (orbit's consoles
+           are slate navy, so the symbolic and panel icons want the
+           light-on-dark set) with BLUE-GREY folders -- the steel of the
+           console rules, quieter than the telemetry teal, which stays for
+           focus and the accent. No filter, so no NATIVE sizes.
     matrix ~/.local/share/icons/Phosphor/, Inherits=Adwaita,hicolor.
            Everything traced, green line art on an opaque near-black body
            (the look asked for): Adwaita's full-colour names (folders, files,
@@ -188,6 +207,15 @@ VARIANTS = {
     "moe": dict(dir="Moe", name="Moe",
                 comment="Papirus with pink folders (make-icon-theme.py)",
                 inherits="Papirus,Adwaita,hicolor", cover=None, folder_colour="pink"),
+    "lofi": dict(dir="Lofi", name="Lo-fi",
+                 comment="Papirus-Dark with pale orange folders (make-icon-theme.py)",
+                 inherits="Papirus-Dark,Papirus,Adwaita,hicolor", cover=None, folder_colour="paleorange"),
+    "luna": dict(dir="Luna", name="Luna",
+                 comment="Papirus with yellow (manila) folders (make-icon-theme.py)",
+                 inherits="Papirus,Adwaita,hicolor", cover=None, folder_colour="yellow"),
+    "orbit": dict(dir="Orbit", name="Orbit",
+                  comment="Papirus-Dark with blue-grey (steel) folders (make-icon-theme.py)",
+                  inherits="Papirus-Dark,Papirus,Adwaita,hicolor", cover=None, folder_colour="bluegrey"),
     "matrix": dict(dir="Phosphor", name="Phosphor",
                    comment="Papirus traced as green line art on black (make-icon-theme.py)",
                    inherits="Adwaita,hicolor", cover=None),

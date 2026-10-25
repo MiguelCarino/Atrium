@@ -185,6 +185,33 @@ class Plan(unittest.TestCase):
         w = A.plan({"focus": True, "weather": "sun"}, values(soundscape="on", sound_kind="weather"))
         self.assertEqual(w["soundscape"]["kind"], "brown")
 
+    def test_soundscape_the_themes_own(self):
+        # lofi prefers its vinyl, orbit its brown cabin hum; any other theme (or none known) falls back
+        # to the weather rule
+        self.assertEqual(A.check_value("sound_kind", "theme"), "theme")
+        v = values(soundscape="on", sound_kind="theme")
+        kind = lambda inputs: A.plan(dict(inputs, focus=True), v)["soundscape"]["kind"]   # noqa: E731
+        self.assertEqual(kind({"theme": "lofi", "weather": "sun"}), "vinyl")
+        # orbit's cabin hum is brown noise, rain or shine
+        self.assertEqual(kind({"theme": "orbit", "weather": "rain"}), "brown")
+        self.assertEqual(kind({"theme": "moe", "weather": "rain"}), "rain")
+        self.assertEqual(kind({"theme": "moe", "weather": "sun"}), "brown")
+        self.assertEqual(kind({"weather": "sun"}), "brown")
+
+    def test_current_theme_reads_display_conf(self):
+        folder = tempfile.mkdtemp(dir=helpers.SCRATCH)
+        path = os.path.join(folder, "display.conf")
+        with open(path, "w") as handle:
+            handle.write("scale=1\ntheme=lofi\n")
+        old = A.DISPLAY_CONF
+        try:
+            A.DISPLAY_CONF = path
+            self.assertEqual(A.current_theme(), "lofi")
+            A.DISPLAY_CONF = os.path.join(folder, "missing.conf")
+            self.assertEqual(A.current_theme(), "")
+        finally:
+            A.DISPLAY_CONF = old
+
     def test_lights(self):
         v = values(lights="hue")
         self.assertEqual(A.plan({"part": "day", "focus": True}, v)["lights"]["kelvin"], 5000)

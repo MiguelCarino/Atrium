@@ -46,6 +46,9 @@ mascot_common.Canvas, single-column characters only.
     win95      mascot_win95.py      a paperclip assistant in a dialog box
     aero       mascot_aero.py       a glossy orb buddy over hills and aurora
     cyberpunk  mascot_cyberpunk.py  a neon android with a visor, scanlines
+    lofi       mascot_lofi.py       a sleepy ginger cat by a rainy window, lamp and records
+    luna       mascot_luna.py       a cheerful manila folder on a green hill, XP taskbar below
+    orbit      mascot_orbit.py      a little probe (dish, solar panels, a blinking LED) over a planet's limb
 """
 
 import importlib
@@ -55,7 +58,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from mascot_common import COMBOS, STATES, TOOLS, ansi, check_size  # noqa: E402
+from mascot_common import COMBOS, STATES, TOOLS, ansi, check_size, draw_emote  # noqa: E402
 
 MODULES = {
     "moe": "moe_mascot",
@@ -63,6 +66,9 @@ MODULES = {
     "win95": "mascot_win95",
     "aero": "mascot_aero",
     "cyberpunk": "mascot_cyberpunk",
+    "lofi": "mascot_lofi",
+    "luna": "mascot_luna",
+    "orbit": "mascot_orbit",
 }
 THEMES = tuple(MODULES)
 DEFAULT = "moe"
@@ -83,6 +89,21 @@ def panel(theme):
 
 def Mascot(cols=64, rows=18, theme=DEFAULT):
     return mascot_for(theme)(cols, rows)
+
+
+def emote_markup(m, state, tick, tool=None, mood=None, scene=(), emote=None):
+    """m.markup(...) with a reaction's emote (mascot_mood.View.emote) drawn
+    over the head: at m.head, the anchor its _render() leaves (x, y), in its
+    module's EMOTE_COLOURS. A mascot without moods, or without an anchor,
+    gets its plain markup."""
+    if not emote or not getattr(m, "moods", False):
+        return m.markup(state, tick, tool, mood, scene)
+    cv = m._render(state, tick, tool, mood, scene)
+    anchor = getattr(m, "head", None)
+    if anchor:
+        colours = getattr(sys.modules.get(type(m).__module__), "EMOTE_COLOURS", None)
+        draw_emote(cv, emote, anchor, colours)
+    return cv.markup()
 
 
 # --- CLI -----------------------------------------------------------------------

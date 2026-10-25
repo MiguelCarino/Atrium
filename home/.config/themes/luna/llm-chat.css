@@ -1,0 +1,393 @@
+/* ===========================================================================
+   LUNA -- the LLM chat window (~/.config/hypr/scripts/llm-chat.py, base
+   stylesheet llm-chat.css there). Copied to
+   waybar/generated/theme-llm-chat.css by theme.py and imported LAST. Same
+   palette (the l- names) as this theme's waybar.css, panel.css and
+   launcher.css; their headers explain the HDR rule.
+
+   The window is an XP application window, the same model as win95's: the
+   cream face #c3bea7 with ink Tahoma text; the header bar the XP title bar
+   (lit line, XP blue, deep blue) with bold white text and cream push
+   buttons on it; replies on slightly lighter cream bubbles, the user's
+   messages in the XP selection blue with white text; code and tool output
+   in the XP-era console blue #012456 (the terminal's own background); the
+   input a sunken field with XP's blue-grey rim beside a green Send button --
+   the colour of XP's start button, the one "go" control on the screen. The
+   stage is a deep-blue well (#0d2350 = mascot_luna.PANEL) where Folio, the
+   manila folder, sits on a green hill above a tiny taskbar; its speech
+   bubble is the XP balloon tip, dimmed (#cbc7a3).
+
+   @surface-2 is the title-bar blue, as the spec for this theme says. The
+   base also paints the model menu, the Ctrl+F bar and the input strip with
+   @surface-2 under @text (ink), which would be ink on blue; each of those is
+   put back on the cream face below.
+
+   HDR (DP-1): the largest fields are the face (luminance 0.512) and the
+   assistant bubbles (#cac5ae, 0.555, smaller); the stage is dark (0.019).
+
+   Contrast, measured with the WCAG formula:
+     ink #1c1a14 on the face 9.3:1, on a reply bubble 10.0:1
+     dim #4e4a36 on the face 4.8:1, on a reply bubble 5.1:1
+     white on the header #2459c8 6.3:1, the subtitle #d2e0fa 4.7:1
+     white on a user bubble #316ac5 5.25:1
+     console text #eeedf0 on #012456 13.0:1, the code language #ffc890 10.0:1
+     ink on a header button #d8d3bd 11.6:1; the accent #18439a on it 6.1:1
+     white on Send #2b7f2b 5.0:1; white on Stop #b8281e 6.25:1
+     the placeholder #44402c on the field #b8b39c 4.9:1
+     links and headings #18439a on a reply 5.3:1
+     `code` #761410 on #b8b39c 5.3:1
+     the code block's copy, hovered: #ffc890 on #163d94 6.5:1
+     an image pill's ✕: dim on the chip #d8d3bd 5.9:1
+     the armed session delete #6a140e on its red wash (#c1a892) 5.4:1
+     a note #44402c on its wash (#b9b49e) 5.0:1
+   =========================================================================== */
+
+@define-color l-face        #c3bea7;
+@define-color l-well        #b8b39c;
+@define-color l-hi          #d8d3bd;
+@define-color l-shadow      #8e8975;
+@define-color l-title-lit   #3d86f0;
+@define-color l-title       #2459c8;
+@define-color l-title-lo    #1c47a6;
+@define-color l-pressed     #143680;
+@define-color l-sel         #316ac5;
+@define-color l-glow        #f0a030;
+@define-color l-rim         #7f9db9;   /* XP's text-field rim */
+@define-color l-button      #003c74;   /* XP's dark push-button rim */
+@define-color l-start       #2b7f2b;
+@define-color l-balloon     #cbc7a3;
+@define-color l-console     #012456;
+@define-color l-ink         #1c1a14;
+
+@define-color magenta       #8e1c16;
+@define-color violet        @l-title;
+@define-color yellow        #e3c04a;
+@define-color green         #3fa83a;
+@define-color mist          #4e4a36;
+@define-color surface       @l-face;
+@define-color surface-2     @l-title;
+@define-color edge          @l-shadow;
+@define-color edge-lit      @l-title;
+@define-color text          @l-ink;
+@define-color text-dim      #4e4a36;
+@define-color ink           #ffffff;
+@define-color button-bg     @l-hi;
+@define-color button-hover  @l-hi;     /* cream: the menus' hover; push buttons add the orange rim below,
+                                          and the code block's copy gets its own blue (it is peach text) */
+@define-color stop-bg       #b8281e;
+@define-color stop-fg       #ffffff;
+@define-color user-bg       @l-sel;
+@define-color user-edge     @l-title-lo;
+@define-color user-fg       #ffffff;
+@define-color assistant-bg  #cac5ae;
+@define-color assistant-edge @l-shadow;
+@define-color stage-bg      #0d2350;   /* = mascot_luna.PANEL */
+@define-color stage-edge    @l-title-lo;
+@define-color stage-glow    #163d94;
+@define-color scanline      alpha(#ffffff, 0.0);
+@define-color stage-fg      #e8dcc0;
+@define-color bubble-bg     @l-balloon;
+@define-color bubble-fg     @l-ink;
+@define-color bubble-edge   @l-ink;
+@define-color code-bg       @l-console;
+@define-color code-fg       #eeedf0;
+@define-color code-lang     #ffc890;
+@define-color code-edge     @l-title-lo;
+@define-color chip-bg       @l-hi;
+@define-color chip-edge     @l-shadow;
+@define-color run-bg        #e3c04a;
+@define-color done-bg       #3fa83a;
+@define-color bad-bg        #b8281e;
+@define-color dot-fg        @l-ink;
+@define-color error-bg      alpha(#b8281e, 0.15);
+@define-color error-edge    #6a140e;   /* the armed delete's text on the red wash over the cream: 5.4:1
+                                          (#8e1c16 was 4.0) */
+@define-color note-bg       alpha(@l-shadow, 0.18);
+@define-color sel-bg        @l-sel;
+@define-color sel-fg        #ffffff;
+@define-color input-bg      @l-well;
+@define-color input-edge    @l-rim;
+@define-color input-line    @l-sel;
+@define-color caret         #18439a;
+@define-color send-bg       @l-start;
+@define-color send-fg       #ffffff;
+@define-color send-glow     @l-glow;
+@define-color slider        @l-title;
+@define-color tooltip-bg    @l-balloon;
+@define-color tooltip-fg    @l-ink;
+@define-color rule          @l-shadow;
+@define-color md-accent     #18439a;
+@define-color md-dim        #4e4a36;
+@define-color md-code-fg    #761410;   /* panel.css's #8e1c16 is 4.3:1 on the code well; deepened */
+@define-color md-code-bg    @l-well;
+@define-color placeholder_text_color #44402c;
+
+window#llm-chat {
+    background-image: none;
+}
+
+/* --- The title bar ------------------------------------------------------------- */
+window#llm-chat headerbar {
+    background-color: @l-title;
+    background-image: linear-gradient(to bottom, @l-title-lit 0px, @l-title 3px, @l-title-lo 100%);
+    border-bottom: 1px solid @l-pressed;
+    box-shadow: none;
+    color: #ffffff;
+}
+
+window#llm-chat headerbar .title {
+    font-family: "Tahoma", "IBM Plex Sans", sans-serif;
+    font-weight: bold;
+    font-size: 12pt;
+    color: #ffffff;
+    text-shadow: 0 1px alpha(#000814, 0.45);
+}
+
+window#llm-chat headerbar .subtitle {
+    color: #d2e0fa;
+}
+
+/* Header buttons: XP push buttons on the title bar -- cream face lit toward
+   the top, the dark blue rim, ink text; the orange hot-track rim under the
+   pointer. */
+window#llm-chat headerbar button {
+    border: 1px solid @l-button;
+    border-radius: 3px;
+    background-image: linear-gradient(to bottom, @l-hi, @l-face);
+    color: @l-ink;
+}
+
+window#llm-chat headerbar button:hover {
+    box-shadow: inset 0 0 0 2px @l-glow;
+}
+
+window#llm-chat headerbar button:active {
+    background-image: none;
+    background-color: @l-well;
+}
+
+window#llm-chat headerbar button.stop {
+    background-image: none;
+    border-color: #6a140e;
+}
+
+window#llm-chat headerbar button.titlebutton {
+    border-radius: 3px;
+}
+
+/* The model / sessions menu: an XP menu, cream with the blue selection.
+   (The base paints it @surface-2, the title blue, under ink.) */
+window#llm-chat popover#model-menu {
+    background-color: @l-face;
+    border: 1px solid @l-shadow;
+    border-radius: 3px;
+    box-shadow: 0 3px 8px alpha(#001028, 0.45);
+    color: @text;
+}
+
+window#llm-chat popover#model-menu modelbutton,
+window#llm-chat popover#model-menu button {
+    border-radius: 0px;
+    color: @text;
+}
+
+window#llm-chat popover#model-menu modelbutton:hover,
+window#llm-chat popover#model-menu modelbutton:focus {
+    background-color: @l-sel;
+    color: #ffffff;
+}
+
+/* --- The stage: a deep-blue well, a soft blue glow at its foot --------------- */
+#stage {
+    border: 1px solid @stage-edge;
+    border-radius: 6px;
+    background-image: radial-gradient(ellipse at bottom, @stage-glow 0%, alpha(@stage-bg, 0.0) 70%);
+    box-shadow: inset 0 1px 3px alpha(#000814, 0.6);
+}
+
+/* Folio's balloon tip: the dimmed XP balloon, a thin ink line, round. */
+#bubble {
+    border: 1px solid @bubble-edge;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px alpha(#000814, 0.45);
+    font-family: "Tahoma", "IBM Plex Sans", sans-serif;
+}
+
+paned > separator {
+    background-image: none;
+    background-color: @l-face;
+    min-height: 4px;
+    margin: 0px;
+    box-shadow: inset 0 1px @l-hi, inset 0 -1px @l-shadow;
+}
+
+/* --- The conversation ---------------------------------------------------------- */
+#transcript-scroll scrollbar slider {
+    border-radius: 3px;
+    min-width: 8px;
+}
+
+label.user {
+    border: 1px solid @user-edge;
+    border-radius: 6px;
+}
+
+/* The selection inside a user bubble: the bubble IS the selection blue, so
+   selected text there goes the pressed blue instead of vanishing. */
+label.user selection {
+    background-color: @l-pressed;
+    color: #ffffff;
+}
+
+label.user.queued {
+    background-color: @l-hi;
+    color: @text;
+    border: 1px dashed @l-title-lo;
+}
+
+label.user.dropped {
+    background-color: @l-face;
+    border: 1px dashed @l-shadow;
+}
+
+.assistant {
+    border-radius: 6px;
+}
+
+label.md link {
+    color: #18439a;
+}
+
+.codeblock {
+    border-radius: 4px;
+}
+
+/* The code block's "⧉ copy" is peach (@code-lang) on the console blue.
+   The base hovers it on @button-hover, the cream, where peach is 1.0:1 and
+   the word vanishes; here it hovers on the stage's deep blue (6.5:1). */
+.codeblock button.copy:hover {
+    background-color: @stage-glow;
+}
+
+/* An image waiting to be sent is a cream chip (@chip-bg) with a ✕ that
+   borrows the copy class -- peach on cream would be 1.0:1, so it is
+   dim ink here, fully opaque (5.9:1). */
+.attachment button.copy {
+    color: @text-dim;
+    opacity: 1;
+}
+
+.toolchip {
+    border-radius: 3px;
+}
+
+label.tool-icon {
+    border-radius: 3px;
+}
+
+/* A failed tool's dot is the dark red fill: white on it (6.25:1), not ink. */
+.toolchip.error label.tool-icon {
+    color: #ffffff;
+}
+
+label.tool-excerpt {
+    border-radius: 3px;
+}
+
+/* A note sits on a faint shadow wash over the face; @text-dim on it is
+   4.3:1, so notes are written in the placeholder's deeper ink (5.0:1). */
+label.note {
+    border-radius: 3px;
+    color: #44402c;
+}
+
+label.error-card {
+    border-radius: 3px;
+}
+
+box.perm-card {
+    border-radius: 3px;
+}
+
+/* What the model wants to run sits on the console blue (@code-bg): the
+   base writes it in @text, which is ink here -- console text instead. */
+box.perm-card label.perm-what {
+    color: @code-fg;
+    border-radius: 3px;
+}
+
+box.perm-card button,
+button.retry {
+    border: 1px solid @l-button;
+    border-radius: 3px;
+    background-image: linear-gradient(to bottom, @l-hi, @l-face);
+}
+
+box.perm-card button:hover,
+box.perm-card button:focus,
+button.retry:hover {
+    box-shadow: inset 0 0 0 2px @l-glow;
+}
+
+box.perm-card button.perm-allow {
+    background-image: none;
+    border-color: #1d5a1d;
+}
+
+/* Ctrl+F: the search bar, on the cream face (the base uses @surface-2). */
+#search, #search > revealer > box {
+    background-color: @l-face;
+    border-bottom: 1px solid @l-shadow;
+}
+
+#search entry {
+    border-radius: 2px;
+}
+
+/* --- Input: a sunken field, the green Send button, the status line ---------- */
+#bottom {
+    background-color: @l-face;
+    border-top: 1px solid @l-shadow;
+    box-shadow: inset 0 1px @l-hi;
+}
+
+#input-scroll {
+    border: 1px solid @input-edge;
+    border-bottom: 1px solid @input-edge;
+    border-radius: 2px;
+    box-shadow: inset 0 1px 2px alpha(@l-shadow, 0.9);
+}
+
+#placeholder {
+    color: #44402c;
+}
+
+/* Send: XP's green start button -- a lit top, a deep green rim, bold white,
+   rounded. The orange rim under the pointer, not the base's glow. */
+button#send {
+    border: 1px solid #1d5a1d;
+    border-radius: 3px;
+    background-image: linear-gradient(to bottom, #45a03c, @l-start 50%, #236b23);
+    font-family: "Tahoma", "IBM Plex Sans", sans-serif;
+    text-shadow: 0 1px alpha(#0a2a0a, 0.6);
+    box-shadow: inset 0 1px alpha(#ffffff, 0.30);
+}
+
+button#send:hover {
+    box-shadow: inset 0 1px alpha(#ffffff, 0.30), inset 0 0 0 2px @send-glow;
+}
+
+button#send:active {
+    background-image: none;
+    background-color: #236b23;
+    box-shadow: inset 0 2px 3px alpha(#000, 0.45);
+}
+
+#status {
+    color: @text-dim;
+}
+
+tooltip, tooltip.background {
+    border: 1px solid @l-ink;
+    border-radius: 3px;
+}

@@ -577,6 +577,12 @@ COMMANDS = [
      [os.path.join(HYPR, "make-matrix-rain.py"), "--all"]),
     ("Render Aero wallpapers", "make-aero-wallpaper.py --all (about 90 s)", "preferences-desktop-wallpaper",
      [os.path.join(HYPR, "make-aero-wallpaper.py"), "--all"]),
+    ("Render Lo-fi wallpapers", "make-lofi-wallpaper.py --all (about 60 s)", "preferences-desktop-wallpaper",
+     [os.path.join(HYPR, "make-lofi-wallpaper.py"), "--all"]),
+    ("Render Luna wallpapers", "make-luna-wallpaper.py --all (about 90 s)", "preferences-desktop-wallpaper",
+     [os.path.join(HYPR, "make-luna-wallpaper.py"), "--all"]),
+    ("Render Orbit wallpapers", "make-orbit-wallpaper.py --all (space photographs)", "preferences-desktop-wallpaper",
+     [os.path.join(HYPR, "make-orbit-wallpaper.py"), "--all"]),
     ("Night light on / off", "until the next boundary  (SUPER+N)", "weather-clear-night",
      [os.path.join(HYPR, "nightlight.sh"), "toggle"]),
     ("Record monitor", "start / stop  (ALT+F9)", "media-record", [os.path.join(HYPR, "record.sh"), "monitor"]),
@@ -4587,10 +4593,19 @@ PLACEHOLDER = {
 }
 
 
+# A theme's own wording of the hint, over its language's. orbit: a console
+# command line (the same keys, in the flight-console's capitals).
+THEME_PLACEHOLDER = {
+    "orbit": "▸ apps, windows, files, the web     > CMD   = CALC   # COLOUR   : EMOJI   ? ASK AI   ?? QUICK   ?get MODELS",
+}
+
+
 def placeholder():
-    """The search box's hint in the desktop theme's language (lang=)."""
+    """The search box's hint: the theme's own (THEME_PLACEHOLDER), else in
+    the desktop theme's language (lang=)."""
     try:
-        return PLACEHOLDER.get(desktop_theme.get("lang"), PLACEHOLDER["en"])
+        own = THEME_PLACEHOLDER.get(desktop_theme.current())
+        return own or PLACEHOLDER.get(desktop_theme.get("lang"), PLACEHOLDER["en"])
     except (OSError, ValueError):
         return PLACEHOLDER["en"]
 

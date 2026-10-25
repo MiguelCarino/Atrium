@@ -1,0 +1,100 @@
+The orbit theme's faces (~/.config/themes/orbit/).
+
+All three families come from Google Fonts' repository, which carries each
+upstream project's released TTFs together with its licence:
+    https://github.com/google/fonts   (branch main)
+All are under the SIL Open Font License 1.1 (OFL-1.1): free to use, bundle
+and redistribute, not to sell on their own; the licence text travels with
+the files (OFL-Barlow.txt, OFL-JetBrainsMono.txt here). No file was
+modified.
+
+Barlow -- the UI face (theme.conf font=): the bar, the toolbox, the popup
+    panels, the launcher, mako, mpv's OSD and subtitles, Nautilus's document
+    face.
+    By Jeremy Tribby (The Barlow Project, https://github.com/jpt/barlow),
+    version 1.408. A slightly rounded, low-contrast grotesk drawn after
+    California's highway signs and licence plates -- the plain, engineered
+    sans of a console label or a placard on a rack, which is the look the
+    theme is after (a mission-control console), while staying soft enough
+    to read for hours. Static weights, so every weight the stylesheets ask
+    for is a real cut: Regular, Medium (the panels' 500), SemiBold (the
+    bar's 600), Bold, and Italic.
+    Figures: proportional by default, with a tabular "tnum" feature -- the
+    base stylesheets ask for tnum on every rule, so the bar's readouts and
+    the panels' numbers do not twitch.
+    Metrics: 1000 units per em, a 1.20 em line (IBM Plex Sans: 1.30), and
+    narrower letters than Plex -- so most panels come out a little smaller
+    than cyberpunk's (~/.config/themes/orbit/panel.css's header has the
+    measured sizes).
+    Files:  Barlow-Regular.ttf  Barlow-Medium.ttf  Barlow-SemiBold.ttf
+            Barlow-Bold.ttf     Barlow-Italic.ttf
+    Source: https://raw.githubusercontent.com/google/fonts/main/ofl/barlow/<file>
+            licence: https://raw.githubusercontent.com/google/fonts/main/ofl/barlow/OFL.txt
+                     (saved as OFL-Barlow.txt)
+
+Barlow Semi Condensed -- the label face: headings and section labels in the
+    panels (.kb-heading, the month, the shortcuts title), the bar's date,
+    the LLM chat's headings. Set by name in the stylesheets, not by font=.
+    The same design (same project, same version 1.408) at a narrower width,
+    so small letter-spaced labels stay compact -- the console's engraved
+    legend under a readout.
+    Files:  BarlowSemiCondensed-Regular.ttf  BarlowSemiCondensed-Medium.ttf
+            BarlowSemiCondensed-SemiBold.ttf BarlowSemiCondensed-Bold.ttf
+    Source: https://raw.githubusercontent.com/google/fonts/main/ofl/barlowsemicondensed/<file>
+            licence: the same OFL text as Barlow's (same copyright line),
+            https://raw.githubusercontent.com/google/fonts/main/ofl/barlowsemicondensed/OFL.txt
+
+    Coverage of both Barlow families: 525 code points -- Latin, Latin-1,
+    Latin Extended-A/B and Vietnamese (Latin Extended Additional); four
+    Greek letters only; no Cyrillic; no arrows (U+2190..), no U+25B8 "▸",
+    no "✓". fontconfig falls back per glyph to IBM Plex Sans (theme.conf
+    font= lists it second; Plex has the arrows and ✓, but not ▸), and Font
+    Awesome is the icon fallback as everywhere. So a "▸" prompt is best
+    set in JetBrains Mono, which has it.
+
+JetBrains Mono -- the readout and terminal face (term.font=, font_mono=):
+    the bar's clock and workspace keys, the shortcuts panel's key caps,
+    COSMIC Terminal, kitty, mpv's console, code in the LLM chat, Nautilus's
+    monospace.
+    By JetBrains (Philipp Nurullin, Konstantin Bulenkov;
+    https://github.com/JetBrains/JetBrainsMono), version 2.211. A coding
+    face with a tall x-height, plain unambiguous shapes (0/O, 1/l/I) and
+    every glyph one cell (600/1000 em) wide -- a clock or a counter in it
+    can never change width. Variable: one wght axis, 100-800, so the 500 /
+    600 the stylesheets ask for are exact; the Italic is its own variable
+    file. COSMIC Terminal needs a Bold, which the axis provides (theme.py
+    check confirms it).
+    Coverage: 976 code points -- Latin, Latin Extended, Greek, Cyrillic,
+    arrows, box drawing, ▸.
+    Files:  JetBrainsMono[wght].ttf  JetBrainsMono-Italic[wght].ttf
+    Source: https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf
+            https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/JetBrainsMono-Italic%5Bwght%5D.ttf
+            licence: https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/OFL.txt
+                     (saved as OFL-JetBrainsMono.txt)
+
+Installed by copying into this folder and
+    fc-cache -f ~/.local/share/fonts
+then checked with `fc-list | grep themes/orbit`: families Barlow, Barlow
+Semi Condensed and JetBrains Mono, every style listed above.
+If any is missing: download the files again from the URLs above (or
+`sudo dnf install jetbrains-mono-fonts` for the mono: Fedora's package of
+the same face, 2.304 in fc44 -- a later release than the 2.211 here) and
+rerun fc-cache.
+
+Fetched 2026-10-24 (main branch; versions as read from each file's name
+table: Barlow 1.408, JetBrains Mono 2.211).
+
+sha256
+    95aa02c7c43096e0dd44d787ba6216864a67157e402adab59b35572e0c1577ea  Barlow-Regular.ttf
+    f8906f762cb73dca441da034bc363b2d8e2e68bc10d5c05e58717646c20cc4b4  Barlow-Medium.ttf
+    86577cb32f8abe3673db53ca0f4221e6856751a4f6730c867e00f720f8bb1fc5  Barlow-SemiBold.ttf
+    84e6a4d61e7c3e21f3c50ea6a4f7e5303a3467864c038be6ea3759bab8d547f9  Barlow-Bold.ttf
+    70cf45c354af39e55082fd506e748cc6a0a1812949875f99ded3f76bf691e4ca  Barlow-Italic.ttf
+    e8c7242f612b13d026e18a94b63b0fd079e91a3faf009d1b6981dbb5f16d1153  BarlowSemiCondensed-Regular.ttf
+    4998b693a190b76f2b11315844345a8546c1e2e6a320905507a9eed04edf8b48  BarlowSemiCondensed-Medium.ttf
+    bd299f4bc5b44d30be8d42e9bad3a5df7d66af1cd55d0ed72a8b8916360a1424  BarlowSemiCondensed-SemiBold.ttf
+    5bd6757e459a110da81b44532f0f43058e2dab2401688abca84f2fdbde193cbb  BarlowSemiCondensed-Bold.ttf
+    48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda  JetBrainsMono[wght].ttf
+    85ae2a5cd3f56baf1ce1c21a851322c58e3d8fbe8e8ad4a4d090a820dd7fe558  JetBrainsMono-Italic[wght].ttf
+    186d750eb496a4c17a76385f82be6aea2ac1cf2de074a811d63786cf374ea73f  OFL-Barlow.txt
+    b2fe5e8987594e9ffd1d2ca52a2f5d73eb8335243893c5d6254b5ad69269591d  OFL-JetBrainsMono.txt
