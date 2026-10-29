@@ -77,7 +77,7 @@ memory (any vendor) next to what is already on it.
 | `home/.config/themes/` | desktop themes (`scripts/theme.py`) |
 | `home/.config/{mako,wofi,uwsm,autostart,systemd/user,qt5ct,qt6ct}` | notifications, launcher, session, services, Qt colours |
 | `packages/` | Fedora packages, repositories, the services install.sh enables |
-| `system/` | the root-side pieces (cpu-power, railguard's SysRq keys) |
+| `system/` | the root-side pieces (cpu-power, railguard's SysRq keys, the greetd login screen) |
 | `install.sh`, `uninstall.sh` | set it up; put back what it replaced |
 | `extras/` | the smart features' models |
 

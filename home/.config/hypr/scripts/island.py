@@ -876,8 +876,7 @@ def describe(act, now):
                  app=app if summary else "", sub=body, body=True, buttons=btns,
                  extra_cls=[f"island-notify-{urgency}"],
                  count=f"+{act['waiting']}" if act.get("waiting") else "")
-        if act.get("mood") in MOODS and not v["image"]:
-            v["image"] = ("mascot", act["mood"])
+        v["image"] = notify_mascot(act, v["image"], mascot_prefs()) or v["image"]
     elif src == "notify":
         app, summary = act.get("app") or "", act.get("summary") or ""
         line = f"{app} · {summary}" if app and summary else (summary or app)
@@ -927,6 +926,45 @@ def notify_image(act):
     if icon.startswith("/"):
         return ("art", icon) if os.path.isfile(icon) else None
     return ("icon", icon) if icon and re.match(r"^[\w.+-]{1,128}$", icon) else None
+
+
+_PREFS = (None, None)
+
+
+def mascot_prefs():
+    """Settings > Mascot's notification switches (mascot_notify.settings(),
+    read again only when mascot.json changes)."""
+    global _PREFS
+    import mascot_notify
+    try:
+        stamp = os.path.getmtime(mascot_notify.STATE)
+    except OSError:
+        stamp = 0
+    if _PREFS[0] != stamp:
+        _PREFS = (stamp, mascot_notify.settings())
+    return _PREFS[1]
+
+
+def notify_mascot(act, image, prefs):
+    """The mascot on a notification's card, by mako's popups' rules
+    (mascot_notify.py), so it is there from any app with the island on or
+    off: ("mascot", (mood, badge)) -- badge the sender's own picture
+    (notify_image()'s spec) for the corner, None for none -- or None to
+    leave the card as it is: the mascot switched off, a low-urgency toast
+    with toasts off, or the picture already the mascot (scripts/notify)."""
+    import mascot_icons
+    import mascot_notify
+    urgency = act.get("urgency") or "normal"
+    if not prefs.get("icon") or (urgency == "low" and not prefs.get("toasts")):
+        return None
+    if image and image[0] == "art" and image[1].startswith(mascot_icons.CACHE + os.sep):
+        return None
+    mood = act.get("mood") if act.get("mood") in MOODS else \
+        ("alert" if urgency == "critical" else "calm")
+    badge = image
+    if badge and badge[0] == "icon" and badge[1].startswith(mascot_notify.GENERIC_ICONS):
+        badge = None              # the mood says the same
+    return ("mascot", (mood, badge))
 
 
 def notify_act(item, waiting):
@@ -1487,7 +1525,11 @@ def daemon():
                         return pb
                     if kind == "mascot":
                         import mascot_icons
-                        path = mascot_icons.icon(None, value if value in MOODS else "alert")
+                        mood, badge = value if isinstance(value, tuple) else (value, None)
+                        mood = mood if mood in MOODS else "alert"
+                        if badge and badge[0] == "nid":
+                            return self.badged(mood, badge[1], size)
+                        path = mascot_icons.icon(None, mood, badge[1] if badge else None)
                     else:
                         path = value
                     pb = GdkPixbuf.Pixbuf.new_from_file_at_size(path, size, size)
@@ -1497,6 +1539,19 @@ def daemon():
                     self.pixbufs.clear()
                 self.pixbufs[key] = pb
             return self.pixbufs[key]
+
+        def badged(self, mood, nid, size):
+            """The mascot with a notification's image-data in its corner
+            (mascot_icons draws file and icon badges itself)."""
+            base = self.pixbuf("mascot", mood, size)
+            pic = self.pixbuf("nid", nid, max(1, size * 7 // 18))
+            if base is None or pic is None:
+                return base
+            base = base.copy()
+            w, h = pic.get_width(), pic.get_height()
+            x, y = base.get_width() - w, base.get_height() - h
+            pic.composite(base, x, y, w, h, x, y, 1, 1, GdkPixbuf.InterpType.BILINEAR, 255)
+            return base
 
         def set_image(self, image, spec, size):
             pb = self.pixbuf(spec[0], spec[1], size) if spec else None

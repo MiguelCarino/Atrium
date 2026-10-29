@@ -12,6 +12,8 @@ hyprsunset
 xdg-desktop-portal-hyprland
 xdg-desktop-portal-gtk
 uwsm
+greetd              # the login screen, enabled only where there is none
+tuigreet            #   (install.sh step 5, system/greetd)
 
 # Bar, notifications, launcher, terminals, files
 waybar
@@ -31,7 +33,6 @@ slurp
 wl-clipboard
 cliphist
 wtype
-ydotool
 gpu-screen-recorder
 brightnessctl
 ImageMagick

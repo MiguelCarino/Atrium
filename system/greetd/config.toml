@@ -1,0 +1,9 @@
+# greetd with tuigreet: a text login screen for a system without one
+# (installed by system/greetd/install.sh). Enter logs in to the Hyprland
+# session; F3 picks another from /usr/share/wayland-sessions.
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --time --asterisks --remember --remember-session --sessions /usr/share/wayland-sessions --cmd 'uwsm start hyprland-uwsm.desktop'"
+user = "greetd"

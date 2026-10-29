@@ -24,13 +24,15 @@
 #   5. system side    optional: btrfs snapshots around every update (snapper)
 #                     and the phone link's firewall ports (KDE Connect);
 #                     the CPU power reading for the bar (cpu-power); the
-#                     SysRq keys that end a freeze without a reset (railguard)
+#                     SysRq keys that end a freeze without a reset (railguard);
+#                     a login screen (greetd + tuigreet) when there is none
 #   6. builds         the overview and cube plugins, the icon theme, the
 #                     themes' wallpapers and sounds
 #   7. services       the user services in packages/units.txt
 #   8. smart extras   optional, a few GB: speech-to-text, the voices, the
 #                     camera models (extras/setup-extras.sh; can run later)
-# Then log out and pick "Hyprland (uwsm-managed)" at the login screen. The
+# Then log out and pick "Hyprland (uwsm-managed)" at the login screen (with
+# greetd: just log in; F3 picks another session). The
 # first login opens a short welcome (theme, screens, microphone, smart
 # features; ~/.config/hypr/scripts/welcome.py shows it again any time). Your
 # screens start at their preferred modes side by side; arrange them in
@@ -220,6 +222,12 @@ if ask "Automatic snapshots of the system before every update (snapper, btrfs), 
 fi
 if [[ -e /sys/class/powercap/intel-rapl:0/energy_uj ]] && ask "Show the CPU's power draw in the bar (a tiny root service, cpu-power)?" y; then
     run sudo "$REPO/system/cpu-power/install.sh"
+fi
+if systemctl is-enabled -q display-manager.service 2>/dev/null; then
+    note "login screen: $(systemctl show -p Id --value display-manager.service) (kept;"
+    note "  sudo $REPO/system/greetd/install.sh --replace switches to greetd + tuigreet)"
+elif ask "There is no login screen: use greetd + tuigreet (logs in to Hyprland)?" y; then
+    run sudo "$REPO/system/greetd/install.sh"
 fi
 if ask "Let Alt+SysRq+F end a runaway process when the desktop is frozen (railguard)?" y; then
     run sudo "$REPO/system/railguard/install.sh"

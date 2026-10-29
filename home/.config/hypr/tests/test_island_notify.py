@@ -310,6 +310,27 @@ class IslandSide(unittest.TestCase):
             self.assertEqual(isl.notify_image({"icon": fh.name}), ("art", fh.name))
             self.assertEqual(isl.notify_image({"icon": "file://" + fh.name}), ("art", fh.name))
 
+    def test_mascot_on_every_card(self):
+        on = {"icon": True, "toasts": False}
+        firefox = ("icon", "firefox")
+        self.assertEqual(isl.notify_mascot({"urgency": "normal"}, firefox, on),
+                         ("mascot", ("calm", firefox)))
+        self.assertEqual(isl.notify_mascot({"urgency": "critical"}, None, on), ("mascot", ("alert", None)))
+        self.assertEqual(isl.notify_mascot({"mood": "relieved"}, ("nid", 4), on),
+                         ("mascot", ("relieved", ("nid", 4))))
+        # generic icons go: the mood says the same
+        self.assertEqual(isl.notify_mascot({}, ("icon", "dialog-warning"), on), ("mascot", ("calm", None)))
+        # left alone: switched off, a toast with toasts off, already the mascot
+        self.assertIsNone(isl.notify_mascot({}, firefox, {"icon": False}))
+        self.assertIsNone(isl.notify_mascot({"urgency": "low"}, firefox, on))
+        self.assertIsNotNone(isl.notify_mascot({"urgency": "low"}, firefox, dict(on, toasts=True)))
+        import mascot_icons
+        own = ("art", os.path.join(mascot_icons.CACHE, "moe-calm-0.png"))
+        self.assertIsNone(isl.notify_mascot({}, own, on))
+        v = isl.describe(dict(isl.notify_act(item(5, "normal", app="Mail", summary="Hi"), 0),
+                              src="notify", icon="firefox"), 0)
+        self.assertEqual(v["image"][0] == "mascot", isl.mascot_prefs()["icon"])
+
     def test_mako_mode_is_never_touched_dry(self):
         self.assertFalse(isl.set_mako_mode(True))
         self.assertFalse(isl.set_mako_mode(False))
