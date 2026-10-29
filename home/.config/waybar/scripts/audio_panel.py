@@ -12,7 +12,7 @@ Sound, ~/.config/hypr/scripts/sound-settings.py boost). Past 100% PipeWire adds
 software gain on top of the device's maximum -- distortion you did not ask for
 unless you turned that on -- and the volume keys are capped the same way
 (osd.py asks `sound-settings.py limit` for wpctl's -l). The panel asks for the
-limit when it opens and again with each device poll (2 s), reading the switch
+limit when it opens and again every LIMIT_EVERY_MS (2 s), reading the switch
 from sound-settings.py's state file rather than starting it every time; the
 volume it sets goes through `wpctl set-volume -l <limit>`, so even a slider
 that is out of date cannot go past it. A mark at 100% shows where the gain
@@ -22,10 +22,15 @@ Moving the output slider unmutes it, like the volume-up key does. Dragging a
 slider to hear the change and hearing nothing because a mute was left on is
 the bug this avoids. The mic slider deliberately does not (see Audio.build).
 
-The panel polls wpctl twice a second while it is open, so a volume key or
-another app changing the level moves the slider. A row the pointer has touched
-in the last second is left alone, or the poll would yank the knob back to the
-old value mid-drag.
+While it is open the panel follows `pactl subscribe` (PipeWire's pulse
+events, the same feed privacy.py's mic watcher uses): a volume key or
+another app changing a level, a device plugged in, a new default -- each
+is an event, and only then are the rows (and, for a device or default
+change, the lists) read again, debounced over EVENT_SETTLE_MS. It used to
+run wpctl twice a second and pw-dump every 2 s for as long as it was open,
+changed or not. A row the pointer has touched in the last second is left
+alone, or the refresh would yank the knob back to the old value mid-drag.
+Without pactl it falls back to that old POLL_MS poll.
 
 Under each slider is the list of devices of that kind, one radio-style row
 each; the lit one is the current default. Clicking another runs
@@ -39,8 +44,8 @@ instead of two.
 The list comes from pw-dump, not wpctl status: wpctl status is a tree drawn
 for humans (box-drawing characters, "*" for the default, names cut to fit),
 pw-dump is JSON with every property. It costs ~20 ms and ~400 KB of JSON, so
-the device lists are re-read every DEVICE_EVERY polls (2 s) rather than every
-poll; a device being plugged in is not something half a second matters for.
+the device lists are re-read only on a device or default change (or every
+DEVICE_EVERY polls in the fallback poll).
 
 "Mixer" opens pavucontrol for per-app levels and profiles (HDMI vs S/PDIF,
 stereo vs surround) — the old left-click on the pill, which this panel replaces.
@@ -61,12 +66,19 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.expanduser("~/.config/hypr/scripts/notify")  # notify-send with the theme's mascot (mascot_notify.py)
 sys.path.insert(0, HERE)
 import panelui  # noqa: E402
 
-POLL_MS = 500
+POLL_MS = 500               # the fallback poll, without pactl
 HANDS_OFF = 1.0             # seconds after a user change before polling resumes
-DEVICE_EVERY = 4            # re-read the device lists every 4th poll (2 s)
+DEVICE_EVERY = 4            # fallback poll: re-read the device lists every 4th poll (2 s)
+EVENT_SETTLE_MS = 80        # a burst of pulse events -> one refresh
+LIMIT_EVERY_MS = 2000       # re-read the over-amplification switch (a file read, no fork)
+# `pactl subscribe` lines worth a refresh: "Event 'change' on sink #56". Streams
+# (sink-input, source-output) and clients change all the time during playback
+# and move nothing on this panel.
+EVENT = re.compile(r"Event '(\w+)' on (sink|source|server|card) #")
 
 # Over-amplification (see the docstring): sound-settings.py keeps the switch in
 # $XDG_STATE_HOME/hypr/sound.json as {"boost": true}; these are its limits.
@@ -245,9 +257,32 @@ def list_devices(dump=None):
 
 def fire(*args):
     """Changes are fire-and-forget: a slider emits many values per second and
-    waiting on each wpctl would make the knob stutter."""
-    subprocess.Popen(["wpctl", *args], stdout=subprocess.DEVNULL,
-                     stderr=subprocess.DEVNULL)
+    waiting on each wpctl would make the knob stutter. A missing wpctl must
+    not raise out of a GTK handler (the panel would stay up, dead)."""
+    try:
+        subprocess.Popen(["wpctl", *args], stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+    except OSError:
+        pass
+
+
+def classify(line):
+    """What a `pactl subscribe` line asks of the panel: "devices" (a device
+    or the default came or went: lists and rows), "levels" (rows only), or
+    None (nothing shown here)."""
+    match = EVENT.search(line)
+    if not match:
+        return None
+    what, facility = match.groups()
+    if facility in ("server", "card") or what in ("new", "remove"):
+        return "devices"
+    return "levels"
+
+
+def _die_with_parent():
+    """Runs in the forked pactl before exec: it dies with the panel."""
+    import ctypes
+    ctypes.CDLL("libc.so.6", use_errno=True).prctl(1, 15)     # PR_SET_PDEATHSIG, SIGTERM
 
 
 class DeviceList:
@@ -482,7 +517,53 @@ class Audio(panelui.Panel):
         self.card.pack_start(mixer, False, False, 0)
 
     def on_ready(self):
-        GLib.timeout_add(POLL_MS, self.poll)
+        self.pending = None
+        GLib.timeout_add(LIMIT_EVERY_MS, self.tick_limit)
+        if not self.subscribe():
+            GLib.timeout_add(POLL_MS, self.poll)
+
+    def subscribe(self):
+        """Follow `pactl subscribe`; False when it cannot be started."""
+        try:
+            self.events = subprocess.Popen(["pactl", "subscribe"], stdout=subprocess.PIPE,
+                                           stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+                                           preexec_fn=_die_with_parent)
+        except OSError:
+            return False
+        GLib.io_add_watch(self.events.stdout.fileno(), GLib.PRIORITY_DEFAULT,
+                          GLib.IOCondition.IN | GLib.IOCondition.HUP | GLib.IOCondition.ERR,
+                          self.on_events)
+        return True
+
+    def on_events(self, fd, condition):
+        data = os.read(fd, 65536) if condition & GLib.IOCondition.IN else b""
+        if not data:
+            # pipewire-pulse went away: back to the poll for the rest of
+            # this (short-lived) panel.
+            GLib.timeout_add(POLL_MS, self.poll)
+            return False
+        kinds = {classify(line) for line in data.decode(errors="replace").splitlines()}
+        if "devices" in kinds:
+            self.pending = "devices"
+        elif "levels" in kinds and self.pending is None:
+            self.pending = "levels"
+        else:
+            return True
+        GLib.timeout_add(EVENT_SETTLE_MS, self.apply_events)
+        return True
+
+    def apply_events(self):
+        pending, self.pending = self.pending, None
+        if pending == "devices":
+            self.refresh_devices()              # first: it names the rows
+        if pending:
+            for row in self.rows:
+                row.refresh()
+        return False
+
+    def tick_limit(self):
+        self.refresh_limit()
+        return True
 
     def poll(self):
         self.ticks += 1
@@ -526,16 +607,30 @@ class Audio(panelui.Panel):
         current = [d for side in devices.values() for d in side
                    if d["id"] == picked["id"]]
         if current and not current[0]["default"]:
-            subprocess.Popen(
-                ["notify-send", "-a", "Audio", "Device not switched",
-                 f"WirePlumber kept the old default; {picked['desc']} "
-                 "may have nothing plugged in."],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                subprocess.Popen(
+                    [NOTIFY, "-a", "Audio", "Device not switched",
+                     f"WirePlumber kept the old default; {picked['desc']} "
+                     "may have nothing plugged in."],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except OSError:
+                pass
         return False
 
     def open_mixer(self, _button):
-        subprocess.Popen(["pavucontrol"], stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL, start_new_session=True)
+        try:
+            subprocess.Popen(["pavucontrol"], stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError:
+            # Not installed: say so instead of a dead button (and the
+            # panel stays put, so the sliders are still there).
+            try:
+                subprocess.Popen([NOTIFY, "-a", "Audio", "No mixer installed",
+                                  "pavucontrol is not installed (sudo dnf install pavucontrol)."],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except OSError:
+                pass
+            return
         self.quit()
 
 

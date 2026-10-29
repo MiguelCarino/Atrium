@@ -1,6 +1,7 @@
 """Settings page: notifications -- Do Not Disturb now and by itself (quiet
 hours, games, screen sharing), where popups go and how long they stay, the
-theme sound, the history (notify-settings.py, auto-dnd.py, mako).
+theme sound, the history (notify-settings.py, auto-dnd.py, mako), and the
+theme's mascot on them (mascot_notify.py).
 
 Everything here is notify-settings.py: the page runs `status` to draw and
 `set KEY VALUE` / `dnd on|off` to change, so the keys, the search bar and
@@ -9,7 +10,12 @@ this page always agree. mako keeps the choices in
 and why there); auto-dnd.py reads the same saved settings for the quiet
 hours and its two triggers. The one exception is "Digest when it ends": that
 is automations.py's built-in rule dnd-digest (notify-digest.py), switched
-with `automations.py enable|disable dnd-digest`.
+with `automations.py enable|disable dnd-digest`. The mascot's three
+switches are the other: mascot_notify.py status / set (mascot.json).
+
+While the dynamic island takes the popups (island.json: enabled, and
+"notifications" not off -- island.py), a line under POPUPS says so: the
+timeouts and Do Not Disturb hold there too, the placement ones are mako's.
 """
 import os
 import subprocess
@@ -20,13 +26,51 @@ from gi.repository import GLib, Gtk  # noqa: F401,E402  (after common: it picks 
 PAGE = {"id": "notifications", "title": "Notifications", "icon": "", "group": "System", "order": 10,
         "keywords": ["notificaciones", "do not disturb", "dnd", "quiet hours", "popups", "toasts", "mako",
                      "how long", "notification sound", "history", "games", "screen sharing", "urgent",
-                     "digest", "missed", "summary"]}
+                     "digest", "missed", "summary", "mascot", "icon", "voice", "mascota"]}
 
 NOTIFY = os.path.join(HYPR, "notify-settings.py")  # noqa: F405  (HYPR: common)
+# notify-send with the theme's mascot (mascot_notify.py)
+MASCOT_NOTIFY = os.path.join(HYPR, "notify")  # noqa: F405
+MASCOT = os.path.join(HYPR, "mascot_notify.py")  # noqa: F405
+MASCOT_SWITCHES = [("icon", "\uf118", "The mascot on notifications",
+                    "the theme's little mascot as the icon; the app's own rides in its corner"),
+                   ("toasts", "\uf0e7", "On quick toasts too",
+                    "volume, keyboard layout, \"saved\" -- off: they keep their own icon"),
+                   ("voice", "\uf075", "In its own voice",
+                    "a first line in the mascot's words (railguard, urgent ones)")]
 THEME_SOUND = os.path.join(HYPR, "theme-sound.sh")  # noqa: F405
 AUTOMATIONS = os.path.join(HYPR, "automations.py")  # noqa: F405
 DIGEST_RULE = "dnd-digest"
 DIGEST_TEXT = "one summary of what you missed, written on this computer"
+# The dynamic island (island.py) can take the popups over: its settings.
+ISLAND_STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
+                            "hypr", "island.json")
+
+
+def island_takes_popups(conf):
+    """Whether island.json says the island shows the notifications (on,
+    and "Show notifications in the island" -- on unless switched off)."""
+    conf = conf if isinstance(conf, dict) else {}
+    return bool(conf.get("enabled")) and conf.get("notifications", True) is not False
+
+
+def island_note(conf):
+    """The line under POPUPS while the island has them, else ""."""
+    if not island_takes_popups(conf):
+        return ""
+    return ("The dynamic island shows them now, one at a time at the top (Settings > Bar > Island). "
+            "How long they stay and Do Not Disturb apply there too; where, which screen, how many "
+            "and stacking are for mako's popups, which come back when the island is off.")
+
+
+def read_island():
+    try:
+        import json
+        with open(ISLAND_STATE) as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {}
+
 
 # The 3x3 chips are laid out like the screen: the stack goes where its chip is.
 ANCHORS = [("top-left", "Top left"), ("top-center", "Top middle"), ("top-right", "Top right"),
@@ -162,6 +206,9 @@ class Page:
         # -- popups -----------------------------------------------------------
         w.pack_start(sep(), False, False, 0)  # noqa: F405
         w.pack_start(heading("POPUPS"), False, False, 0)  # noqa: F405
+        self.island_note = wrapped("")
+        self.island_note.set_no_show_all(True)
+        w.pack_start(self.island_note, False, False, 0)
         self.anchor = Chips(lambda key: self.set("anchor", key))  # noqa: F405
         chips_block(w, "Where they appear", self.anchor, per_line=3)
         self.output = Chips(lambda key: self.set("output", key))  # noqa: F405
@@ -181,8 +228,22 @@ class Page:
         w.pack_start(self.switch_row("group", "", "Stack repeats from one app",
                                      "one popup per app, \"(4 more)\""), False, False, 0)
         w.pack_start(links_row(link("Send a test notification", lambda: spawn(  # noqa: F405
-            "notify-send", "-a", "Settings", "Test notification",
+            MASCOT_NOTIFY, "-a", "Settings", "Test notification",
             "This is where and how long they appear now."))), False, False, 0)
+
+        # -- mascot -----------------------------------------------------------
+        w.pack_start(sep(), False, False, 0)  # noqa: F405
+        w.pack_start(heading("MASCOT"), False, False, 0)  # noqa: F405
+        self.mascot_switches = {}
+        for key, icon, title, sub in MASCOT_SWITCHES:
+            sw = Gtk.Switch()
+            sw.connect("state-set", lambda _s, on, k=key: self.change(MASCOT, "set", k, "on" if on else "off"))
+            self.mascot_switches[key] = sw
+            grid, _ = row(icon, title, sub, sw)  # noqa: F405
+            w.pack_start(grid, False, False, 0)
+        w.pack_start(links_row(link("Show me", lambda: spawn(  # noqa: F405
+            MASCOT_NOTIFY, "-a", "Settings", "--mood", "relieved", "--say", "proud", "The mascot",
+            "How it looks on a notification with the current theme."))), False, False, 0)
 
         # -- sound ------------------------------------------------------------
         w.pack_start(sep(), False, False, 0)  # noqa: F405
@@ -277,6 +338,17 @@ class Page:
     def refresh(self):
         background(lambda: run_json(NOTIFY, "status"), self.show)  # noqa: F405
         background(lambda: run_json(AUTOMATIONS, "list", "--json"), self.show_digest)  # noqa: F405
+        background(lambda: run_json(MASCOT, "status"), self.show_mascot)  # noqa: F405
+
+    def show_mascot(self, data):
+        """The mascot's switches: mascot.json's "notifications"."""
+        self.updating = True
+        try:
+            for key, sw in self.mascot_switches.items():
+                sw.set_sensitive(data is not None)
+                put(sw, bool((data or {}).get(key)))
+        finally:
+            self.updating = False
 
     def show_digest(self, data):
         """The digest switch: automations.py's rule, and whether its daemon runs."""
@@ -375,8 +447,12 @@ class Page:
         put(self.sound, data["sounds"] != "off")
         kept = data["history"]
         shown = data["shown"]
+        island = read_island()
+        note = island_note(island)
+        self.island_note.set_text(note)
+        self.island_note.set_visible(bool(note))
         self.history_sub.set_text(
-            f"{kept} in the list, {shown} on screen  ·  " + (
+            f"{kept} in the list, {shown} {'in the island' if note else 'on screen'}  ·  " + (
                 "emptied when you log out" if conf["max_history"] else "history is off"))
         self.widget.show_all()
 

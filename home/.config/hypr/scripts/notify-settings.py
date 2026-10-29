@@ -73,6 +73,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import screens  # noqa: E402  (scripts/screens.py: the primary, DEFAULTS["output"])
+import desk_common  # noqa: E402  (run: a command with a timeout)
 STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hypr")
 CONF = os.path.join(STATE_DIR, "notifications.json")
 FRAGMENT = os.path.expanduser("~/.config/mako/generated/settings")
@@ -83,7 +84,6 @@ AUTO_STATE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "auto-dnd.j
 NOTIFICATIONS = os.path.expanduser("~/.config/waybar/scripts/notifications.py")
 THEME_SOUND = os.path.join(HERE, "theme-sound.sh")
 MODE = "do-not-disturb"
-SIGNAL = 14                 # waybar's notification bell (notifications.py)
 
 ANCHORS = ["top-right", "top-center", "top-left", "bottom-right", "bottom-center", "bottom-left",
            "center-right", "center-left", "center"]
@@ -307,10 +307,8 @@ def render_fragment(conf, bars):
 
 
 def run(*cmd, timeout=5):
-    try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    except (OSError, subprocess.SubprocessError):
-        return None
+    """The CompletedProcess, None when it could not run or timed out."""
+    return desk_common.run(cmd, timeout=timeout)
 
 
 def makoctl(*args):
@@ -362,7 +360,14 @@ def ensure():
 
 
 def bell():
-    run("pkill", f"-RTMIN+{SIGNAL}", "-x", "waybar")
+    """Redraw the bar's notification bell (bar_signals.py "notifications")."""
+    try:
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import bar_signals
+        return bar_signals.poke("notifications")
+    except Exception:       # noqa: BLE001 - no bar: nothing to redraw
+        return 0
 
 
 def poke_auto_dnd():

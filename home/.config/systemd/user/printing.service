@@ -1,0 +1,14 @@
+# A toast for every print job, and the bar's queue: ~/.config/hypr/scripts/printing.py
+[Unit]
+Description=Print job notifications and the bar's print queue
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/printing.py daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

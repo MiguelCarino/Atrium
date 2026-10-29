@@ -20,6 +20,8 @@ import subprocess  # noqa: E402
 import time  # noqa: E402
 
 import power_panel as pp  # noqa: E402  (waybar/scripts, on the path via common)
+# notify-send with the theme's mascot (mascot_notify.py)
+NOTIFY = os.path.join(HYPR, "notify")  # noqa: F405  (HYPR: common)
 
 PAGE = {"id": "power", "title": "Power & lock", "icon": "", "group": "System", "order": 20,
         "keywords": ["idle", "dim", "lock", "screen lock", "lock screen", "screens off", "timeout", "suspend",
@@ -93,6 +95,14 @@ def power_key_command(action):
     return ("sudo mkdir -p /etc/systemd/logind.conf.d && printf '[Login]\\nHandlePowerKey=%s\\n' "
             f"{action} | sudo tee /etc/systemd/logind.conf.d/50-power-key.conf >/dev/null && "
             "sudo systemctl kill -s HUP systemd-logind")
+
+
+def nvidia_state(value):
+    """idle-settings.py's logind()["nvidia_suspend"] as the page reads it:
+    None for no such unit ("not-found", "" or nothing -- a machine without
+    NVIDIA's suspend helpers), else systemd's word ("enabled", "disabled")."""
+    value = (value or "").strip()
+    return None if value in ("", "not-found") else value
 
 
 class Page:
@@ -237,7 +247,7 @@ class Page:
         reboot, hyprlock missing) is reported through a notification."""
         self.confirmer.fired = None
         if pp.DRYRUN:
-            spawn("notify-send", "Settings (dry run)", f"Would run: {' '.join(cmd)}")
+            spawn(NOTIFY, "Settings (dry run)", f"Would run: {' '.join(cmd)}")
             return
         spawn("sh", "-c", pp.REPORT_FAILURE, "sh", *cmd)
 
@@ -397,10 +407,10 @@ class Page:
                               "pick one to copy the root command")
         mode = {"deep": "deep sleep (S3): almost no power, slower to wake",
                 "s2idle": "light sleep (s2idle): wakes fast, draws more"}.get(lg.get("mem_sleep"), lg.get("mem_sleep"))
-        # None: systemctl did not say (no such unit -- no NVIDIA driver), which
-        # is not the same as "off".
+        # None: systemctl did not say (no such unit -- no NVIDIA driver, an AMD
+        # or Intel machine), which is not the same as "off": no NVIDIA line.
         nv = {"enabled": "NVIDIA's suspend helpers are on, so the card keeps its memory across sleep",
-              None: None}.get(lg.get("nvidia_suspend"),
+              None: None}.get(nvidia_state(lg.get("nvidia_suspend")),
                               "NVIDIA's suspend helpers are off: sudo systemctl enable nvidia-suspend nvidia-resume")
         nv_off = nv and not nv.startswith("NVIDIA's suspend helpers are on")
         self.sleep_sub.set_text(mode or "sleep mode unknown"

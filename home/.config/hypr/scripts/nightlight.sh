@@ -81,6 +81,7 @@
 # $XDG_RUNTIME_DIR, so it also dies with the login session, never stale.
 
 set -u
+NOTIFY="$HOME/.config/hypr/scripts/notify"  # notify-send with the theme's mascot (mascot_notify.py)
 
 # ----------------------------- configuration -----------------------------
 # The defaults: nightlight.conf (below) overrides each one it has a valid
@@ -92,6 +93,10 @@ TEMP=4000          # Kelvin. 6500 is neutral; 3400-4500 is the usual evening ran
 MODE="auto"        # auto (the schedule) | on | off (all the time)
 BACKEND="auto"     # auto (screen-color, else hyprsunset if installed, else shader) | screen-color | hyprsunset | shader
 # -------------------------------------------------------------------------
+
+# NL_BACKEND picks a backend for one call (the tests: the shader path on a
+# machine that has screen-color.py).
+[[ ${NL_BACKEND:-} == @(auto|screen-color|hyprsunset|shader) ]] && BACKEND=$NL_BACKEND
 
 # The lasting settings. NL_CONF exists for the tests, like NL_STATE_DIR below.
 DEFAULT_START=$START DEFAULT_END=$END
@@ -136,7 +141,7 @@ now() { echo "${NL_NOW:-$(date +%s)}"; }
 
 notify() {  # replaces its own previous toast instead of stacking
     [[ -n ${NL_DRY:-} ]] && { echo "DRY notify: $*" >&2; return; }
-    notify-send -a "Night light" -h string:x-canonical-private-synchronous:nightlight \
+    "$NOTIFY" -a "Night light" -h string:x-canonical-private-synchronous:nightlight \
         -t 2500 "$@" 2>/dev/null || true
 }
 
@@ -310,8 +315,32 @@ hint_install() {
         "Using the screen-shader fallback for now (works, but costs a render pass)."
 }
 
+# Gamemode clears decoration.screen_shader (lua/gamemode.lua, unless
+# gamemode_shader=off in capture.conf): a screen shader means a full extra
+# render pass every frame and no direct scanout, which is what gamemode is
+# there to stop. So while it is on, the shader backend does not put the
+# shader back (the 5-minute tick, SUPER+N, a schedule boundary would undo
+# gamemode's work mid-game); gamemode OFF is a reload, after which
+# lua/nightlight.lua runs `auto` and the warmth comes back. Gamemode is read
+# the way gamemode.lua itself reads it: animations off == gamemode on.
+# NL_GAMEMODE=1|0 stands in for Hyprland in the tests.
+gamemode_holds_shader() {  # 0 (true) when gamemode is on and strips the shader
+    local cap=${XDG_STATE_HOME:-$HOME/.local/state}/hypr/capture.conf
+    grep -qE '^[[:space:]]*gamemode_shader[[:space:]]*=[[:space:]]*off[[:space:]]*$' "$cap" 2>/dev/null && return 1
+    if [[ -n ${NL_GAMEMODE:-} ]]; then [[ $NL_GAMEMODE == 1 ]]; return; fi
+    [[ -n ${NL_DRY:-} ]] && return 1
+    hyprctl getoption animations:enabled -j 2>/dev/null | grep -qE '"(bool|int)":[[:space:]]*(false|0)\b'
+}
+
 apply() {  # $1 = on|off, $2 = temp
     local be; be=$(pick_backend)
+    if [[ $be == shader && $1 == on ]] && gamemode_holds_shader; then
+        # Remembered as applied, so the bar is not poked again for it; the
+        # reload at gamemode OFF applies it for real.
+        [[ -n ${NL_DRY:-} ]] && echo "DRY hold $1 $2 via $be (gamemode)" >&2
+        echo "$1 $2" > "$LAST"
+        return 0
+    fi
     if [[ -n ${NL_DRY:-} ]]; then echo "DRY apply $1 $2 via $be" >&2; echo "$1 $2" > "$LAST"; return; fi
     if [[ $be == screen-color ]]; then
         shader_off
@@ -330,9 +359,13 @@ apply() {  # $1 = on|off, $2 = temp
         hint_install
         if [[ $1 == on ]]; then shader_on "$2"; else shader_off; fi
     fi
-    # Refresh the waybar button (custom/nightlight, "signal": 11) only when
-    # the state really changed, not on every 5-minute tick.
-    [[ $(cat "$LAST" 2>/dev/null) == "$1 $2" ]] || pkill -RTMIN+11 -x waybar
+    # Refresh the waybar button (custom/nightlight; its number is in
+    # bar_signals.py, "nightlight") only when the state really changed, not
+    # on every 5-minute tick. This is the row's only refresh: it has no
+    # interval, so a lapsed override shows when the tick applies it -- the
+    # same moment the screen itself changes.
+    [[ $(cat "$LAST" 2>/dev/null) == "$1 $2" ]] ||
+        "$(dirname "$(readlink -f "$0")")/bar_signals.py" poke nightlight 2>/dev/null
     echo "$1 $2" > "$LAST"
 }
 

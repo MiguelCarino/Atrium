@@ -267,11 +267,24 @@ class AutoDnd(unittest.TestCase):
         self.assertIsNotNone(w.release_at)
 
     def test_share_switch(self):
-        w = ad.Watch(conf(dnd_share=False))
-        w.event("screencast>>1,0")
-        self.assertFalse(self.dnd)
-        w.conf = conf()
-        w.event("screencast>>1,0")
+        # a share counts once it has lasted SHARE_ENGAGE_S (blips do not)
+        now = [1000.0]
+        with mock.patch.object(ad.time, "monotonic", lambda: now[0]), \
+                mock.patch.object(ad, "share_owner", lambda: ""):
+            w = ad.Watch(conf(dnd_share=False))
+            w.event("screencast>>1,0")
+            now[0] += ad.SHARE_ENGAGE_S + 1
+            w.due(now[0])
+            self.assertFalse(self.dnd)
+            w.event("screencast>>0,0")                # let the first share go
+            now[0] += ad.SHARE_GRACE_S + 1
+            w.due(now[0])
+            w.conf = conf()
+            w.event("screencast>>1,0")
+            w.due(now[0] + 1)
+            self.assertEqual(self.log, [])            # a blip: not yet
+            now[0] += ad.SHARE_ENGAGE_S + 1
+            w.due(now[0])
         self.assertEqual(self.log, [(True, "screen share")])
 
     def test_you_turning_it_off_is_respected(self):

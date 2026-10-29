@@ -32,12 +32,12 @@ import json
 import os
 import re
 import select
-import socket
 import subprocess
 import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hypr")
 PROFILES = os.path.join(STATE_DIR, "game-profiles.json")
 ACTIVE = os.path.join(STATE_DIR, "game-profiles-active.json")
@@ -51,6 +51,8 @@ CLASS = re.compile(r"steam_app_(\d+)$")
 
 sys.path.insert(0, HERE)
 import screens  # noqa: E402  (scripts/screens.py: the primary, the HDR screens)
+import desk_common  # noqa: E402  (read_json)
+import hyprbus  # noqa: E402  (Hyprland's events: the shared relay, or socket2 directly)
 
 
 def hdr_output():
@@ -75,11 +77,7 @@ def run(*cmd, timeout=10):
 
 
 def load(path, default):
-    try:
-        with open(path) as handle:
-            return json.load(handle)
-    except (OSError, ValueError):
-        return default
+    return desk_common.read_json(path, default)
 
 
 def save(path, data):
@@ -91,7 +89,7 @@ def save(path, data):
 
 
 def notify(title, body=""):
-    subprocess.run(["notify-send", "-a", "Game profiles", "-u", "low", "-t", "3000",
+    subprocess.run([NOTIFY, "-a", "Game profiles", "-u", "low", "-t", "3000",
                     "-h", "string:x-canonical-private-synchronous:game-profiles", title, body],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -317,6 +315,9 @@ def socket_path():
     return os.path.join(base, sig, ".socket2.sock")
 
 
+HYPR_EVENTS = {"openwindow", "closewindow", "windowtitle", "windowtitlev2"}    # what watch() reacts to
+
+
 def watch():
     path = socket_path()
     if not path:
@@ -325,8 +326,7 @@ def watch():
     w.sync()
     while True:
         try:
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.connect(path)
+            sock = hyprbus.connect(HYPR_EVENTS, direct=path)
         except OSError:
             time.sleep(2)
             continue

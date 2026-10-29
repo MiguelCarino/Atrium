@@ -10,17 +10,58 @@
 #
 # Plain `export NAME=value` lines; uwsm sources this with sh.
 
-# The pointer size (and your own cursor theme, if you picked one) from the
-# Settings window's "Fonts & text" page: display.conf cursor_size /
-# cursor_theme_user, the same keys lua/env.lua reads. 24 when unset.
+# The pointer size and theme, chosen the same way lua/env.lua chooses them:
+# display.conf cursor_size (24 when unset); the theme is your own
+# cursor_theme_user from the Settings window's "Fonts & text" page when it is
+# installed, else the desktop theme's cursor_theme= following inherit= (and
+# cyberpunk, the base) like scripts/theme.py's chain(), else Adwaita. Without
+# the chain, services started by systemd (the portal's file chooser, the
+# polkit prompt) drew Adwaita under a theme that names another pointer.
 _hypr_state="${XDG_STATE_HOME:-$HOME/.local/state}/hypr/display.conf"
-_hypr_size=$(sed -n 's/^cursor_size=\([0-9][0-9]*\)$/\1/p' "$_hypr_state" 2>/dev/null | head -n1)
-export XCURSOR_SIZE="${_hypr_size:-24}"
+_hypr_kv() {   # file key -> the last value of key= (read_kv in lua/shared.lua)
+    sed -n "s/^[[:space:]]*$2[[:space:]]*=[[:space:]]*\(.*[^[:space:]]\)[[:space:]]*\$/\1/p" "$1" 2>/dev/null | tail -n1
+}
+_hypr_installed() {   # a cursor theme with a default or left_ptr pointer
+    case "$1" in ""|*/*) return 1 ;; esac
+    for _r in "$HOME/.icons" "$HOME/.local/share/icons" /usr/share/icons; do
+        for _s in default left_ptr; do
+            [ -e "$_r/$1/cursors/$_s" ] && return 0
+        done
+    done
+    return 1
+}
+_hypr_size=$(_hypr_kv "$_hypr_state" cursor_size)
+case "$_hypr_size" in ''|*[!0-9]*) _hypr_size=24 ;; esac
+[ "$_hypr_size" -ge 8 ] && [ "$_hypr_size" -le 256 ] || _hypr_size=24
+export XCURSOR_SIZE="$_hypr_size"
 export HYPRCURSOR_SIZE="$XCURSOR_SIZE"
-_hypr_cursor=$(sed -n 's/^cursor_theme_user=\([A-Za-z0-9._ -]*\)$/\1/p' "$_hypr_state" 2>/dev/null | head -n1)
+_hypr_cursor=$(_hypr_kv "$_hypr_state" cursor_theme_user)
+if ! _hypr_installed "$_hypr_cursor"; then
+    _hypr_cursor=""
+    _hypr_name=$(_hypr_kv "$_hypr_state" theme)
+    _hypr_name="${_hypr_name:-cyberpunk}"
+    _hypr_seen=" "
+    while [ -n "$_hypr_name" ] && [ -z "$_hypr_cursor" ]; do
+        case "$_hypr_seen" in *" $_hypr_name "*) break ;; esac
+        _hypr_seen="$_hypr_seen$_hypr_name "
+        _hypr_conf="$HOME/.config/themes/$_hypr_name/theme.conf"
+        [ -f "$_hypr_conf" ] || break
+        _hypr_cursor=$(_hypr_kv "$_hypr_conf" cursor_theme)
+        _hypr_inherit=$(_hypr_kv "$_hypr_conf" inherit)
+        if [ -n "$_hypr_inherit" ]; then _hypr_name="$_hypr_inherit"
+        elif [ "$_hypr_name" != cyberpunk ]; then _hypr_name=cyberpunk
+        else _hypr_name=""
+        fi
+    done
+    _hypr_installed "$_hypr_cursor" || { _hypr_installed Adwaita && _hypr_cursor=Adwaita || _hypr_cursor=""; }
+fi
 [ -n "$_hypr_cursor" ] && export XCURSOR_THEME="$_hypr_cursor"
-unset _hypr_state _hypr_size _hypr_cursor
-export QT_QPA_PLATFORM=wayland
+unset -f _hypr_kv _hypr_installed
+unset _hypr_state _hypr_size _hypr_cursor _hypr_name _hypr_seen _hypr_conf _hypr_inherit _r _s
+# "wayland;xcb": Wayland first, and X11 through XWayland for a Qt app whose
+# Qt has no Wayland plugin (an AppImage or a vendored Qt) -- with plain
+# "wayland" such an app fails to start at all. Same in lua/env.lua.
+export QT_QPA_PLATFORM="wayland;xcb"
 # Qt6 apps read their style and palette from ~/.config/qt6ct (dark COSMIC
 # palette). Without this the qt6ct config existed but nothing loaded it.
 export QT_QPA_PLATFORMTHEME=qt6ct

@@ -21,6 +21,11 @@ for var, sub in (("XDG_STATE_HOME", "state"), ("XDG_CACHE_HOME", "cache"), ("XDG
     os.makedirs(os.path.join(SCRATCH, sub), exist_ok=True)
     os.environ[var] = os.path.join(SCRATCH, sub)
 os.environ.pop("HYPRLAND_INSTANCE_SIGNATURE", None)    # a stray hyprctl call fails instead of acting
+# bar_signals.poke() is a no-op for the whole run (a fake kill= passed in
+# still counts): a script under test that redraws a pill never signals the
+# live bar -- nor does any script a test runs as a subprocess (it inherits
+# the environment).
+os.environ["HYPR_BAR_SIGNALS_OFF"] = "1"
 # desktop.conf and workhours.conf: scratch copies, never yours. The projects
 # folder is ~/Projects (it need not exist: the tests that list repos give
 # their own folder); work hours start OFF (no file), as on a new desktop.

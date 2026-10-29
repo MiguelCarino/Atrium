@@ -320,6 +320,13 @@ TOPIC_LINES = {
                   "むぅ…おこるよ！ I'll get mad! (｀へ´)"),
     "pet": ("ふにゃ〜 ♡ (´ω`)", "なでなで…うれしい ♡", "もっと〜 more pats please ♡",
             "ごろごろ… purr ♡ (=^･ω･^=)"),
+    # railguard.py's notifications (mascot_notify.py says them, voice on)
+    "rg_memory": "めっ！ {0} がメモリ食べすぎ…止めたよ (｀・ω・´)",
+    "rg_vram": "{0} がGPUいっぱい…止めたよ！ (・_・;)",
+    "rg_game_vram": "{0} のGPUメモリ、ぱんぱん… textures low? (・・;)",
+    "rg_panic": "はいっ！ {0} ばいばい ✧",
+    "rg_stuck": "メモリが…でも誰を止めれば…？ (；ω；)",
+    "rg_agents": "エージェントのお仕事、ぜんぶ止めたよ ♡ sessions safe",
 }
 
 STREAM_WORDS = ("moe", "nya", "ok", "so", "code", "fix", "yay", "the", "sakura",

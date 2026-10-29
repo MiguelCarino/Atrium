@@ -262,6 +262,13 @@ TOPIC_LINES = {
             "That's nice… I feel so organised.",
             "Hehe, a gold star for me?",
             "D'aww. Best desktop ever."),
+    # railguard.py's notifications (mascot_notify.py says them, voice on)
+    "rg_memory": "{0} was hogging the memory -- I've put it away.",
+    "rg_vram": "{0} filled the graphics memory -- filed it away.",
+    "rg_game_vram": "{0} is using nearly all the graphics memory. Lower the textures?",
+    "rg_panic": "Done! {0} is closed.",
+    "rg_stuck": "Memory's nearly full and I can't find which file to close...",
+    "rg_agents": "All the agents' jobs are closed. Your sessions are safe.",
 }
 # The reaction sign over its head (mascot_mood.EMOTE_TONES) in Folio's
 # palette: >= 5:1 on the stage card, >= 3:1 on the bright sky top and a

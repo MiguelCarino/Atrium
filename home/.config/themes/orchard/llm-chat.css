@@ -1,0 +1,407 @@
+/* ===========================================================================
+   ORCHARD -- the LLM chat window (~/.config/hypr/scripts/llm-chat.py, base
+   stylesheet llm-chat.css there). Copied to
+   waybar/generated/theme-llm-chat.css by theme.py and imported LAST.
+
+   LLM chat · Hum: a messages window. The window is the light window face
+   (#b3b3b8, the Nautilus face), the header bar flat on it with a hairline
+   under it, Inter throughout (17px semibold title). Your messages are
+   bubbles in the accent fill under white, round (16px), on the right; the
+   replies are soft grey bubbles (8% ink) on the left. Code and tool output
+   sit on a lighter well in Adwaita Mono. The input is a capsule (18px
+   corners) with a soft blue focus line, and Send is the accent capsule.
+   The mascot's stage is a light grey card #c4c4ca (= mascot_orchard.PANEL,
+   which Hum's colours are drawn against: every visible part of the bee has
+   a dark outline or stripe, so it reads on it), no raster, a hairline.
+   Stop is the red under white. The words are llm-chat.py's (UI_THEME);
+   this file only paints them.
+
+   Status colours, never the accent: a tool's dot is orange while it runs,
+   green when done, red when it failed, each under white. @magenta, the
+   base's second accent, is grey structure here, never "bad".
+
+   HDR: the window face #b3b3b8 is luminance 0.45, the stage #c4c4ca 0.55
+   (one card); the bubbles and wells are small.
+
+   Contrast, measured with the WCAG formula:
+     text #1d1d1f on the window 8.1, on a reply bubble (#a7a7ac) 7.1,
+       on the stage 9.7; dim #4f4f54 3.9 / 3.4 / 4.7
+     your message: white on #0062cc 5.8; queued and dropped bubbles
+       keep ink text on their fainter fills
+     the title #1d1d1f on the header 8.1; links #0058c4 on a reply (with
+       their underline: 2.8), headings the same blue
+     a selection (30% accent) under ink: 5.8 on a reply; a queued bubble
+       (22% accent) 6.7
+     code #1d1d1f on its well (#c4c4c9) 9.7; `code` spans #6b2fa0 on
+       #c4c4c9 4.8
+     Send / Allow: white on #0062cc 5.8, hovered (#0058c4) 6.6; Stop:
+       white on #d70015 5.4; the dots: white on orange #b25000 5.2, green
+       #248a3d 4.4, red 5.4
+   =========================================================================== */
+
+/* --- PALETTE (orchard: light) ----------------------------------------------- */
+@define-color oc-face         #b3b3b8;
+@define-color oc-header       #b6b6bb;
+@define-color oc-well         #c4c4c9;
+@define-color oc-hover        alpha(#1d1d1f, 0.08);
+@define-color oc-shade        alpha(#000000, 0.22);
+@define-color accent-text     #0058c4;
+@define-color accent-fill     #0062cc;
+@define-color oc-good         #248a3d;
+@define-color oc-warn         #b25000;
+@define-color oc-bad          #d70015;
+@define-color oc-purple       #6b2fa0;
+@define-color oc-lit          alpha(#ffffff, 0.45);   /* the stage's lit top edge */
+@define-color oc-bad-hover    #b0000f;
+@define-color oc-accent-hover #0058c4;
+@define-color oc-accent-down  #004ea8;
+@define-color oc-queued-bg    alpha(#007aff, 0.22);
+@define-color oc-queued-edge  alpha(#0058c4, 0.60);
+@define-color oc-dropped-bg   alpha(#1d1d1f, 0.06);
+@define-color oc-dropped-edge alpha(#1d1d1f, 0.30);
+
+@define-color magenta         alpha(#000000, 0.18);   /* structure only, never "bad" */
+@define-color violet          alpha(#1d1d1f, 0.30);
+@define-color yellow          @oc-warn;
+@define-color green           @oc-good;
+@define-color mist            #4f4f54;
+@define-color surface         @oc-face;
+@define-color surface-2       @oc-header;
+@define-color edge            alpha(#000000, 0.12);
+@define-color edge-lit        alpha(#007aff, 0.70);
+@define-color text            #1d1d1f;
+@define-color text-dim        #4f4f54;
+@define-color ink             #ffffff;
+@define-color button-bg       alpha(#ffffff, 0.40);
+@define-color button-hover    alpha(#ffffff, 0.58);
+@define-color stop-bg         @oc-bad;
+@define-color stop-fg         #ffffff;
+@define-color user-bg         @accent-fill;
+@define-color user-edge       @accent-fill;
+@define-color user-fg         #ffffff;
+@define-color assistant-bg    alpha(#1d1d1f, 0.08);
+@define-color assistant-edge  alpha(#000000, 0.00);
+@define-color stage-bg        #c4c4ca;                /* = mascot_orchard.PANEL */
+@define-color stage-edge      alpha(#000000, 0.12);
+@define-color stage-glow      alpha(#ffffff, 0.00);
+@define-color scanline        alpha(#ffffff, 0.00);
+@define-color stage-fg        #1d1d1f;
+@define-color bubble-bg       #d6d6da;
+@define-color bubble-fg       #1d1d1f;
+@define-color bubble-edge     alpha(#000000, 0.12);
+@define-color code-bg         @oc-well;
+@define-color code-fg         #1d1d1f;
+@define-color code-lang       @accent-text;
+@define-color code-edge       alpha(#000000, 0.10);
+@define-color chip-bg         alpha(#ffffff, 0.22);
+@define-color chip-edge       alpha(#000000, 0.12);
+@define-color run-bg          @oc-warn;
+@define-color done-bg         @oc-good;
+@define-color bad-bg          @oc-bad;
+@define-color dot-fg          #ffffff;
+@define-color error-bg        alpha(#d70015, 0.12);
+@define-color error-edge      #b0000f;
+@define-color note-bg         alpha(#1d1d1f, 0.05);
+@define-color sel-bg          alpha(#007aff, 0.30);
+@define-color sel-fg          #1d1d1f;
+@define-color input-bg        alpha(#ffffff, 0.30);
+@define-color input-edge      alpha(#000000, 0.14);
+@define-color input-line      alpha(#000000, 0.14);
+@define-color caret           @cyan;
+@define-color send-bg         @accent-fill;
+@define-color send-fg         #ffffff;
+@define-color send-glow       alpha(#007aff, 0.00);
+@define-color slider          alpha(#1d1d1f, 0.35);
+@define-color tooltip-bg      #c4c4c9;
+@define-color tooltip-fg      #1d1d1f;
+@define-color rule            alpha(#000000, 0.14);
+/* reply markup (llm-chat.py reads these with lookup_color, so plain opaque
+   colours): accent headings and bullets, dim quotes, a purple `code` span
+   on the light well */
+@define-color md-accent       #0058c4;
+@define-color md-dim          #4f4f54;
+@define-color md-code-fg      #6b2fa0;
+@define-color md-code-bg      #c4c4c9;
+@define-color placeholder_text_color #5c5c60;
+/* --- END PALETTE ------------------------------------------------------------ */
+
+/* --- the window: one flat face --------------------------------------------------- */
+window#llm-chat {
+    background-image: none;
+    font-family: "Inter", "Adwaita Sans", "IBM Plex Sans", sans-serif;
+}
+
+/* --- header bar: flat on the face, a hairline under it ---------------------------- */
+window#llm-chat headerbar {
+    border-bottom: 1px solid @edge;
+    box-shadow: none;
+    min-height: 46px;
+}
+
+window#llm-chat headerbar .title {
+    font-family: "Inter", "Adwaita Sans", sans-serif;
+    font-weight: 600;
+    font-size: 13pt;
+    color: @text;
+}
+
+window#llm-chat headerbar .subtitle {
+    font-family: "Inter", "Adwaita Sans", sans-serif;
+    color: @text-dim;
+}
+
+window#llm-chat headerbar button {
+    border-radius: 6px;
+    border: 1px solid @edge;
+    padding: 2px 10px;
+}
+
+window#llm-chat headerbar button:hover {
+    border-color: @edge;
+    box-shadow: none;
+}
+
+window#llm-chat headerbar button.stop {
+    border-color: @oc-bad;
+    font-weight: 600;
+}
+
+window#llm-chat headerbar button.stop:hover {
+    background-color: @oc-bad-hover;
+    box-shadow: none;
+}
+
+window#llm-chat headerbar button.titlebutton {
+    border-radius: 9999px;
+}
+
+window#llm-chat headerbar button#model-button {
+    font-family: "Inter", "Adwaita Sans", sans-serif;
+}
+
+window#llm-chat popover#model-menu {
+    border: 1px solid @edge;
+    border-radius: 10px;
+    padding: 5px;
+    background-color: @oc-well;
+    box-shadow: 0 6px 16px @oc-shade;
+}
+
+window#llm-chat popover#model-menu modelbutton,
+window#llm-chat popover#model-menu button {
+    border-radius: 5px;
+}
+
+window#llm-chat popover#model-menu modelbutton:hover,
+window#llm-chat popover#model-menu modelbutton:focus {
+    background-color: @accent-fill;
+    color: @ink;
+}
+
+window#llm-chat popover#model-menu modelbutton:hover label,
+window#llm-chat popover#model-menu modelbutton:focus label {
+    color: @ink;
+}
+
+window#llm-chat popover#model-menu .model-heading {
+    font-size: 8.5pt;
+    font-weight: 600;
+    letter-spacing: 0px;
+}
+
+window#llm-chat popover#model-menu check,
+window#llm-chat popover#model-menu radio {
+    color: @accent-text;
+}
+
+/* --- the stage: a light card, Hum's garden ---------------------------------------- */
+#stage {
+    background-image: none;
+    border: 1px solid @stage-edge;
+    border-radius: 16px;
+    box-shadow: inset 0 1px @oc-lit;
+}
+
+#art {
+    font-family: "Adwaita Mono", "IBM Plex Mono", monospace;
+}
+
+#bubble {
+    font-family: "Inter", "Adwaita Sans", sans-serif;
+    font-size: 10.5pt;
+    border-radius: 14px;
+    box-shadow: 0 2px 6px @oc-shade;
+}
+
+paned > separator {
+    background-image: none;
+    background-color: @edge;
+    min-height: 1px;
+    margin: 0 18px;
+}
+
+#transcript-scroll scrollbar slider {
+    border-radius: 9999px;
+}
+
+/* --- the conversation: bubbles ---------------------------------------------------- */
+label.user {
+    border: none;
+    border-radius: 16px;
+    padding: 8px 14px;
+    box-shadow: none;
+}
+
+label.user.queued {
+    color: @text;
+    background-color: @oc-queued-bg;
+    border: 1px dashed @oc-queued-edge;
+    border-radius: 16px;
+}
+
+label.user.dropped {
+    color: @text-dim;
+    background-color: @oc-dropped-bg;
+    border: 1px dashed @oc-dropped-edge;
+    border-radius: 16px;
+}
+
+.assistant {
+    border: none;
+    border-radius: 16px;
+}
+
+label.md link {
+    color: @accent-text;
+}
+
+.codeblock {
+    border-radius: 10px;
+}
+
+.codeblock label.code-lang {
+    font-family: "Inter", "Adwaita Sans", sans-serif;
+    font-weight: 600;
+    letter-spacing: 0px;
+}
+
+label.code,
+.mono {
+    font-family: "Adwaita Mono", "IBM Plex Mono", monospace;
+}
+
+button.copy {
+    border-radius: 6px;
+}
+
+.toolchip {
+    border-radius: 10px;
+}
+
+label.tool-icon {
+    border-radius: 9999px;
+}
+
+label.tool-name {
+    font-weight: 600;
+    letter-spacing: 0px;
+}
+
+label.tool-excerpt {
+    border-radius: 8px;
+}
+
+label.note {
+    border-radius: 8px;
+}
+
+label.error-card {
+    border-radius: 10px;
+    color: @text;
+}
+
+box.perm-card {
+    border-radius: 12px;
+}
+
+box.perm-card label.perm-title {
+    font-weight: 600;
+    letter-spacing: 0px;
+}
+
+box.perm-card label.perm-what {
+    border-radius: 6px;
+}
+
+box.perm-card button,
+button.retry {
+    border-radius: 6px;
+}
+
+box.perm-card button:hover,
+box.perm-card button:focus,
+button.retry:hover {
+    background-color: @button-hover;
+    box-shadow: 0 0 0 3px alpha(@cyan, 0.35);
+}
+
+/* Allow is the accent capsule; its hover deepens it rather than ringing it. */
+box.perm-card button.perm-allow {
+    color: @ink;
+    background-color: @accent-fill;
+    border-color: @accent-fill;
+}
+
+box.perm-card button.perm-allow:hover,
+box.perm-card button.perm-allow:focus {
+    background-color: @oc-accent-hover;
+    box-shadow: none;
+}
+
+#search entry {
+    border-radius: 8px;
+}
+
+/* --- the input: a capsule and the Send capsule ------------------------------------ */
+#bottom {
+    border-top: 1px solid @edge;
+}
+
+#input-scroll {
+    border: 1px solid @input-edge;
+    border-bottom: 1px solid @input-edge;
+    border-radius: 18px;
+    padding: 6px 14px;
+}
+
+#input-scroll:focus-within {
+    border-color: alpha(@cyan, 0.70);
+    box-shadow: 0 0 0 3px alpha(@cyan, 0.30);
+}
+
+button#send {
+    font-family: "Inter", "Adwaita Sans", sans-serif;
+    font-weight: 600;
+    letter-spacing: 0px;
+    border: none;
+    border-radius: 9999px;
+    padding: 6px 16px;
+}
+
+button#send:hover {
+    background-color: @oc-accent-hover;
+    box-shadow: none;
+}
+
+button#send:active {
+    background-color: @oc-accent-down;
+}
+
+tooltip, tooltip.background {
+    border: 1px solid @edge;
+    border-radius: 8px;
+}
+
+.md-table separator {
+    background-color: @edge;
+}

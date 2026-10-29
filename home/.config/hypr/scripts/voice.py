@@ -54,12 +54,34 @@ THE ENGINE, picked at every load (plan_engine(), pure, tested):
     otherwise                               the card, `model`, int8_float16
 
 The user's LM Studio model is never unloaded for this: the check is the
-card's free memory (nvidia-smi), and large-v3-turbo needs ~1.5 GB of it.
+card's free memory (gpu.py's primary(), in-process: nothing forked), and
+large-v3-turbo needs ~1.5 GB of it. faster-whisper's card engine is CUDA,
+so only a card CUDA can drive counts (gpu_free_mb); any other card, or none,
+is the CPU.
 
-Dictation: pw-record from the default microphone, 16 kHz mono, into tmpfs.
-On stop it is transcribed (beam 5, the silence trimmed by faster-whisper's
-VAD) and typed into the focused window with wtype -- or pasted (wl-copy +
-Ctrl+V), or only copied, as `output` says. The recording is never kept.
+Dictation: pw-record from the default microphone, 16 kHz mono. It goes to
+the window that was focused when it started (active_window()), and only to
+it (may_type(), pure, tested): the focus is never moved to it -- that would
+switch workspaces and spin the cube under the user -- and while another
+window has the focus the phrases are held back, typed once the window is
+focused again, or put on the clipboard at the end with a notification. A
+popup panel or the toolbox is folded away first (close_panels()). Typing
+waits RELEASE_S after the stop key and runs inside Hyprland's "dictation"
+key mode (lua/userbinds.lua), where no shortcut but the dictation's own
+works: a key still held cannot turn typed letters into shortcuts. Text
+going into the same window soon after the last is joined to it with a space
+(joined(), pure, tested). It is typed with wtype -- or pasted (wl-copy +
+Ctrl+V), or only copied, as `output` says.
+
+  live=on (the default)  each phrase is typed as soon as a pause of
+                         LIVE_PAUSE_S ends it (the captions' cutter,
+                         without drafts), while the next is spoken; the stop
+                         types the rest. Not for push-to-talk: the held
+                         SUPER+ALT would turn the letters into shortcuts.
+  live=off, or ptt       into tmpfs, and on stop transcribed in one go
+                         (beam 5, the silence trimmed by faster-whisper's VAD).
+
+The recording is never kept.
 MAX_RECORD_S stops a recording left running by itself (a push-to-talk key
 whose release was lost).
 
@@ -94,10 +116,14 @@ import socket
 import subprocess
 import sys
 import threading
+import queue
 import time
 from array import array
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import desk_common  # noqa: E402  (notify: the notification, through scripts/notify)
 SELF = os.path.abspath(__file__)
 HOME = os.path.expanduser("~")
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
@@ -114,15 +140,16 @@ SERVICE = "voice.service"
 RATE = 16000                    # Whisper's own rate: no resampling in the worker
 BYTES_PER_S = RATE * 2          # s16 mono
 MAX_RECORD_S = 180
+MAX_LIVE_S = 900                # live dictation types as it goes: a longer text is fine
 MIN_RECORD_S = 0.4              # shorter than this is a key bounce, not speech
-TYPE_AFTER_STOP_S = 0.35        # let go of SUPER+CTRL before wtype types
 MARGIN_MB = 600                 # the card keeps this much free after loading
-NOTIFY_TAG = ["-h", "string:x-canonical-private-synchronous:voice"]
+NOTIFY_TAG = "string:x-canonical-private-synchronous:voice"   # one bubble, replaced in place
 
 DEFAULTS = {"model": "large-v3-turbo", "cpu_model": "small", "device": "auto", "language": "auto",
             "output": "type", "idle_min": "5", "in_games": "off", "translate": "off",
             "caption_size": "22", "caption_lines": "2",
-            "commands": "on", "command_confirm": "off", "command_language": "auto"}
+            "commands": "on", "command_confirm": "off", "command_language": "auto", "live": "on",
+            "memo_card": "on", "memo_text": "on"}
 CHOICES = {"model": ("large-v3-turbo", "large-v3", "medium", "small", "distil-large-v3"),
            "commands": ("on", "off"), "command_confirm": ("on", "off"),
            "command_language": ("auto", "es", "en"),
@@ -131,7 +158,8 @@ CHOICES = {"model": ("large-v3-turbo", "large-v3", "medium", "small", "distil-la
            "language": ("auto", "es", "en"),
            "output": ("type", "paste", "copy"),
            "in_games": ("off", "cpu"),
-           "translate": ("on", "off")}
+           "translate": ("on", "off"), "live": ("on", "off"),
+           "memo_card": ("on", "off"), "memo_text": ("on", "off")}
 NUMBERS = {"idle_min": (1, 120), "caption_size": (14, 48), "caption_lines": (1, 4)}
 # The card's memory each model takes in int8_float16, MB -- large-v3-turbo
 # measured here (1.38-1.46 GB with a few transcriptions done), the rest from
@@ -144,6 +172,14 @@ MODEL_NOTES = {"large-v3-turbo": "best balance: near large-v3 accuracy, several 
                "small": "fast, less accurate",
                "distil-large-v3": "fast and accurate, ENGLISH ONLY",
                "tiny": "fastest, rough", "base": "very fast, rough"}
+
+# Live dictation: a phrase is typed once this much quiet follows it.
+LIVE_PAUSE_S = 0.8
+LIVE_MAX_S = 20.0
+JOIN_WITHIN_S = 120
+RELEASE_S = 0.6                 # after the stop key: let go of it before anything is typed             # a new dictation into the same window within this: a space first
+PANEL = os.path.expanduser("~/.config/waybar/scripts/panel.py")
+TOOLBOX = os.path.expanduser("~/.config/waybar/scripts/toolbox.sh")
 
 # Captions
 STEP_S = 1.2                    # a new draft of the phrase this often
@@ -226,8 +262,8 @@ def plan_engine(settings, free_mb, gaming):
     need = VRAM_MB.get(gpu_model, 1500) + MARGIN_MB
     if free_mb is None:
         if settings["device"] == "cuda":
-            return None, None, None, "no NVIDIA card found (nvidia-smi)"
-        return (*cpu, "no NVIDIA card found: the CPU")
+            return None, None, None, "no graphics card the engine can use (it needs CUDA)"
+        return (*cpu, "no graphics card the engine can use: the CPU")
     if free_mb < need:
         why = f"the card has {free_mb / 1024:.1f} GB free, {gpu_model} needs {need / 1024:.1f}"
         if settings["device"] == "cuda":
@@ -236,16 +272,26 @@ def plan_engine(settings, free_mb, gaming):
     return "cuda", gpu_model, "int8_float16", "the graphics card"
 
 
+def free_mb_of(card):
+    """A gpu.py card -> its free memory in MiB, or None when the engine
+    cannot use it: no card, a card CTranslate2's CUDA build cannot drive
+    (only NVIDIA's can), or one that does not say its memory."""
+    if not card or card.get("vendor") != "nvidia":
+        return None
+    used, total = card.get("vram_used"), card.get("vram_total")
+    if used is None or total is None:
+        return None
+    return total - used
+
+
 def gpu_free_mb():
-    """The card's free memory in MB, None without nvidia-smi or a card. The
-    same query llm-gpu.py's gpu() makes, only the one number."""
+    """The main card's free memory in MiB (free_mb_of), from gpu.py in this
+    process -- NVML kept open, nothing forked -- None without one."""
     try:
-        out = subprocess.run(["nvidia-smi", "--query-gpu=memory.used,memory.total",
-                              "--format=csv,noheader,nounits"], capture_output=True, text=True,
-                             timeout=5).stdout
-        used, total = (int(x) for x in out.splitlines()[0].split(","))
-        return total - used
-    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+        sys.path.insert(0, HERE)
+        import gpu
+        return free_mb_of(gpu.primary())
+    except Exception:  # noqa: BLE001 -- no card info: the CPU
         return None
 
 
@@ -309,6 +355,67 @@ def deliver(text, mode):
         if argv[0] == "wl-copy":
             time.sleep(0.05)            # the clipboard offer is up before Ctrl+V
     return True
+
+
+def joined(text, last, address, now):
+    """TEXT as it should be typed after LAST = (address, time, text) of the
+    previous phrase: a space between them when it goes into the same window
+    soon after and neither side already has one (nor TEXT starts with
+    punctuation that hugs the word before)."""
+    text = text.strip()
+    if not text or not last:
+        return text
+    prev_addr, prev_time, prev_text = last
+    if prev_addr != address or now - prev_time > JOIN_WITHIN_S or not prev_text:
+        return text
+    if prev_text[-1].isspace() or text[0] in ",.;:!?)]}…":
+        return text
+    return " " + text
+
+
+def active_window():
+    """{address, class, xwayland} of the focused window, {} for none."""
+    try:
+        info = json.loads(subprocess.run(["hyprctl", "activewindow", "-j"], capture_output=True,
+                                         text=True, timeout=2).stdout or "{}")
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return {}
+    return info if isinstance(info, dict) and info.get("address") else {}
+
+
+def close_panels():
+    """A popup panel or the toolbox holds the keyboard while it is open
+    (clicking the bar to stop opens nothing, but one may be up): fold them
+    away so the keys reach the window under them."""
+    for argv in ([PANEL, "close-all"], [TOOLBOX, "hide"]):
+        try:
+            subprocess.run(argv, timeout=3, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+
+def submap(name):
+    """Hyprland's key mode: "dictation" (userbinds.lua) has no shortcuts but
+    the dictation's own, so letters typed while a key is still held stay
+    letters; "reset" back -- but only out of ours, never out of another
+    mode (keycapture) something else turned on."""
+    if name == "reset":
+        expr = 'if hl.get_current_submap() == "dictation" then hl.dispatch(hl.dsp.submap("reset")) end'
+    else:
+        expr = f'hl.dispatch(hl.dsp.submap("{name}"))'
+    try:
+        subprocess.run(["hyprctl", "eval", expr], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def may_type(target, active):
+    """Type only into the window the dictation started in, and only while it
+    has the focus: never move the focus to it (that switches workspaces) and
+    never type into whatever else is focused. No window at the start (an
+    empty workspace): wherever the focus is then."""
+    want = (target or {}).get("address")
+    return not want or (active or {}).get("address") == want
 
 
 def clean_text(segments):
@@ -408,7 +515,7 @@ def bar_status(state, now=None):
     now = now or time.time()
     what = state.get("state", "idle")
     engine = state.get("engine") or "not loaded"
-    keys = "SUPER+CTRL+V stop  ·  SUPER+ALT+V hold to talk  ·  SUPER+SHIFT+V captions"
+    keys = "SUPER+H stop  ·  SUPER+ALT+V hold to talk  ·  SUPER+SHIFT+V captions"
     if what == "recording" and state.get("mode") == "command":
         secs = int(now - state.get("since", now))
         return {"text": f"{ICON_MIC} {secs // 60}:{secs % 60:02d}", "class": "recording",
@@ -430,21 +537,82 @@ def bar_status(state, now=None):
     return {"text": "", "class": "idle", "tooltip": ""}
 
 
+IN_CLOSE_WRITE, IN_MOVED_TO, IN_DELETE = 0x8, 0x80, 0x200
+BAR_IDLE_WATCHED_S = 60      # idle, inotify on: a look this often anyway
+BAR_IDLE_POLL_S = 2          # idle, no inotify: a poll this often
+BAR_CAPTIONS_S = 5           # captions on: a daemon that dies writes nothing, so look this often
+
+
+def state_watch(folder=None):
+    """An inotify fd on the state file's folder (non-blocking), or None
+    where inotify is not to be had -- the bar then polls."""
+    try:
+        import ctypes
+        libc = ctypes.CDLL(None, use_errno=True)
+        fd = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+        if fd < 0:
+            return None
+        if libc.inotify_add_watch(fd, (folder or RUNTIME).encode(), IN_CLOSE_WRITE | IN_MOVED_TO | IN_DELETE) < 0:
+            os.close(fd)
+            return None
+        return fd
+    except (OSError, AttributeError):
+        return None
+
+
+def watch_names(data):
+    """The file names in a read() of inotify events."""
+    names, i = [], 0
+    while i + 16 <= len(data):
+        length = int.from_bytes(data[i + 12:i + 16], sys.byteorder)
+        names.append(data[i + 16:i + 16 + length].rstrip(b"\0").decode("utf-8", "replace"))
+        i += 16 + length
+    return names
+
+
+def bar_wait(state, now, watched):
+    """How long the bar's loop may sleep -- pure, for the tests. Recording:
+    to the clock's next whole second; loading/transcribing: a second;
+    captions on: BAR_CAPTIONS_S (a crashed daemon writes no state); idle:
+    nothing changes by itself, so with inotify it only wakes for a
+    state-file change (or BAR_IDLE_WATCHED_S), without it every
+    BAR_IDLE_POLL_S. It used to wake 2-4 times a second all day."""
+    what = state.get("state") if state and state.get("pid") else "idle"
+    if what == "recording":
+        return 1.0 - ((now - state.get("since", now)) % 1.0) + 0.02
+    if what in ("transcribing", "loading"):
+        return 1.0
+    if state and state.get("pid") and state.get("captions"):
+        return BAR_CAPTIONS_S if watched else BAR_IDLE_POLL_S    # the CC icon must not outlive a crash
+    return BAR_IDLE_WATCHED_S if watched else BAR_IDLE_POLL_S
+
+
 def bar():
+    import select
     last = None
+    fd = state_watch(os.path.dirname(STATE_FILE))
+    name = os.path.basename(STATE_FILE)
     while True:
         state = read_state()
-        try:
-            stamp = os.stat(STATE_FILE).st_mtime
-        except OSError:
-            stamp = 0
         status = bar_status(state)
         if status != last:
             print(json.dumps(status), flush=True)
             last = status
-        # A tick is a stat and a small read; a second apart, a recording's
-        # clock steps once a second, and a state change shows within 0.25 s.
-        time.sleep(0.25 if stamp > time.time() - 2 else 0.5)
+        wait = bar_wait(state, time.time(), fd is not None)
+        if fd is None:
+            time.sleep(wait)
+            continue
+        # Woken by any change in the runtime folder: only ours counts.
+        end = time.monotonic() + wait
+        while True:
+            left = end - time.monotonic()
+            if left <= 0 or not select.select([fd], [], [], left)[0]:
+                break
+            try:
+                if name in watch_names(os.read(fd, 65536)):
+                    break
+            except BlockingIOError:
+                pass
 
 
 # -- client ---------------------------------------------------------------------------
@@ -501,18 +669,33 @@ def remember_caption(text, path=None):
 
 def notify(title, body="", replace=None, timeout=2500, urgency="normal"):
     """notify-send; the id back, for replacing the same bubble later."""
-    argv = ["notify-send", "-a", "Voice", "-i", "audio-input-microphone", "-u", urgency,
-            "-t", str(timeout), "-p", *NOTIFY_TAG]
-    if replace:
-        argv += ["-r", str(replace)]
-    try:
-        out = subprocess.run(argv + [title, body], capture_output=True, text=True, timeout=5).stdout
-        return out.strip() or replace
-    except (OSError, subprocess.SubprocessError):
-        return replace
+    out = desk_common.notify(title, body, app="Voice", icon="audio-input-microphone", urgency=urgency,
+                             expire=timeout, hints=[NOTIFY_TAG], print_id=True, replace_id=replace,
+                             timeout=5)
+    return out or replace
 
 
 # -- daemon ---------------------------------------------------------------------------
+def end_proc(proc, grace=3):
+    """terminate, wait `grace` s, then kill -- and always wait at the end, so
+    the child is reaped (a captions run once left pw-record and the overlay
+    as zombies of this daemon for hours)."""
+    if proc is None:
+        return
+    try:
+        if proc.poll() is None:
+            proc.terminate()
+            proc.wait(grace)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+    except OSError:
+        pass
+    try:
+        proc.wait(grace)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
 class Worker:
     """The venv python holding the model, one request at a time."""
 
@@ -555,11 +738,7 @@ class Worker:
         return self.proc.poll() is None
 
     def stop(self):
-        try:
-            self.proc.terminate()
-            self.proc.wait(5)
-        except (OSError, subprocess.SubprocessError):
-            self.proc.kill()
+        end_proc(self.proc, 5)
 
 
 class Daemon:
@@ -574,6 +753,12 @@ class Daemon:
         self.rec_mode = "dictate"    # or "command": the words go to voice-command.py
         self.stopped_at = 0.0
         self.note = None             # the notification id of this dictation
+        self.target = {}             # the window focused when the dictation started
+        self.last_typed = None       # (address, time, text) of the last phrase typed
+        self.held = []               # phrases waiting for the window to be focused again
+        self.told_held = False
+        self.started_at = 0.0
+        self.live = None             # (reader thread, phrase queue, typer thread) while live
         self.captions = None         # the captions thread's stop event
         self.overlay = None
         self.write_state()
@@ -675,20 +860,40 @@ class Daemon:
             # One file per recording: the last one may still be being transcribed (and is
             # deleted after), so a new recording never shares its file.
             self.rec_path = os.path.join(WORK_DIR, f"dictation-{os.getpid()}-{time.time_ns()}.raw")
-            out = open(self.rec_path, "wb")
-            self.rec = subprocess.Popen(["pw-record", "--rate", str(RATE), "--channels", "1",
-                                         "--format", "s16", "--raw", "-P", '{ media.name="Voice typing" }', "-"],
-                                        stdout=out, stderr=subprocess.DEVNULL)
-            out.close()
+            self.target = active_window() if mode == "dictate" else {}
+            self.held, self.told_held, self.started_at = [], False, time.time()
+            # Live: each phrase typed as soon as a pause ends it. Not while a
+            # push-to-talk key is held -- its SUPER+ALT would turn the typed
+            # letters into shortcuts.
+            live = mode == "dictate" and not ptt and settings["live"] == "on"
+            argv = ["pw-record", "--rate", str(RATE), "--channels", "1",
+                    "--format", "s16", "--raw", "-P", '{ media.name="Voice typing" }', "-"]
+            if live:
+                self.rec = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                phrases = queue.Queue()
+                reader = threading.Thread(target=self._live_read, args=(self.rec, phrases), daemon=True)
+                typer = threading.Thread(target=self._live_type, args=(phrases, settings["output"]), daemon=True)
+                self.live = (reader, phrases, typer)
+                self.live_count = 0
+                reader.start()
+                typer.start()
+            else:
+                out = open(self.rec_path, "wb")
+                self.rec = subprocess.Popen(argv, stdout=out, stderr=subprocess.DEVNULL)
+                out.close()
             self.rec_ptt = ptt
             self.rec_mode = mode
             self.set_state("recording")
+            where = self.target.get("class") or "the focused window"
             if mode == "command":
                 stop_key = "let go of the key" if ptt else "the same key again"
                 self.note = notify("Listening for a command…", f"Say it; {stop_key} to do it.", timeout=0)
+            elif live:
+                self.note = notify("Dictating…", f"Into {where}, a phrase at each pause. "
+                                   "SUPER+H again to finish.", timeout=0)
             else:
-                stop_key = "let go of the key" if ptt else "SUPER+CTRL+V again"
-                self.note = notify("Listening…", f"Speak; {stop_key} to type it.", timeout=0)
+                stop_key = "let go of the key" if ptt else "SUPER+H again"
+                self.note = notify("Listening…", f"Speak; {stop_key} to type it into {where}.", timeout=0)
             started = self.rec
             threading.Thread(target=self._cap, args=(started,), daemon=True).start()
         # Warm the engine up while the person talks: by the stop it is loaded.
@@ -703,7 +908,7 @@ class Daemon:
 
     def _cap(self, proc):
         try:
-            proc.wait(MAX_RECORD_S)
+            proc.wait(MAX_LIVE_S if self.live else MAX_RECORD_S)
         except subprocess.TimeoutExpired:
             if self.rec is proc:
                 self.stop()
@@ -718,8 +923,12 @@ class Daemon:
             try:
                 proc.wait(3)
             except subprocess.TimeoutExpired:
-                proc.kill()
+                end_proc(proc, 2)
             self.stopped_at = time.time()
+            live, self.live = self.live, None
+        if live:
+            return self._live_finish(live, cancel)
+        with self.lock:
             size = os.path.getsize(path) if os.path.exists(path) else 0
             if cancel or size < MIN_RECORD_S * BYTES_PER_S:
                 if os.path.exists(path):
@@ -746,10 +955,10 @@ class Daemon:
             self.hand_off(text, answer.get("language"))
         else:
             mode = read_settings()["output"]
-            wait = TYPE_AFTER_STOP_S - (time.time() - self.stopped_at)
-            if wait > 0:
-                time.sleep(wait)
-            deliver(text, mode)
+            self.type_text(text, mode)
+            if self.leftover():
+                text = ""
+        if text and not answer.get("error") and not command:
             done = {"type": "Typed", "paste": "Pasted", "copy": "Copied to the clipboard"}[mode]
             notify(done, f"{text[:160]}\n{answer.get('language', '?')} · {answer.get('audio_s', 0):.1f} s of "
                          f"speech in {answer.get('secs', 0):.2f} s", replace=self.note, timeout=2500)
@@ -760,6 +969,133 @@ class Daemon:
                 self.set_state("idle")
                 self.rec_mode = "dictate"
         return {"state": "idle", **answer}
+
+    # live dictation ------------------------------------------------------------
+    def type_text(self, text, mode):
+        """TEXT into the dictation's window, joined to the phrase before --
+        or held back while another window has the focus (may_type), to go
+        in once the window is focused again, or onto the clipboard at the end."""
+        if self.stopped_at and self.stopped_at >= self.started_at:
+            wait = RELEASE_S - (time.time() - self.stopped_at)
+            if wait > 0:
+                time.sleep(wait)
+        if mode == "copy":                  # the clipboard is no window: nothing to guard
+            return bool(text.strip()) and deliver(text.strip(), mode)
+        close_panels()
+        self.held.append(text.strip())
+        active = active_window()
+        if not may_type(self.target, active):
+            if not self.told_held:
+                self.told_held = True
+                where = self.target.get("class") or "the window you started in"
+                notify("Dictation waiting", f"Go back to {where} and it types there; "
+                       "it never types into another window.", replace=self.note, timeout=0)
+            return False
+        address = self.target.get("address") or active.get("address")
+        now = time.time()
+        text = joined(" ".join(t for t in self.held if t), self.last_typed, address, now)
+        self.held = []
+        if not text:
+            return False
+        submap("dictation")
+        try:
+            ok = deliver(text, mode)
+        finally:
+            submap("reset")
+        if ok:
+            self.last_typed = (address, now, text)
+        return ok
+
+    def leftover(self):
+        """At the end: what could not be typed (the window was never focused
+        again) goes onto the clipboard, and a notification says so."""
+        text = " ".join(t for t in self.held if t)
+        self.held = []
+        if not text:
+            return False
+        deliver(text, "copy")
+        where = self.target.get("class") or "the window you started in"
+        notify("Not typed: on the clipboard", f"{where} did not have the focus. "
+               f"Paste it where it goes.\n{text[:160]}", replace=self.note, timeout=6000)
+        return True
+
+    def _live_read(self, proc, phrases):
+        """The microphone, cut at pauses (the captions' cutter, without
+        drafts): each phrase onto the queue; the rest at the end."""
+        cut = Captions(step=10 ** 9, pause=LIVE_PAUSE_S, max_s=LIVE_MAX_S)
+        while True:
+            data = proc.stdout.read1(BLOCK * 2)
+            if not data:
+                break
+            for _kind, pcm in cut.feed(data):
+                phrases.put(pcm)
+        if any(cut.loud):
+            phrases.put(bytes(cut.buf))
+        phrases.put(None)
+
+    def _live_type(self, phrases, mode):
+        """Phrases off the queue, one at a time: written down and typed."""
+        chunk = os.path.join(WORK_DIR, f"live-{time.time_ns()}.raw")
+        failed = False
+        try:
+            while True:
+                pcm = phrases.get()
+                if pcm is None:
+                    break
+                if failed:
+                    continue
+                with open(chunk, "wb") as handle:
+                    handle.write(pcm)
+                answer = self.transcribe(chunk)
+                if answer.get("error"):
+                    failed = True
+                    notify("Voice typing failed", answer["error"], replace=self.note,
+                           urgency="critical", timeout=6000)
+                    continue
+                text = answer.get("text", "")
+                if text:
+                    self.type_text(text, mode)
+                    self.live_count += 1
+        finally:
+            if os.path.exists(chunk):
+                os.unlink(chunk)
+
+    def _live_finish(self, live, cancel):
+        reader, phrases, typer = live
+        if cancel:
+            # What is still queued is thrown away; what was typed stays typed.
+            while True:
+                try:
+                    phrases.get_nowait()
+                except queue.Empty:
+                    break
+            phrases.put(None)
+        with self.lock:
+            self.set_state("transcribing")
+        notify("Finishing…", replace=self.note, timeout=0)
+        reader.join(10)
+        typer.join(120)
+        clipboard = False
+        if not cancel and self.held:
+            # Phrases held back while another window had the focus: in now if
+            # it is back, else onto the clipboard (leftover() says so).
+            if may_type(self.target, active_window()):
+                self.type_text("", read_settings()["output"])
+            clipboard = self.leftover()
+        if clipboard:
+            pass
+        elif cancel:
+            notify("Dictation cancelled", replace=self.note, timeout=1200)
+        elif self.live_count:
+            notify("Typed", f"{self.live_count} phrase{'s' if self.live_count != 1 else ''} into "
+                   f"{self.target.get('class') or 'the focused window'}", replace=self.note, timeout=1500)
+        else:
+            notify("Heard nothing", "No words in that recording.", replace=self.note, timeout=1500)
+        with self.lock:
+            if not self.rec:
+                self.set_state("idle")
+                self.rec_mode = "dictate"
+        return {"state": "idle", "phrases": self.live_count}
 
     def hand_off(self, text, language=None):
         """The words of a command to voice-command.py: through a file in
@@ -859,10 +1195,14 @@ class Daemon:
                     final = []
                     self._show([])
         finally:
-            rec.terminate()
+            end_proc(rec)
             if self.overlay:
-                self.overlay.terminate()
-                self.overlay = None
+                overlay, self.overlay = self.overlay, None
+                try:
+                    overlay.stdin.close()       # its read loop ends on EOF
+                except OSError:
+                    pass
+                end_proc(overlay)
             if os.path.exists(chunk_path):
                 os.unlink(chunk_path)
             with self.lock:
@@ -1129,7 +1469,7 @@ def selftest():
     for lang, sentence in (("en-us", "The quick brown fox jumps over the lazy dog."),
                            ("es", "Mañana vamos a la playa con mis amigos.")):
         wav = os.path.join(WORK_DIR, f"selftest-{lang}.wav")
-        subprocess.run(["espeak-ng", "-v", lang, "-s", "150", "-w", wav, sentence], check=True)
+        subprocess.run(["espeak-ng", "-v", lang, "-s", "150", "-w", wav, sentence], check=True, timeout=60)
         t = time.time()
         answer = request({"cmd": "transcribe", "path": wav}, timeout=600)
         os.unlink(wav)

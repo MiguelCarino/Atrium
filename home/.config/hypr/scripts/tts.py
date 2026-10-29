@@ -118,6 +118,7 @@ import time
 import wave
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 THIS = os.path.abspath(__file__)
 HOME_DIR = os.path.expanduser("~/.local/share/tts")
 VENV_PY = os.path.join(HOME_DIR, "venv", "bin", "python")
@@ -773,7 +774,7 @@ def speak_selection():
     if text and speak(text, "auto", "selection"):
         return f"reading {len(text)} characters"
     why = why or last_reason
-    run("notify-send", "-a", APP_NAME, "-i", "audio-speakers", "-t", "3000", "Not read aloud", why)
+    run(NOTIFY, "-a", APP_NAME, "-i", "audio-speakers", "-t", "3000", "Not read aloud", why)
     return f"not read: {why}"
 
 

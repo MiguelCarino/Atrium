@@ -44,14 +44,16 @@ knows; nothing goes on the network (the weather is the bar's last answer):
                    reading of mako, plain counts)
     health         the last nightly checkup (health.py's report, not a new
                    run): what it fixed, what waits for your OK, the worst
-                   problems in plain words; nothing when all was well
+                   problems in plain words; a backup (backup.py) that failed
+                   or is over two days old; nothing when all was well
 
 A section with nothing to say is left out; one that fails says so in one
 line instead of taking the brief down.
 
 WHEN -- automations.py's built-in rule "daily-brief" (when you come back
-after being away, idle-end: `brief.py auto --rule`) and brief.timer (every
-5 min: `brief.py auto --tick`) together, once per day:
+after being away, idle-end: `brief.py auto --rule`) and brief.timer
+(`brief.py auto --tick` 90 s and 12 min after login, and at `at` with
+morning=time) together, once per day:
     morning=unlock   the first time you are back at the computer after `after`
                      (05:00): idle-end after that hour, or a fresh login (the
                      timer, in the first LOGIN_S of a Hyprland session)
@@ -109,6 +111,9 @@ default):
     timesheet  on | off (default off): the CSV next to each entry
     model      on | off (default on): the summary by the local model
 State (the last brief and journal days): $XDG_STATE_HOME/hypr/brief-state.json.
+brief.timer's time of day follows `morning` / `at`: `set` (and each --tick)
+writes brief.timer.d/schedule.conf (timer_dropin) when it differs, so the
+timer fires once at `at` instead of polling every 5 minutes.
 """
 import csv
 import datetime as dt
@@ -126,6 +131,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 WAYBAR = os.path.expanduser("~/.config/waybar/scripts")
 STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hypr")
 CONF = os.path.join(STATE_DIR, "brief.conf")
@@ -247,6 +253,46 @@ def set_setting(key, value, path=None):
         handle.writelines(f"{k}={conf[k]}\n" for k in DEFAULTS)
     os.replace(tmp, path)
     return value
+
+
+TIMER_DROPIN = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"),
+                            "systemd", "user", "brief.timer.d", "schedule.conf")
+
+
+def timer_dropin(conf):
+    """brief.timer's drop-in for these settings -- pure, for the tests.
+    morning=time: an OnCalendar at `at` (the login ticks are in the timer
+    itself). morning=unlock: none -- coming back (the idle-end rule) and the
+    login ticks are the whole of it."""
+    # No "OnCalendar=" reset line: an empty trigger setting clears ALL the
+    # timer's triggers, the login ones in brief.timer too.
+    head = ("# Written by ~/.config/hypr/scripts/brief.py from brief.conf (Settings > Daily brief):\n"
+            "# edits here are overwritten.\n[Timer]\n")
+    if conf.get("morning") == "time":
+        return head + f"OnCalendar=*-*-* {conf.get('at') or DEFAULTS['at']}:00\n"
+    return head
+
+
+def schedule_timer(conf=None, path=None):
+    """brief.timer.d/schedule.conf written when it differs, and systemd told
+    (daemon-reload re-arms the timer). True when it changed."""
+    path = path or TIMER_DROPIN
+    text = timer_dropin(conf or settings())
+    try:
+        with open(path) as handle:
+            if handle.read() == text:
+                return False
+    except OSError:
+        pass
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "w") as handle:
+            handle.write(text)
+        os.replace(path + ".tmp", path)
+        subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return True
 
 
 def sections(conf):
@@ -512,7 +558,10 @@ def sec_notifications(_today):
 
 
 def sec_health(_today):
-    return _module("health", "health.py").brief_lines()
+    # the nightly checkup's findings, what railguard ended in the last day,
+    # then the backup when it is overdue or failed (backup.py's saved state)
+    return (_module("health", "health.py").brief_lines() + _module("railguard", "railguard.py").brief_lines()
+            + _module("backup", "backup.py").brief_lines())
 
 
 GATHER = {"yesterday": sec_yesterday, "repos": sec_repos, "units": sec_units, "health": sec_health,
@@ -612,7 +661,7 @@ def show(aloud=False):
         say_aloud(brief)
     # Not marked "shown" here: only auto() does that, so the brief asked for
     # by hand (Settings, `brief.py show`) at 1 am still leaves the morning's.
-    argv =["notify-send", "-a", APP, "-i", ICON, "--wait", "-A", "default=Open the brief",
+    argv =[NOTIFY, "-a", APP, "-i", ICON, "--wait", "-A", "default=Open the brief",
             greeting(), short_body(brief) + "\n<i>Click for all of it</i>"]
     try:
         picked = subprocess.run(argv, capture_output=True, text=True, timeout=4 * 3600).stdout.strip()
@@ -1048,13 +1097,15 @@ def main(argv):
         brief = gather()
         print(json.dumps(brief, ensure_ascii=False) if "--json" in argv else greeting() + "\n\n" + as_text(brief))
     elif cmd == "auto":
+        if "--tick" in argv:
+            schedule_timer()                # brief.timer's time of day, once it is set up
         print(f"brief: {auto(tick='--tick' in argv, from_rule='--rule' in argv)}", flush=True)
     elif cmd == "journal":
         path, how = write_journal(parse_day(argv[1:]), use_model="--plain" not in argv, dry_run="--dry-run" in argv)
         if "--dry-run" not in argv:
             print(f"brief: journal written: {path} ({how})", flush=True)
             if "--notify" in argv:
-                picked = subprocess.run(["notify-send", "-a", APP, "-i", ICON, "--wait", "-A", "default=Open it",
+                picked = subprocess.run([NOTIFY, "-a", APP, "-i", ICON, "--wait", "-A", "default=Open it",
                                          "Journal written", f"{path.replace(os.path.expanduser('~'), '~')}\n{how}"],
                                         capture_output=True, text=True).stdout.strip()
                 if picked == "default":
@@ -1072,6 +1123,8 @@ def main(argv):
     elif cmd == "set" and len(argv) == 3:
         try:
             print(set_setting(argv[1], argv[2]))
+            if argv[1] in ("morning", "at"):
+                schedule_timer()
         except ValueError as err:
             sys.exit(f"brief: {err}")
     else:

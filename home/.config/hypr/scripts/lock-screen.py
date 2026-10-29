@@ -99,7 +99,7 @@ label {{
 # Date
 label {{
     monitor = {mon}
-    text = cmd[update:60000] date +"%A, %d %B"
+    text = cmd[update:60000] date +"{date_fmt}"
     font_size = 22
     font_family = {font}
     color = {color}
@@ -400,7 +400,15 @@ def label_style(items):
     font = "$font_text" if re.search(r"^\$font_text\s*=", variables, re.M) else "Sans"
     return {"mon": (clock.get("monitor") if clock else "") or "",
             "color": (clock.get("color") if clock else None) or "rgba(255, 255, 255, 0.9)",
-            "font": font}
+            "font": font, "date_fmt": date_format(variables)}
+
+
+def date_format(variables):
+    """The date label's strftime: the theme's $lock_date (hyprlock_theme.py
+    writes one per theme, "%^A // %d %^B" and the like) when the file
+    defines it, so a date turned back on matches the theme; else a plain
+    "%A, %d %B"."""
+    return "$lock_date" if re.search(r"^\$lock_date\s*=", variables, re.M) else "%A, %d %B"
 
 
 def add_block(items, role, **extra):

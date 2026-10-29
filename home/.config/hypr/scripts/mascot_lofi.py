@@ -244,6 +244,13 @@ TOPIC_LINES = {
                   "*hiss*… kidding. but stop it ~"),
     "pet": ("purrrr~", "*kneads the cushion* ~", "mm, right behind the ears ~",
             "slow blink ~ that means i like you."),
+    # railguard.py's notifications (mascot_notify.py says them, voice on)
+    "rg_memory": "{0} ate all the memory… I nudged it off the shelf.",
+    "rg_vram": "{0} hogged the GPU. pawed it away ~",
+    "rg_game_vram": "{0} is filling the GPU… maybe lower the textures?",
+    "rg_panic": "mrrp. {0} is gone. back to the beats ~",
+    "rg_stuck": "mrow… memory's almost gone and I can't find who did it.",
+    "rg_agents": "all the agents' jobs stopped. the sessions are still napping safely.",
 }
 
 

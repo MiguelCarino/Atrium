@@ -15,6 +15,10 @@ encryption and every rule about what is sent).
                         context (off / ask / auto), sessions, files and links
                         (links ask / open, the size limit), desktop memory
                         (OFF as shipped; privacy.conf)
+    WAKE-ON-LAN         a Wake button on every paired machine whose MAC is
+                        known (learnt from this computer's neighbour table
+                        while it is up: wol.py learn), and other machines
+                        by name and MAC (wol.py add / send / remove)
     SHARED KEYBOARD AND MOUSE   lan-mouse: Install (the pinned release), on /
                         off, and which side each machine's screen is on
 
@@ -37,9 +41,11 @@ import time  # noqa: E402
 PAGE = {"id": "machines", "title": "Machines", "icon": "", "group": "Hardware", "order": 95, "parent": "devices", "tab": "Machines",
         "keywords": ["other computer", "laptop", "pair", "peer", "lan", "multi machine", "share clipboard",
                      "send to computer", "send window", "keyboard and mouse", "kvm", "lan-mouse", "barrier",
-                     "synergy", "input leap", "computadora", "otra máquina", "emparejar", "portapapeles"]}
+                     "synergy", "input leap", "computadora", "otra máquina", "emparejar", "portapapeles",
+                     "wake on lan", "wol", "magic packet", "turn on remotely", "encender"]}
 
 PEERS = os.path.join(HYPR, "peers.py")
+WOL = os.path.join(HYPR, "wol.py")
 CONTEXT = [("off", "Off"), ("ask", "Ask"), ("auto", "Follow")]
 LINKS = [("ask", "Ask"), ("open", "Open at once")]
 SIZES = [("100", "100 MB"), ("500", "500 MB"), ("2000", "2 GB")]
@@ -82,6 +88,19 @@ def machine_text(data):
     return "  ·  ".join(parts)
 
 
+def wake_entry(machines, peer):
+    """wol.py's saved machine for a paired one (by peer id, else by name), or None."""
+    found = next((m for m in machines if m.get("peer") and m["peer"] == peer.get("id")), None)
+    return found or next((m for m in machines if not m.get("peer")
+                          and str(m.get("name", "")).lower() == str(peer.get("name", "")).lower()), None)
+
+
+def other_machines(machines, peers):
+    """The saved Wake-on-LAN machines that are not one of the paired ones."""
+    mine = [wake_entry(machines, p) for p in peers]
+    return [m for m in machines if not any(m is x for x in mine)]
+
+
 def kvm_text(kvm):
     if not kvm.get("installed"):
         return f"lan-mouse {kvm.get('pinned')} is not installed"
@@ -105,6 +124,7 @@ class Page:
         self.data = {}
         self.proc = None            # a running pair / join
         self.armed = None           # the machine whose Forget was clicked once
+        self.learning = set()       # peers whose MAC was looked for this time
         self.asking = False         # a code is shown and this side has not answered yet
 
         w.pack_start(heading("THIS MACHINE"), False, False, 0)
@@ -132,6 +152,30 @@ class Page:
         self.result = dp.label("", "ctl-sub")
         self.result.set_line_wrap(True)
         w.pack_start(self.result, False, False, 0)
+        w.pack_start(sep(), False, False, 0)
+
+        w.pack_start(heading("WAKE-ON-LAN"), False, False, 0)
+        self.wol_rows = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        w.pack_start(self.wol_rows, False, False, 0)
+        box = Gtk.Box(spacing=8)
+        self.wol_name = Gtk.Entry()
+        self.wol_name.set_placeholder_text("name")
+        self.wol_name.set_width_chars(12)
+        self.wol_mac = Gtk.Entry()
+        self.wol_mac.set_placeholder_text("MAC address, e.g. aa:bb:cc:dd:ee:ff")
+        self.wol_mac.set_hexpand(True)
+        self.wol_mac.connect("activate", lambda _e: self.wol_add())
+        box.pack_start(self.wol_name, False, False, 0)
+        box.pack_start(self.wol_mac, True, True, 0)
+        box.pack_start(link("Remember", self.wol_add), False, False, 0)
+        w.pack_start(box, False, False, 0)
+        wol_more = dp.label("Wake sends the \"magic packet\" to the machine's network card on this network. "
+                            "It must allow it: Wake on LAN on in its firmware setup, and on Linux "
+                            "`nmcli connection modify <connection> 802-3-ethernet.wake-on-lan magic`. "
+                            "Wired cards almost always can, Wi-Fi almost never. A paired machine's MAC is "
+                            "picked up by itself while that machine is on.", "ctl-sub")
+        wol_more.set_line_wrap(True)
+        w.pack_start(details(wol_more), False, False, 0)
         w.pack_start(sep(), False, False, 0)
 
         w.pack_start(heading("PAIR A MACHINE"), False, False, 0)
@@ -277,6 +321,33 @@ class Page:
         self.armed = None
         self.peer_action(f"forgetting {peer['name']}", "unpair", peer["id"])
 
+    def wake(self, name):
+        self.peer_action_wol(f"waking {name}", "send", name)
+
+    def peer_action_wol(self, label, *argv):
+        self.result.set_text(f"{label}...")
+        background(lambda: subprocess.run([WOL, *argv], capture_output=True, text=True, timeout=15),
+                   lambda r: (self.result.set_text((r.stdout or r.stderr).strip().removeprefix("wol: ")
+                                                   or f"{label}: done"), self.refresh()))
+
+    def wol_add(self):
+        name, mac = self.wol_name.get_text().strip(), self.wol_mac.get_text().strip()
+        if not name or not mac:
+            self.result.set_text("Wake-on-LAN: a name and a MAC address")
+            return
+        self.wol_name.set_text("")
+        self.wol_mac.set_text("")
+        self.peer_action_wol(f"remembering {name}", "add", name, mac)
+
+    def learn_macs(self, peers, machines):
+        """Look up the MAC of paired machines seen at an address (the
+        neighbour table, no packet sent), once per page."""
+        for p in peers:
+            if p.get("host") and p["id"] not in self.learning and not wake_entry(machines, p):
+                self.learning.add(p["id"])
+                background(lambda p=p: run(WOL, "learn", p["id"], p["host"], p["name"], timeout=10),
+                           lambda out: out.strip() and self.refresh())
+
     def disarm(self, pid, button):
         if self.armed == pid:
             self.armed = None
@@ -350,7 +421,12 @@ class Page:
 
     # -- drawing ----------------------------------------------------------------------------
     def refresh(self):
-        background(lambda: run_json(PEERS, "status", "--json") or {}, self.draw)
+        def work():
+            data = run_json(PEERS, "status", "--json") or {}
+            if data:
+                data["wol"] = (run_json(WOL, "list", "--json", timeout=5) or {}).get("machines") or []
+            return data
+        background(work, self.draw)
 
     def draw(self, data):
         if not data:
@@ -368,11 +444,15 @@ class Page:
                                  "off: nothing shared; the pairings stay" if not data.get("enabled")
                                  else "on, for the paired machines only")
         clear(self.rows)
+        machines = data.get("wol") or []
         for p in peers:
             forget = Gtk.Button(label="Forget")
             forget.get_style_context().add_class("ctl-link")
             forget.connect("clicked", lambda b, peer=p: self.forget(peer, b))
+            woke = wake_entry(machines, p)
+            wake = [link("Wake", lambda m=woke: self.wake(m["name"]))] if woke else []
             grid, _ = row("\uf109", p["name"], seen_text(p), links_row(
+                *wake,
                 link("Ping", lambda peer=p: self.ping(peer)),
                 link("Send my windows", lambda peer=p: self.peer_action("offering your windows", "session", "send",
                                                                          "--to", peer["id"])),
@@ -382,6 +462,13 @@ class Page:
             self.rows.pack_start(grid, False, False, 0)
         if not peers:
             self.rows.pack_start(dp.label("None yet: pair one below.", "ctl-sub"), False, False, 0)
+        clear(self.wol_rows)
+        for m in other_machines(machines, peers):
+            grid, _ = row("\uf011", m["name"], m["mac"], links_row(
+                link("Wake", lambda name=m["name"]: self.wake(name)),
+                link("Remove", lambda name=m["name"]: self.peer_action_wol(f"forgetting {name}", "remove", name))))
+            self.wol_rows.pack_start(grid, False, False, 0)
+        self.learn_macs(peers, machines)
         f = data.get("features") or {}
         for key, sw in self.switches.items():
             sw.set_active(bool(f.get(key)))

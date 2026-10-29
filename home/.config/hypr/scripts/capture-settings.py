@@ -22,13 +22,17 @@ The keys (and who reads them):
     rec_dir         where recordings and replays go      record.sh
     rec_audio       desktop | both | mic | none          record.sh
     rec_fps         30 | 60 | 120 | 144                  record.sh
+    rec_encoder     auto | gpu | cpu: who encodes; auto  record.sh (as
+                    is gpu.py's pick                     REC_ENCODER)
     replay_seconds  how much the instant replay keeps    record.sh
     ocr_langs       tesseract languages, "eng+spa"       screenshot.sh ocr,
                                                          screen-actions.py
     search          the engine "Look it up" opens        screen-actions.py
     gamemode_blur, gamemode_shadow, gamemode_rounding, gamemode_gaps,
-    gamemode_borders
+    gamemode_borders, gamemode_shader
                     on | off: what gamemode strips       lua/gamemode.lua
+                    (shader: the screen filter and night
+                    light's shader go too)
     gamemode_auto   on | off: Steam games switch it on   lua/gamemode.lua
     gamemode_hide_steam
                     on | off: tuck Steam away mid-game   lua/gamemode.lua
@@ -80,6 +84,7 @@ KEYS = {
     "rec_dir": ("~/Videos/Recordings", None),
     "rec_audio": ("desktop", ("desktop", "both", "mic", "none")),
     "rec_fps": ("60", ("30", "60", "120", "144")),
+    "rec_encoder": ("auto", ("auto", "gpu", "cpu")),
     "replay_seconds": ("30", ("15", "30", "60", "120", "300")),
     "ocr_langs": ("eng+spa", None),
     "search": ("duckduckgo", tuple(ENGINES)),
@@ -88,6 +93,7 @@ KEYS = {
     "gamemode_rounding": ("on", ON_OFF),
     "gamemode_gaps": ("on", ON_OFF),
     "gamemode_borders": ("on", ON_OFF),
+    "gamemode_shader": ("on", ON_OFF),
     "gamemode_auto": ("on", ON_OFF),
     "gamemode_hide_steam": ("on", ON_OFF),
 }
@@ -232,6 +238,23 @@ def shot_binds_follow(path=BINDS):
     return all(f"screenshot.sh {m}" in text for m in ("output", "region", "window"))
 
 
+def encoder_env(value):
+    """The REC_ENCODER record.sh takes for a rec_encoder value: "" for
+    auto (gpu.py's pick), else gpu / cpu."""
+    return value if value in ("gpu", "cpu") else ""
+
+
+def record_reads(key, path=RECORD):
+    """Whether record.sh asks for this key (`capture-settings.py get ...
+    KEY`): a setting it does not read yet is shown as such on the page
+    rather than looking like it works."""
+    try:
+        with open(path) as handle:
+            return key in handle.read()
+    except OSError:
+        return False
+
+
 def status():
     vals, bad = values()
     rec = run(RECORD, "status", env=dict(os.environ, REC_QUIET="1")).split()
@@ -261,6 +284,7 @@ def status():
         "gamemode_on": gamemode_on(anim),
         "profiles": profiles,
         "shot_binds_follow": shot_binds_follow(),
+        "encoder_followed": record_reads("rec_encoder"),
         "conf": CONF,
     }
 

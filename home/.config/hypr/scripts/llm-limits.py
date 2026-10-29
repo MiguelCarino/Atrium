@@ -42,6 +42,17 @@ Nice cannot change on a running service: turning low priority on renices
 the running processes' threads to 10; turning it off takes effect when LM
 Studio next starts (an unprivileged process cannot raise its priority).
 
+The idle reaper: llmster holds 1-1.7 GB with nothing loaded, so a daemon
+started for a few embeddings (desktop-index's hourly run) or a chat that
+ended is stopped after REAP_IDLE_S of: no model loaded (LM Studio's own
+/api/v0/models; the embedding model unloads itself after its TTL) and no
+TCP client connected to its API or lms ports (/proc/net/tcp*); with its
+HTTP server off, no llama-server child in the unit. Only the
+unit is stopped -- never a daemon running outside it (the app, a terminal
+`lms`). It starts again on demand the way it always does: ensure_daemon()
+from llm_models.ensure_local and desktop-index's embedding_model. When it
+first saw it idle is kept in $XDG_RUNTIME_DIR/lmstudio-idle.json.
+
 A daemon running OUTSIDE the unit (started by the LM Studio app, or by a
 terminal `lms`) is never stopped behind your back: the status says so, and
 `adopt` restarts it under the unit -- refused while a model is answering;
@@ -57,6 +68,11 @@ the models are unloaded (they load again the next time they are asked for).
                                     installed llmster, exec'd
     llm-limits.py wait              the unit's ExecStartPost: until `lms`
                                     can talk to the daemon (60 s at most)
+    llm-limits.py reap [--idle-min N]
+                                    lmstudio-reap.timer's run (every 5 min
+                                    while the unit is up): the unit stopped
+                                    once it has sat N minutes (15) with no
+                                    model loaded and no client connected
 
 No GTK here: llm_models imports this.
 """
@@ -90,6 +106,8 @@ MIN_RAM_GB = 2
 MIN_CPU_PCT = 5
 LOW_WEIGHT, LOW_NICE = 20, 10
 GIB = 1024 ** 3
+REAP_IDLE_S = 15 * 60
+REAP_STATE = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "lmstudio-idle.json")
 OUTSIDE = ("LM Studio is running outside the limits (started by the app or a terminal `lms`): "
            "`llm-limits.py adopt`, or Restart under the limits in Settings > AI & models")
 
@@ -554,6 +572,112 @@ def status_lines(s):
     return out
 
 
+# -- the idle reaper -------------------------------------------------------------------------
+def loaded_models(port=None, timeout=3):
+    """The ids LM Studio has loaded ([] none), None when its API does not
+    answer. Over HTTP: asking `lms ps` would start a CLI client."""
+    port = port or llm_models.server_port()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/v0/models", timeout=timeout) as r:
+            data = json.loads(r.read() or b"{}").get("data") or []
+    except (OSError, ValueError, AttributeError):
+        return None
+    return [m.get("id") for m in data if isinstance(m, dict) and m.get("state") == "loaded"]
+
+
+def tcp_clients(ports, texts):
+    """How many ESTABLISHED connections reach one of `ports` on this side
+    (a client talking to the server), from /proc/net/tcp and tcp6 texts."""
+    want = {f"{p:04X}" for p in ports}
+    n = 0
+    for text in texts:
+        for line in text.splitlines()[1:]:
+            parts = line.split()
+            if len(parts) < 4 or parts[3] != "01":           # 01 = ESTABLISHED
+                continue
+            if parts[1].rsplit(":", 1)[-1] in want:
+                n += 1
+    return n
+
+
+def _proc_net():
+    out = []
+    for name in ("tcp", "tcp6"):
+        try:
+            with open(os.path.join(PROC, "net", name)) as handle:
+                out.append(handle.read())
+        except OSError:
+            pass
+    return out
+
+
+def reap_decision(loaded, clients, idle_since, now, idle_s=REAP_IDLE_S):
+    """(what to do, when it was first seen idle). Pure.
+    "busy": a model is loaded or a client connected (the idle clock resets);
+    "unknown": the API does not answer (starting, or stuck: left alone);
+    "wait": idle, not for long enough yet; "stop": idle for idle_s."""
+    if loaded is None:
+        return "unknown", None
+    if loaded or clients:
+        return "busy", None
+    since = idle_since if idle_since is not None else now
+    return ("stop" if now - since >= idle_s else "wait"), since
+
+
+def _idle_since():
+    try:
+        with open(REAP_STATE) as handle:
+            return float(json.load(handle).get("since"))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+
+
+def _save_idle_since(since):
+    try:
+        if since is None:
+            os.unlink(REAP_STATE)
+            return
+        tmp = REAP_STATE + ".tmp"
+        with open(tmp, "w") as handle:
+            json.dump({"since": since}, handle)
+        os.replace(tmp, REAP_STATE)
+    except OSError:
+        pass
+
+
+def reap(idle_s=REAP_IDLE_S, now=None):
+    """One look (lmstudio-reap.timer): the unit stopped when it has been
+    idle idle_s. The line to log."""
+    now = now or time.time()
+    if not unit_installed() or not unit_active():
+        _save_idle_since(None)
+        return "LM Studio's unit is not running"
+    if placement(lm_procs()) != "inside":
+        _save_idle_since(None)
+        return "LM Studio runs outside the unit: left alone"
+    port = llm_models.server_port()
+    loaded = loaded_models(port)
+    if loaded is None and daemon_ready():
+        # The daemon is up with its HTTP server off (a restart, `lms server
+        # stop`): nothing can reach a model but through lms (counted as a
+        # client below); a loaded chat model still shows as its llama-server.
+        loaded = [p["comm"] for p in lm_procs() if p["comm"] == MODEL_PROC and in_unit(p["cgroup"])]
+    clients = tcp_clients((port,) + DAEMON_PORTS, _proc_net())
+    what, since = reap_decision(loaded, clients, _idle_since(), now, idle_s)
+    if what != "stop":
+        _save_idle_since(since)
+        if what == "busy":
+            return f"in use ({len(loaded or [])} model(s) loaded, {clients} client(s))"
+        if what == "unknown":
+            return "its API does not answer: left alone"
+        return f"idle {int(now - since) // 60} of {idle_s // 60} min"
+    _save_idle_since(None)
+    r = _systemctl("stop", "--no-block", UNIT, timeout=30)
+    if r.returncode:
+        return f"could not stop {UNIT}: {(r.stderr or r.stdout).strip()[-200:]}"
+    return f"idle {idle_s // 60} min with no model loaded: {UNIT} stopped (it starts again when asked)"
+
+
 # -- adopt, run, wait -----------------------------------------------------------------------
 def adopt():
     """A daemon running outside the unit stopped (`lms daemon down`) and
@@ -656,6 +780,16 @@ def main(argv):
             return 0
         if cmd == "run":
             run()
+        if cmd == "reap":
+            minutes = float(argv[argv.index("--idle-min") + 1]) if "--idle-min" in argv else REAP_IDLE_S / 60
+            line = reap(int(minutes * 60))
+            # Under systemd (JOURNAL_STREAM set) only a stop or a failure is
+            # logged: a line every 5 min saying "in use" is noise. (The
+            # unit's LogLevelMax quiets systemd's own start/finish lines; a
+            # user unit's stdout is not filtered by it.)
+            if "stopped" in line or "could not" in line or not os.environ.get("JOURNAL_STREAM"):
+                print(f"llm-limits: {line}", flush=True)
+            return 0
         if cmd == "wait":
             return 0 if wait_ready(float(argv[1]) if len(argv) > 1 else 60) else 1
     except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as exc:

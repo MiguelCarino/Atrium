@@ -9,6 +9,29 @@ turn on a feature that says it does.
 
 Made for Fedora 44 or newer (Hyprland 0.56, Lua config).
 
+## Requirements
+
+| | Needed | Notes |
+|---|---|---|
+| System | Fedora 44 or newer, a user that may use `sudo` | rpmfusion (free + nonfree) is enabled by `install.sh` |
+| Disk | about 6 GB | packages ~3 GB, the themes' wallpapers and sounds ~1 GB, the build tools; the optional smart extras 2-5 GB more; local models 2-20 GB each |
+| RAM | 8 GB; 16 GB or more for local AI models | |
+| Graphics | any card Hyprland runs on: NVIDIA, AMD or Intel | `install.sh` installs only what your card needs: the NVIDIA driver (`akmod-nvidia`) on NVIDIA, VA-API video encoding on AMD and Intel |
+| Graphics memory | 2-5 GB free for small local models, 8 GB or more for the bigger ones | only for local AI; without a card of its own, models run on the CPU, slowly |
+| Optional | a webcam (presence, gestures), a microphone (voice typing, voice commands), a phone with [KDE Connect](https://kdeconnect.kde.org) (phone handoff) | each feature stays off until you turn it on |
+
+What works less well without some of it:
+
+- **No graphics card of its own** (or the NVIDIA card on nouveau): screen
+  recording and instant replay encode on the CPU (x264, 30 fps); the bar's GPU
+  pill is hidden and Railguard does not watch graphics memory; local models
+  and voice typing run on the CPU.
+- **No [LM Studio](https://lmstudio.ai)**: the assistant, voice commands,
+  asking about the screen and the written summaries (daily brief, journal)
+  have no model to ask and say so. Everything else -- the desktop, themes,
+  voice typing, spoken replies, the camera features, recording, Railguard --
+  works without it.
+
 ## Install
 
 ```sh
@@ -21,7 +44,14 @@ It installs the packages, copies the desktop into `~/.config` (anything of
 yours it would replace is copied to `~/.local/share/atrium/backup-<date>/`
 first), asks where your projects live, builds the plugins, icons, wallpapers
 and sounds, and turns on the services. Then log out and pick
-**Hyprland (uwsm-managed)** at the login screen.
+**Hyprland (uwsm-managed)** at the login screen. The first login opens a
+short welcome: pick a theme, check the screens and the microphone, turn the
+smart features on or off (`~/.config/hypr/scripts/welcome.py` shows it again).
+
+To undo it, `~/Atrium/uninstall.sh --dry-run` shows what it would put back:
+it restores the backups above (each path from the oldest backup, the copy
+made before Atrium first touched it), moves Atrium's files aside rather than
+deleting them, and leaves the packages installed.
 
 First steps after logging in:
 
@@ -35,7 +65,8 @@ First steps after logging in:
 The smart features that hear, speak or see need models (2-5 GB):
 `extras/setup-extras.sh` (install.sh offers it). The ones that use the camera
 ship **off**. Local language models run in [LM Studio](https://lmstudio.ai);
-pick them in Settings > AI & models.
+pick them in Settings > AI & models, which shows which ones fit your card's
+memory (any vendor) next to what is already on it.
 
 ## What is where
 
@@ -46,7 +77,8 @@ pick them in Settings > AI & models.
 | `home/.config/themes/` | desktop themes (`scripts/theme.py`) |
 | `home/.config/{mako,wofi,uwsm,autostart,systemd/user,qt5ct,qt6ct}` | notifications, launcher, session, services, Qt colours |
 | `packages/` | Fedora packages, repositories, the services install.sh enables |
-| `system/` | the root-side pieces (cpu-power) |
+| `system/` | the root-side pieces (cpu-power, railguard's SysRq keys) |
+| `install.sh`, `uninstall.sh` | set it up; put back what it replaced |
 | `extras/` | the smart features' models |
 
 ## Yours, not the desktop's
@@ -59,7 +91,7 @@ own dotfiles:
 | `~/.config/hypr/lua/hosts/<hostname>.lua` | this machine's screens (`monitors-capture.py` writes it) |
 | `~/.config/hypr/desktop.conf` | your folders: projects, dotfiles repo |
 | `~/.config/hypr/contexts.json` | your project contexts |
-| `~/.config/hypr/workhours.conf` | your work hours, if you use them |
+| `~/.config/hypr/workhours.conf` | work hours, an optional feature that is off until you set it up (Settings > Timers & alarms): a bar badge with the time left in your working day, and a git hook that keeps work time and your own projects apart |
 | `~/.config/hypr/region.conf`, `emergency.conf` | your weather place and where alerts are for (both start from your time zone's city) |
 | `~/.config/hypr/folder-access.json` | the folders you let the AI features read |
 | `~/Pictures/Wallpapers/` | your wallpapers |

@@ -8,3 +8,5 @@ After=graphical-session.target
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/timers.py calendar
+# systemd's own start/finish lines every 5 min are noise.
+LogLevelMax=notice

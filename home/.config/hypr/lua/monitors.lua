@@ -63,6 +63,9 @@ local function overlay(spec, st)
     end
     local out = {}
     for k, v in pairs(spec) do out[k] = v end
+    -- Said out loud: Hyprland merges a screen's rules, so a screen once
+    -- switched off stays off until a rule says disabled = false.
+    out.disabled = false
     -- mode is "WxH@Hz"; each half can be chosen on its own. A resolution
     -- chosen without a rate gets none, and Hyprland picks the best one the
     -- screen offers there (the host file's rate may not exist at it).
@@ -102,6 +105,23 @@ local function named_outputs(st)
     end
     table.sort(list)
     return list
+end
+
+-- "WxH" of a live screen, or "preferred" when Hyprland does not list it (not
+-- plugged in yet, or under luajit). The fallback blocks below start from this
+-- rather than plain "preferred": overlay() can only lay a rate.X over a mode
+-- with a resolution in it, so "preferred" + rate.X=75.00 used to come out as
+-- plain "preferred" and the screen stayed at its EDID rate.
+local function live_mode(o)
+    local okm, mons = pcall(function() return hl.get_monitors() end)
+    if okm and type(mons) == "table" then
+        for _, m in ipairs(mons) do
+            if type(m) == "table" and m.name == o and tonumber(m.width) and tonumber(m.height) then
+                return string.format("%dx%d", m.width, m.height)
+            end
+        end
+    end
+    return "preferred"
 end
 
 local ok, host = pcall(require, "lua.hosts." .. hostname())
@@ -166,7 +186,7 @@ if host then
         end)
         for _, o in ipairs(named_outputs(S.state())) do
             if not done[o] then
-                screen({ output = o, mode = "preferred", position = "auto", scale = 1 })
+                screen({ output = o, mode = live_mode(o), position = "auto", scale = 1 })
             end
         end
     end
@@ -175,7 +195,7 @@ else
     function M.apply()
         hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })
         for _, o in ipairs(named_outputs(S.state())) do
-            screen({ output = o, mode = "preferred", position = "auto", scale = 1 })
+            screen({ output = o, mode = live_mode(o), position = "auto", scale = 1 })
         end
     end
 end

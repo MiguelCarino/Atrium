@@ -4,7 +4,7 @@
     Keyboard layout   the xkb groups in input.kb_layout (us, latam), the same
                       switch as SUPER+Space
     Input method      fcitx5's items (~/.config/fcitx5/profile): direct typing
-                      or Mozc, the same switch as Ctrl+Space
+                      or Mozc; Super+Space reaches it after the last layout
 
 The two are independent and stack (see ~/.config/hypr/lua/autostart.lua): the
 layout decides which letters the keys produce, the input method then reads
@@ -107,7 +107,7 @@ class Language(panelui.Panel):
             sep = Gtk.Box()
             sep.get_style_context().add_class("ctl-sep")
             self.card.pack_start(sep, False, False, 6)
-            self.section("Input method", "Ctrl+Space",
+            self.section("Input method", "Super+Space",
                          [("", label, name == current,
                            lambda name=name: run("fcitx5-remote", "-s", name))
                           for name, label in ims])

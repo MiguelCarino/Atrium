@@ -71,12 +71,11 @@ hl.on("hyprland.start", function()
     -- D-Bus name taken and exits, leaving the stale instance with the old
     -- config.
     --
-    -- Ctrl+Space cycles keyboard-us <-> mozc. That is fcitx5's own binding, not
-    -- a Hyprland bind, so it does not appear in `hyprctl binds` and does not
-    -- collide with the SUPER+Space xkb group toggle (us <-> latam) configured
-    -- in input.kb_options. The two switchers are independent and stack: the xkb
-    -- group decides which letters the physical keys produce, mozc then reads
-    -- those letters as romaji.
+    -- SUPER+Space walks both switchers as one list: us -> latam -> Japanese
+    -- (mozc) -> us (lua/binds.lua, scripts/input-settings.py cycle). fcitx5's
+    -- own Ctrl+Space trigger is off (~/.config/fcitx5/config). Underneath the
+    -- two still stack: the xkb group decides which letters the physical keys
+    -- produce, mozc then reads those letters as romaji.
     hl.exec_cmd("fcitx5 -d --replace")
 
     -- After a Hyprland update the cube and overview plugins no longer load;

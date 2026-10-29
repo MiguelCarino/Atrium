@@ -41,13 +41,13 @@ import os
 import re
 import select
 import signal
-import socket
 import subprocess
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import privacy_settings  # noqa: E402  (privacy.conf: kept days, private apps)
+import hyprbus  # noqa: E402  (Hyprland's events: the shared relay, or socket2 directly)
 
 STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
                      "hypr", "activity.jsonl")
@@ -194,6 +194,9 @@ class Log:
             self.monitor, _, self.workspace = data.partition(",")
 
 
+HYPR_EVENTS = {"activewindow", "workspace", "focusedmon"}      # what ActivityLog.event reads
+
+
 def seed(log):
     """What has the focus right now, so a fresh start has a line too."""
     try:
@@ -222,8 +225,7 @@ def main():
     next_prune = time.monotonic() + PRUNE_S
     while True:
         try:
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.connect(path)
+            sock = hyprbus.connect(HYPR_EVENTS, direct=path)
         except OSError:
             time.sleep(2)
             continue

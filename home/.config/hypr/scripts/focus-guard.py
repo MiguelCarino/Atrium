@@ -118,6 +118,10 @@ import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import desk_common  # noqa: E402  (notify: the notification, through scripts/notify)
 SELF = os.path.abspath(__file__)
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
 STATE_HOME = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
@@ -138,6 +142,8 @@ TAG = "focus-dim"
 PARK = "special:focusguard"
 
 TICK_S = 5
+HYPR_EVENTS = ("activewindow", "activewindowv2", "openwindow", "windowtitlev2", "closewindow",
+               "configreloaded")       # what Daemon.event reads (through hyprbus, only these wake it)
 DWELL_S = 2.0               # a window has the focus this long before it counts
 KEEP_S = 3600               # history older than this is dropped
 LOCK_GAP_S = 120            # asleep / locked longer than this: start counting again
@@ -495,17 +501,8 @@ def spawn(*argv):
 
 def notify(summary, body="", actions=(), urgency="normal", wait=None):
     """A notification; with actions, the picked key ("" when closed / timed out)."""
-    argv = ["notify-send", "-a", APP, "-u", urgency, "-i", "emblem-default-symbolic"]
-    if actions:
-        argv.append("--wait")
-    for key, text in actions:
-        argv += ["-A", f"{key}={text}"]
-    try:
-        out = subprocess.run(argv + [summary, body], capture_output=True, text=True,
-                             timeout=wait if actions else 5).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        out = ""
-    return out
+    return desk_common.notify(summary, body, app=APP, urgency=urgency, icon="emblem-default-symbolic",
+                              actions=actions, timeout=wait if actions else 5)
 
 
 def work_time():
@@ -1249,7 +1246,7 @@ def serve():
     try:
         while not flags["stop"]:
             if hypr_sock is None:
-                hypr_sock, buf = s.connect_events(), b""
+                hypr_sock, buf = s.connect_events(HYPR_EVENTS), b""
             now = daemon.clock()
             waits = [next_tick - now, 2.0 if hypr_sock is None else TICK_S]
             if daemon.pending:
@@ -1521,7 +1518,7 @@ def main(argv):
         running = any(e.get("kind") in ("focus", "break") and e.get("due", 0) > now
                       for e in timers().load()["timers"])
         main(["stop"] if running else ["start"])
-        spawn("notify-send", "-a", APP, "-u", "low", "-t", "2500",
+        spawn(NOTIFY, "-a", APP, "-u", "low", "-t", "2500",
               "Focus block stopped" if running else "Focus block started")
     elif cmd == "status":
         reply = ask_daemon({"op": "status"}, timeout=2)

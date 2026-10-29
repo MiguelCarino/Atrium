@@ -17,7 +17,9 @@ One mirror at a time: a new one replaces the old. Closing the mirror window
 HOW EACH ONE IS CAPTURED
 
     region   gpu-screen-recorder grabs the rectangle off the screen (KMS,
-             NVENC -- the same recorder as record.sh), at `fps`, as an H.264
+             the card's encoder -- NVENC on NVIDIA, VAAPI on AMD and Intel,
+             x264 on the CPU where gpu.py's encoder() finds none: the same
+             recorder and choice as record.sh), at `fps`, as an H.264
              MPEG-TS stream on a pipe straight into mpv, which decodes it on
              the card (hwdec) with its low-latency profile. A few % of one
              core all told; ~100-200 ms behind the screen.
@@ -70,6 +72,10 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import desk_common  # noqa: E402  (hypr_request: hyprctl over the socket)
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 SELF = os.path.abspath(__file__)
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
 PIDFILE = os.path.join(RUNTIME, "pip.json")
@@ -181,11 +187,26 @@ def parse_slurp(text):
     return (x, y, w, h) if w > 1 and h > 1 else None
 
 
-def gsr_argv(region, fps):
+def gsr_argv(region, fps, encoder="gpu"):
+    """The recorder for a region. encoder: gpu.py's pick ("gpu" or "cpu";
+    capture_encoder()): with "cpu" gsr is told -encoder cpu (x264), since
+    its default, the card, would fail where there is no hardware encoder."""
     x, y, w, h = region
     w, h = w - w % 2, h - h % 2         # H.264 wants even sizes
     return ["gpu-screen-recorder", "-w", f"{w}x{h}+{x}+{y}", "-f", str(fps), "-c", "mpegts", "-k", "h264",
-            "-q", "high", "-cursor", "yes", "-o", "/dev/stdout"]
+            "-q", "high", "-cursor", "yes"] + (["-encoder", "cpu"] if encoder == "cpu" else []) + \
+        ["-o", "/dev/stdout"]
+
+
+def capture_encoder():
+    """"gpu" or "cpu": gpu.py's encoder() (gsr --info, cached for the boot);
+    "gpu" -- gsr's own default -- when that cannot be asked."""
+    try:
+        sys.path.insert(0, HERE)
+        import gpu
+        return gpu.encoder().get("encoder") or "gpu"
+    except Exception:  # noqa: BLE001 -- the old behaviour is the safe guess
+        return "gpu"
 
 
 def mpv_argv(title, size, fmt=None):
@@ -202,11 +223,9 @@ def mpv_argv(title, size, fmt=None):
 
 # -- the compositor --------------------------------------------------------------------
 def hypr_json(*what):
-    try:
-        return json.loads(subprocess.run(["hyprctl", *what, "-j"], capture_output=True, text=True,
-                                         timeout=3).stdout)
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return None
+    """`hyprctl ARGS -j`, parsed; None when Hyprland does not answer. Over the
+    request socket (desk_common.hypr_request): no process."""
+    return desk_common.hypr_request(what, json=True, timeout=3)
 
 
 def focused_monitor():
@@ -219,7 +238,7 @@ def hypr_eval(code):
 
 
 def notify(title, body=""):
-    subprocess.run(["notify-send", "-a", "Picture-in-picture", "-u", "low", "-t", "3000", title, body],
+    subprocess.run([NOTIFY, "-a", "Picture-in-picture", "-u", "low", "-t", "3000", title, body],
                    capture_output=True)
 
 
@@ -327,7 +346,8 @@ def supervise(source):
     hypr_eval('require("lua.pip").apply()')        # the rules exist even without the require line
     title = f"PiP · {source['title']}"[:80]
     if source["mode"] == "region":
-        capture = subprocess.Popen(gsr_argv(source["region"], settings["fps"]), stdout=subprocess.PIPE,
+        capture = subprocess.Popen(gsr_argv(source["region"], settings["fps"], capture_encoder()),
+                                   stdout=subprocess.PIPE,
                                    stderr=subprocess.DEVNULL)
         procs.append(capture)
         viewer = subprocess.Popen(mpv_argv(title, size), stdin=capture.stdout, stderr=subprocess.DEVNULL)

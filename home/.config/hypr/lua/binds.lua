@@ -46,7 +46,8 @@ hl.bind(mainMod .. "+Q", hl.dsp.exec_cmd(defaultApps .. "terminal"), { descripti
 -- single compositor-wide pointer that does not necessarily follow your eyes.
 -- Two ordinary moves in this setup leave it behind:
 --
---   * Switching to an empty workspace. Workspaces 1-6 are persistent = true,
+--   * Switching to an empty workspace. Every workspace with a key (1-6, and
+--     one more per screen past the third) is persistent = true,
 --     so they can exist with nothing on them. Landing on one
 --     gives Hyprland no window to hand focus to, so the pointer stays on
 --     whatever you were last in on the workspace you left.
@@ -175,7 +176,13 @@ hl.define_submap("resize", function()
 end)
 hl.bind("SUPER+R", hl.dsp.submap("resize"), { description = "Windows: Resize mode (Esc to leave)" })
 
--- Workspaces: focus (ALT+n) and silent move (ALT+SHIFT+n)
+-- Workspaces: focus (ALT+n), silent move (ALT+SHIFT+n), move and follow
+-- (ALT+CTRL+n). ALT is mainMod (lua/shared.lua; Settings can make it SUPER).
+--
+-- As many as there are pinned workspaces: lua/workspaces.lua's last() -- 6,
+-- or one more per screen past the third (7 with four screens) -- the same
+-- list lua/rules.lua makes the workspace_rules from, so the "both halves at
+-- once" below can no longer drift apart. What follows is why it is not ten.
 --
 -- Six, not ten. The loop used to run to 10 and bind ALT+7,8,9,0, but there are
 -- only six workspace_rules (lua/rules.lua) -- so 7-10 were second-class in a
@@ -279,11 +286,23 @@ local function summon(id)
     end
 end
 
-for i = 1, 6 do
+local WS_LAST = require("lua.workspaces").last(
+    (function()
+        local okm, MON = pcall(require, "lua.monitors")
+        return okm and type(MON) == "table" and MON.order and MON.order() or {}
+    end)())
+-- mainMod+CTRL+n is "take the window AND go with it" -- the follow = true twin
+-- of mainMod+SHIFT+n. Skipped when mainMod is SUPER: SUPER+CTRL+n is the
+-- cube's (below), and SUPER+CTRL+SHIFT+n already takes the window along.
+local follow_binds = mainMod ~= "SUPER"
+for i = 1, WS_LAST do
     local key = tostring(i % 10)
     local ws  = tostring(i)
     hl.bind(mainMod .. "+" .. key,          summon(i), { description = "Workspaces: Go to (pulls an empty one here)" })
     hl.bind(mainMod .. "+SHIFT+" .. key,    hl.dsp.window.move({ workspace = ws, follow = false }), { description = "Workspaces: Send window to" })
+    if follow_binds then
+        hl.bind(mainMod .. "+CTRL+" .. key, hl.dsp.window.move({ workspace = ws, follow = true }), { description = "Workspaces: Move window there and follow" })
+    end
 end
 -- Spins the cube (lua/cube.lua) when the hypr-cube plugin is loaded; a plain
 -- relative switch when it is not (not built, or built for another Hyprland).
@@ -333,9 +352,9 @@ local function cube_take(id)
         go()
     end
 end
-for i = 1, 6 do
-    hl.bind("SUPER+CTRL+" .. i,       cube_go(i),   { description = "Workspaces: Go to (spins the cube)" })
-    hl.bind("SUPER+CTRL+SHIFT+" .. i, cube_take(i), { description = "Workspaces: Take window to (spins the cube)" })
+for i = 1, WS_LAST do
+    hl.bind("SUPER+CTRL+" .. i % 10,       cube_go(i),   { description = "Workspaces: Go to (spins the cube)" })
+    hl.bind("SUPER+CTRL+SHIFT+" .. i % 10, cube_take(i), { description = "Workspaces: Take window to (spins the cube)" })
 end
 -- The wheel's next / previous on the keyboard. Comma and period rather than
 -- brackets: they sit on the same keys in both the us and latam layouts.
@@ -364,6 +383,43 @@ for _, d in ipairs({ "left", "right", "up", "down" }) do
     hl.bind("SUPER+" .. d,       hl.dsp.focus({ monitor = monitor_dir[d] }), { description = "Monitors: Focus" })
     hl.bind("SUPER+SHIFT+" .. d, hl.dsp.window.move({ monitor = monitor_dir[d], follow = false }), { description = "Monitors: Send window to" })
 end
+
+-- SUPER+period / SUPER+comma: focus the next / previous screen in the host
+-- file's order (lua/monitors.lua order(): M.screens), wrapping round -- one
+-- key that reaches every screen, including one with no straight-line arrow
+-- from here (the raised far-left screen from the upper one). Screens that
+-- are switched off or unplugged are skipped. Comma and period because they
+-- sit on the same keys in the us and latam layouts (as SUPER+CTRL+period /
+-- comma, the cube's next / previous workspace).
+local function monitor_cycle(dir)
+    return function()
+        local okm, MON = pcall(require, "lua.monitors")
+        local order = okm and type(MON) == "table" and MON.order and MON.order() or {}
+        local live = {}
+        for _, m in ipairs(hl.get_monitors()) do live[m.name] = true end
+        local list = {}
+        for _, name in ipairs(order) do
+            if live[name] then list[#list + 1] = name end
+        end
+        -- live screens the host file does not know (plugged in since) go last
+        for _, m in ipairs(hl.get_monitors()) do
+            local known = false
+            for _, name in ipairs(list) do if name == m.name then known = true break end end
+            if not known then list[#list + 1] = m.name end
+        end
+        if #list < 2 then return end
+        local cur = hl.get_active_monitor()
+        local i = 0
+        for k, name in ipairs(list) do
+            if cur and name == cur.name then i = k break end
+        end
+        local nxt = list[((i - 1 + dir) % #list) + 1]
+        if i == 0 then nxt = list[1] end
+        hl.dispatch(hl.dsp.focus({ monitor = nxt }))
+    end
+end
+hl.bind("SUPER+period", monitor_cycle(1),  { description = "Monitors: Focus the next screen" })
+hl.bind("SUPER+comma",  monitor_cycle(-1), { description = "Monitors: Focus the previous screen" })
 
 -- Whole-workspace moves between monitors
 --
@@ -597,12 +653,13 @@ hl.bind("SUPER+SHIFT+S", hl.dsp.exec_cmd("~/.config/hypr/scripts/screenshot.sh a
 hl.bind("SUPER+CTRL+S",  hl.dsp.exec_cmd("~/.config/hypr/scripts/screenshot.sh pretty"),      { description = "Screenshots: Pretty window (rounded, shadow, gradient)" })
 hl.bind("SUPER+O",       hl.dsp.exec_cmd("~/.config/hypr/scripts/screenshot.sh ocr"),         { description = "Screenshots: OCR region to clipboard" })
 
--- Screen recording (gpu-screen-recorder, NVENC) via ~/.config/hypr/scripts/record.sh.
+-- Screen recording (gpu-screen-recorder: the card's encoder -- NVENC, VAAPI --
+-- or x264 on the CPU, as gpu.py picks) via ~/.config/hypr/scripts/record.sh.
 --
 -- The ShadowPlay keys, deliberately: ALT+F9 records, ALT+F10 saves the instant
--- replay, ALT+SHIFT+F10 turns the replay buffer on/off. With a 4090 in the box
--- those are the keys your hands already reach for mid-game, and the whole
--- F9/F10 column was free on every modifier.
+-- replay, ALT+SHIFT+F10 turns the replay buffer on/off. Those are the keys
+-- many hands already reach for mid-game (whatever card is in the box), and the
+-- whole F9/F10 column was free on every modifier.
 --
 -- The record keys toggle: pressing the same key again stops the recording and
 -- finalises the file (SIGINT, so the mp4 gets its index -- a killed mp4 does
@@ -634,6 +691,9 @@ hl.bind(mainMod .. "+CTRL+F9",   hl.dsp.exec_cmd("~/.config/hypr/scripts/record.
 hl.bind("SUPER+ALT+equal", hl.dsp.exec_cmd("~/.config/hypr/scripts/accessibility.py zoom in"),    { description = "Accessibility: Zoom in" })
 hl.bind("SUPER+ALT+minus", hl.dsp.exec_cmd("~/.config/hypr/scripts/accessibility.py zoom out"),   { description = "Accessibility: Zoom out" })
 hl.bind("SUPER+ALT+0",     hl.dsp.exec_cmd("~/.config/hypr/scripts/accessibility.py zoom reset"), { description = "Accessibility: Zoom off" })
+-- The on-screen keyboard (scripts/osk.py: wvkbd or squeekboard). osk.py and
+-- the Accessibility page find this key by its "On-screen keyboard" description.
+hl.bind("SUPER+CTRL+K", hl.dsp.exec_cmd("~/.config/hypr/scripts/osk.py toggle"), { description = "Accessibility: On-screen keyboard" })
 
 -- Mouse drag move/resize -- ALT+LMB moves, ALT+RMB resizes.
 --
@@ -744,6 +804,11 @@ hl.bind("SUPER+P", hl.dsp.exec_cmd("~/.config/hypr/scripts/colorpick.sh"), { des
 -- Quick note (scripts/quicknote.py): one line, Enter, gone -- appended with the
 -- time to ~/Documents/Notes/inbox.md. Ctrl+O in the box opens the inbox.
 hl.bind("SUPER+SHIFT+N", hl.dsp.exec_cmd("~/.config/hypr/scripts/quicknote.py"), { description = "Tools: Quick note" })
+-- Voice memo (scripts/memo.py): press, talk, press again. Saved as Opus in
+-- ~/Documents/Memos, written down by voice.py's local Whisper into a .txt
+-- beside it and a line in the same notes inbox. The bar's media pill pulses
+-- red while it records; a click on it stops it too.
+hl.bind("SUPER+CTRL+N", hl.dsp.exec_cmd("~/.config/hypr/scripts/memo.py toggle"), { description = "Tools: Voice memo (start / stop)" })
 
 -- Display (scripts/display.py; the panel is waybar scripts/display_panel.py).
 -- The filter key flips between off and the last filter used, so it is one key
@@ -770,7 +835,15 @@ hl.bind("SUPER+N", hl.dsp.exec_cmd("~/.config/hypr/scripts/nightlight.sh toggle"
 -- keyboard's point of view -- you cannot undo it, you can only type the
 -- password back in -- so it is worth one extra finger to make it hard to fire
 -- by accident.
-hl.bind("SUPER+ALT+L", hl.dsp.exec_cmd("hyprlock"), { description = "Session: Lock" })
+--
+-- loginctl lock-session rather than hyprlock itself: it goes through
+-- hypridle's lock_cmd (pidof guard, so never two lockers), and logind knows
+-- the session is locked -- the same path the idle lock, the power menu and
+-- presence.py take. Only while hypridle is running, though: lock-session is
+-- just a signal, and with nothing listening for it (hypridle stopped or
+-- crashed) the key would do nothing at all -- so then hyprlock itself, with
+-- the same pidof guard.
+hl.bind("SUPER+ALT+L", hl.dsp.exec_cmd("pidof hypridle >/dev/null && loginctl lock-session || pidof hyprlock || hyprlock"), { description = "Session: Lock" })
 
 -- Power menu: the same panel as the power pill at the far right of the bar
 -- (lock, suspend, log out, reboot, power off). --at bar-right opens it under
@@ -783,6 +856,13 @@ hl.bind("SUPER+ALT+L", hl.dsp.exec_cmd("hyprlock"), { description = "Session: Lo
 -- panel, so a mis-press only ever opens a menu (press again to close it).
 hl.bind("SUPER+Escape", hl.dsp.exec_cmd("~/.config/waybar/scripts/panel.py toggle power --at bar-right"),
     { description = "Session: Power menu" })
+-- Railguard's panic key (scripts/railguard.py): the desktop is crawling, end
+-- the one process to blame -- the biggest when RAM is short, else the busiest.
+-- Never the compositor, a terminal, a shell or an agent session. Three
+-- modifiers so it never fires by accident. When even this does not answer,
+-- Alt+SysRq+F is the kernel's own version (Atrium/system/railguard).
+hl.bind("SUPER+CTRL+ALT+Escape", hl.dsp.exec_cmd("~/.config/hypr/scripts/railguard.py panic"),
+    { description = "Session: End the runaway process (railguard)" })
 
 -- Notifications (mako). Criteria and colours live in ~/.config/mako/config.
 --
@@ -811,7 +891,7 @@ hl.bind(mainMod .. "+SHIFT+R", hl.dsp.exec_cmd("makoctl restore"), { description
 -- Checks for cliphist first: without it the picker opens empty (or
 -- nothing) and you are left guessing why; a toast names the missing package,
 -- like screenshot.sh / record.sh / nightlight.sh do for theirs.
-hl.bind("SUPER+V", hl.dsp.exec_cmd([[command -v cliphist >/dev/null || { notify-send -u normal "cliphist is not installed" "sudo dnf install cliphist"; exit 0; }; exec ~/.config/hypr/scripts/clipboard.py]]), { description = "Tools: Clipboard history" })
+hl.bind("SUPER+V", hl.dsp.exec_cmd([[command -v cliphist >/dev/null || { ~/.config/hypr/scripts/notify -u normal "cliphist is not installed" "sudo dnf install cliphist"; exit 0; }; exec ~/.config/hypr/scripts/clipboard.py]]), { description = "Tools: Clipboard history" })
 
 -- Config edit shortcuts
 --
@@ -845,8 +925,10 @@ hl.bind(mainMod .. "+G", hl.dsp.exec_cmd("~/.config/waybar/scripts/bar-restart.s
 -- Sessions, voice and the live mirror (scripts/closed-windows.py, sessions.py,
 -- voice.py, pip.py). Push-to-talk: let go of V before SUPER/ALT, or the
 -- release may not fire (SUPER+CTRL+V or the bar pill stop it too).
-hl.bind("ALT+SHIFT+T", hl.dsp.exec_cmd("~/.config/hypr/scripts/closed-windows.py reopen"), { description = "Windows: Reopen the last closed window" })
+hl.bind(mainMod .. "+SHIFT+T", hl.dsp.exec_cmd("~/.config/hypr/scripts/closed-windows.py reopen"), { description = "Windows: Reopen the last closed window" })
 hl.bind(mainMod .. "+CTRL+T", hl.dsp.exec_cmd("~/.config/hypr/scripts/sessions.py where-was-i"), { description = "Windows: Restore the last session" })
+-- SUPER+H: the easy one (one modifier, as on Windows); SUPER+CTRL+V the old one.
+hl.bind("SUPER+H", hl.dsp.exec_cmd("~/.config/hypr/scripts/voice.py toggle"), { description = "Tools: Dictate (start / stop)" })
 hl.bind("SUPER+CTRL+V", hl.dsp.exec_cmd("~/.config/hypr/scripts/voice.py toggle"), { description = "Tools: Voice typing (start / stop and type)" })
 hl.bind("SUPER+ALT+V", hl.dsp.exec_cmd("~/.config/hypr/scripts/voice.py ptt start"), { description = "Tools: Voice typing, hold to talk" })
 hl.bind("SUPER+ALT+V", hl.dsp.exec_cmd("~/.config/hypr/scripts/voice.py ptt stop"), { release = true, description = "Tools: Voice typing, hold to talk (release)" })
@@ -878,7 +960,7 @@ hl.bind("SUPER+CTRL+SHIFT+P", hl.dsp.exec_cmd("~/.config/hypr/scripts/presence.p
 -- ambient, gestures/gaze, other machines and the Smart desktop hub
 -- (scripts/assistant.py, tts.py, tasks.py, suggest.py, focus-guard.py,
 -- ambient.py, gestures.py, peers.py; settings.py PAGE opens that page).
--- SUPER+space stays the keyboard layout switch.
+-- SUPER+space stays the keyboard layout switch (below).
 hl.bind("SUPER+K", hl.dsp.exec_cmd("~/.config/hypr/scripts/assistant.py toggle"), { description = "Assistant: Show / hide the desktop assistant" })
 hl.bind("SUPER+SHIFT+K", hl.dsp.exec_cmd("~/.config/hypr/scripts/assistant.py open --voice"), { description = "Assistant: Open and listen (say the question)" })
 hl.bind("SUPER+ALT+S", hl.dsp.exec_cmd("~/.config/hypr/scripts/tts.py selection"), { description = "Speech: Read the highlighted text aloud (again: stop)" })
@@ -896,6 +978,19 @@ hl.bind("SUPER+ALT+M", hl.dsp.exec_cmd("~/.config/hypr/scripts/peers.py send-win
 hl.bind("SUPER+ALT+SHIFT+M", hl.dsp.exec_cmd("~/.config/hypr/scripts/peers.py send-clipboard"), { description = "Machines: Send the clipboard's text to the other machine" })
 hl.bind("SUPER+ALT+SHIFT+K", hl.dsp.exec_cmd("~/.config/hypr/scripts/peers.py kvm toggle"), { description = "Machines: Shared keyboard and mouse on/off" })
 hl.bind("SUPER+CTRL+I", hl.dsp.exec_cmd("~/.config/hypr/scripts/settings.py intelligence"), { description = "Settings: Smart desktop (every smart feature, privacy at a glance)" })
+
+-- One language switch: us -> latam -> Japanese (Mozc) -> us. Bound here, not
+-- as the xkb option grp:win_space_toggle (lua/input.lua leaves that out),
+-- because xkb only cycles its own groups and Mozc is fcitx5's. fcitx5's own
+-- Ctrl+Space trigger is turned off (~/.config/fcitx5/config), so this is the
+-- only key. Only while "switch" is Super+Space: another switch key is plain
+-- xkb and leaves SUPER+Space free.
+hl.bind("SUPER+space", function()
+    local st = require("lua.shared").read_kv(require("lua.input").state_file) or {}
+    if (st.switch or require("lua.input").defaults.switch) == "grp:win_space_toggle" then
+        hl.exec_cmd("~/.config/hypr/scripts/input-settings.py cycle")
+    end
+end, { description = "Keyboard: Next language (us, latam, Japanese)" })
 
 -- Last: your own shortcuts from userbinds.conf and the key-capture mode the
 -- settings page uses (lua/userbinds.lua finish()).

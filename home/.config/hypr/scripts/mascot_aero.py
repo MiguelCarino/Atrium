@@ -239,6 +239,13 @@ TOPIC_LINES = {
             "Hehe, that's nice ☺",
             "So smooth… thank you!",
             "Mmm, extra gloss ✓"),
+    # railguard.py's notifications (mascot_notify.py says them, voice on)
+    "rg_memory": "{0} was using too much memory, so I closed it ✓",
+    "rg_vram": "{0} filled the graphics memory, so I closed it ✓",
+    "rg_game_vram": "{0} is using almost all graphics memory. Lower its textures?",
+    "rg_panic": "Done! {0} has been closed ✓",
+    "rg_stuck": "Memory is running low… I couldn't find what to close.",
+    "rg_agents": "All agent tasks stopped. Your sessions are fine ✓",
 }
 # The reaction sign over the head (mascot_mood.EMOTE_TONES) in its palette:
 # each >= 3:1 on PANEL and on every sky the sign can float over (the day

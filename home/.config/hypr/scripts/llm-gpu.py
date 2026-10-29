@@ -452,7 +452,9 @@ def running():
 
 def parse_smi(gpu_csv, apps_csv):
     """nvidia-smi's CSV (no header, no units) -> {name, total, used, procs:
-    [{pid, name, used}]}, bytes; None without a card."""
+    [{pid, name, used}]}, bytes; None without a card. gpu() no longer runs
+    nvidia-smi (card_info below is its shape from gpu.py); this stays for
+    a CSV pasted by hand and its tests."""
     first = (gpu_csv or "").strip().splitlines()
     if not first:
         return None
@@ -475,15 +477,42 @@ def parse_smi(gpu_csv, apps_csv):
     return {"name": name, "total": total, "used": used, "procs": procs}
 
 
+def card_info(card, procs, names=None):
+    """A gpu.py card and its {pid: MiB} -> the same shape as parse_smi ({name,
+    vendor, total, used, procs: [{pid, name, used}]}, bytes); None for no
+    card or one that does not report its memory (an iGPU shares the RAM:
+    there is no card memory to fit a model into, and the calculator says ?;
+    so does an APU's small carve-out of the RAM: discrete False)."""
+    if (not card or not card.get("discrete", True) or not card.get("vram_total")
+            or card.get("vram_used") is None):
+        return None
+    names = names or {}
+    rows = [{"pid": pid, "name": names.get(pid) or f"pid {pid}", "used": mib * 2**20}
+            for pid, mib in procs.items()]
+    rows.sort(key=lambda p: -p["used"])
+    return {"name": card["name"], "vendor": card.get("vendor"), "total": card["vram_total"] * 2**20,
+            "used": card["vram_used"] * 2**20, "procs": rows}
+
+
 def gpu():
-    def smi(*args):
+    """The main graphics card, whoever made it, from gpu.py (in-process: NVML
+    on NVIDIA, sysfs and fdinfo on AMD / Intel; nothing forked). Processes:
+    the compute ones (a model server is one): NVIDIA's compute list, AMD's
+    ROCm clients; none on Intel, which cannot tell them from graphics."""
+    try:
+        import gpu as cards
+        card = cards.primary()
+        procs = cards.processes(card, compute_only=True) if card else {}
+    except Exception:  # noqa: BLE001  (no card numbers, never a broken page)
+        return None
+    names = {}
+    for pid in procs:
         try:
-            return subprocess.run(["nvidia-smi", *args, "--format=csv,noheader,nounits"],
-                                  capture_output=True, text=True, timeout=5).stdout
-        except (OSError, subprocess.SubprocessError):
-            return ""
-    return parse_smi(smi("--query-gpu=name,memory.used,memory.total"),
-                     smi("--query-compute-apps=pid,process_name,used_memory"))
+            with open(f"/proc/{pid}/comm") as handle:
+                names[pid] = handle.read().strip()
+        except OSError:
+            pass
+    return card_info(card, procs, names)
 
 
 def lms_ps():

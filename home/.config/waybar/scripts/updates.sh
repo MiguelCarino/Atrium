@@ -95,8 +95,8 @@ cache="${XDG_RUNTIME_DIR:-/tmp}/waybar-updates.tsv"
 case $rc in
     0)   if ((fcount == 0)); then emit "$icon" "System is up to date" updated; exit 0; fi ;;
     100) ;;
-    124) emit "$icon" "dnf check-update timed out (mirrors slow?)\nRight-click to retry" error; exit 0 ;;
-    *)   emit "$icon" "dnf check-update failed (exit $rc)\nRight-click to retry" error; exit 0 ;;
+    124) emit "$icon" "dnf check-update timed out (mirrors slow?)" error; exit 0 ;;
+    *)   emit "$icon" "dnf check-update failed (exit $rc)" error; exit 0 ;;
 esac
 
 # Package lines only, and only from the upgrade list: stop at the "Obsoleting
@@ -118,14 +118,16 @@ tooltip=$(printf '%d package update(s)\n\n%s' "$count" \
     "$(printf '%s\n' "$list" | awk '{printf "  %s  →  %s\n", $1, $2}' | head -40)")
 ((count > 40)) && tooltip+=$'\n'"  … and $((count - 40)) more"
 # A kernel in the list is the update that can leave NVIDIA without a module;
-# safe-upgrade.sh checks for exactly that, so say it will.
-if printf '%s\n' "$list" | grep -q '^kernel-core'; then
+# safe-upgrade.sh checks for exactly that, so say it will -- only where the
+# NVIDIA driver is loaded (any other GPU has nothing to check).
+if [[ -d /sys/module/nvidia ]] && printf '%s\n' "$list" | grep -q '^kernel-core'; then
     tooltip+=$'\n\n'"Includes a new kernel: the NVIDIA module is built and checked before you reboot."
 fi
 if ((fcount)); then
     tooltip+=$'\n\n'"$fcount flatpak update(s)"$'\n'"$(printf '%s\n' "$flatpaks" | head -15 | sed 's/^/  /')"
 fi
-tooltip+=$'\n\n'"Left-click: the updates panel   Right-click: re-check"
+# No click hints: custom/updates has "tooltip": false (its panel is the
+# long form); the tooltip text stays for `updates.sh` run by hand.
 count=$((count + fcount))
 
 # Tooltips are Pango markup too: escape &, < and > before the JSON escaping.

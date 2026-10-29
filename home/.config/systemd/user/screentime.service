@@ -1,0 +1,19 @@
+# Screen time: ~/.config/hypr/scripts/screentime.py run -- the active minutes
+# per day and per app, and the break / eye reminders (off as shipped).
+# One light process: Hyprland's event socket and a 30 s tick, no fork per
+# event. `screentime.py set count off` disables it.
+[Unit]
+Description=Screen time and break reminders
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/screentime.py run
+Restart=on-failure
+RestartSec=10
+Nice=10
+
+[Install]
+WantedBy=graphical-session.target

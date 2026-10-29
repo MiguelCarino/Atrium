@@ -12,7 +12,10 @@ in four groups:
   MOTION        reduce motion: the "calm" animations, no moving wallpaper,
                 no wallpaper reactions, no animations inside apps
   TYPING        sticky / slow / bounce keys, which Hyprland does not have --
-                said so here, with what there is instead
+                said so here, with what there is instead; the on-screen
+                keyboard (osk.py: wvkbd or squeekboard, whichever is
+                installed -- neither: what to install), shown / hidden from
+                here, and squeekboard's "come up for text fields"
 
 The page keeps nothing: each control runs accessibility.py (which hands the
 parts that belong to other scripts -- display.py, theme.py, window-look.py,
@@ -34,9 +37,11 @@ PAGE = {"id": "accessibility", "title": "Accessibility", "icon": "", "group":
         "keywords": ["accessibility", "a11y", "magnifier", "zoom", "screen reader", "orca", "high contrast",
                      "contrast", "reduce motion", "animations", "reduce transparency", "transparency", "blur",
                      "visual alert", "flash", "bell", "sticky keys", "slow keys", "bounce keys",
-                     "larger pointer", "big cursor", "vision", "hearing"]}
+                     "larger pointer", "big cursor", "vision", "hearing", "on-screen keyboard",
+                     "virtual keyboard", "osk", "touch keyboard", "wvkbd", "squeekboard"]}
 
 A11Y = os.path.join(HYPR, "accessibility.py")
+OSK = os.path.join(HYPR, "osk.py")
 SETTINGS = os.path.join(HYPR, "settings.py")
 ZOOMS = [(1.0, "Off"), (1.5, "1.5×"), (2.0, "2×"), (3.0, "3×"), (4.0, "4×")]
 POINTERS = [(24, "Default"), (32, "32 px"), (48, "48 px"), (64, "64 px"), (96, "96 px")]
@@ -84,6 +89,28 @@ def transparency_sub(t):
     except ValueError:
         pass
     return "solid windows, no frosted glass" + (f"  ·  now: {', '.join(bits)}" if bits else "")
+
+
+def osk_sub(st):
+    """The on-screen keyboard row's line, from `osk.py status --json`."""
+    if not st:
+        return "osk.py did not answer"
+    if not st.get("keyboard"):
+        return "not installed: wvkbd (small, for this desktop) or squeekboard (GNOME's)"
+    name = {"wvkbd": "wvkbd", "squeekboard": "squeekboard"}[st["keyboard"]]
+    state = "showing" if st.get("shown") else "hidden"
+    key = st.get("key") or ""
+    return f"{state}  ·  {name}" + (f"  ·  {key} shows or hides it" if key else "")
+
+
+def osk_auto_sub(st):
+    """The "come up for text fields" row's line."""
+    if not st or not st.get("keyboard"):
+        return "needs an on-screen keyboard"
+    if not st.get("auto_supported"):
+        return "only squeekboard can follow text fields; wvkbd is shown by hand"
+    return ("on: it comes up when you tap into a text field" if st["settings"].get("auto") == "on"
+            else "off: shown by hand only")
 
 
 def alerts_sub(a):
@@ -166,6 +193,18 @@ class Page:
         self.keys_more.set_max_width_chars(90)
         w.pack_start(details(self.keys_more, label="Why"), False, False, 0)
 
+        # The on-screen keyboard: osk.py, not accessibility.py (status and
+        # actions of its own).
+        self.osk = None
+        self.osk_switch = Gtk.Switch()
+        self.osk_switch.connect("state-set", lambda _s, on: self.osk_do("show" if on else "hide"))
+        grid, self.osk_sub = row("\uf11c", "On-screen keyboard", "checking…", self.osk_switch)
+        w.pack_start(grid, False, False, 0)
+        self.osk_auto = Gtk.Switch()
+        self.osk_auto.connect("state-set", lambda _s, on: self.osk_do("set", "auto", "on" if on else "off"))
+        grid, self.osk_auto_sub = row("\uf246", "Come up for text fields", "", self.osk_auto)
+        w.pack_start(grid, False, False, 0)
+
     # -- building blocks -------------------------------------------------------------
     @staticmethod
     def make_chips(on_pick):
@@ -213,11 +252,42 @@ class Page:
             self.do(A11Y, key, "on" if state else "off")
         return True
 
+    def osk_do(self, *args):
+        if not self.updating:
+            self.osk_sub.set_text("changing…")
+            background(lambda: attempt(OSK, *args, timeout=15), self.osk_done)
+        return True
+
+    def osk_done(self, error):
+        if error:
+            self.error.set_text(f"!  {error}")
+            self.error.set_visible(True)
+        self.refresh_osk()
+
+    def refresh_osk(self):
+        background(lambda: run_json(OSK, "status", "--json", timeout=10), self.show_osk)
+
+    def show_osk(self, st):
+        was, self.updating = self.updating, True
+        self.osk = st
+        has = bool(st and st.get("keyboard"))
+        self.osk_switch.set_sensitive(has)
+        self.osk_switch.set_state(bool(st and st.get("shown")))
+        self.osk_switch.set_active(bool(st and st.get("shown")))
+        self.osk_sub.set_text(osk_sub(st))
+        auto = bool(st and st.get("settings", {}).get("auto") == "on")
+        self.osk_auto.set_sensitive(bool(st and st.get("auto_supported")))
+        self.osk_auto.set_state(auto)
+        self.osk_auto.set_active(auto)
+        self.osk_auto_sub.set_text(osk_auto_sub(st))
+        self.updating = was
+
     # -- drawing ---------------------------------------------------------------------
     def refresh(self):
         if self.data is None:
             self.zoom_sub.set_text("checking…")
         background(lambda: run_json(A11Y, "status", timeout=20), self.show)
+        self.refresh_osk()
 
     def set_switch(self, key, on, sub):
         sw, sub_label = self.switches[key]

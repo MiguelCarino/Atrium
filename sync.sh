@@ -36,6 +36,7 @@ PATHS=(
     .config/cliphist/
     .local/share/fonts/         # the themes' fonts
     .config/fontconfig/conf.d/60-w95fa-pixels.conf
+    .config/fontconfig/conf.d/60-inter-family.conf
 )
 
 # One person's, not the desktop's. rsync anchors a leading / to each
@@ -44,7 +45,7 @@ PERSONAL=(
     '--exclude=/lua/hosts/*.lua'        # this machine's screens (monitors-capture.py writes it)
     '--exclude=/contexts.json'          # their projects
     '--exclude=/desktop.conf'           # their folders
-    '--exclude=/workhours.conf'         # their employer's hours
+    '--exclude=/workhours.conf*'        # their employer's hours (.off: switched off)
     '--exclude=/emergency.conf'         # where they live (alerts)
     '--exclude=/region.conf'            # their weather place, clock
     '--exclude=/folder-access.json'     # which folders they let the AI read
@@ -53,6 +54,8 @@ PERSONAL=(
     '--exclude=carino-traffic.*'
     '--exclude=*.wants/'                # see packages/units.txt
     '--exclude=/lmstudio.service.d/'    # this machine's LLM limits (llm-limits.py writes them)
+    '--exclude=/agents.slice.d/'        # this machine's memory limits (railguard.py writes them)
+    '--exclude=/heavy.slice.d/'
     # Not ours to publish: a patch to hypr-cube, which has no licence yet
     # (all rights reserved). The build works without it (plain upstream).
     '--exclude=/scripts/hypr-cube.patch'

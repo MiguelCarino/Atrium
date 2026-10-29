@@ -88,8 +88,8 @@ LANG_FILE = os.path.expanduser("~/.config/waybar/generated/lang")
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
 CLOCK_PID = os.path.join(RUNTIME, "waybar-clock.pid")     # clock.py watch writes it
 WEATHER_RAW = os.path.join(RUNTIME, "waybar-weather-raw.json")  # wttr.py's last answer
-DAY_SIGNAL = 10         # custom/day   (waybar/config "signal")
-WEATHER_SIGNAL = 16     # custom/weather
+# custom/day and custom/weather are redrawn through bar_signals.py ("day",
+# "weather"), the one table of the bar's signal numbers.
 
 DEFAULTS = {"clock": "24", "seconds": "on", "date": "short", "week": "monday",
             "weather": "", "units": "metric"}     # weather: filled in below
@@ -642,9 +642,14 @@ def redraw(*what):
                 os.kill(pid, signal.SIGUSR1)
         except (OSError, ValueError):
             pass        # no watcher: its next tick reads the file anyway
-    for name, sig in (("day", DAY_SIGNAL), ("weather", WEATHER_SIGNAL)):
-        if name in what:
-            _run("pkill", f"-RTMIN+{sig}", "-x", "waybar", timeout=3)
+    names = [name for name in ("day", "weather") if name in what]
+    if names:
+        try:
+            sys.path.insert(0, HERE)
+            import bar_signals      # the numbers' one table (scripts/bar_signals.py)
+            bar_signals.poke(*names)
+        except ImportError:
+            pass        # no table: the pills catch up at their own next run
 
 
 # Which bar pieces each preference shows up in.

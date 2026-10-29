@@ -1,0 +1,197 @@
+/* ===========================================================================
+   ORCHARD DARK -- the launcher, the quick note and the clipboard picker
+   (~/.config/hypr/scripts/launcher.css). Copied to
+   waybar/generated/theme-launcher.css by theme.py and imported LAST.
+
+   orchard/launcher.css in the dark appearance: the RULES below are
+   orchard's line for line (its header explains the Search card raised to a
+   quarter of the screen, the big light-weight field, the plain rows that
+   take the accent fill when chosen, and the shadow that fits the card's
+   margins); only this header and the PALETTE differ.
+
+   HDR (DP-1): the card is alpha(#28282a, 0.90) over the frost -- about
+   #2e2e2f, luminance 0.027.
+
+   Contrast, measured with the WCAG formula, on #2e2e2f:
+     text #ebebf0 11.4:1; dim #a1a1a6 5.3:1; the placeholder at 38% of the
+       text (#767678) 3.0:1 -- a hint;
+     white on the selection #0071e3 4.7:1, its sub line (82% white) 3.7:1
+   =========================================================================== */
+
+/* --- PALETTE (orchard-dark) ------------------------------------------------- */
+@define-color oc-shade        alpha(#000000, 0.55);
+@define-color oc-hover        alpha(#ffffff, 0.08);
+@define-color oc-on-sel-dim   alpha(#ffffff, 0.82);
+@define-color oc-on-sel-edge  alpha(#ffffff, 0.45);
+@define-color accent-text     #409cff;
+@define-color accent-fill     #0071e3;
+@define-color edge-lit        alpha(#ffffff, 0.10);
+@define-color sep             alpha(#ffffff, 0.10);
+
+@define-color magenta         #0071e3;   /* structure only here */
+@define-color violet          alpha(#ebebf0, 0.30);   /* scrollbar */
+@define-color mist            #a1a1a6;
+@define-color sel-mid         #0071e3;
+@define-color surface         alpha(#28282a, 0.90);
+@define-color groove          alpha(#000000, 0.00);
+@define-color edge            alpha(#000000, 0.45);
+@define-color text            #ebebf0;
+@define-color text-dim        #a1a1a6;
+@define-color text-bright     #ebebf0;
+@define-color ink             #ffffff;
+@define-color placeholder_text_color #767678;   /* 38% of the text over the card, opaque */
+/* --- END PALETTE ------------------------------------------------------------ */
+
+* {
+    font-family: "Inter", "Adwaita Sans", "IBM Plex Sans", "Noto Color Emoji", sans-serif;
+    font-weight: 400;
+}
+
+#card {
+    min-width: 720px;
+    margin: 24px 48px 330px 48px;
+    padding: 6px 10px 12px 10px;
+    border: 1px solid @edge;
+    border-bottom: 1px solid @edge;
+    border-radius: 16px;
+    animation: none;
+    background-color: @surface;
+    background-image: none;
+    box-shadow: inset 0 1px @edge-lit,
+                0 16px 40px @oc-shade;
+}
+
+/* --- Search: a big light line of type ------------------------------------------ */
+#search {
+    font-size: 26px;
+    font-weight: 300;
+    min-height: 52px;
+    margin: 0px 0px 10px 0px;
+    padding: 0px 18px 0px 10px;
+    color: @text;
+    caret-color: @cyan;
+    border: none;
+    border-bottom: 1px solid @sep;
+    border-radius: 0px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+#search image {
+    color: @text-dim;
+    margin-right: 10px;
+    -gtk-icon-transform: scale(1.25);
+}
+
+#search selection {
+    background-color: alpha(@cyan, 0.30);
+    color: @text;
+}
+
+/* --- The best match ("top hit"): a row, the selection when chosen ------------- */
+#hero {
+    margin: 0px 0px 8px 0px;
+    padding: 8px 12px;
+    border: none;
+    border-left: none;
+    border-radius: 8px;
+    background-color: transparent;
+    background-image: none;
+    transition: background-color 120ms ease-out;
+}
+
+#hero.selected {
+    background-color: @accent-fill;
+    background-image: none;
+    border: none;
+}
+
+label.hero-name {
+    font-size: 17px;
+    font-weight: 600;
+    color: @text;
+}
+
+label.hero-sub {
+    font-size: 12px;
+    color: @text-dim;
+}
+
+label.hero-hint {
+    font-size: 11px;
+    color: @text-dim;
+    padding: 2px 8px;
+    border: 1px solid @edge;
+    border-radius: 5px;
+}
+
+#hero.selected label.hero-name,
+#hero.selected label.clip-hero-text { color: @ink; }
+#hero.selected label.hero-sub       { color: @oc-on-sel-dim; }
+#hero.selected label.hero-hint {
+    color: @oc-on-sel-dim;
+    border-color: @oc-on-sel-edge;
+}
+
+label.empty {
+    font-size: 14px;
+    color: @text-dim;
+}
+
+/* --- Tiles: transparent until chosen ---------------------------------------------- */
+.tile {
+    border: none;
+    border-bottom: none;
+    border-radius: 8px;
+    background-color: transparent;
+    background-image: none;
+    transition: background-color 120ms ease-out;
+}
+
+.tile:hover {
+    background-color: @oc-hover;
+    border-color: transparent;
+}
+
+.tile.selected,
+.tile.selected:hover {
+    background-color: @accent-fill;
+    background-image: none;
+    border: none;
+}
+
+label.tile-name {
+    font-size: 12px;
+    color: @text;
+}
+
+.tile.selected label.tile-name,
+.tile.selected label.clip-text,
+.tile.selected label.clip-caption {
+    color: @ink;
+    font-weight: 600;
+}
+
+scrollbar slider {
+    min-width: 4px;
+    border-radius: 2px;
+    background-color: @violet;
+}
+
+/* --- Clipboard picker (clipboard.py) ---------------------------------------------- */
+label.clip-hero-text {
+    font-size: 15px;
+    color: @text;
+}
+
+label.clip-text {
+    font-size: 13px;
+    color: @text;
+}
+
+label.clip-caption {
+    font-size: 11px;
+    font-weight: 600;
+    color: @text-dim;
+}

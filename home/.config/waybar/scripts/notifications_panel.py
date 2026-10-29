@@ -3,7 +3,9 @@
 
 Newest first: who sent it, the summary, the first lines of the body. A
 notification still on screen is marked "on screen"; clicking it runs its
-default action (what clicking the popup would have done). Clicking one from
+default action (what clicking the popup would have done). With the dynamic
+island showing them (its mako mode), "on screen" reads "in the island", and
+one Do Not Disturb holds back reads "held back". Clicking one from
 the history copies its text to the clipboard instead -- mako cannot re-run an
 action once a notification has expired, but the text is often the point (a
 code, a path, a link).
@@ -83,6 +85,7 @@ class Notifications(panelui.Panel):
         for child in self.body.get_children():
             self.body.remove(child)
         items = notifications.entries()
+        self.active = notifications.modes()
         notifications.mark_seen(items)       # the bell's count goes back to 0
         if not items:
             self.body.pack_start(label("nothing yet this session", "ctl-sub"), False, False, 0)
@@ -100,7 +103,8 @@ class Notifications(panelui.Panel):
         app.set_hexpand(True)
         top.pack_start(app, True, True, 0)
         if item["source"] == "shown":
-            top.pack_end(label("on screen", "sn-label", 1.0), False, False, 0)
+            top.pack_end(label(notifications.where_word(item, getattr(self, "active", [])),
+                               "sn-label", 1.0), False, False, 0)
         box.pack_start(top, False, False, 0)
 
         # Senders may escape their text as markup (Firefox sends "&gt;");

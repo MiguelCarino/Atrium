@@ -86,7 +86,8 @@ import screens  # noqa: E402  (which screens: the host file's order, primary, HD
 STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
                      "hypr", "display.conf")
 SHADERS = os.path.expanduser("~/.config/hypr/shaders")
-PRESETS = ["snappy", "smooth", "fancy", "calm"]   # lua/display.lua M.presets
+NOTIFY = os.path.expanduser("~/.config/hypr/scripts/notify")  # notify-send with the theme's mascot (mascot_notify.py)
+PRESETS = ["snappy", "smooth", "fancy", "calm", "spring"]   # lua/display.lua M.presets, theme.py PRESETS
 HDR_CAPABLE = screens.hdr_capable()                # the host file's M.hdr_capable
 SDR_WHITE_DEFAULT = 220                            # lua/monitors.lua
 SDR_WHITE_RANGE = (80, 480)
@@ -181,9 +182,10 @@ def monitors():
 
 
 def refresh_bar():
-    """The toolbox's Display row (custom/display, "signal": 13) re-reads."""
-    subprocess.run(["pkill", "-RTMIN+13", "-x", "waybar"],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    """The toolbox's Display row (custom/display; its number is
+    bar_signals.py's "display") re-reads."""
+    import bar_signals      # noqa: E402  (scripts/: on sys.path above)
+    bar_signals.poke("display")
 
 
 def cmd_bar():
@@ -333,7 +335,7 @@ def notify(title, body="", urgency="low"):
     if os.environ.get("DISPLAY_QUIET"):
         print(f"{title}{': ' + body if body else ''}")
         return
-    subprocess.run(["notify-send", "-a", "Display", "-u", urgency, "-t", "2500",
+    subprocess.run([NOTIFY, "-a", "Display", "-u", urgency, "-t", "2500",
                     "-h", "string:x-canonical-private-synchronous:display",
                     title, body], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 

@@ -20,7 +20,8 @@
 -- evals this again. Never in gamemode: animations.enabled == false is
 -- gamemode's switch (lua/gamemode.lua), and this never sets it either way.
 -- The curves are lua/display.lua's (easeOutQuint, easeInOut, linear), which
--- are defined at every load before anything can call this.
+-- are defined at every load before anything can call this; so is its
+-- animate(), which lays a level down over the whole leaf tree.
 --
 -- The file is in the runtime dir: after a re-login nothing is calmed.
 
@@ -80,11 +81,11 @@ function M.apply()
         end
         return
     end
-    for _, a in ipairs(LEVELS[level]) do
-        local spec = { leaf = a[1], enabled = true, speed = a[2], bezier = a[3] }
-        if a[4] then spec.style = a[4] end
-        hl.animation(spec)
-    end
+    -- display.lua's animate() expands the list over every leaf of the tree
+    -- (fadeOut, fadeLayersOut, windowsMove ... take their parent's values),
+    -- so a calm level also reaches the child leaves a preset set on its own:
+    -- setting only the listed leaves left e.g. spring's fadeOut in place.
+    require("lua.display").animate(LEVELS[level])
     M.applied = level
 end
 

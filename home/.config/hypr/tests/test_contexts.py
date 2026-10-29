@@ -330,7 +330,7 @@ class Hardening(Scratch):
 
     def test_enter_failure_is_said(self):
         C.command(["enter", "Nope"])
-        self.assertTrue(any(cmd[0] == "notify-send" and "Could not enter the project" in cmd for cmd in self.ran))
+        self.assertTrue(any(cmd[0] == C.NOTIFY and "Could not enter the project" in cmd for cmd in self.ran))
 
 
 class Automations(unittest.TestCase):

@@ -51,7 +51,7 @@ BUILTIN = [
     {"id": "effects", "title": "Effects", "icon": "", "group": "Look", "order": 30, "parent": "theme", "tab": "Effects",
      "keywords": ["screen filter", "shader", "grayscale", "greyscale", "reading", "vibrance", "crt",
                   "colour blindness", "color blind", "protanopia", "deuteranopia", "tritanopia",
-                  "animations", "animaciones", "snappy", "smooth", "fancy", "calm", "motion"]},
+                  "animations", "animaciones", "snappy", "smooth", "fancy", "calm", "spring", "motion"]},
 ]
 
 

@@ -321,6 +321,13 @@ TOPIC_LINES = {
             "That's the good spot behind the ears ☺",
             "Purr… wait, foxes don't purr. Still nice.",
             "Best friend in the whole forest."),
+    # railguard.py's notifications (mascot_notify.py says them, voice on)
+    "rg_memory": "{0} was hoarding all the memory, like acorns. I chased it off.",
+    "rg_vram": "{0} filled the GPU's den. Shooed it out.",
+    "rg_game_vram": "{0} is using almost all the GPU memory. Lower the textures?",
+    "rg_panic": "Got it! {0} has scampered off.",
+    "rg_stuck": "Memory's running thin and I can't find the tracks...",
+    "rg_agents": "Every agent job is stopped. The sessions are safe in the burrow.",
 }
 # A few topics in each season's own words; the rest come from TOPIC_LINES.
 SEASON_LINES = {

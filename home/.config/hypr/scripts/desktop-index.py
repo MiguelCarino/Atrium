@@ -10,7 +10,9 @@ only by their names. Everything stays on this computer.
     desktop-index.py update [--max-minutes N]
                                    what the hourly timer runs: the same,
                                    skipped while game mode is on, a Steam
-                                   game is open, or on battery
+                                   game is open, or on battery; then the
+                                   desktop memory's new embeddings
+                                   (desktop-memory.py embed_hourly)
     desktop-index.py status [--json]
                                    files, pieces, last update, size on disk,
                                    the embedding model (or "keyword only")
@@ -70,6 +72,7 @@ idle, CPUQuota=200%).
 import array
 import fcntl
 import html
+import importlib.util
 import json
 import math
 import os
@@ -391,6 +394,20 @@ def pick_embedding(models):
     return emb[0] if emb else None
 
 
+def start_daemon(log=lambda text: None):
+    """LM Studio's daemon started inside its limits (lmstudio.service, via
+    llm-limits.py's ensure_daemon, as llm_models.ensure_local does) before
+    `lms server start` -- which would otherwise start it outside them, where
+    the idle reaper (llm-limits.py reap) cannot stop it again."""
+    try:
+        import llm_models
+        note = llm_models._limits_module().ensure_daemon()
+    except Exception as exc:       # noqa: BLE001 -- no limits script: lms starts it the old way
+        note = str(exc)
+    if note:
+        log(note)
+
+
 def embedding_model(start=False, log=lambda text: None):
     """The embedding model's id, loaded and ready, or None. With start=True
     LM Studio's server is started if it is not up. Never touches a chat
@@ -398,6 +415,7 @@ def embedding_model(start=False, log=lambda text: None):
     models = server_models()
     if models is None and start and os.access(LMS, os.X_OK):
         log("starting LM Studio's server")
+        start_daemon(log)
         try:
             subprocess.run([LMS, "server", "start"], capture_output=True, timeout=90)
         except (OSError, subprocess.SubprocessError):
@@ -590,6 +608,22 @@ def embed_pending(con, stop, log, model=None):
         count += len(rows)
         meta(con, "progress", f"embedding {count} / {pending}")
         con.commit()
+
+
+def embed_memories(log=lambda text: None):
+    """The desktop memory's embeddings, in the same hourly run (moved here
+    from desktop-memory.py collect, which ran every 5 minutes and kept LM
+    Studio awake). desktop-memory.py decides when LM Studio may be started
+    for them (embed_hourly). The line to print."""
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "desktop_memory", os.path.join(os.path.dirname(os.path.abspath(__file__)), "desktop-memory.py"))
+        dm = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(dm)
+        n = dm.embed_hourly(log)
+    except Exception as exc:       # noqa: BLE001 -- the index's run is done; the memories wait
+        return f"desktop memory: not embedded ({exc})"
+    return f"desktop memory: {n} embedded"
 
 
 # -- searching ----------------------------------------------------------------------------
@@ -789,6 +823,8 @@ def main(argv):
                 return
         be_gentle()
         print(build(only, minutes, check_busy=cmd == "update", log=lambda t: print(t, flush=True)))
+        if cmd == "update" and not only:
+            print(embed_memories(log=lambda t: print(t, flush=True)))
     elif cmd == "status":
         s = status()
         print(json.dumps(s) if as_json else human_status(s))

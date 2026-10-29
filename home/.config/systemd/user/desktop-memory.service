@@ -1,9 +1,11 @@
 # Desktop memory (Settings > Desktop memory): ~/.config/hypr/scripts/
 # desktop-memory.py collect takes in what is new from each source that is on
 # (window titles, copies, notifications, captions; a screenshot + OCR when
-# that source is on and one is due), prunes what is past its days, and now
-# and then embeds the new memories. Cheap: a second or two, nothing at all
-# while Settings > Privacy has the memory off (the prune still runs).
+# that source is on and one is due) and prunes what is past its days. The
+# embeddings are not done here: desktop-index.service's hourly run does them
+# (desktop-memory.py embed_hourly), so LM Studio is not woken every 5 min.
+# Cheap: a second or two, nothing at all while Settings > Privacy has the
+# memory off (the prune still runs).
 [Unit]
 Description=Collect the desktop memory
 PartOf=graphical-session.target
@@ -18,3 +20,5 @@ IOSchedulingClass=idle
 CPUQuota=100%
 MemoryHigh=400M
 MemoryMax=800M
+# systemd's own start/finish lines, 288 a day, are noise.
+LogLevelMax=notice

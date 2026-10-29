@@ -1,0 +1,387 @@
+/* ===========================================================================
+   ORCHARD -- libadwaita / GTK4 (Nautilus). Becomes ~/.config/gtk-4.0/gtk.css
+   (theme.py; a hand-written gtk.css is kept as gtk.css.before-themes).
+   gsettings does the rest: color-scheme prefer-DARK (luna's reason, below),
+   accent-color blue, button-layout close,minimize,maximize: (theme.conf
+   gtk_*). It reads as "Files as a window of the system this theme is
+   modelled on": libadwaita's layout, our paint --
+
+     * the window controls are three 12px dots on the LEFT -- red close,
+       yellow minimise, green zoom, each with a darker rim -- whose glyphs
+       (x, -, +) appear only while the pointer is over the group; an
+       unfocused window's dots go grey;
+     * the header bar is flat, the colour of the window face (no line of
+       its own beyond a hairline under it), 46px tall;
+     * the sidebar is translucent (Hyprland frosts the wallpaper through it:
+       hypr.lua keeps blur on for Nautilus), its selection a GREY pill, not
+       blue -- the system's sidebars select in grey;
+     * a selected file is a soft blue plate behind its icon and its name on
+       an accent capsule; popover menus are 10px cards whose rows light in
+       the accent fill under white;
+     * focus is a 3px soft blue ring, the corners 12px (the window) / 6px
+       (controls).
+
+   HDR (DP-1), luminance of each large field: view #bebec3 0.52, window face
+   #b3b3b8 0.45, header #b6b6bb 0.47, sidebar #aeaeb4 at 92% (~0.40). Stock
+   libadwaita's #ffffff view (1.0) is what this file exists to avoid.
+
+   Contrast, measured with the WCAG formula:
+     ink #1d1d1f on the view 9.1:1, on the face 8.1, on the sidebar 7.3
+     accent text #0058c4 on the view 3.6 (links and accent labels -- with
+       their words), white on the accent fill #0062cc 5.8
+     status text (libadwaita's --*-color) on the view: success #1b6b2f 3.6,
+       warning #8a3e00 4.1, error #b0000f 4.0 -- deeper than the fills,
+       which keep the system hues under white: 4.4 / 5.2 / 5.4
+   libadwaita's dimmed text is the foreground at --dim-opacity (55% by
+   default, 3.1:1 on the view); raised to 72% (4.8:1).
+
+   Why prefer-dark for a light theme: gsettings is live in every running
+   libadwaita app and this file is not, so under prefer-light the always-
+   open Nautilus would drop to a #ffffff view until it restarts (win95's
+   gtk4.css has the story). Every variable libadwaita sets differently per
+   scheme is set below, so this file draws the same colours either way.
+   =========================================================================== */
+
+:root {
+    --accent-bg-color: #0062cc;
+    --accent-fg-color: #ffffff;
+    --accent-color: #0058c4;
+
+    --destructive-bg-color: #d70015;
+    --destructive-fg-color: #ffffff;
+    --destructive-color: #b0000f;
+    --success-bg-color: #248a3d;
+    --success-fg-color: #ffffff;
+    --success-color: #1b6b2f;
+    --warning-bg-color: #b25000;
+    --warning-fg-color: #ffffff;
+    --warning-color: #8a3e00;
+    --error-bg-color: #d70015;
+    --error-fg-color: #ffffff;
+    --error-color: #b0000f;
+
+    --window-bg-color: #b3b3b8;
+    --window-fg-color: #1d1d1f;
+    --view-bg-color: #bebec3;
+    --view-fg-color: #1d1d1f;
+    --headerbar-bg-color: #b6b6bb;
+    --headerbar-fg-color: #1d1d1f;
+    --headerbar-border-color: rgba(0, 0, 0, 0.12);
+    --headerbar-backdrop-color: #b3b3b8;
+    --headerbar-shade-color: rgba(0, 0, 0, 0.10);
+    --headerbar-darker-shade-color: rgba(0, 0, 0, 0.16);
+    --sidebar-bg-color: rgba(174, 174, 180, 0.92);
+    --sidebar-fg-color: #1d1d1f;
+    --sidebar-backdrop-color: rgba(178, 178, 184, 0.94);
+    --sidebar-border-color: rgba(0, 0, 0, 0.10);
+    --sidebar-shade-color: rgba(0, 0, 0, 0.08);
+    --secondary-sidebar-bg-color: rgba(174, 174, 180, 0.92);
+    --secondary-sidebar-fg-color: #1d1d1f;
+    --secondary-sidebar-backdrop-color: rgba(178, 178, 184, 0.94);
+    --secondary-sidebar-border-color: rgba(0, 0, 0, 0.10);
+    --secondary-sidebar-shade-color: rgba(0, 0, 0, 0.08);
+    --card-bg-color: #c2c2c7;
+    --card-fg-color: #1d1d1f;
+    --card-shade-color: rgba(0, 0, 0, 0.10);
+    --overview-bg-color: #b3b3b8;
+    --overview-fg-color: #1d1d1f;
+    --active-toggle-bg-color: #c8c8cd;
+    --active-toggle-fg-color: #1d1d1f;
+    --thumbnail-bg-color: #c2c2c7;
+    --thumbnail-fg-color: #1d1d1f;
+    --dialog-bg-color: #bdbdc2;
+    --dialog-fg-color: #1d1d1f;
+    --popover-bg-color: #c4c4c9;
+    --popover-fg-color: #1d1d1f;
+    --popover-shade-color: rgba(0, 0, 0, 0.18);
+    --shade-color: rgba(0, 0, 0, 0.10);
+    --scrollbar-outline-color: rgba(255, 255, 255, 0.25);
+    --border-color: rgba(0, 0, 0, 0.14);
+
+    --dim-opacity: 0.72;
+    --window-radius: 12px;
+    --document-font-family: "Inter", "Adwaita Sans", "IBM Plex Sans";
+    --monospace-font-family: "Adwaita Mono", "IBM Plex Mono";
+}
+
+/* The UI face is a gsettings key (font-name), not a variable; a CSS rule
+   reaches every widget of these apps without touching the desktop-wide key. */
+* {
+    font-family: "Inter", "Adwaita Sans", "IBM Plex Sans", "Noto Color Emoji", sans-serif;
+}
+
+/* --- The header bar: flat, the window's own colour ------------------------------- */
+headerbar,
+.sidebar-pane headerbar,
+.content-pane headerbar,
+toolbarview > .top-bar headerbar,
+.sidebar-pane toolbarview > .top-bar headerbar {
+    min-height: 46px;
+    background-image: none;
+    box-shadow: inset 0 -1px rgba(0, 0, 0, 0.10);
+}
+
+headerbar .title,
+headerbar label.title {
+    font-weight: 600;
+}
+
+/* libadwaita fades an unfocused window's top bar to 50% (filter: opacity),
+   which washes the path bar out; the dots going grey say "unfocused". */
+headerbar:backdrop > windowhandle,
+toolbarview > .top-bar:backdrop > windowhandle {
+    filter: none;
+}
+
+/* --- The traffic lights ------------------------------------------------------------
+   Each control is a 20px-wide hit area with a 12px dot in it: the dot is
+   the button's IMAGE (2px padding round an 8px icon), painted in the
+   colour with a half-pixel darker rim; the glyph itself is transparent
+   until the pointer is over the group, then a dark tint of the dot's
+   colour at 55%. The long selector outranks libadwaita's own (a window
+   control may or may not carry .flat). */
+windowcontrols {
+    margin: 0px 4px;
+}
+
+windowcontrols > button,
+headerbar windowcontrols > button:not(.flat):not(.suggested-action):not(.destructive-action) {
+    min-width: 20px;
+    min-height: 20px;
+    margin: 0px 0px;
+    padding: 0px;
+    border: none;
+    border-radius: 9999px;
+    background: none;
+    box-shadow: none;
+}
+
+windowcontrols > button:hover,
+windowcontrols > button:active,
+headerbar windowcontrols > button:not(.flat):hover,
+headerbar windowcontrols > button:not(.flat):active {
+    background: none;
+    box-shadow: none;
+}
+
+windowcontrols > button > image {
+    padding: 2px;
+    -gtk-icon-size: 8px;
+    border-radius: 9999px;
+    color: transparent;
+    background-image: none;
+}
+
+windowcontrols > button.close > image {
+    background-color: #ff5f57;
+    box-shadow: inset 0 0 0 0.5px #e0443e;
+}
+
+windowcontrols > button.minimize > image {
+    background-color: #febc2e;
+    box-shadow: inset 0 0 0 0.5px #dea123;
+}
+
+windowcontrols > button.maximize > image {
+    background-color: #28c840;
+    box-shadow: inset 0 0 0 0.5px #1aab29;
+}
+
+windowcontrols:hover > button.close > image {
+    color: rgba(77, 0, 0, 0.55);
+}
+
+windowcontrols:hover > button.minimize > image {
+    color: rgba(107, 74, 0, 0.55);
+}
+
+windowcontrols:hover > button.maximize > image {
+    color: rgba(11, 77, 18, 0.55);
+}
+
+/* Pressed: the dot a shade darker. */
+windowcontrols > button.close:active > image    { background-color: #e0443e; }
+windowcontrols > button.minimize:active > image { background-color: #dea123; }
+windowcontrols > button.maximize:active > image { background-color: #1aab29; }
+
+/* Unfocused: three grey dots. */
+windowcontrols:backdrop > button > image,
+windowcontrols > button:backdrop > image {
+    background-color: #b8b8bd;
+    box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);
+    color: transparent;
+}
+
+/* --- Buttons: light faces, 6px corners ------------------------------------------------ */
+button:not(.flat):not(.suggested-action):not(.destructive-action),
+dropdown > button,
+.linked > button {
+    border-radius: 6px;
+}
+
+headerbar button,
+headerbar button.flat,
+headerbar .linked > button,
+headerbar menubutton > button {
+    border-radius: 6px;
+}
+
+button.suggested-action,
+button.destructive-action,
+button.pill {
+    border-radius: 6px;
+}
+
+/* --- Text fields: a soft blue focus ring --------------------------------------------- */
+entry,
+spinbutton,
+searchbar entry {
+    border-radius: 6px;
+}
+
+entry:focus-within,
+spinbutton:focus-within {
+    outline: 3px solid rgba(0, 122, 255, 0.50);
+    outline-offset: -1px;
+}
+
+*:focus-visible {
+    outline-color: rgba(0, 122, 255, 0.50);
+    outline-width: 3px;
+}
+
+/* --- The sidebar: translucent, a grey selection ---------------------------------------- */
+.navigation-sidebar {
+    background-color: transparent;
+}
+
+.navigation-sidebar > row {
+    border-radius: 6px;
+    margin: 1px 8px;
+    min-height: 28px;
+}
+
+.navigation-sidebar > row:hover {
+    background-color: rgba(29, 29, 31, 0.06);
+}
+
+.navigation-sidebar > row:selected,
+.navigation-sidebar > row:selected:hover {
+    background-color: rgba(29, 29, 31, 0.10);
+    color: #1d1d1f;
+}
+
+.navigation-sidebar > row:selected label,
+.navigation-sidebar > row:selected image {
+    color: #1d1d1f;
+}
+
+/* --- Files: a soft plate behind the icon, the name on an accent capsule ---------------- */
+gridview > child {
+    border-radius: 8px;
+}
+
+gridview > child:selected {
+    background-color: rgba(0, 122, 255, 0.25);
+    color: #1d1d1f;
+}
+
+gridview > child:selected label {
+    color: #ffffff;
+    background-color: #0062cc;
+    border-radius: 5px;
+    padding: 0px 4px;
+}
+
+listview > row,
+columnview > listview > row {
+    border-radius: 6px;
+}
+
+listview > row:selected,
+columnview > listview > row:selected,
+list > row:selected {
+    background-color: #0062cc;
+    color: #ffffff;
+}
+
+listview > row:selected label,
+columnview > listview > row:selected label {
+    color: #ffffff;
+}
+
+rubberband {
+    background-color: rgba(0, 122, 255, 0.18);
+    border: 1px solid rgba(0, 98, 204, 0.70);
+    border-radius: 2px;
+}
+
+/* --- Floating things: popovers, menus, toasts, tooltips --------------------------------- */
+popover > contents,
+popover.menu > contents {
+    border-radius: 10px;
+    padding: 5px;
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.45),
+                0 0 0 1px rgba(0, 0, 0, 0.18),
+                0 12px 40px rgba(0, 0, 0, 0.28);
+}
+
+popover.menu modelbutton {
+    border-radius: 5px;
+    min-height: 24px;
+    padding: 0px 10px;
+}
+
+popover.menu modelbutton:hover,
+popover.menu modelbutton:selected {
+    background-color: #0062cc;
+    color: #ffffff;
+}
+
+popover.menu modelbutton:hover label,
+popover.menu modelbutton:selected label,
+popover.menu modelbutton:hover arrow,
+popover.menu modelbutton:selected arrow {
+    color: #ffffff;
+}
+
+popover.menu separator {
+    margin: 4px 6px;
+    background-color: rgba(0, 0, 0, 0.10);
+}
+
+toast {
+    border-radius: 16px;
+    background-color: rgba(191, 191, 197, 0.94);
+    color: #1d1d1f;
+    box-shadow: inset 0 1px rgba(255, 255, 255, 0.45),
+                0 0 0 1px rgba(0, 0, 0, 0.18),
+                0 12px 40px rgba(0, 0, 0, 0.28);
+}
+
+tooltip {
+    border-radius: 8px;
+    background-color: rgba(196, 196, 201, 0.96);
+    color: #1d1d1f;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.14);
+}
+
+/* --- Scrollbars and progress -------------------------------------------------------------- */
+scrollbar slider {
+    background-color: rgba(29, 29, 31, 0.40);
+    border-radius: 9999px;
+}
+
+scrollbar slider:hover {
+    background-color: rgba(29, 29, 31, 0.55);
+}
+
+progressbar > trough,
+levelbar trough {
+    background-color: rgba(0, 0, 0, 0.12);
+}
+
+progressbar > trough > progress,
+levelbar block.filled {
+    background-color: #0062cc;
+}

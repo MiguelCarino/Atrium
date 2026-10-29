@@ -4,7 +4,9 @@ opened by setup-root.sh, then paired once from the phone's KDE Connect app).
 
     phone.py bar               waybar JSON for custom/phone: a phone glyph and
                                the battery while a paired phone is reachable,
-                               nothing otherwise
+                               nothing otherwise (on the pill: click opens
+                               Settings > Devices, middle-click rings it,
+                               right-click sends the clipboard)
     phone.py ring              make the phone ring (find it)
     phone.py share <file>...   send files to it
     phone.py clip              send the clipboard's text to it
@@ -13,8 +15,17 @@ opened by setup-root.sh, then paired once from the phone's KDE Connect app).
 
 Phone notifications arrive on the desktop by themselves (kdeconnectd posts
 them like any app), and the clipboard is shared both ways when the phone
-app allows it. Everything here goes through kdeconnect-cli and kdeconnectd's
-D-Bus properties; with more than one phone, the first reachable one is used.
+app allows it. Actions go through kdeconnect-cli; which phones are paired
+and reachable, and the battery, are asked of kdeconnectd over D-Bus
+(busctl, one call each): `kdeconnect-cli -l` waits on a network discovery
+and took 2 s, the daemon's devices list answers in a few ms. With more than
+one phone, the first reachable one is used.
+
+The pill (custom/phone) is pushed, not polled: the watcher below also
+follows kdeconnectd's device signals (reachable / gone / paired / battery)
+and redraws it (bar_signals.poke("phone")); the module's long interval is
+only a safety net. The bar never starts kdeconnectd (--auto-start=no): no
+daemon, no pill.
 
 Handoff, desktop -> phone:
 
@@ -91,14 +102,18 @@ import time
 import urllib.parse
 
 CLI = "kdeconnect-cli"
-SIGNAL = 20             # waybar custom/phone
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 HOME = os.path.expanduser("~")
 PHOTOS = os.path.join(HOME, "Pictures", "Phone")
 PHOTO_EXT = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp", ".gif", ".dng", ".avif",
              ".mp4", ".mov", ".3gp", ".webm", ".mkv"}
 CODE_CLEAR_S = 60
 BUS_NAME = "org.kde.kdeconnect"
+DAEMON_IFACE = "org.kde.kdeconnect.daemon"
+DEVICE_IFACE = "org.kde.kdeconnect.device"
+BATTERY_IFACE = "org.kde.kdeconnect.device.battery"
+REDRAW_DELAY_MS = 400
 NOTIF_IFACE = "org.kde.kdeconnect.device.notifications"
 SHARE_IFACE = "org.kde.kdeconnect.device.share"
 BROWSERS = re.compile(r"firefox|librewolf|zen|waterfox|chrome|chromium|brave|vivaldi|edge|opera", re.I)
@@ -138,48 +153,86 @@ def run(*args, timeout=10):
         return None
 
 
+def bus_call(path, iface, method, signature="", *args, autostart=True):
+    """kdeconnectd over D-Bus (busctl --json=short): the reply's data list,
+    or None (no daemon, no such object, an error). autostart=False never
+    starts kdeconnectd just to ask it something (the bar)."""
+    argv = ["busctl", "--user", "--json=short", f"--auto-start={'yes' if autostart else 'no'}",
+            "call", BUS_NAME, path, iface, method]
+    if signature:
+        argv += [signature, *args]
+    out = run(*argv, timeout=3)
+    try:
+        return json.loads(out)["data"] if out else None
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+def device_names(reachable_only, autostart=True):
+    """{id: name} of the paired devices (only the reachable ones if asked)."""
+    data = bus_call("/modules/kdeconnect", "org.kde.kdeconnect.daemon", "deviceNames", "bb",
+                    "true" if reachable_only else "false", "true", autostart=autostart)
+    return data[0] if data and isinstance(data[0], dict) else {}
+
+
 def devices():
     """[{id, name, reachable}] of paired devices."""
-    out = run(CLI, "--list-devices", "--id-name-only") or ""
-    paired = {line.split(" ", 1)[0]: line.split(" ", 1)[1] for line in out.splitlines() if " " in line}
-    live = set((run(CLI, "--list-available", "--id-only") or "").split())
+    paired = device_names(False)
+    live = device_names(True) if paired else {}
     return [{"id": i, "name": n, "reachable": i in live} for i, n in paired.items()]
 
 
-def phone():
-    return next((d for d in devices() if d["reachable"]), None)
+def phone(autostart=True):
+    live = device_names(True, autostart=autostart)
+    return next(({"id": i, "name": n, "reachable": True} for i, n in live.items()), None)
 
 
-def dbus_prop(device, module, iface, name):
-    out = run("gdbus", "call", "--session", "--dest", "org.kde.kdeconnect",
-              "--object-path", f"/modules/kdeconnect/devices/{device}/{module}",
-              "--method", "org.freedesktop.DBus.Properties.Get", iface, name, timeout=3)
-    if not out:
-        return None
-    value = out.strip().strip("()<>,").strip("<>")
-    return value
+def unvariant(value):
+    """busctl's JSON for a variant ({"type": "i", "data": 80}) -> 80."""
+    return value.get("data") if isinstance(value, dict) and "type" in value else value
 
 
-def battery(device):
-    charge = dbus_prop(device, "battery", "org.kde.kdeconnect.device.battery", "charge")
-    charging = dbus_prop(device, "battery", "org.kde.kdeconnect.device.battery", "isCharging")
-    try:
-        return int(charge), charging == "true"
-    except (TypeError, ValueError):
-        return None, False
+def battery_reading(props):
+    """(percent or None, charging) from the battery plugin's GetAll."""
+    props = {k: unvariant(v) for k, v in (props or {}).items()}
+    charge = props.get("charge")
+    if isinstance(charge, bool) or not isinstance(charge, int) or charge < 0:
+        return None, bool(props.get("isCharging"))
+    return charge, bool(props.get("isCharging"))
+
+
+def battery(device, autostart=True):
+    data = bus_call(f"/modules/kdeconnect/devices/{device}/battery", "org.freedesktop.DBus.Properties",
+                    "GetAll", "s", "org.kde.kdeconnect.device.battery", autostart=autostart)
+    return battery_reading(data[0] if data else None)
+
+
+BAR_HINT = "Click: Settings › Devices · Middle-click: ring it · Right-click: send the clipboard"
+
+
+def bar_json(device, pct, charging):
+    """custom/phone's line (it has no panel, so its tooltip is on). Ringing
+    is the middle click: a ringing phone in a meeting is the one action here
+    that should never come from a stray left click."""
+    if not device:
+        return {"text": "", "class": "none"}
+    text = "\uf3cd" + (f" {pct}%" if pct is not None else "")
+    return {"text": text, "class": "charging" if charging else ("low" if pct is not None and pct < 20 else "ok"),
+            "tooltip": device["name"] + (f" · battery {pct}%{' (charging)' if charging else ''}"
+                                         if pct is not None else "") + "\n\n" + BAR_HINT}
 
 
 def need_phone():
     p = phone()
     if not p:
-        subprocess.run(["notify-send", "-a", "Phone", "-i", "phone", "No phone reachable",
+        subprocess.run([NOTIFY, "-a", "Phone", "-i", "phone", "No phone reachable",
                         "Is KDE Connect open on the phone, on the same network?"])
         sys.exit(1)
     return p
 
 
 def notify(summary, body="", urgency="low", icon="phone"):
-    subprocess.run(["notify-send", "-a", "Phone", "-u", urgency, "-i", icon, summary, body])
+    subprocess.run([NOTIFY, "-a", "Phone", "-u", urgency, "-i", icon, summary, body])
 
 
 def share(device, target):
@@ -487,7 +540,7 @@ def is_photo(path):
 def ask(summary, body, actions, timeout=600):
     """A notification with buttons (mako: "default" is the click); the key of
     the one picked, or "". -e: transient, not kept in the history."""
-    argv = ["notify-send", "-a", "Phone", "-i", "phone", "--wait", "-e"]
+    argv = [NOTIFY, "-a", "Phone", "-i", "phone", "--wait", "-e"]
     for key, label in actions:
         argv += ["-A", f"{key}={label}"]
     try:
@@ -520,6 +573,17 @@ def log(text):
     print(f"phone: {text}", flush=True)
 
 
+def poke_bar():
+    """Redraw custom/phone (bar_signals.py has the number)."""
+    try:
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import bar_signals
+        bar_signals.poke("phone")
+    except Exception as err:   # no bar is not the watcher's problem
+        log(f"could not redraw the bar pill: {err}")
+
+
 class Watcher:
     """phone.py watch: kdeconnectd's signals -> what the docstring says.
     Each signal's work runs in a thread of its own (a notification waiting
@@ -537,6 +601,28 @@ class Watcher:
         self.bus.signal_subscribe(BUS_NAME, SHARE_IFACE, "shareReceived", None, None, flags, self.on_share)
         for member in ("notificationPosted", "notificationUpdated"):
             self.bus.signal_subscribe(BUS_NAME, NOTIF_IFACE, member, None, None, flags, self.on_notification)
+        # The bar pill: a phone coming or going, pairing, the battery, and
+        # kdeconnectd itself starting or stopping. member None = all of the
+        # interface's signals.
+        for iface, member in ((DAEMON_IFACE, None), (DEVICE_IFACE, None), (BATTERY_IFACE, None)):
+            self.bus.signal_subscribe(BUS_NAME, iface, member, None, None, flags, self.on_device)
+        self.bus.signal_subscribe("org.freedesktop.DBus", "org.freedesktop.DBus", "NameOwnerChanged",
+                                  "/org/freedesktop/DBus", BUS_NAME, flags, self.on_device)
+        self.redraw_pending = False
+
+    # -- the bar pill
+    def on_device(self, *_args):
+        """Coalesce a burst (a reconnect sends visibility, reachable and a
+        battery refresh within milliseconds) into one redraw."""
+        from gi.repository import GLib
+        if not getattr(self, "redraw_pending", False):
+            self.redraw_pending = True
+            GLib.timeout_add(REDRAW_DELAY_MS, self.redraw_bar)
+
+    def redraw_bar(self):
+        self.redraw_pending = False
+        poke_bar()
+        return False
 
     @staticmethod
     def background(work, *args):
@@ -644,7 +730,7 @@ def watch():
 
 def status():
     """What the handoff can do now (Settings > Devices)."""
-    cli = run(CLI, "--version") is not None
+    cli = shutil.which(CLI) is not None
     p = phone() if cli else None
     unit = (run("systemctl", "--user", "is-active", "phone-handoff.service", timeout=5) or "").strip()
     plugins = {}
@@ -660,16 +746,9 @@ def status():
 def main(argv):
     cmd = argv[0] if argv else "list"
     if cmd == "bar":
-        p = phone() if run(CLI, "--version") is not None else None
-        if not p:
-            print(json.dumps({"text": "", "class": "none"}))
-            return
-        pct, charging = battery(p["id"])
-        text = "" + (f" {pct}%" if pct is not None else "")
-        print(json.dumps({"text": text, "class": "charging" if charging else ("low" if pct and pct < 20 else "ok"),
-                          "tooltip": f"{p['name']}" + (f"  ·  battery {pct}%{' (charging)' if charging else ''}"
-                                                       if pct is not None else "")
-                          + "\n\nClick: ring it  ·  Right-click: send the clipboard"}))
+        p = phone(autostart=False)
+        pct, charging = battery(p["id"], autostart=False) if p else (None, False)
+        print(json.dumps(bar_json(p, pct, charging)))
     elif cmd == "ring":
         run(CLI, "-d", need_phone()["id"], "--ring")
     elif cmd == "ping":
@@ -678,7 +757,7 @@ def main(argv):
         p = need_phone()
         for path in argv[1:]:
             run(CLI, "-d", p["id"], "--share", os.path.abspath(path), timeout=60)
-        subprocess.run(["notify-send", "-a", "Phone", "-u", "low", "-i", "phone",
+        subprocess.run([NOTIFY, "-a", "Phone", "-u", "low", "-i", "phone",
                         f"Sent to {p['name']}", ", ".join(os.path.basename(a) for a in argv[1:])])
     elif cmd == "clip":
         p = need_phone()
@@ -688,7 +767,7 @@ def main(argv):
         text = run("wl-paste", "--no-newline", "--type", "text") or ""
         if text:
             run(CLI, "-d", p["id"], "--share-text", text)
-            subprocess.run(["notify-send", "-a", "Phone", "-u", "low", "-i", "phone",
+            subprocess.run([NOTIFY, "-a", "Phone", "-u", "low", "-i", "phone",
                             f"Clipboard sent to {p['name']}"])
     elif cmd == "open":
         sys.exit(open_on_phone(argv[1] if len(argv) > 1 else None))

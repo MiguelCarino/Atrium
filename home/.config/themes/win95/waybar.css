@@ -189,7 +189,7 @@ window#waybar.waybar-main {
 #privacy,
 #custom-fsstate,
 #custom-nightlight,
-#idle_inhibitor,
+#custom-awake,
 #custom-keybinds,
 #custom-settings,
 #custom-toolbox,
@@ -234,7 +234,7 @@ window#waybar.waybar-main {
 #privacy:hover,
 #custom-fsstate:hover,
 #custom-nightlight:hover,
-#idle_inhibitor:hover,
+#custom-awake:hover,
 #custom-keybinds:hover,
 #custom-settings:hover,
 #custom-toolbox:hover,
@@ -478,7 +478,7 @@ window#waybar.waybar-main {
 #custom-fsstate.mode-a,
 #custom-fsstate.mode-b,
 #custom-nightlight.on,
-#idle_inhibitor.activated {
+#custom-awake.activated {
     box-shadow: inset 2px 2px @w-shadow,
                 inset -2px -2px @w-light,
                 inset 1px 1px @w-dark,
@@ -632,7 +632,7 @@ window#waybar.waybar-toolbox .modules-left {
 
 window#waybar.waybar-toolbox #custom-fsstate,
 window#waybar.waybar-toolbox #custom-nightlight,
-window#waybar.waybar-toolbox #idle_inhibitor,
+window#waybar.waybar-toolbox #custom-awake,
 window#waybar.waybar-toolbox #custom-display,
 window#waybar.waybar-toolbox #custom-keybinds,
 window#waybar.waybar-toolbox #custom-settings,
@@ -679,7 +679,7 @@ window#waybar.waybar-toolbox #tray:hover {
    state (mug when on, moon when off), hence the two class rules. Widths are
    Font Awesome 6 Free Solid's advance widths, read with fontTools. */
 window#waybar.waybar-toolbox #custom-nightlight,
-window#waybar.waybar-toolbox #idle_inhibitor.deactivated {
+window#waybar.waybar-toolbox #custom-awake.deactivated {
     padding-left: 21px;                 /* light bulb / moon: 384 units, +6 */
     padding-right: 9px;
 }

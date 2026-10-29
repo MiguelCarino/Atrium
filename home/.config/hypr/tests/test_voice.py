@@ -148,6 +148,111 @@ class CaptionChunks(unittest.TestCase):
         self.assertTrue(all(abs(s - voice.MAX_S) < 0.15 for s in finals))
 
 
+class Joined(unittest.TestCase):
+    LAST = ("0xabc", 100.0, "Hello there.")
+
+    def test_first_phrase_as_is(self):
+        self.assertEqual(voice.joined("  Hello. ", None, "0xabc", 100), "Hello.")
+
+    def test_same_window_soon_gets_a_space(self):
+        self.assertEqual(voice.joined("How are you?", self.LAST, "0xabc", 110), " How are you?")
+
+    def test_other_window_or_later_does_not(self):
+        self.assertEqual(voice.joined("Hi.", self.LAST, "0xdef", 110), "Hi.")
+        self.assertEqual(voice.joined("Hi.", self.LAST, "0xabc", 100 + voice.JOIN_WITHIN_S + 1), "Hi.")
+
+    def test_punctuation_hugs_the_word_before(self):
+        self.assertEqual(voice.joined(", and more", self.LAST, "0xabc", 110), ", and more")
+
+    def test_no_double_space(self):
+        self.assertEqual(voice.joined("Next", ("0xabc", 100.0, "end "), "0xabc", 110), "Next")
+
+
+class FocusGuard(unittest.TestCase):
+    """type_text never types into a window other than the one the dictation
+    started in, never moves the focus, and types inside the "dictation" key mode."""
+    A = {"address": "0xa", "class": "kitty"}
+    B = {"address": "0xb", "class": "firefox"}
+
+    def daemon(self):
+        d = voice.Daemon.__new__(voice.Daemon)
+        d.target, d.held, d.told_held, d.last_typed = dict(self.A), [], False, None
+        d.started_at, d.stopped_at, d.note = 10.0, 0.0, None
+        return d
+
+    def run_with(self, d, active, *texts, mode="type"):
+        calls = []
+        with mock.patch.object(voice, "active_window", return_value=active), \
+             mock.patch.object(voice, "close_panels"), \
+             mock.patch.object(voice, "notify"), \
+             mock.patch.object(voice, "submap", side_effect=lambda n: calls.append(("submap", n))), \
+             mock.patch.object(voice, "deliver", side_effect=lambda t, m: calls.append(("deliver", t)) or True):
+            for text in texts:
+                d.type_text(text, mode)
+        return calls
+
+    def test_may_type(self):
+        self.assertTrue(voice.may_type(self.A, self.A))
+        self.assertFalse(voice.may_type(self.A, self.B))
+        self.assertFalse(voice.may_type(self.A, {}))
+        self.assertTrue(voice.may_type({}, self.B))      # started with no window: where the focus is
+
+    def test_other_window_focused_types_nothing(self):
+        d = self.daemon()
+        self.assertEqual(self.run_with(d, self.B, "Hello."), [])
+        self.assertEqual(d.held, ["Hello."])
+
+    def test_held_text_goes_in_when_back_inside_the_mode(self):
+        d = self.daemon()
+        self.run_with(d, self.B, "Hello.")
+        calls = self.run_with(d, self.A, "How are you?")
+        self.assertEqual(calls, [("submap", "dictation"), ("deliver", "Hello. How are you?"),
+                                 ("submap", "reset")])
+        self.assertEqual(d.held, [])
+
+    def test_leftover_goes_to_the_clipboard(self):
+        d = self.daemon()
+        self.run_with(d, self.B, "Lost words.")
+        with mock.patch.object(voice, "deliver") as deliver, mock.patch.object(voice, "notify"):
+            self.assertTrue(d.leftover())
+        deliver.assert_called_once_with("Lost words.", "copy")
+
+    def test_copy_mode_needs_no_window(self):
+        d = self.daemon()
+        self.assertEqual(self.run_with(d, self.B, "x", mode="copy"), [("deliver", "x")])
+
+
+class LiveCut(unittest.TestCase):
+    """_live_read: the microphone cut at pauses into phrases, the rest at the end."""
+
+    def phrases(self, pcm):
+        import io
+        import queue
+        proc = mock.Mock(stdout=io.BufferedReader(io.BytesIO(pcm)))
+        q = queue.Queue()
+        voice.Daemon._live_read(None, proc, q)
+        out = []
+        while True:
+            item = q.get_nowait()
+            out.append(item)
+            if item is None:
+                return out
+
+    def test_two_phrases_then_the_end(self):
+        pcm = tone(1.0) + tone(1.2, 0) + tone(0.8) + tone(1.2, 0)
+        out = self.phrases(pcm)
+        self.assertEqual(len(out), 3)
+        self.assertIsNone(out[-1])
+
+    def test_unfinished_phrase_comes_at_the_stop(self):
+        out = self.phrases(tone(1.0) + tone(1.2, 0) + tone(0.6))
+        self.assertEqual(len(out), 3)          # the phrase, the tail, the end
+        self.assertGreater(len(out[1]), 0)
+
+    def test_silence_only_types_nothing(self):
+        self.assertEqual(self.phrases(tone(2.0, 0)), [None])
+
+
 class Bar(unittest.TestCase):
     def test_states(self):
         self.assertEqual(voice.bar_status({})["class"], "idle")

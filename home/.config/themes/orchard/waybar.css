@@ -1,0 +1,868 @@
+/* ===========================================================================
+   ORCHARD -- the bar and the toolbox card (~/.config/waybar/style.css and
+   style-toolbox.css). Copied to waybar/generated/theme.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST, after the accent, so the
+   palette below wins over the base file's and the rules below win over its
+   rules of the same selector. island.py's generated/island-bar.css is
+   imported after even this (the island is a choice made on top of the
+   theme), so with the island on in its notch design the bar's centre is the
+   island's, not ours -- and this file does not fight it.
+
+   The look in one line: a recent macOS menu bar. The bar itself is painted
+   -- one translucent light strip across the whole top edge, frosted by
+   Hyprland's blur (the waybar-glass layer rule), with a hairline under it --
+   and nothing on it is a pill:
+
+     1. every item is flat text on the strip: no fill, no border, no glow.
+        Under the pointer (or open) a soft grey wash with 6px corners, the
+        highlight of a menu-bar item;
+     2. left to right: the leaf mark (custom/logo, Font Awesome's leaf --
+        never the Apple logo), the workspaces as small dots (filled = the
+        one on screen, rings = the rest), the focused app's name in BOLD,
+        then the keyboard layout. Right: compact monochrome status glyphs,
+        the Control-Centre glyph (the toolbox), power, and the date and time
+        as "Tue 27 Oct  21:21" (custom/menuclock);
+     3. the centre is the island's NOTCH (island.py, match_bar, notch
+        design: black, square on top, 16px round at the bottom), holding the
+        weather and the updates / git / bell indicators -- the camera
+        housing with its live activities. The theme's own day and clock are
+        empty in this layout (bar.clock=menubar), so waybar hides them;
+     4. a state is COLOURED TEXT, never a filled pill (muted audio, a lost
+        network, updates piling up, a privacy indicator ...). The one
+        exception is the REC indicator: a small red rounded fill with white
+        text, the way the recording dot always looks.
+
+   HDR: the strip is alpha(#c7c7cd, 0.88) over the frost (blur brightness
+   0.90). 0.88, not the 0.74 first drawn: the orchard wallpapers keep their
+   top 106 px calm but mostly DARK (the strip under the right-hand glyphs
+   averages RGB 1,2,6 on the galaxy and 104,150,200 at the brightest), and at
+   0.74 the bar fell to luminance 0.30 there, the idle dots to 2.7:1. The
+   real menu bar thickens its material over dark pictures the same way.
+   Over the 25 shipped wallpapers the strip is now luminance 0.43-0.52
+   (never above luna's 0.52 field rule), #c0c0c6-ish over a mid one.
+
+   Measured (WCAG), min / max over the 25 DP-1 wallpapers' top strips
+   (right 30 %, the status side):
+       text          #1d1d1f   7.7 / 9.2   (titles, glyphs, the clock)
+       text-dim      #3d3d42   5.0 / 5.9   (the idle dots, the layout code)
+       accent text   #0047a0   4.0 / 4.8   (lit: a timer counting, the
+                                            project you are in -- always with
+                                            a glyph; the bar's own deeper
+                                            shade of the #0058c4 token)
+       status as text -- the bar's own deeper shades of the system hues,
+       because #248a3d / #b25000 / #d70015 are only 2.4-3.0 on the strip:
+           good #0d4f1e 4.5 / 5.3   warn #6b3000 4.7 / 5.6
+           bad  #8a000e 4.6 / 5.5   utc / work hours #5a2488 4.7 / 5.6
+   White on the REC fill #d70015: 5.4. In the notch (island-bar.css): text
+   #d4d4d8 13.5:1 on black, the weather glyphs 8.4-18.8:1 (theme.conf).
+
+   Roles: @cyan is the accent ROLE (#007aff from theme.conf; not redefined
+   here, so the display panel's custom colour still reaches it). It is the
+   caret and focus colour; as TEXT on the strip it is the deeper
+   @accent-text, as a FILL under white @accent-fill. The base's state WASHES
+   (@good, @bad, @warn, @critical, @utc, @epoch, @night, @accent) are
+   transparent here -- every base rule that fills a pill with one becomes a
+   text colour (@good-fg ...), which is the whole of rule 4 for most pills
+   -- and the status HUES are @green / @yellow / @magenta / @red. Theme
+   names start with oc- (stylesheets do not inherit: panel.css and the
+   others define the ones they use again).
+   =========================================================================== */
+
+/* --- PALETTE (orchard: light) ----------------------------------------------- */
+/* the theme's own names */
+@define-color oc-strip        alpha(#c7c7cd, 0.88);   /* the menu-bar material */
+@define-color oc-well         alpha(#1d1d1f, 0.86);   /* the weather's dark well when the island is off */
+@define-color oc-well-text    #f5f5f7;
+@define-color oc-shade        alpha(#000000, 0.28);   /* popover drop shadows */
+@define-color oc-purple       #5a2488;                /* the UTC clock and work hours as text: 4.7+ on the strip */
+@define-color oc-night        #6b3000;                /* night light ON: the warm text */
+@define-color oc-rec-lit      #d70015;                /* the light end of the capture glyph's pulse */
+@define-color oc-well-hover   alpha(#1d1d1f, 0.94);
+@define-color oc-well-dim     #a1a1a6;                /* stale weather in the well: 7.1:1 on it */
+
+/* accent shades (contract tokens) */
+@define-color accent-text     #0047a0;   /* bar shade of the #0058c4 token: 4.0+ on the strip */
+@define-color accent-fill     #0062cc;
+
+/* PALETTE 1: hues -- the status hues (macOS's "increased contrast" system
+   colours on light) and the neutral greys. */
+@define-color magenta         #d70015;   /* bad */
+@define-color red             #d70015;   /* capture: the REC fill */
+@define-color yellow          #b25000;   /* warn */
+@define-color green           #248a3d;   /* good */
+@define-color purple          #8944ab;
+@define-color mist            #6e6e73;
+@define-color steel           #6e6e73;
+@define-color slate           #3a3a3c;
+
+/* PALETTE 2: surfaces, edges, text */
+@define-color surface         alpha(#c7c7cd, 0.88);   /* the strip; pills do not paint it */
+@define-color surface-hover   alpha(#1d1d1f, 0.10);   /* a hovered / open item */
+@define-color surface-dense   alpha(#bfbfc5, 0.92);   /* toolbox card, tooltips */
+@define-color surface-solid   #bebec4;                /* the tray menu: a real popup, no blur */
+@define-color edge            alpha(#000000, 0.12);   /* the outer hairline */
+@define-color edge-lit        alpha(#ffffff, 0.45);   /* the inner top hairline of a card */
+@define-color sep             alpha(#000000, 0.10);
+@define-color accent          alpha(#007aff, 0.00);   /* the base's accent WASH: none */
+@define-color text            #1d1d1f;
+@define-color text-dim        #3d3d42;
+@define-color text-dimmer     #6e6e73;
+@define-color text-bright     #0b0b0c;
+@define-color ink             #ffffff;                /* text on an accent / status fill */
+@define-color ink-warn        #ffffff;
+
+/* PALETTE 3: workspaces -- dots, no per-screen colour. The washes are
+   transparent (the dots carry no fill) and every "dim" is the idle dot's
+   grey, so workspace-tint.py's generated rules change nothing visible. */
+@define-color mon1-hue        #3d3d42;
+@define-color mon2-hue        #3d3d42;
+@define-color mon3-hue        #3d3d42;
+@define-color mon1            alpha(#000000, 0.00);
+@define-color mon2            alpha(#000000, 0.00);
+@define-color mon3            alpha(#000000, 0.00);
+@define-color mon1-dim        #3d3d42;
+@define-color mon2-dim        #3d3d42;
+@define-color mon3-dim        #3d3d42;
+@define-color mon-unknown     alpha(#000000, 0.00);
+@define-color mon-unknown-dim #3d3d42;
+
+/* PALETTE 4: states -- washes none, the colour in the text */
+@define-color utc             alpha(#000000, 0.00);
+@define-color utc-fg          @oc-purple;
+@define-color epoch           alpha(#000000, 0.00);
+@define-color epoch-fg        #6b3000;
+@define-color good            alpha(#000000, 0.00);
+@define-color good-fg         #0d4f1e;
+@define-color warn            alpha(#000000, 0.00);
+@define-color warn-fg         #6b3000;
+@define-color bad             alpha(#000000, 0.00);
+@define-color bad-fg          #8a000e;
+@define-color critical        alpha(#000000, 0.00);
+@define-color rec-edge        alpha(#000000, 0.00);
+@define-color rec-dim         #a3000f;   /* the dark end of the REC pulse: white 7.6 */
+@define-color night           alpha(#000000, 0.00);
+@define-color night-fg        @oc-night;
+@define-color night-edge      alpha(#000000, 0.00);
+/* --- END PALETTE ------------------------------------------------------------ */
+
+/* ---------------------------------------------------------------------------
+   The strip. Only the main bar (by its name class: the toolbox is
+   window#waybar too, and its layer must stay transparent round the card).
+   Flat, edge to edge, a hairline under it where it meets the windows.
+   --------------------------------------------------------------------------- */
+window#waybar.waybar-main {
+    background-color: @surface;
+    background-image: none;
+    border: none;
+    box-shadow: inset 0 -1px @edge;
+}
+
+/* Inter at the menu bar's 14px, medium; tabular figures where digits
+   change. Font Awesome listed by name: its glyphs are in the Private Use
+   Area, where fontconfig never falls back on its own. */
+* {
+    font-family: "Inter", "Adwaita Sans", "IBM Plex Sans", "Font Awesome 6 Free Solid",
+                 "Font Awesome 6 Free", "Font Awesome 6 Brands", "Noto Color Emoji", sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    font-feature-settings: "tnum";
+    letter-spacing: 0px;
+    text-shadow: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Menu-bar items. Same selector list as the base file's shared pill (plus
+   the two items the menu-bar layout adds), so this comes later at equal
+   specificity and wins. min-height 30 + the 4px margins top and bottom =
+   the 38px strip (island.py BAR_H: never change it). The base state rules
+   that change background-color reach only the transparent washes above.
+   --------------------------------------------------------------------------- */
+#custom-logo,
+#custom-menuclock,
+#clock,
+#custom-day,
+#custom-clock,
+#custom-updates,
+#custom-weather,
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#network,
+#custom-network,
+#pulseaudio,
+#backlight,
+#battery,
+#temperature,
+#tray,
+#custom-player,
+#privacy,
+#custom-fsstate,
+#custom-nightlight,
+#custom-awake,
+#custom-keybinds,
+#custom-settings,
+#custom-toolbox,
+#custom-power,
+#custom-capture,
+#custom-repos,
+#custom-timers,
+#custom-workhours,
+#custom-context,
+#custom-notifications,
+#custom-display,
+#language,
+#submap,
+#window {
+    min-height: 30px;
+    margin: 4px 1px;
+    padding: 0px 8px;
+    border: none;
+    border-radius: 6px;
+    color: @text;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    text-shadow: none;
+    font-weight: 500;
+    transition: background-color 120ms ease-out;
+}
+
+/* The highlight of a menu-bar item: a soft wash, no edge. The base hover
+   already sets @surface-hover; this repeats it for the two new items and
+   clears the base's edge and glow. */
+#custom-logo:hover,
+#custom-menuclock:hover,
+#clock:hover,
+#custom-day:hover,
+#custom-clock:hover,
+#custom-updates:hover,
+#custom-weather:hover,
+#custom-cpu:hover,
+#custom-gpu:hover,
+#custom-disk:hover,
+#network:hover,
+#custom-network:hover,
+#pulseaudio:hover,
+#tray:hover,
+#custom-player:hover,
+#privacy:hover,
+#custom-fsstate:hover,
+#custom-nightlight:hover,
+#custom-awake:hover,
+#custom-keybinds:hover,
+#custom-settings:hover,
+#custom-toolbox:hover,
+#custom-power:hover,
+#custom-repos:hover,
+#custom-timers:hover,
+#custom-workhours:hover,
+#custom-context:hover,
+#custom-notifications:hover,
+#custom-display:hover,
+#custom-capture:hover {
+    background-color: @surface-hover;
+    background-image: none;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+/* The base's 8px "breathing room" after each run becomes the menu bar's
+   tight 2px between items (1px margin each side). */
+#custom-logo,
+#custom-menuclock,
+#pulseaudio,
+#network,
+#custom-network,
+#tray,
+#custom-player,
+#privacy,
+#custom-fsstate,
+#custom-nightlight,
+#custom-awake,
+#custom-keybinds,
+#custom-settings,
+#custom-toolbox,
+#custom-power,
+#custom-capture,
+#custom-timers,
+#custom-workhours,
+#custom-context,
+#custom-display,
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#backlight,
+#battery,
+#temperature,
+#submap,
+#language,
+#custom-weather {
+    margin-right: 1px;
+}
+
+/* --- Joined capsules: no seams, every part its own 6px highlight ------------ */
+#custom-day,
+#custom-updates,
+#custom-clock,
+#custom-repos,
+#custom-weather,
+#custom-notifications {
+    border-radius: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+/* --- The leaf mark ------------------------------------------------------------
+   Left-most, the place of the system menu: Font Awesome's leaf (U+F06C,
+   printed by clock.py logo from theme.conf bar.logo). Click: the power
+   menu; right click: the launcher. */
+#custom-logo {
+    font-family: "Font Awesome 6 Free Solid", "Font Awesome 6 Free", sans-serif;
+    font-size: 15px;
+    padding: 0px 12px 0px 14px;
+    color: @text;
+}
+
+/* --- Workspaces: small dots --------------------------------------------------
+   The text is ● / ○ (theme.py writes them into theme-modules.json for
+   bar.workspaces=dots): filled for the workspace on screen, a ring for the
+   others; no fills, no underlines. 9px glyphs sit in 14px-wide hit areas,
+   the full 30px tall. */
+#workspaces {
+    margin: 4px 4px 4px 2px;
+    padding: 0px 2px;
+    border: none;
+    border-radius: 6px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+#workspaces button {
+    min-height: 30px;
+    min-width: 14px;
+    padding: 0px 3px;
+    margin: 0px;
+    border: none;
+    border-radius: 6px;
+    font-size: 9px;
+    font-weight: 500;
+    color: @text-dim;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    transition: color 120ms ease-out, background-color 120ms ease-out;
+}
+
+#workspaces button.hidden {
+    font-size: 9px;
+}
+
+/* The button's text is a label inside it, which the `*` rule above also
+   reaches (font-size 14px): sized here too, so the dot stays 9px. */
+#workspaces button label {
+    font-size: 9px;
+}
+
+#workspaces button:hover {
+    color: @text;
+    background-color: @surface-hover;
+    box-shadow: none;
+}
+
+#workspaces button.active,
+#workspaces button.active:hover {
+    color: @text;
+    background-image: none;
+    box-shadow: none;
+}
+
+#workspaces button.urgent,
+#workspaces button.active.urgent {
+    color: @bad-fg;
+    background-color: transparent;
+    box-shadow: none;
+}
+
+/* --- The focused app's name: bold, like the app menu's title --------------- */
+#window {
+    font-size: 14px;
+    font-weight: 700;
+    padding: 0px 10px;
+    margin-right: 4px;
+    color: @text;
+}
+
+/* With the app icon on, the title is a label inside a box; `*` reaches it. */
+#window label {
+    font-weight: 700;
+}
+
+window#waybar.empty #window {
+    background-color: transparent;
+    padding: 0px;
+}
+
+#language,
+#submap {
+    color: @text-dim;
+    font-weight: 500;
+}
+
+/* --- Date and time ------------------------------------------------------------
+   custom/menuclock at the far right: "Tue 27 Oct  21:21", medium, tabular
+   figures (from *), a little more room on its right like the real one.
+   The centre day / clock are empty in this layout; if a theme switch ever
+   shows them, they are plain items too. */
+#custom-menuclock {
+    font-size: 14px;
+    font-weight: 500;
+    padding: 0px 12px 0px 8px;
+    color: @text;
+}
+
+#custom-day,
+#custom-clock,
+#custom-clock.local {
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0px;
+    color: @text;
+}
+
+#custom-clock.utc {
+    color: @utc-fg;
+}
+
+#custom-clock.epoch {
+    color: @epoch-fg;
+}
+
+/* --- The weather, with the island OFF -------------------------------------------
+   Its glyph is coloured in wttr.py's markup by theme.conf's wx_* keys, which
+   are light (they are drawn in the black notch). With the island off they
+   would sit on the light strip at ~1.5:1, so the weather gets a small dark
+   well of its own -- a tiny notch. island-bar.css (imported after this
+   file) sets the centre items transparent when the island is on, so the
+   well never shows inside the notch. */
+#custom-weather {
+    font-size: 14px;
+    font-weight: 500;
+    color: @oc-well-text;
+    background-color: @oc-well;
+    margin-left: 2px;
+}
+
+#custom-weather:hover {
+    background-color: @oc-well-hover;
+}
+
+#custom-weather.stale,
+#custom-weather.unavailable {
+    color: @oc-well-dim;
+}
+
+#custom-updates {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+#custom-updates.updated,
+#custom-updates.error,
+#custom-repos.clean,
+#custom-notifications.dnd {
+    color: @text-dim;
+}
+
+#custom-updates.many,
+#custom-repos.dirty {
+    color: @warn-fg;
+}
+
+#custom-repos.unpushed {
+    color: @bad-fg;
+}
+
+/* --- Status glyphs: monochrome ink ---------------------------------------------
+   CPU / GPU / disk / network / audio: ink glyphs and numbers (the labels
+   are coloured by theme.conf's color.cpu / gpu, a dark grey). A state is a
+   colour of the text, never a fill. */
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#network,
+#custom-network,
+#pulseaudio,
+#backlight,
+#battery,
+#temperature,
+#privacy,
+#custom-fsstate,
+#custom-nightlight,
+#custom-awake,
+#custom-display,
+#custom-capture,
+#custom-timers,
+#custom-workhours,
+#custom-context,
+#custom-notifications,
+#custom-repos {
+    padding: 0px 7px;
+    font-weight: 500;
+    color: @text;
+}
+
+#custom-cpu.critical,
+#custom-gpu.critical,
+#custom-disk.critical,
+#temperature.critical,
+#battery.critical:not(.charging) {
+    color: @bad-fg;
+    background-color: transparent;
+}
+
+#custom-disk.warning,
+#battery.warning:not(.charging) {
+    color: @warn-fg;
+    background-color: transparent;
+}
+
+#custom-gpu.unavailable {
+    color: @text-dimmer;
+    background-color: transparent;
+}
+
+#battery.charging,
+#custom-awake.activated {
+    color: @good-fg;
+    background-color: transparent;
+}
+
+#pulseaudio.muted,
+#network.disconnected,
+#custom-network.disconnected {
+    color: @bad-fg;
+    background-color: transparent;
+}
+
+#pulseaudio.source-muted {
+    color: @text-dim;
+}
+
+#privacy {
+    color: @warn-fg;
+    background-color: transparent;
+}
+
+/* Lit: on, running, the project you are in -- the accent as text. */
+#custom-toolbox.open,
+#custom-display.on,
+#custom-fsstate.mode-a,
+#custom-context.active,
+#custom-timers.timer,
+#custom-timers.alarm,
+#custom-timers.stopwatch {
+    color: @accent-text;
+    background-color: transparent;
+    box-shadow: none;
+}
+
+/* The toolbox open: its glyph keeps the ink and the item stays highlighted,
+   as an open menu-bar menu does. */
+#custom-toolbox.open {
+    color: @text;
+    background-color: @surface-hover;
+}
+
+#custom-timers.paused {
+    color: @text-dim;
+}
+
+#custom-timers.ringing {
+    color: @bad-fg;
+}
+
+#custom-fsstate.idle,
+#custom-fsstate.none,
+#custom-nightlight.off {
+    color: @text-dim;
+}
+
+#custom-fsstate.mode-b {
+    color: @good-fg;
+    background-color: transparent;
+}
+
+#custom-fsstate.other {
+    color: @warn-fg;
+    background-color: transparent;
+}
+
+#custom-fsstate.error {
+    color: @bad-fg;
+    background-color: transparent;
+}
+
+#custom-nightlight.on {
+    color: @night-fg;
+    background-color: transparent;
+}
+
+#custom-workhours.work {
+    color: @utc-fg;
+    background-color: transparent;
+}
+
+/* --- The player: plain text, the title in ink -------------------------------- */
+#custom-player {
+    font-weight: 500;
+    padding: 0px 8px;
+}
+
+#custom-player.playing {
+    color: @text;
+}
+
+#custom-player.paused {
+    color: @text-dim;
+}
+
+#custom-player.error {
+    color: @warn-fg;
+}
+
+/* --- Toolbox handle and power: the Control-Centre glyph and the power glyph -- */
+#custom-toolbox {
+    font-family: "Font Awesome 6 Free Solid", sans-serif;
+    font-size: 15px;
+    color: @text;
+}
+
+#custom-toolbox:hover {
+    color: @text;
+}
+
+#custom-power {
+    font-size: 15px;
+    color: @text;
+    background-image: none;
+}
+
+#custom-power:hover {
+    color: @text;
+    background-color: @surface-hover;
+}
+
+/* --- Privacy: coloured glyphs, the way the status dots are coloured ---------
+   The microphone in the warm orange, the camera in green, location in the
+   accent blue -- text, no fill (they collapse to nothing when idle, as in
+   the base). */
+#custom-mic,
+#custom-camera,
+#custom-location {
+    min-height: 30px;
+    margin: 4px 1px;
+    padding: 0px 7px;
+    border: none;
+    border-radius: 6px;
+    background-image: none;
+}
+
+#custom-mic.active {
+    color: @warn-fg;
+    background-color: transparent;
+}
+
+#custom-camera.active {
+    color: @good-fg;
+    background-color: transparent;
+}
+
+#custom-location.active {
+    color: @accent-text;
+    background-color: transparent;
+}
+
+/* --- Recording: the one filled indicator -------------------------------------
+   A small red rounded fill under white (5.4:1), breathing to a deeper red
+   (7.6:1) -- the recording dot everyone knows. Dictation the same. The
+   replay buffer and transcription are quiet text. */
+#custom-recording,
+#custom-voice {
+    min-height: 30px;
+    margin: 4px 2px;
+    padding: 0px 9px;
+    border: none;
+    border-radius: 6px;
+    color: @text;
+}
+
+#custom-recording.recording,
+#custom-voice.recording {
+    color: @ink;
+    background-color: @red;
+    border: none;
+}
+
+#custom-recording.replay,
+#custom-voice.busy,
+#custom-voice.captions {
+    color: @text-dim;
+    background-color: transparent;
+    border: none;
+}
+
+#custom-recording.replay:hover {
+    color: @text;
+    background-color: @surface-hover;
+}
+
+/* The capture glyph while recording breathes between the bad red and a
+   lighter red -- a change of light, never a fade-out. Same keyframes names
+   as the base: GTK keeps the last @keyframes of a name. */
+#custom-capture.recording,
+#custom-capture.recording:hover {
+    color: @bad-fg;
+}
+
+@keyframes cap-pulse {
+    to {
+        color: @oc-rec-lit;
+    }
+}
+
+@keyframes cap-saved {
+    from {
+        color: @good-fg;
+        background-color: transparent;
+    }
+}
+
+/* The critical blink (CPU, GPU, battery): the red text dims and comes back;
+   no fill. */
+@keyframes blink {
+    to {
+        color: @text-dim;
+        background-color: transparent;
+        text-shadow: none;
+        box-shadow: none;
+    }
+}
+
+/* --- Health, tasks, drives, phone: plain items --------------------------------- */
+#custom-doctor,
+#custom-tasks,
+#custom-drives,
+#custom-phone {
+    min-height: 30px;
+    margin: 4px 1px;
+    padding: 0px 7px;
+    border: none;
+    border-radius: 6px;
+    color: @text;
+    background-color: transparent;
+    background-image: none;
+}
+
+#custom-doctor.warn,
+#custom-tasks.attention {
+    color: @warn-fg;
+    background-color: transparent;
+}
+
+#custom-doctor.fail {
+    color: @bad-fg;
+    background-color: transparent;
+}
+
+#custom-phone.low {
+    color: @warn-fg;
+}
+
+/* --- Tray ---------------------------------------------------------------------- */
+#tray {
+    padding: 0px 8px;
+    background-color: transparent;
+}
+
+#tray > .needs-attention {
+    background-color: transparent;
+}
+
+/* The tray menu is a real popup (no blur behind it): an opaque light menu,
+   10px corners, 5px inside, rows highlighted in the accent fill under
+   white (5.8:1) -- the system menu highlight. */
+#tray menu {
+    background-color: @surface-solid;
+    background-image: none;
+    color: @text;
+    border: 1px solid @edge;
+    border-radius: 10px;
+    padding: 5px;
+}
+
+#tray menu menuitem {
+    min-height: 22px;
+    padding: 3px 10px;
+    border-radius: 5px;
+}
+
+#tray menu menuitem:hover {
+    background-color: @accent-fill;
+    color: @ink;
+}
+
+#tray menu menuitem:hover label {
+    color: @ink;
+}
+
+/* --- Tooltips: a small frosted popover ---------------------------------------- */
+tooltip {
+    background-color: @surface-dense;
+    background-image: none;
+    border: 1px solid @edge;
+    border-radius: 10px;
+    box-shadow: none;
+}
+
+tooltip label {
+    color: @text;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+/* ---------------------------------------------------------------------------
+   The toolbox card (style-toolbox.css): a Control-Centre-like popover. By
+   the bar's name class, so the main bar's own .modules-left is never
+   matched (this file is imported by both bars). Dense frosted material, 14px
+   corners, the outer hairline and a lit inner top line; rows 32px with 8px
+   highlights. Widths are the base's (scripts/toolbox_fit.py sizes the layer
+   to them), so only the look changes.
+   --------------------------------------------------------------------------- */
+window#waybar.waybar-toolbox .modules-left {
+    padding: 6px;
+    background-color: @surface-dense;
+    background-image: none;
+    border: 1px solid @edge;
+    border-radius: 14px;
+    box-shadow: inset 0 1px @edge-lit;
+}
+
+window#waybar.waybar-toolbox #custom-fsstate,
+window#waybar.waybar-toolbox #custom-nightlight,
+window#waybar.waybar-toolbox #custom-awake,
+window#waybar.waybar-toolbox #custom-display,
+window#waybar.waybar-toolbox #custom-keybinds,
+window#waybar.waybar-toolbox #custom-settings,
+window#waybar.waybar-toolbox #tray {
+    min-height: 32px;
+    min-width: 150px;
+    margin: 0px 0px 2px 0px;
+    padding: 0px 12px;
+    border-radius: 8px;
+}
+
+window#waybar.waybar-toolbox #tray {
+    margin-bottom: 0px;
+}

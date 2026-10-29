@@ -21,7 +21,32 @@
 local M = {}
 
 -- ========================= Variables =========================
-local mainMod = "ALT"
+-- mainMod is the modifier of the everyday keys (mainMod+Q terminal, +1..9
+-- workspaces, +arrows focus ...). ALT unless Settings > Keyboard, mouse &
+-- touchpad > Main modifier picked SUPER: main_mod= in the input state
+-- (~/.local/state/hypr/input.conf, below; `input-settings.py set main_mod
+-- SUPER`). Read here and not in lua/input.lua because every bind module
+-- reads mainMod at load: a change needs a `hyprctl reload`, which
+-- input-settings.py runs for this one key. Anything but ALT or SUPER in the
+-- file is ignored (ALT), so a hand edit can never leave the desktop without
+-- its keys. The binds that are SUPER on purpose (session, screens, tools)
+-- stay SUPER either way; with SUPER as the main modifier a few combinations
+-- are claimed twice -- input-settings.py status lists them as main_mod_clashes.
+M.input_file = (os.getenv("XDG_STATE_HOME") or ((os.getenv("HOME") or "") .. "/.local/state"))
+               .. "/hypr/input.conf"
+local function read_main_mod()
+    local f = io.open(M.input_file, "r")
+    if not f then return "ALT" end
+    local want
+    for line in f:lines() do
+        local v = line:match("^%s*main_mod%s*=%s*(%S+)%s*$")
+        if v then want = v:upper() end
+    end
+    f:close()
+    if want == "SUPER" or want == "ALT" then return want end
+    return "ALT"
+end
+local mainMod = read_main_mod()
 local scrDir  = (os.getenv("HOME") or "") .. "/Pictures/Screenshots"   -- absolute: XDG_SCREENSHOTS_DIR in lua/env.lua
 
 M.mainMod          = mainMod

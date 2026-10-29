@@ -226,8 +226,7 @@ def emit_status(kind):
         lines.append(f"  {html.escape(user['app'])}{pid}")
         if user.get("detail"):
             lines.append(f"    {html.escape(user['detail'])}")
-    lines.append("")
-    lines.append("<i>click to focus the app</i>")
+    # No click hint: the mic/camera/location pills have "tooltip": false.
 
     print(json.dumps({
         "text": label,
@@ -449,6 +448,16 @@ def emit_if_changed(kind, last):
     return key
 
 
+def exit_once(*_):
+    """SIGTERM -> a normal exit (finally blocks run, no child left behind),
+    once only: a bar stop sends SIGTERM to the whole unit and waybar sends
+    its own, and the second landing while the first exit is cleaning up
+    (inside Popen.__del__) printed an "Exception ignored ... SystemExit"
+    traceback into the journal on every bar restart."""
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    sys.exit(0)
+
+
 def watch_mic():
     """Event-driven microphone status: the current state now, then a fresh line
     whenever pulse says something changed.
@@ -457,8 +466,8 @@ def watch_mic():
     signal subscriptions)."""
     # waybar stops a module by signalling it, and the default disposition would
     # kill us without running the cleanup below, leaving `pactl subscribe`
-    # behind until its next write happened to fail.
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    # behind until its next write happened to fail (exit_once).
+    signal.signal(signal.SIGTERM, exit_once)
 
     while True:
         emit_status_safe("mic")
@@ -493,8 +502,8 @@ def main():
                   file=sys.stderr)
             raise SystemExit(2)
         # waybar stops a module with SIGTERM; exit through Python so the
-        # finally blocks run and no pactl child is left behind.
-        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+        # finally blocks run and no pactl child is left behind (exit_once).
+        signal.signal(signal.SIGTERM, exit_once)
         try:
             watchers[sys.argv[2]]()
         except BrokenPipeError:

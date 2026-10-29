@@ -1,0 +1,22 @@
+#!/bin/bash
+# Railguard: run one coding-agent command in its own scope in agents.slice
+# (~/.config/systemd/user/agents.slice explains why). Claude Code calls it as
+# CLAUDE_CODE_SHELL_PREFIX (~/.claude/settings.json "env") with the whole
+# command as ONE string; a hook or MCP server may come as several arguments.
+#
+# The command also gets oom_score_adj 300, so when the whole machine runs out
+# the kernel picks it before the desktop or a session. One command alone may
+# hold 16 GB, or what Settings > Railguard says (railguard.py apply writes
+# it to railguard-command-max). With no user systemd (ssh, a container) it
+# just runs.
+if [ $# -eq 1 ]; then set -- /bin/bash -c "$1"; fi
+max=16G
+read -r max < "${XDG_STATE_HOME:-$HOME/.local/state}/hypr/railguard-command-max" 2>/dev/null
+[[ $max =~ ^[0-9]+G$ ]] || max=16G
+if [ -S "${XDG_RUNTIME_DIR:-/nonexistent}/bus" ] && command -v systemd-run >/dev/null; then
+    exec systemd-run --user --scope --quiet --collect --slice=agents.slice \
+        --description="Agent command (from pid $PPID)" \
+        -p MemoryMax="$max" -p MemorySwapMax=1G \
+        choom -n 300 -- "$@"
+fi
+exec "$@"

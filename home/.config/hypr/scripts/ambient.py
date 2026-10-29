@@ -138,6 +138,10 @@ import urllib.parse
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import desk_common  # noqa: E402  (run: a command with a timeout)
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 SELF = os.path.abspath(__file__)
 HOME = os.path.expanduser("~")
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
@@ -516,10 +520,8 @@ def focus_running(now=None, path=None):
 
 
 def run(*cmd, timeout=3):
-    try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    except (OSError, subprocess.SubprocessError):
-        return None
+    """The CompletedProcess, None when it could not run or timed out."""
+    return desk_common.run(cmd, timeout=timeout)
 
 
 def dnd_on():
@@ -1284,10 +1286,9 @@ def hypr_events():
             sig = sorted(os.listdir(base))[-1]
         except (OSError, IndexError):
             return None
+    import hyprbus      # the shared relay (only reloads), or socket2 directly
     try:
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.connect(os.path.join(base, sig, ".socket2.sock"))
-        return s
+        return hyprbus.connect({"configreloaded"}, direct=os.path.join(base, sig, ".socket2.sock"))
     except OSError:
         return None
 
@@ -1551,7 +1552,7 @@ def main(argv):
             state = args[0] if args[0] != "toggle" else ("off" if on(read_settings(), "enabled") else "on")
             set_master(state)
             if args[0] == "toggle" and not dry_env():       # the key: say what it did
-                run("notify-send", "-a", APP, "-h", "string:x-canonical-private-synchronous:ambient",
+                run(NOTIFY, "-a", APP, "-h", "string:x-canonical-private-synchronous:ambient",
                     "-t", "2000", f"Ambient desktop {state}")
         elif cmd == "set" and len(args) == 2 and args[0] == "enabled":
             set_master(check_value("enabled", args[1]))     # the service along with it

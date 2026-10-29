@@ -1,0 +1,934 @@
+/* ===========================================================================
+   ORCHARD DARK -- every popup card (~/.config/waybar/panel.css): media,
+   calendar, shortcuts, audio, network, CPU / GPU, disks, weather, power,
+   capture, display, repos, notifications, updates, clock -- and, through
+   the same file, the OSD (osd.py) and the focus guard's card. Copied to
+   waybar/generated/theme-panel.css by theme.py and imported LAST.
+
+   orchard/panel.css in the dark appearance: the RULES below are orchard's
+   line for line (its header explains the Control-Centre card, the modules,
+   the 24px slider capsules, the 38x22 switches, the round icon wells, the
+   push buttons, the accent fill for every CHOSEN thing, and the deep-blue
+   weather well); only this header and the PALETTE differ. Graphite material
+   instead of light grey; the slider run and the knobs stay near-white.
+
+   HDR: the card is alpha(#28282a, 0.86) over the blur -- about #303032
+   (luminance 0.030) over a mid-grey backdrop; modules alpha(#ffffff, 0.09)
+   lift it to #434344. Dark everywhere; the slider run and knobs are small.
+
+   Text on the card #303032 / on a module #434344 (WCAG):
+       text        #ebebf0   11.1 / 8.3
+       text-dim    #a1a1a6    5.1 / 3.8
+       text-dimmer #7c7c80    3.2 / 2.4   (hints only)
+       accent text #409cff    4.7 / 3.5
+       the graphs (theme.conf: CPU / GPU #d1d1d6, network #ebebf0) 6.5-11.1
+   Fills: white on the accent fill #0071e3 4.7:1; on the armed / muted red
+   #ff453a 3.4 (bold tile captions, large); a capture's .live tile is the
+   deeper #d70015, white 5.4. Status as text: good #30d158 6.5, warn
+   #ff9f0a 6.4, bad #ff453a 3.9. "Sure?" (color.danger #ff453a) on the
+   command face (white 7% over the card, about #3f3f41): 3.1.
+
+   The weather well is the same deep blue as orchard's (a weather widget is
+   blue in both appearances): white 8.2:1, the glyphs 3.3-7.4.
+
+   Theme names start with oc- (stylesheets do not inherit).
+   =========================================================================== */
+
+/* --- PALETTE (orchard-dark) ------------------------------------------------- */
+@define-color oc-button       alpha(#ffffff, 0.07);   /* push-button face: about #3f3f41 on the card */
+@define-color oc-button-hover alpha(#ffffff, 0.14);
+@define-color oc-button-down  alpha(#000000, 0.25);
+@define-color oc-well-top     #184e94;                /* the weather widget well */
+@define-color oc-well-bottom  #143f7c;
+@define-color oc-well-text    #ffffff;
+@define-color oc-well-dim     #d6e6ff;
+@define-color oc-well-edge    alpha(#ffffff, 0.10);
+@define-color oc-shade        alpha(#000000, 0.50);
+@define-color oc-knob         #ffffff;
+@define-color oc-knob-shade   alpha(#000000, 0.50);
+@define-color oc-accent-hover #0062cc;                /* the accent fill hovered: white 5.8:1 */
+@define-color oc-accent-down  #0058c4;
+@define-color oc-press-edge   alpha(#000000, 0.50);
+@define-color oc-press-shade  alpha(#000000, 0.40);
+@define-color oc-danger-ring  alpha(#ff453a, 0.60);
+@define-color oc-well-lo      #9ecbff;
+@define-color oc-off-ring     alpha(#ffffff, 0.04);
+
+@define-color accent-text     #409cff;
+@define-color accent-fill     #0071e3;
+@define-color surface-deep    alpha(#ffffff, 0.09);   /* a module */
+@define-color knob-trough     alpha(#ffffff, 0.12);
+@define-color slider-fill     alpha(#ffffff, 0.80);
+@define-color sep             alpha(#ffffff, 0.10);
+
+/* PALETTE 1: hues (@cyan = the accent role, #0a84ff, via accent.css).
+   @magenta is "bad / this ends something"; its structural uses in the base
+   are put back to grey / blue by the rules below (as in orchard). */
+@define-color magenta         #ff453a;
+@define-color red             #d70015;   /* .live tiles: white 5.4:1 */
+@define-color yellow          #ff9f0a;
+@define-color green           #30d158;
+@define-color mist            #a1a1a6;
+@define-color good            #30d158;
+@define-color good-fg         #0b0b0c;
+@define-color warn            #ff9f0a;
+@define-color warn-fg         #0b0b0c;
+@define-color bad             #ff453a;
+@define-color bad-fg          #ffffff;
+
+/* PALETTE 2: surfaces, edges, text */
+@define-color surface         alpha(#28282a, 0.86);   /* the card */
+@define-color surface-video   #000000;
+@define-color knob            #ffffff;
+@define-color edge            alpha(#000000, 0.45);
+@define-color edge-lit        alpha(#ffffff, 0.10);
+@define-color accent          alpha(#0a84ff, 0.20);
+@define-color accent-lit      #0071e3;
+@define-color text            #ebebf0;
+@define-color text-dim        #a1a1a6;
+@define-color text-dimmer     #7c7c80;
+@define-color text-bright     #f5f5f7;
+@define-color ink             #ffffff;
+@define-color rec-edge        alpha(#000000, 0.00);
+/* --- END PALETTE ------------------------------------------------------------ */
+
+/* Inter: 13px regular for labels; headings and titles set below. */
+* {
+    font-weight: 400;
+    letter-spacing: 0px;
+}
+
+/* --- The card ------------------------------------------------------------------ */
+#panel-window {
+    background: transparent;
+}
+
+#panel {
+    padding: 12px;
+    border-radius: 16px;
+    color: @text;
+    background-color: @surface;
+    background-image: none;
+    border: 1px solid @edge;
+    border-top-color: @edge;
+    border-bottom-color: @edge;
+    box-shadow: inset 0 1px @edge-lit,
+                0 4px 12px @oc-shade;
+}
+
+/* --- Headings ------------------------------------------------------------------
+   Section headers: 11px semibold in the secondary colour, no tracking, no
+   underline -- the small grey headers of the Control Centre. Titles 13px
+   semibold; the month and the shortcuts title a little larger. */
+label.kb-heading {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0px;
+    color: @text-dim;
+}
+
+.ctl-group label.kb-heading {
+    font-size: 11px;
+    padding: 0px 0px 4px 0px;
+    margin-bottom: 2px;
+    border-bottom: none;
+}
+
+#kb-title,
+#cal-month {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0px;
+    color: @text;
+}
+
+#title {
+    font-size: 13px;
+    font-weight: 600;
+    color: @text;
+}
+
+#subtitle,
+.ctl-sub,
+label.ctl-sub {
+    font-size: 12px;
+    color: @text-dim;
+}
+
+.ctl-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: @text;
+}
+
+.ctl-row.error .ctl-sub {
+    color: @magenta;
+}
+
+.ctl-row.muted .ctl-title,
+.ctl-row.muted .ctl-value {
+    color: @text-dimmer;
+}
+
+/* Values: the accent text blue, regular weight, tabular. */
+.ctl-value,
+label.pw-uptime {
+    color: @accent-text;
+    font-size: 13px;
+    font-weight: 400;
+}
+
+/* --- Modules: section cards ---------------------------------------------------- */
+.ctl-group {
+    background-color: @surface-deep;
+    background-image: none;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+}
+
+.ctl-sep,
+.ctl-vsep {
+    background-color: @sep;
+}
+
+/* --- Sliders: 24px capsules ------------------------------------------------------
+   A grey trough, a near-white run from the left, a white round knob with a
+   soft drop -- the Control Centre's volume and brightness. The knob sits
+   INSIDE the capsule (margin 1px), so the row does not need the base's
+   negative-margin overhang. */
+scale.ctl-slider {
+    padding: 2px 0px;
+}
+
+#seek trough,
+scale.ctl-slider trough {
+    min-height: 24px;
+    border: none;
+    border-radius: 12px;
+    background-color: @knob-trough;
+    background-image: none;
+    box-shadow: none;
+}
+
+#seek highlight,
+scale.ctl-slider highlight {
+    min-height: 24px;
+    border: none;
+    border-radius: 12px;
+    /* The colour too, not only the image: GTK's own highlight blue showed
+       at the run's round ends without it (lofi found this). */
+    background-color: @slider-fill;
+    background-image: none;
+    box-shadow: none;
+}
+
+#seek slider,
+scale.ctl-slider slider {
+    min-width: 22px;
+    min-height: 22px;
+    margin: 1px;
+    border: none;
+    border-radius: 11px;
+    background-color: @oc-knob;
+    background-image: none;
+    box-shadow: 0 1px 3px @oc-knob-shade;
+}
+
+#seek slider:hover,
+scale.ctl-slider slider:hover {
+    background-color: @oc-knob;
+    box-shadow: 0 1px 4px @oc-knob-shade, 0 0 0 3px alpha(@cyan, 0.30);
+}
+
+/* The media seek bar is thinner (a timeline, not a control row). */
+#seek trough,
+#seek highlight {
+    min-height: 6px;
+    border-radius: 3px;
+}
+
+#seek highlight {
+    background-color: @text-dim;
+}
+
+#seek slider {
+    min-width: 14px;
+    min-height: 14px;
+    margin: -4px -2px;
+    border-radius: 7px;
+}
+
+.ctl-row.muted scale.ctl-slider highlight {
+    background-color: alpha(@text, 0.25);
+    background-image: none;
+}
+
+/* --- Switches: 38x22 pills ---------------------------------------------------------- */
+switch {
+    min-width: 38px;
+    min-height: 22px;
+    border: none;
+    border-radius: 11px;
+    background-color: @knob-trough;
+    background-image: none;
+    box-shadow: inset 0 0 0 1px @oc-off-ring;
+    color: transparent;
+}
+
+switch:checked {
+    background-color: @accent-fill;
+    border: none;
+    box-shadow: none;
+}
+
+switch slider,
+switch:checked slider {
+    min-width: 18px;
+    min-height: 18px;
+    margin: 2px;
+    border: none;
+    border-radius: 9px;
+    background-color: @oc-knob;
+    background-image: none;
+    box-shadow: 0 1px 2px @oc-knob-shade;
+}
+
+switch:disabled {
+    opacity: 0.45;
+}
+
+/* --- Icon wells: round, 28px ------------------------------------------------------- */
+.ctl-icon {
+    min-width: 28px;
+    min-height: 28px;
+    font-size: 13px;
+    padding: 0px;
+    border: none;
+    border-radius: 14px;
+    color: @text;
+    background-color: alpha(@text, 0.10);
+    background-image: none;
+    box-shadow: none;
+}
+
+button.ctl-icon:hover {
+    background-color: alpha(@text, 0.16);
+    border: none;
+    box-shadow: none;
+}
+
+.ctl-row.on .ctl-icon {
+    color: @ink;
+    background-color: @accent-fill;
+    border: none;
+    box-shadow: none;
+}
+
+.ctl-row.muted .ctl-icon {
+    color: @ink;
+    background-color: @magenta;
+    border: none;
+    box-shadow: none;
+}
+
+/* --- Push buttons --------------------------------------------------------------------
+   A lifted face (alpha(#fff, 0.07): about #3f3f41 on the card), 6px
+   corners, a hairline; under the pointer a step lighter; held down a dark
+   press. */
+button.control,
+#cal-prev,
+#cal-next,
+button.ctl-link,
+button.sn-link,
+button.dk-fs {
+    color: @text;
+    border: 1px solid @edge;
+    border-radius: 6px;
+    background-color: @oc-button;
+    background-image: none;
+    box-shadow: none;
+    text-shadow: none;
+}
+
+button.control:hover,
+#cal-prev:hover,
+#cal-next:hover,
+button.ctl-link:hover,
+button.sn-link:hover,
+button.dk-fs:hover {
+    color: @text;
+    border-color: @edge;
+    background-color: @oc-button-hover;
+    box-shadow: none;
+}
+
+button.control:active,
+#cal-prev:active,
+#cal-next:active,
+button.ctl-link:active,
+button.sn-link:active,
+button.dk-fs:active {
+    background-color: @oc-button-down;
+    box-shadow: none;
+}
+
+button.ctl-link {
+    padding: 2px 10px;
+}
+
+button.ctl-link:disabled {
+    opacity: 1;
+    color: @text-dimmer;
+}
+
+/* The arrows and transport glyphs: round. */
+#cal-prev,
+#cal-next {
+    border-radius: 14px;
+    border-color: transparent;
+    background-color: transparent;
+}
+
+button.control {
+    border-radius: 16px;
+    border-color: transparent;
+    background-color: transparent;
+}
+
+/* Play / pause: the one lit control, the accent fill under white. */
+#play {
+    color: @ink;
+    border: none;
+    border-radius: 18px;
+    background-color: @accent-fill;
+    background-image: none;
+    box-shadow: none;
+}
+
+#play:hover {
+    background-color: @oc-accent-hover;
+    box-shadow: none;
+}
+
+#play:active {
+    background-color: @oc-accent-down;
+}
+
+/* --- Text fields, spin buttons, drop-downs (the display panel's Arrangement) ------
+   A module-lifted field, 8px corners, a hairline; focused, a 3px soft blue
+   ring. */
+#panel entry,
+#panel spinbutton,
+entry.panel-entry {
+    color: @text;
+    border: 1px solid @edge;
+    border-radius: 8px;
+    background-color: @surface-deep;
+    background-image: none;
+    box-shadow: none;
+    caret-color: @cyan;
+}
+
+#panel entry:focus,
+#panel spinbutton entry:focus,
+entry.panel-entry:focus {
+    border-color: alpha(@cyan, 0.80);
+    box-shadow: 0 0 0 3px alpha(@cyan, 0.45);
+}
+
+#panel spinbutton entry {
+    border: none;
+    background-color: transparent;
+    box-shadow: none;
+}
+
+#panel entry selection,
+entry.panel-entry selection {
+    background-color: @accent-fill;
+    color: @ink;
+}
+
+#panel spinbutton button,
+#panel combobox button {
+    color: @text;
+    border: none;
+    border-radius: 6px;
+    background-color: @oc-button;
+    background-image: none;
+    box-shadow: none;
+}
+
+#panel spinbutton button:hover,
+#panel combobox button:hover {
+    background-color: @oc-button-hover;
+}
+
+#panel spinbutton button:disabled {
+    color: @text-dimmer;
+}
+
+/* --- Key caps: small lifted keys ---------------------------------------------------- */
+label.kb-cap {
+    font-size: 12px;
+    color: @text;
+    padding: 0px 6px;
+    border: 1px solid @edge;
+    border-bottom: 1px solid @oc-press-edge;
+    border-radius: 5px;
+    background-color: @oc-button;
+    background-image: none;
+    box-shadow: none;
+}
+
+label.kb-desc {
+    color: @text;
+}
+
+/* --- Calendar: grey weekdays, today as an accent circle ------------------------------ */
+label.cal-weekday {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0px;
+    color: @text-dim;
+}
+
+label.cal-day {
+    border-radius: 13px;
+}
+
+/* "Not this month": the tertiary grey, 3.2:1 -- plainly fainter. */
+label.cal-adjacent {
+    color: @text-dimmer;
+}
+
+label.cal-today {
+    border-radius: 13px;
+    color: @ink;
+    background-color: @accent-fill;
+    font-weight: 600;
+}
+
+/* --- Lists: device pickers, chips, repos, updates ------------------------------------
+   A pick at rest is quiet text; hovered a soft grey; the chosen one the
+   accent fill under white. */
+button.dev-pick {
+    color: @text;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+button.dev-pick:hover {
+    color: @text;
+    border-color: transparent;
+    background-color: alpha(@text, 0.08);
+}
+
+button.dev-pick.active,
+button.dev-pick.active:hover,
+button.dev-pick.chip.active {
+    color: @ink;
+    font-weight: 600;
+    background-color: @accent-fill;
+    background-image: none;
+    border: 1px solid @accent-fill;
+    box-shadow: none;
+}
+
+button.dev-pick.active label,
+button.dev-pick.active label.dev-name,
+button.dev-pick.active label.dev-kind,
+button.dev-pick.active label.ctl-sub {
+    color: @ink;
+}
+
+button.dev-pick.unplugged,
+button.dev-pick:disabled {
+    color: @text-dimmer;
+    opacity: 1;
+}
+
+.dev-dot {
+    border: 1px solid alpha(@text, 0.35);
+    background-color: transparent;
+}
+
+button.dev-pick.active .dev-dot {
+    border-color: @ink;
+    background-color: @ink;
+}
+
+/* The audio panel's device lists are CHOICES, kept as flat rows even inside
+   the grid cells the command rule below picks out (two classes outrank its
+   one). */
+.dev-list button.dev-pick {
+    padding: 3px 8px;
+    color: @text;
+    border: 1px solid transparent;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+.dev-list button.dev-pick:hover {
+    background-color: alpha(@text, 0.08);
+}
+
+.dev-list button.dev-pick.active,
+.dev-list button.dev-pick.active:hover {
+    color: @ink;
+    background-color: @accent-fill;
+    border-color: @accent-fill;
+}
+
+/* Chips (themes, frames, filters): small push buttons, 8px corners. */
+button.dev-pick.chip {
+    color: @text;
+    border: 1px solid @edge;
+    border-radius: 8px;
+    background-color: @oc-button;
+}
+
+button.dev-pick.chip:hover {
+    background-color: @oc-button-hover;
+    border-color: @edge;
+}
+
+/* Commands, not choices: the same dev-pick class draws the panels' ACTION
+   buttons -- updates' Upgrade, the process tables' End, the swap and cache
+   Clear, the repos panel's Pull / Sync / Commit, the focus card's two
+   answers, the disk panel's big-file question (luna's panel.css explains
+   how they are told apart). Push buttons. ARMED (.active: "Sure?" waiting
+   for the second click) stays on the button face pressed in, because the
+   code writes "Sure?" in color.danger (#ff453a: 3.1:1 on the face, 1.0 on
+   the accent fill). */
+grid > button.dev-pick,
+grid > box > button.dev-pick,
+#panel > button.dev-pick,
+#panel > box > button.dev-pick,
+.dk-ask button.dev-pick,
+.clk-page button.dev-pick {
+    padding: 2px 10px;
+    color: @text;
+    border: 1px solid @edge;
+    border-radius: 6px;
+    background-color: @oc-button;
+    background-image: none;
+}
+
+#panel > button.dev-pick,
+#panel > box > button.dev-pick {
+    padding: 4px 14px;
+}
+
+grid > button.dev-pick:hover,
+grid > box > button.dev-pick:hover,
+#panel > button.dev-pick:hover,
+#panel > box > button.dev-pick:hover,
+.dk-ask button.dev-pick:hover,
+.clk-page button.dev-pick:hover {
+    color: @text;
+    border-color: @edge;
+    background-color: @oc-button-hover;
+    box-shadow: none;
+}
+
+grid > button.dev-pick:active,
+grid > box > button.dev-pick:active,
+#panel > button.dev-pick:active,
+#panel > box > button.dev-pick:active,
+.dk-ask button.dev-pick:active,
+.clk-page button.dev-pick:active {
+    color: @text;
+    font-weight: 400;
+    background-color: @oc-button-down;
+    box-shadow: none;
+}
+
+grid > button.dev-pick.active,
+grid > button.dev-pick.active:hover,
+.dk-ask button.dev-pick.active,
+.dk-ask button.dev-pick.active:hover {
+    color: @text;
+    font-weight: 400;
+    border: 1px solid @oc-press-edge;
+    background-color: @oc-button;
+    box-shadow: inset 0 1px 2px @oc-press-shade;
+}
+
+grid > button.dev-pick:disabled,
+grid > box > button.dev-pick:disabled,
+#panel > button.dev-pick:disabled,
+#panel > box > button.dev-pick:disabled,
+.dk-ask button.dev-pick:disabled {
+    opacity: 1;
+    color: @text-dimmer;
+}
+
+grid > button.dev-pick:disabled label,
+grid > box > button.dev-pick:disabled label,
+#panel > button.dev-pick:disabled label,
+#panel > box > button.dev-pick:disabled label,
+.dk-ask button.dev-pick:disabled label {
+    color: @text-dimmer;
+}
+
+/* The clock card's tabs are chips straight under the card, which the
+   command rule (an id) would draw as plain push buttons; the open one is
+   the accent fill like every chosen chip. */
+#panel > box.clk-tabs > button.dev-pick.chip.active,
+#panel > box.clk-tabs > button.dev-pick.chip.active:hover {
+    color: @ink;
+    font-weight: 600;
+    background-color: @accent-fill;
+    border: 1px solid @accent-fill;
+    box-shadow: none;
+}
+
+/* The CPU panel's right column: "APPS BY MEMORY" follows the TOP CPU list
+   with nothing between. */
+label.sn-procs + label.kb-heading {
+    margin-top: 8px;
+}
+
+/* --- Graph modules: the CPU / GPU / memory / network sections --------------------
+   Lifted modules (the graphs are drawn in theme.conf's light greys, 6.5-11.1:1). */
+.sn-section,
+.ns-stats {
+    background-color: @surface-deep;
+    border: none;
+    border-radius: 12px;
+    padding: 8px 10px;
+}
+
+/* --- Disk and memory bars: a thin capsule, the accent run ---------------------------- */
+levelbar.dk-bar trough {
+    min-height: 6px;
+    padding: 0px;
+    border: none;
+    border-radius: 3px;
+    background-color: @knob-trough;
+    background-image: none;
+}
+
+levelbar.dk-bar block.filled {
+    min-height: 6px;
+    border: none;
+    border-radius: 3px;
+    background-color: @accent-fill;
+    background-image: none;
+}
+
+levelbar.dk-bar block.empty {
+    background-color: transparent;
+}
+
+levelbar.dk-bar.warning block.filled {
+    background-color: @yellow;
+}
+
+levelbar.dk-bar.critical block.filled {
+    background-color: @magenta;
+}
+
+/* --- Weather: the deep-blue widget well (see THE WELL RULE in the header) ---------- */
+.wx-now,
+.wx-hours,
+.wx-days {
+    background-color: @oc-well-top;
+    background-image: linear-gradient(to bottom, @oc-well-top, @oc-well-bottom);
+    border: 1px solid @oc-well-edge;
+    border-radius: 12px;
+    padding: 6px 10px;
+}
+
+.wx-hours,
+.wx-days {
+    margin-top: 2px;
+    margin-bottom: 6px;
+}
+
+.wx-now label,
+.wx-hours label,
+.wx-days label {
+    color: @oc-well-text;
+}
+
+.wx-now label.wx-fact,
+.wx-hours label.wx-hour {
+    color: @oc-well-dim;
+}
+
+label.wx-big-temp {
+    font-size: 30px;
+    font-weight: 300;
+    color: @oc-well-text;
+}
+
+label.wx-lo,
+label.wx-rain {
+    color: @oc-well-lo;
+}
+
+label.wx-hi {
+    color: @oc-well-text;
+}
+
+/* The footer (sunrise, sunset, "updated") is on the card, not in the well. */
+.wx-footer label.wx-fact {
+    color: @text-dim;
+}
+
+.wx-footer {
+    border-top: 1px solid @sep;
+}
+
+/* --- Power and capture tiles: lifted modules with a round glyph ------------------- */
+button.pw-tile {
+    border: none;
+    border-radius: 12px;
+    color: @text;
+    background-color: @surface-deep;
+    background-image: none;
+    box-shadow: none;
+}
+
+button.pw-tile:hover {
+    border: none;
+    background-color: @oc-button-hover;
+    box-shadow: none;
+}
+
+button.pw-tile:active {
+    background-color: @oc-button-down;
+}
+
+label.pw-glyph {
+    color: @text;
+}
+
+label.pw-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: @text;
+}
+
+button.pw-tile.danger label.pw-glyph {
+    color: @magenta;
+}
+
+button.pw-tile.danger:hover {
+    background-color: @oc-button-hover;
+    box-shadow: inset 0 0 0 1px @oc-danger-ring;
+}
+
+/* Armed (first click taken, waiting for the second): the red under white. */
+button.pw-tile.armed,
+button.pw-tile.armed:hover {
+    background-color: @magenta;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+}
+
+button.pw-tile.armed label.pw-glyph,
+button.pw-tile.armed label.pw-label {
+    color: @ink;
+}
+
+/* A capture in progress: the deeper REC red under white (5.4:1). */
+button.pw-tile.live,
+button.pw-tile.live:hover {
+    background-color: @red;
+    background-image: none;
+    border: none;
+    box-shadow: none;
+}
+
+button.pw-tile.live label.pw-glyph,
+button.pw-tile.live label.pw-label {
+    color: @ink;
+}
+
+/* The HDR capture-range tile shares .live but means "a mode is on", not
+   "recording now": the accent fill, like an ON toggle. */
+button.pw-tile.live.cap-rec-range,
+button.pw-tile.live.cap-rec-range:hover {
+    background-color: @accent-fill;
+}
+
+/* --- The media preview: a black field, rounded ------------------------------------- */
+#preview-frame {
+    border: none;
+    border-radius: 10px;
+}
+
+/* --- The focus guard's card ("Still want X?", focus-guard.py overlay) ------------
+   Built from panel classes only: the card above, an icon label .ctl-icon,
+   the question as .kb-heading, the text as .ctl-sub, and two push buttons
+   (the command rule above). The icon: a round accent well, like an alert's
+   app icon. */
+#panel > box > box > label.kb-heading {
+    font-size: 15px;
+    font-weight: 600;
+    color: @text;
+}
+
+#panel > box > label.ctl-icon {
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 20px;
+    font-size: 17px;
+    color: @ink;
+    background-color: @accent-fill;
+}
+
+#panel > box > box > label.ctl-sub {
+    font-size: 13px;
+    color: @text-dim;
+}
+
+/* --- Settings > About's card: a soft blue wash, module tiles ------------------------
+   The base mixes @magenta (bad red here) into the wash; blue only, and the
+   captions solid text-dim (the base's alpha(@text, 0.6) fell under 3:1). */
+.about-hero {
+    border-radius: 16px;
+    background-image: linear-gradient(135deg, alpha(@cyan, 0.14), alpha(@cyan, 0.04) 60%, @surface-deep);
+    border: 1px solid @edge;
+}
+
+.about-hero label.about-logo,
+.about-hero label.about-system,
+.about-hero label.about-tile-icon {
+    color: @accent-text;
+}
+
+.about-hero .about-tile {
+    border-radius: 10px;
+    border: none;
+    background-color: @surface-deep;
+}
+
+.about-hero label.about-model,
+.about-hero label.about-cap,
+.about-hero label.about-sub {
+    color: @text-dim;
+}
+
+/* --- The clock card (clock_panel.py): the rows are list rows ------------------------ */
+.clk-row {
+    border-radius: 8px;
+}
+
+.clk-row:hover {
+    background-color: alpha(@text, 0.06);
+}
+
+label.clk-big {
+    font-weight: 300;
+    color: @text;
+}

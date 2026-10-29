@@ -260,6 +260,13 @@ TOPIC_LINES = {
             "Warm fuzzies on all sensors.",
             "That's a GO for cuddles.",
             "Best ground crew in the fleet."),
+    # railguard.py's notifications (mascot_notify.py says them, voice on)
+    "rg_memory": "{0} was draining memory. Jettisoned it -- back to nominal.",
+    "rg_vram": "{0} saturated the GPU memory. Cut it loose.",
+    "rg_game_vram": "{0} is at the VRAM limit. Holding, not aborting.",
+    "rg_panic": "Abort confirmed: {0} is down.",
+    "rg_stuck": "Memory critical, no target acquired...",
+    "rg_agents": "All agent burns terminated. Crew sessions safe.",
 }
 # The reaction sign over its head (mascot_mood.EMOTE_TONES) in the
 # console's palette, each >= 4.5:1 on the stage card and the console floor.

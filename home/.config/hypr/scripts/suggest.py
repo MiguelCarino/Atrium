@@ -103,6 +103,10 @@ import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import desk_common  # noqa: E402  (hypr_request: hyprctl over the socket)
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 SELF = os.path.abspath(__file__)
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
 STATE_HOME = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
@@ -324,11 +328,9 @@ def pick(pending, values, learn, now, last_shown, snooze_until=0):
 
 # -- the desktop ------------------------------------------------------------------------------
 def hyprctl_json(*args):
-    try:
-        out = subprocess.run(["hyprctl", *args, "-j"], capture_output=True, text=True, timeout=2).stdout
-        return json.loads(out or "null")
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return None
+    """`hyprctl ARGS -j`, parsed; None when Hyprland does not answer. Over the
+    request socket (desk_common.hypr_request): no process."""
+    return desk_common.hypr_request(args, json=True, timeout=2)
 
 
 def socket_path():
@@ -1068,18 +1070,21 @@ def serve():
             pass
 
 
-def connect_events():
-    """Hyprland's event socket, connected, or None (not up yet)."""
+HYPR_EVENTS = ("activewindowv2", "fullscreen", "screencast")     # what Daemon.event reads
+
+
+def connect_events(names=HYPR_EVENTS):
+    """Hyprland's events, connected, or None (not up yet): through the
+    shared relay with only `names` (focus-guard passes its own), or
+    socket2 directly with every event."""
+    import hyprbus
     path = socket_path()
     if not path:
         return None
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
-        sock.connect(path)
+        return hyprbus.connect(names, direct=path)
     except OSError:
-        sock.close()
         return None
-    return sock
 
 
 def handle_client(server, daemon):
@@ -1469,7 +1474,7 @@ def main(argv):
         if reply is None:
             sys.exit("suggest: not running")
         if args[0] == "toggle":
-            subprocess.run(["notify-send", "-a", "Live suggestions", "-u", "low", "-t", "2500",
+            subprocess.run([NOTIFY, "-a", "Live suggestions", "-u", "low", "-t", "2500",
                             "Suggestions paused for an hour" if minutes else "Suggestions back on"], timeout=5)
     elif cmd == "sample":
         kind = args[0] if args else "commit"

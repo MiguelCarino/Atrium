@@ -11,7 +11,9 @@ local mainMod = S.mainMod
 -- ========================= Gamemode =========================
 -- ALT+SHIFT+G toggles a stripped-down compositor for games: no animations, no
 -- blur, no rounding, no gaps, 1px borders -- all of them unless Settings >
--- Screenshots & recording says to keep some (see capture_on below). (It also
+-- Screenshots & recording says to keep some (see capture_on below) -- and no
+-- screen shader, with tearing and direct scanout allowed for the game (see
+-- "Latency" below). (It also
 -- used to kill the two mpvpaper video wallpapers for their ~2.3 GB of VRAM; they are still images
 -- now, and the slideshow pauses by itself while a game covers the screen.)
 --
@@ -59,6 +61,8 @@ local gamemode_state_file = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/hypr-g
 -- so a change needs no reload. A key that is missing, or the whole file, is
 -- "on": the behaviour this file always had.
 --   gamemode_blur / _shadow / _rounding / _gaps / _borders   what is stripped
+--   gamemode_shader      the screen filter goes too ("Screen filter off" on
+--                        the page; off keeps a filter on mid-game)
 --   gamemode_auto        Steam games turn gamemode on (and off again)
 --   gamemode_hide_steam  the Steam client goes to special:steam mid-game
 -- Animations are not on the list: animations off IS gamemode on -- the test
@@ -83,6 +87,49 @@ local function gamemode_is_on()
     return not hl.get_config("animations.enabled")
 end
 
+-- ---- Latency: tearing and direct scanout, only while gamemode is on ----
+-- Games are the one place a torn frame is better than a late one, so
+-- gamemode ON lets them tear: general.allow_tearing goes on and this rule
+-- marks game windows "immediate" (present without waiting for vblank). Off
+-- again with gamemode -- OFF is a reload, which starts the rule disabled and
+-- allow_tearing at its default (false) -- so a video or a browser never
+-- tears on the desktop. The classes are the games-opaque rule's in
+-- lua/rules.lua (steam_app_* is every Steam game, pt the one non-Steam one)
+-- plus gamescope, which wraps a game in one window of its own.
+-- Nothing here is vendor-specific: tearing needs a kernel/driver that does
+-- async page flips through atomic KMS (amdgpu, i915/xe and recent nvidia-drm
+-- all do); where it is not supported Hyprland simply keeps v-syncing, so
+-- the rule costs nothing there.
+--
+-- Direct scanout: render.direct_scanout = 2 ("auto": only for a fullscreen
+-- window whose content type says game) hands the game's own buffer to the
+-- display, skipping the compositor's copy. Few games announce a content
+-- type themselves, so the same rule tags them content = "game" -- without it
+-- "auto" would never pick a game up. Set while gamemode is on, back to off
+-- at load (below). A screen shader rules it out, which is one reason
+-- gamemode_on also clears the shader.
+local tearing_rule = hl.window_rule({
+    name      = "gamemode-tearing",
+    match     = { class = "^(steam_app_.*|gamescope|pt)$" },
+    immediate = true,
+    content   = "game",
+})
+tearing_rule:set_enabled(gamemode_is_on())
+-- Both options go back to off explicitly at every load rather than trusting
+-- the reload to reset options the config never sets: tearing or scanout
+-- left on after gamemode OFF would follow you onto the desktop.
+if not gamemode_is_on() then
+    hl.config({ general = { allow_tearing = false }, render = { direct_scanout = 0 } })
+end
+
+local function refresh_rules()
+    -- A game window is usually already open when its arrival turns gamemode
+    -- on: re-evaluate rules now, not at the window's next change.
+    if hl.exec_scheduled_prop_refresh_immediately then
+        pcall(hl.exec_scheduled_prop_refresh_immediately)
+    end
+end
+
 -- why: shown in the notification, so an auto switch is never a mystery
 -- ("Gamemode ON (steam_app_1245620)") -- the only visible difference between
 -- the hook and the key.
@@ -96,11 +143,20 @@ local function gamemode_on(why)
     if capture_on("gamemode_shadow")   then decoration.shadow = { enabled = false } end
     if capture_on("gamemode_gaps")     then general.gaps_in, general.gaps_out = 0, 0 end
     if capture_on("gamemode_borders")  then general.border_size = 1 end
+    -- The screen filter (lua/display.lua) or night light's shader fallback:
+    -- a full-screen pass every frame. Cleared here; OFF's reload puts the
+    -- filter back from the display state, and display.lua does not set one
+    -- while gamemode is on. gamemode_shader=off in capture.conf keeps it.
+    if capture_on("gamemode_shader")   then decoration.screen_shader = "" end
+    general.allow_tearing = true
     hl.config({
         animations = { enabled = false },
         decoration = decoration,
         general    = general,
+        render     = { direct_scanout = 2 },
     })
+    tearing_rule:set_enabled(true)
+    refresh_rules()
     -- The mpv frame preset is a window rule, which beats the stripped look;
     -- it switches itself off while animations are (gamemode OFF reloads it).
     require("lua.mpvframe").apply()

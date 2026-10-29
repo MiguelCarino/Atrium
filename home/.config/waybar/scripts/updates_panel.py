@@ -12,14 +12,17 @@
 
 The list is the last check updates.sh made (the pill's own script), cached in
 $XDG_RUNTIME_DIR/waybar-updates.tsv, so the panel opens at once instead of
-running dnf. Re-check signals the pill (SIGRTMIN+8); it runs the check again,
+running dnf. Re-check signals the pill (bar_signals.py "updates"); it runs the check again,
 rewrites the cache, and the panel redraws when the file changes -- one dnf
 run, shared by both.
 
-A new kernel in the list gets a line of its own: that is the update that can
-leave the NVIDIA driver without a module, and the reason Upgrade runs
+A new kernel in the list gets a line of its own: with the NVIDIA driver
+loaded (nvidia_driver; any other GPU needs no such check and is told so),
+that is the update that can leave it without a module, and the reason Upgrade runs
 safe-upgrade.sh (btrfs snapshot, dnf, build + check the NVIDIA module for the
 new kernel, flatpak, firmware listing) in a terminal rather than a bare dnf.
+When it finishes, safe-upgrade.sh itself redraws the updates and reboot pills
+(bar_signals.py "updates", "reboot"): this card has closed by then.
 
 The list scrolls; the card is panelui.CARD_HEIGHT tall, the same as the
 notification panel next to it on the bar.
@@ -44,7 +47,6 @@ import themecolors  # noqa: E402
 
 CACHE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "waybar-updates.tsv")
 UPGRADE = os.path.join(HERE, "safe-upgrade.sh")
-SIGNAL = 8                  # custom/updates
 WIDTH = 460
 MAGENTA = themecolors.hex("danger", "#ff2a6d")   # the theme's color.danger
 
@@ -86,6 +88,25 @@ def label(text, cls, xalign=0.0):
     return widget
 
 
+def redraw_pill(name):
+    """Redraw a bar pill by its name in ~/.config/hypr/scripts/bar_signals.py
+    (the one table of signal numbers); a direct kill, no pkill fork."""
+    hypr = os.path.expanduser("~/.config/hypr/scripts")
+    if hypr not in sys.path:
+        sys.path.insert(0, hypr)
+    try:
+        import bar_signals
+        bar_signals.poke(name)
+    except Exception:       # no bar, or no hypr scripts: nothing to redraw
+        pass
+
+
+def nvidia_driver():
+    """Is the NVIDIA kernel driver loaded? Only then is a new kernel worth a
+    module check (safe-upgrade.sh skips it otherwise). /sys, no fork."""
+    return os.path.isdir("/sys/module/nvidia")
+
+
 class Updates(panelui.Panel):
     def build(self):
         self.card.set_size_request(WIDTH, panelui.CARD_HEIGHT)
@@ -121,8 +142,9 @@ class Updates(panelui.Panel):
         self.upgrade.get_style_context().add_class("dev-pick")
         self.upgrade.set_halign(Gtk.Align.END)
         self.upgrade.set_margin_top(6)
-        self.upgrade.set_tooltip_text("In a terminal: btrfs snapshot, dnf upgrade, NVIDIA module "
-                                      "check for the new kernel, flatpak update, firmware list")
+        self.upgrade.set_tooltip_text("In a terminal: btrfs snapshot, dnf upgrade, "
+                                      + ("NVIDIA module check for the new kernel, " if nvidia_driver() else "")
+                                      + "flatpak update, firmware list")
         self.upgrade.connect("clicked", lambda _b: self.run_upgrade())
         self.card.pack_start(self.upgrade, False, False, 0)
         self.draw()
@@ -147,7 +169,7 @@ class Updates(panelui.Panel):
         self.waiting = True
         self.recheck.set_sensitive(False)
         self.when.set_text("checking...")
-        subprocess.run(["pkill", f"-RTMIN+{SIGNAL}", "-x", "waybar"])
+        redraw_pill("updates")
 
     def run_upgrade(self):
         try:
@@ -188,8 +210,9 @@ class Updates(panelui.Panel):
 
         if any(name.startswith("kernel-core") for name, _v in pkgs):
             self.kernel.set_markup(
-                f"<span foreground='{MAGENTA}'>Includes a new kernel</span> -- Upgrade builds and "
-                "checks the NVIDIA module for it and says whether a reboot is safe.")
+                f"<span foreground='{MAGENTA}'>Includes a new kernel</span> -- "
+                + ("Upgrade builds and checks the NVIDIA module for it and says whether a reboot is safe."
+                   if nvidia_driver() else "Upgrade snapshots / first; reboot when it is done."))
             self.kernel.show()
         else:
             self.kernel.hide()

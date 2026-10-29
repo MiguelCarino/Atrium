@@ -42,6 +42,7 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 WAYBAR = os.path.expanduser("~/.config/waybar/scripts")
 PANEL = os.path.join(WAYBAR, "panel.py")
 MARK = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "notify-digest.json")
@@ -202,7 +203,7 @@ def show(summary, body, how):
     for it to close, so run detached (automations.py runs this as a
     transient unit)."""
     note = "\n<i>summarised by the local model: check the panel</i>" if how == "model" else ""
-    argv = ["notify-send", "-a", APP, "-i", ICON, "--wait",
+    argv = [NOTIFY, "-a", APP, "-i", ICON, "--wait",
             "-A", "default=Open notifications",
             summary, html.escape(body, quote=False) + note]
     try:

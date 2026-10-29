@@ -43,6 +43,9 @@ import socket
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.expanduser("~/.config/hypr/scripts"))
+import desk_common  # noqa: E402  (hypr/scripts/desk_common.py: hyprctl over the socket)
+
 ICON = "\uf11b"  # gamepad
 
 # (internal, client) pairs. Named so the comparisons below read as intent
@@ -71,7 +74,8 @@ CLASSES = {
 # windowed and only the client is told otherwise. Without this fallback the
 # bar would sit stale on exactly the mode this module exists to provide.
 # Was 1.5 s with a hyprctl process each time; with the socket request below
-# a read costs no process at all, and 3 s is still prompt for a toggle.
+# a read costs no process at all (desk_common.hypr_request), and 3 s is still
+# prompt for a toggle.
 POLL_SECONDS = 3.0
 
 
@@ -87,28 +91,6 @@ def run(cmd, timeout=3):
     return out.stdout
 
 
-def hypr_request(cmd):
-    """One request on Hyprland's .socket.sock -- what `hyprctl -j` does, minus
-    starting a process. Hyprland closes the connection after the reply."""
-    path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", ""), "hypr",
-                        os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", ""),
-                        ".socket.sock")
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    sock.settimeout(2)
-    try:
-        sock.connect(path)
-        sock.sendall(cmd.encode())
-        chunks = []
-        while True:
-            data = sock.recv(65536)
-            if not data:
-                break
-            chunks.append(data)
-    finally:
-        sock.close()
-    return json.loads(b"".join(chunks))
-
-
 def active_window():
     """The focused window as a dict, or None if there isn't one.
 
@@ -121,10 +103,7 @@ def active_window():
     splitting state and title into separate helpers would double the number
     of processes spawned for the whole session's idle cost.
     """
-    try:
-        win = hypr_request("j/activewindow")
-    except (OSError, ValueError):
-        return None
+    win = desk_common.hypr_request("activewindow", json=True, timeout=2)
     # Hyprland reports an empty object when nothing is focused.
     if not win or "address" not in win:
         return None
@@ -201,7 +180,8 @@ def payload():
             title = title[:59] + "…"
         note += f"\n\n<i>{escape(title)}</i>"
 
-    note += ("\n\nleft: mode A — right: mode B — middle: reset")
+    # No click hints: custom/fsstate has "tooltip": false (they are in the
+    # config's comment).
 
     return {
         "text": text,

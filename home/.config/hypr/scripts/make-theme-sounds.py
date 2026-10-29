@@ -16,6 +16,9 @@ plus a soft two-tone caution chime. seasons' are a kalimba (thumb piano):
 a sine tine with one quiet inharmonic 'tink' at 5.4x that fades fast and a
 3 ms attack -- wood and metal, outdoorsy, soft. One set serves all four
 seasons (theme-sound.sh and timers.py read themes/seasons/sounds/ directly).
+orchard's (orchard-dark shares them) evoke a modern desktop's light glassy
+UI sounds without copying any: a tiny two-partial "tink" at E6, a soft
+pitched-down "pop", and a three-note marimba (G5 E5 C5) for the alarm.
 Its notes come from D major pentatonic, all at or below B4 (71), and the
 pairs are told apart from moe (67/72), lofi (64/71), luna (65/72) and aero
 (64/68): notify is D4 -> A4 (62/69).
@@ -205,11 +208,30 @@ RECIPES = {
     },
 }
 
+# orchard (and orchard-dark, the same files): small, glassy, modern -- the
+# feel of a light desktop's UI sounds, our own synthesis. notify: a "tink",
+# a bell-like E6 (note 88, ~1319 Hz) with one inharmonic partial at 2.76x
+# (0.25), a 2 ms attack, 9/s decay, 0.35 s. switch: a soft "pop", a sine
+# gliding 880 -> 440 Hz in 45 ms under a raised-cosine envelope, a quiet
+# 1760 Hz click over its first 6 ms. alarm: a marimba G5 E5 C5 (79 76 72),
+# 0.28 s apart, the last note let ring out to silence inside the 1.2 s
+# cycle, so timers.py loops it without a seam. Above C5, so it has its own
+# THEME_WRITE rules (a 6 kHz low-pass, a lower peak), as orbit does.
+RECIPES["orchard"] = {
+    "notify": lambda: tink(note(88), 0.35),
+    "switch": lambda: pop(),
+    "alarm": lambda: seq(*[(i * 0.28, a * marimba(note(n), 1.2 - i * 0.28))
+                           for i, (n, a) in enumerate(((79, 0.9), (76, 0.85), (72, 0.8)))]),
+}
+RECIPES["orchard-dark"] = RECIPES["orchard"]
+
 # Per-theme overrides for write(): the low-pass cutoff (Hz) and the peak.
 # Every other theme keeps write()'s defaults (2 kHz, PEAK), so their files
 # render exactly as before.
 THEME_WRITE = {
     "orbit": {"cutoff": 5000.0, "peak": 0.11},
+    "orchard": {"cutoff": 6000.0, "peak": 0.14},
+    "orchard-dark": {"cutoff": 6000.0, "peak": 0.14},
 }
 
 
@@ -236,6 +258,33 @@ def kalimba(f, dur, decay=3.2):
     5.4x that fades fast (the metallic 'tink', mostly under write()'s 2 kHz
     low-pass), and a 3 ms attack -- woody, not a bell."""
     return sine(f, dur, decay, 0.003) + 0.16 * sine(f * 5.4, dur, decay * 3.5, 0.002)
+
+
+# -- orchard: glassy and small ------------------------------------------------------
+def tink(f, dur, decay=9.0):
+    """A glass "tink": the fundamental and one inharmonic partial at 2.76x
+    (a struck glass's second mode) at a quarter, 2 ms attack."""
+    return sine(f, dur, decay, 0.002) + 0.25 * sine(f * 2.76, dur, decay * 1.6, 0.002)
+
+
+def pop(dur=0.045):
+    """A soft pop: a sine gliding an octave down (880 -> 440 Hz) under a
+    raised-cosine envelope, and a faint 1760 Hz click on its first 6 ms."""
+    x = t(dur)
+    f = 880 * (440 / 880) ** (x / dur)
+    phase = 2 * np.pi * np.cumsum(f) / RATE
+    body = np.sin(phase) * (0.5 - 0.5 * np.cos(2 * np.pi * np.arange(len(x)) / max(1, len(x) - 1)))
+    k = int(0.006 * RATE)
+    click = np.zeros(len(x))
+    click[:k] = 0.1 * np.sin(2 * np.pi * 1760 * x[:k]) * np.hanning(k)
+    return body + click
+
+
+def marimba(f, dur, decay=6.0):
+    """A marimba bar: the fundamental, its tuned 4x partial (0.12) and a
+    trace of the 10x (0.03), both fading faster -- wood, round."""
+    return (sine(f, dur, decay, 0.003) + 0.12 * sine(f * 4, dur, decay * 2.5, 0.002)
+            + 0.03 * sine(f * 10, dur, decay * 4, 0.001))
 
 
 # -- lofi: a Rhodes in a dusty room ---------------------------------------------

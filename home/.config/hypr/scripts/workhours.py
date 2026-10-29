@@ -78,7 +78,6 @@ OFF_FILE = os.path.join(STATE_DIR, "workhours-off")
 CONFIG_HOME = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
 CONF = os.environ.get("HYPR_WORKHOURS_CONF") or os.path.join(CONFIG_HOME, "hypr", "workhours.conf")
 DAY_NAMES = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
-SIGNAL = 17                                 # custom/workhours in waybar/config
 HEADER = ("# Work hours (scripts/workhours.py; its docstring explains every key).\n"
           "# Delete this file (or `workhours.py disable`) and work-hours mode is off.\n")
 
@@ -372,7 +371,14 @@ def state(now=None):
 
 
 def refresh_bar():
-    os.system(f"pkill -RTMIN+{SIGNAL} -x waybar 2>/dev/null")
+    """Redraw custom/workhours (bar_signals.py "workhours")."""
+    try:
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import bar_signals
+        return bar_signals.poke("workhours")
+    except Exception:       # noqa: BLE001 - no bar: nothing to redraw
+        return 0
 
 
 def main(argv):

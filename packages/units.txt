@@ -18,11 +18,15 @@ hypr-guard.service
 hypridle.service
 hyprpaper.service
 hyprpolkitagent.service
+island.service
 launcher.service
 mako.service
 osd.service
 phone-handoff.service
+printing.service
+railguard.service
 screen-color.service
+screentime.service
 sessions-autosave.timer
 sessions-offer.service
 smart-clipboard.service
@@ -36,4 +40,5 @@ timers.service
 wallpaper-slideshow.service
 waybar.service
 waybar-toolbox.service
+welcome.service
 workspace-tint.service

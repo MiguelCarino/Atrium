@@ -37,6 +37,15 @@ What each kind does:
 
 Every poller keeps ONE connection per server open and reuses it (HTTP
 keep-alive), so a poll costs the answer itself, not a new TLS handshake.
+
+What is written where: the state file ($XDG_STATE_HOME/hypr/emergency-
+alerts.json: the alert ids seen, the last alert, the last error) only when
+one of those changes -- not on every poll, which is every 3 s for SASMEX.
+When each source last answered (last_ok) lives in memory and in
+$XDG_RUNTIME_DIR/emergency-alerts-live.json (tmpfs, at most every
+LIVE_EVERY_S), which `status` merges in. A failing source is logged (and
+its error saved) only after FAIL_AFTER failures in a row: one SASMEX
+timeout in thousands of polls is not news.
 """
 import datetime
 import http.client
@@ -52,10 +61,17 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import desk_common  # noqa: E402  (notify: the notification, through scripts/notify)
 CONF = os.path.expanduser("~/.config/hypr/emergency.conf")
 STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
                      "hypr", "emergency-alerts.json")
 SIREN = os.path.expanduser("~/.config/hypr/sounds/quake-alarm.wav")
+LIVE = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}",
+                    "emergency-alerts-live.json")
+LIVE_EVERY_S = 15           # last_ok to LIVE at most this often per source
+FAIL_AFTER = 3              # failures in a row before one is logged and saved
 STALE_S = 180               # older than this when first seen: history, not news
 ALARM_S = 90
 ALARM_VOLUME = 0.8
@@ -148,6 +164,51 @@ def update_state(source, **values):
             json.dump(state, handle)
         os.replace(tmp, STATE)
         return entry
+
+
+LIVE_OK = {}                # source -> when it last answered (this run)
+_LIVE_WRITTEN = {}
+
+
+def note_ok(source, now=None):
+    """last_ok in memory, and in LIVE (tmpfs) at most every LIVE_EVERY_S."""
+    now = now or time.time()
+    with STATE_LOCK:
+        LIVE_OK[source] = now
+        if now - _LIVE_WRITTEN.get(source, 0) < LIVE_EVERY_S:
+            return
+        _LIVE_WRITTEN[source] = now
+        try:
+            tmp = LIVE + f".tmp{threading.get_ident()}"
+            with open(tmp, "w") as handle:
+                json.dump(LIVE_OK, handle)
+            os.replace(tmp, LIVE)
+        except OSError:
+            pass
+
+
+def load_live():
+    try:
+        with open(LIVE) as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return {}
+
+
+def poll_outcome(fails, error, saved_error):
+    """After a poll: (failures in a row, log this?, error to save or None
+    for no write) -- pure, for the tests. error: "" on success. The FAIL_AFTER-th
+    failure in a row is logged and saved, then every 100th (saved only when
+    its text changed); the success
+    after a logged run is logged ("answering again") and clears it."""
+    if not error:
+        log = fails >= FAIL_AFTER
+        return 0, log, ("" if saved_error else None)
+    fails += 1
+    if fails < FAIL_AFTER:
+        return fails, False, None
+    log = fails == FAIL_AFTER or fails % 100 == 0
+    return fails, log, (error if log and error != saved_error else None)
 
 
 def km_between(lat1, lon1, lat2, lon2):
@@ -553,8 +614,22 @@ def enabled(conf):
 
 # -- what an alert does ----------------------------------------------------------------
 def notify(title, body, urgency):
-    subprocess.run(["notify-send", "-a", "Emergency alert", "-u", urgency, "-i", "dialog-warning", title, body],
-                   capture_output=True)
+    desk_common.notify(title, body, app="Emergency alert", urgency=urgency, icon="dialog-warning",
+                       timeout=30)
+
+
+def _run(argv, timeout=5):
+    """A short helper call (wpctl) with a timeout: the stdout, "" when it
+    failed or hung -- a stuck PipeWire must not hold the alarm up."""
+    try:
+        return subprocess.run(argv, capture_output=True, text=True, timeout=timeout).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def _reap(proc):
+    """Wait for a child in the background, so it never lingers as a zombie."""
+    threading.Thread(target=proc.wait, daemon=True).start()
 
 
 def alarm(alert, conf, drill=False, quiet=False):
@@ -567,20 +642,23 @@ def alarm(alert, conf, drill=False, quiet=False):
             "lang": conf["lang"], "seconds": ALARM_S}
     volume, loop = None, None
     if not quiet:
-        volume = subprocess.run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"],
-                                capture_output=True, text=True).stdout.strip()
-        subprocess.run(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "0"])
-        subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", str(ALARM_VOLUME)])
+        volume = _run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"])
+        _run(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "0"])
+        _run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", str(ALARM_VOLUME)])
         lang = conf["lang"] if conf["lang"] in ("es", "pt") else "en"
         words = {"es": ("Simulacro. " if drill else "") + ("Alerta sísmica. Alerta sísmica." if alert.get("quake")
                                                            else "Alerta de emergencia."),
                  "pt": ("Simulado. " if drill else "") + ("Alerta de terremoto." if alert.get("quake")
                                                           else "Alerta de emergência."),
                  "en": ("Drill. " if drill else "") + "Emergency alert."}[lang]
-        subprocess.Popen(["spd-say", "-l", lang, "-r", "-10", words],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            _reap(subprocess.Popen(["spd-say", "-l", lang, "-r", "-10", words],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+        except OSError:
+            pass
         if os.path.exists(SIREN):
-            loop = subprocess.Popen(["sh", "-c", f'while :; do pw-play "{SIREN}" || sleep 1; done'],
+            # The path goes in as "$1", never pasted into the shell text.
+            loop = subprocess.Popen(["sh", "-c", 'while :; do pw-play "$1" || sleep 1; done', "sh", SIREN],
                                     start_new_session=True)
     try:
         subprocess.run([sys.executable, os.path.abspath(__file__), "card", json.dumps(spec)], timeout=ALARM_S + 10)
@@ -588,12 +666,16 @@ def alarm(alert, conf, drill=False, quiet=False):
         pass
     finally:
         if loop:
-            os.killpg(loop.pid, 15)
+            try:
+                os.killpg(loop.pid, 15)
+            except OSError:
+                pass
+            _reap(loop)
         if volume:
             parts = volume.split()
             if len(parts) > 1:
-                subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", parts[1]])
-                subprocess.run(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "1" if "[MUTED]" in volume else "0"])
+                _run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", parts[1]])
+                _run(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "1" if "[MUTED]" in volume else "0"])
 
 
 ALARM_LOCK = threading.Lock()
@@ -613,12 +695,22 @@ def poller(name, conf):
     _, _, _, every, _, fetch = SOURCES[name]
     http = Http()
     first = True
+    entry = load_state().get(name, {})
+    seen = set(entry.get("seen", []))
+    saved_error = entry.get("error") or ""
+    fails = 0
     while True:
         try:
             alerts = fetch(http, conf)
-            seen = set(load_state().get(name, {}).get("seen", []))
             new = [a for a in alerts if a["id"] not in seen]
-            update_state(name, last_ok=time.time(), seen=[a["id"] for a in new], error="")
+            fails, log, save = poll_outcome(fails, "", saved_error)
+            if log:
+                print(f"emergency-alerts: {name}: answering again", flush=True)
+            note_ok(name)
+            if new or save is not None:          # only a change reaches the disk
+                ids = [a["id"] for a in new]
+                seen = set(update_state(name, seen=ids, error="")["seen"])
+                saved_error = ""
             for a in sorted(new, key=lambda a: a["sent"]):
                 # At start, only what is still happening; afterwards, anything fresh.
                 if time.time() - a["sent"] < STALE_S and a["level"] != "none":
@@ -627,8 +719,13 @@ def poller(name, conf):
                     threading.Thread(target=act, args=(a, conf), daemon=True).start()
             first = False
         except Exception as exc:        # network down, a feed changed: keep trying
-            update_state(name, error=f"{type(exc).__name__}: {exc}"[:200])
-            print(f"emergency-alerts: {name}: {type(exc).__name__}: {exc}", flush=True)
+            error = f"{type(exc).__name__}: {exc}"[:200]
+            fails, log, save = poll_outcome(fails, error, saved_error)
+            if save is not None:
+                update_state(name, error=save)
+                saved_error = save
+            if log:
+                print(f"emergency-alerts: {name}: {error} ({fails} in a row)", flush=True)
         time.sleep(every)
 
 
@@ -753,7 +850,11 @@ def card(spec):
 
 # -- commands ------------------------------------------------------------------------------
 def restart():
-    subprocess.run(["systemctl", "--user", "restart", "emergency-alerts.service"], capture_output=True)
+    try:
+        subprocess.run(["systemctl", "--user", "restart", "emergency-alerts.service"], capture_output=True,
+                       timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        pass
 
 
 def main(argv):
@@ -794,11 +895,12 @@ def main(argv):
     elif cmd == "config":
         print(json.dumps(conf, ensure_ascii=False))
     elif cmd == "status":
-        state = load_state()
+        state, live = load_state(), load_live()
         out = {}
         for s in enabled(conf):
             e = state.get(s, {})
-            out[s] = {"last_ok_s_ago": round(time.time() - e["last_ok"]) if e.get("last_ok") else None,
+            ok = live.get(s) or e.get("last_ok")      # last_ok: the runtime file now (old state: the state's)
+            out[s] = {"last_ok_s_ago": round(time.time() - ok) if ok else None,
                       "error": e.get("error") or None, "last_alert": e.get("last_alert")}
         print(json.dumps(out, ensure_ascii=False, indent=1))
     elif cmd == "test":

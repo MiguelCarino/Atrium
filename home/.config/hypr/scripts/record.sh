@@ -1,5 +1,7 @@
 #!/bin/bash
-# Screen recording and instant replay with gpu-screen-recorder (NVENC).
+# Screen recording and instant replay with gpu-screen-recorder, on the
+# graphics card's own encoder (NVENC on NVIDIA, VAAPI on AMD and Intel) or,
+# where there is none, x264 on the CPU (see "the encoder" below).
 #
 #     record.sh monitor        record the focused monitor   (again = stop)
 #     record.sh region         slurp a region and record it (again = stop)
@@ -18,11 +20,11 @@
 #     record.sh range          the current choice: "sdr" or "hdr"
 #
 # Bound to ALT+F9 / ALT+SHIFT+F9 / ALT+F10 / ALT+SHIFT+F10 in lua/binds.lua --
-# the ShadowPlay keys, on purpose: on a machine with a 4090 those are the keys
+# the ShadowPlay keys, on purpose: on a gaming machine those are the keys
 # your fingers already know. The bar pill is scripts/recording.py in waybar.
 #
 # A recording and the replay buffer are separate gpu-screen-recorder processes
-# and may run at the same time (the 4090's NVENC has sessions to spare). Each
+# and may run at the same time (hardware encoders have sessions to spare). Each
 # has its own pid file in $XDG_RUNTIME_DIR; that file IS the single-instance
 # lock and the bar's only source of truth:
 #
@@ -38,7 +40,8 @@
 # SIGTERM/SIGKILL'd mp4 is unplayable), SIGINT on a replay buffer just discards
 # it, SIGUSR1 saves the replay buffer.
 #
-# The folder, the sound, the frame rate and the replay length are Settings >
+# The folder, the sound, the frame rate, the replay length and who encodes
+# (rec_encoder) are Settings >
 # Screenshots & recording's (capture-settings.py, kept in
 # ~/.local/state/hypr/capture.conf), read when a capture starts -- a running
 # one keeps what it started with. The environment beats them, for a one-off:
@@ -47,12 +50,29 @@
 #     REC_FPS=120     capture rate              (default 60)
 #     REC_MIC=1       also record the default microphone (with desktop audio)
 #     REC_MONITOR=DP-2  capture this output instead of the focused one
+#     REC_ENCODER=cpu   gpu | cpu instead of the page's rec_encoder
+#                       (whose auto is what gpu.py detected)
 #     REC_QUIET=1     no notifications (used by the self-test)
+#
+# The encoder: `gpu.py encoder` (cached for the boot) asks
+# gpu-screen-recorder --info which codecs really open on this machine.
+#   gpu nvenc / gpu vaapi   -encoder gpu, as before: the card encodes, no
+#                           game FPS lost. -tune quality only on NVENC (the
+#                           others have no such preset).
+#   cpu x264                no hardware encoder (no card, or a VAAPI driver
+#                           without H.264/HEVC: Fedora's own mesa-va-drivers
+#                           leaves them out -- AMD needs RPM Fusion's
+#                           mesa-va-drivers-freeworld, Intel intel-media-driver).
+#                           x264 in software at 30 fps unless REC_FPS says
+#                           otherwise, gentler quality and a lower replay
+#                           bitrate -- a 1440p x264 job at 60 fps eats every
+#                           core. SDR only. The first capture says so once.
 
 set -u
 
 OUT_DIR=$HOME/Videos/Recordings
 RUN=${XDG_RUNTIME_DIR:-/tmp}
+NOTIFY=$HOME/.config/hypr/scripts/notify  # notify-send with the theme's mascot (mascot_notify.py)
 REC_PID=$RUN/gsr-record.pid
 REPLAY_PID=$RUN/gsr-replay.pid
 REC_LOG=$RUN/gsr-record.log
@@ -70,26 +90,61 @@ REPLAY_SECONDS=30
 AUDIO=default_output
 
 # Shared by recordings and the replay buffer:
-#   -encoder gpu    NVENC. No -fallback-cpu-encoding: if NVENC is broken we want
-#                   an error notification, not a silent 3440x1440 x264 job
-#                   eating every core in the middle of a game.
+#   -encoder gpu    the card's encoder (cpu where detection found none). No
+#                   -fallback-cpu-encoding: if a detected hardware encoder is
+#                   broken we want an error notification, not a silent
+#                   3440x1440 x264 job eating every core in the middle of a game.
 #   -ac aac         gsr's default for mp4 is opus, which several editors and
 #                   phone players refuse inside an mp4 container.
 #   -ab 256         AAC at 256 kbps instead of gsr's 160: transparent for
 #                   game audio and music, and a rounding error next to video.
-#   -tune quality   NVENC's slower presets (default is "performance"). The
-#                   4090 has the headroom; costs no game FPS, only encoder time.
+#   -tune quality   NVENC's slower presets (default is "performance"). Costs
+#                   no game FPS, only encoder time. NVENC only.
 #   -v no           otherwise it prints an FPS line every second into the log.
 #
 # Built by load_settings, which runs only when a capture starts: `status`
 # and the save keys must stay instant, and need none of it.
 COMMON=()
+ENCODER=gpu         # gpu | cpu      (detect_encoder)
+ENC_API=nvenc       # nvenc | vaapi | x264
+ENC_HDR=1           # 1 when the encoder can do HEVC HDR10
+
+CONF_ENCODER=""     # capture.conf rec_encoder: gpu | cpu, "" for auto
+
+# Sets ENCODER, ENC_API, ENC_HDR from gpu.py (cached per boot, so only the
+# first capture after a boot pays gsr --info's ~1 s). Unknown -> keep the
+# defaults above, which are what this script always did. REC_ENCODER, else
+# the page's rec_encoder (CONF_ENCODER), overrules the pick.
+detect_encoder() {
+    local pick
+    pick=$(python3 "$(dirname -- "$SELF")/gpu.py" encoder --json 2>/dev/null)
+    if [[ -n $pick ]]; then
+        ENCODER=$(jq -r '.encoder // "gpu"' <<<"$pick" 2>/dev/null || echo gpu)
+        ENC_API=$(jq -r '.api // "nvenc"' <<<"$pick" 2>/dev/null || echo nvenc)
+        [[ $(jq -r '.hdr' <<<"$pick" 2>/dev/null) == true ]] && ENC_HDR=1 || ENC_HDR=0
+    fi
+    case ${REC_ENCODER:-$CONF_ENCODER} in
+        gpu) ENCODER=gpu; [[ $ENC_API == x264 ]] && ENC_API=vaapi ;;
+        cpu) ENCODER=cpu; ENC_API=x264; ENC_HDR=0 ;;
+    esac
+    [[ $ENCODER == cpu ]] && ENC_HDR=0
+}
+
+# The first software capture of a session says why, once (the marker is in
+# $XDG_RUNTIME_DIR, so once per boot).
+warn_software() {
+    local mark=$RUN/record-software-warned
+    [[ $ENCODER == cpu && ! -e $mark ]] || return 0
+    : > "$mark"
+    notify enc normal "Recording with the CPU" \
+        "No hardware video encoder was found, so x264 encodes on the CPU at ${FPS} fps. AMD: mesa-va-drivers-freeworld (RPM Fusion); Intel: intel-media-driver."
+}
 
 load_settings() {
     local cfg
     mapfile -t cfg < <("$(dirname -- "$SELF")/capture-settings.py" \
-                       get rec_dir rec_fps replay_seconds rec_audio 2>/dev/null)
-    if (( ${#cfg[@]} == 4 )); then
+                       get rec_dir rec_fps replay_seconds rec_audio rec_encoder 2>/dev/null)
+    if (( ${#cfg[@]} == 5 )); then
         OUT_DIR=${cfg[0]}; FPS=${cfg[1]}; REPLAY_SECONDS=${cfg[2]}
         case ${cfg[3]} in
             both) AUDIO="default_output|default_input" ;;
@@ -97,13 +152,25 @@ load_settings() {
             none) AUDIO="" ;;
             *)    AUDIO=default_output ;;
         esac
+        case ${cfg[4]} in
+            gpu|cpu) CONF_ENCODER=${cfg[4]} ;;
+        esac
     fi
     OUT_DIR=${REC_DIR:-$OUT_DIR}
+    detect_encoder
+    # Software x264: 30 fps at most (unless REC_FPS asks), gentler presets.
+    if [[ $ENCODER == cpu ]]; then
+        (( FPS > 30 )) && FPS=30
+        REC_QUALITY=(-bm qp -q high)
+        REPLAY_QUALITY=(-bm cbr -q 20000 -replay-storage ram)
+    fi
     FPS=${REC_FPS:-$FPS}
     [[ ${REC_MIC:-0} == 1 ]] && AUDIO="default_output|default_input"
     # No -a at all is gsr's "no audio track" (an empty -a is an error).
     COMMON=(-c mp4 -f "$FPS" ${AUDIO:+-a "$AUDIO" -ac aac -ab 256}
-            -tune quality -encoder gpu -v no)
+            -encoder "$ENCODER" -v no)
+    [[ $ENC_API == nvenc ]] && COMMON+=(-tune quality)
+    warn_software
 }
 
 # Recordings: constant quality (-bm qp) at gsr's top preset. A recording's
@@ -126,7 +193,7 @@ SELF=$(readlink -f "$0")
 # starting again should not stack three bubbles.
 notify() {   # notify <tag> <urgency> <title> [body]
     [[ ${REC_QUIET:-0} == 1 ]] && { echo "$3${4:+: $4}"; return; }
-    notify-send -a "Recorder" -u "$2" -i media-record \
+    "$NOTIFY" -a "Recorder" -u "$2" -i media-record \
         -h "string:x-canonical-private-synchronous:rec-$1" "$3" "${4:-}"
 }
 
@@ -138,7 +205,7 @@ notify_file() {   # notify_file <tag> <title> <file>
     size=$(du -h -- "$file" 2>/dev/null | cut -f1)
     if [[ ${REC_QUIET:-0} == 1 ]]; then echo "$2: $file ($size)"; return; fi
     (
-        act=$(notify-send -a "Recorder" -i video-x-generic --wait \
+        act=$("$NOTIFY" -a "Recorder" -i video-x-generic --wait \
                 -h "string:x-canonical-private-synchronous:rec-$1" \
                 -A "default=Play" -A "play=Play" -A "folder=Show folder" \
                 "$2" "$file  ($size)")
@@ -205,7 +272,7 @@ monitor_at() {   # monitor_at <x> <y>
 
 # Sets VIDEO (the codec args) and RANGE for a capture of <monitor>.
 #
-#   sdr  h264. Not hevc/av1, although the 4090 encodes all three in hardware:
+#   sdr  h264. Not hevc/av1, although current cards encode all three:
 #        these files get dropped into Discord, browsers and chat apps, and
 #        h264 is the one codec every one of them plays inline. An HDR monitor
 #        is tone-mapped down to SDR by gsr, so it still looks right.
@@ -213,7 +280,8 @@ monitor_at() {   # monitor_at <x> <y>
 #        YouTube take most widely. Only looks right in an HDR-aware player on
 #        an HDR screen -- which is why it is not the default. A monitor that
 #        is not in HDR mode has nothing to capture in HDR, so it falls back to
-#        SDR and says so.
+#        SDR and says so. So does an encoder without HEVC HDR10 (x264 on
+#        the CPU, an older VAAPI card).
 #
 # REC_CODEC, when set, beats both.
 pick_video() {   # pick_video <monitor>
@@ -223,12 +291,16 @@ pick_video() {   # pick_video <monitor>
         return
     fi
     if [[ $(chosen_range) == hdr ]]; then
-        if monitor_is_hdr "$1"; then
+        if (( ! ENC_HDR )); then
+            notify range normal "This encoder cannot record HDR" \
+                "Capturing in SDR ($ENC_API has no HEVC HDR10)."
+        elif monitor_is_hdr "$1"; then
             VIDEO=(-k hevc_hdr); RANGE=hdr
             return
+        else
+            notify range normal "$1 is not in HDR mode" \
+                "Capturing in SDR. Turn HDR on for $1 to record HDR."
         fi
-        notify range normal "$1 is not in HDR mode" \
-            "Capturing in SDR. Turn HDR on for $1 to record HDR."
     fi
     VIDEO=(-k h264); RANGE=sdr
 }
@@ -265,7 +337,7 @@ focused_monitor() {
 # not a group leader, so setsid execs in place and $! is the recorder itself
 # (live_pid checks that by comm before anything is signalled).
 #
-# A capture that fails (bad region, NVENC unavailable, KMS capture denied)
+# A capture that fails (bad region, encoder unavailable, KMS capture denied)
 # dies within a few hundred ms, so we wait a moment and report the log's tail
 # rather than leaving a pid file for a process that never really started.
 launch() {   # launch <pidfile> <log> <output> <target> -- <gsr args...>

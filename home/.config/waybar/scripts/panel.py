@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Lifetime of the bar's popup panels: media, calendar, clock, shortcuts, audio, network, cpu, gpu, disk, weather, power, language, capture, display, repos, notifications, updates.
+"""Lifetime of the bar's popup panels: media, calendar, clock, shortcuts, audio, network, cpu, gpu, disk, weather, power, language, capture, display, repos, notifications, updates, printing, bluetooth, reboot.
 
-    panel.py toggle <flyout|calendar|clock|keybinds|audio|network|cpu|gpu|disk|weather|power|language|capture|display|repos|notifications|updates|logs>    show it, or hide it if it is already up
-    panel.py close  <flyout|calendar|clock|keybinds|audio|network|cpu|gpu|disk|weather|power|language|capture|display|repos|notifications|updates|logs>    hide it unconditionally
+    panel.py toggle <flyout|calendar|clock|keybinds|audio|network|cpu|gpu|disk|weather|power|language|capture|display|repos|notifications|updates|logs|printing|bluetooth|reboot>    show it, or hide it if it is already up
+    panel.py close  <flyout|calendar|clock|keybinds|audio|network|cpu|gpu|disk|weather|power|language|capture|display|repos|notifications|updates|logs|printing|bluetooth|reboot>    hide it unconditionally
     panel.py close-all                   used when the bar itself goes away
     panel.py toggle power                the session menu: lock, suspend, log out, reboot, power off
     panel.py toggle <name> --at X,Y      open centred on X,Y instead of the pointer
@@ -46,6 +46,9 @@ PANELS = {
     "notifications": "notifications_panel.py",
     "updates": "updates_panel.py",
     "logs": "logs_panel.py",
+    "printing": "printing_panel.py",
+    "bluetooth": "bluetooth_panel.py",
+    "reboot": "reboot_panel.py",
 }
 
 

@@ -18,6 +18,7 @@
 set -uo pipefail
 
 dir=$HOME/.config/hypr/scripts
+notify=$dir/notify  # notify-send with the theme's mascot (mascot_notify.py)
 lib=$HOME/.local/lib/hyprland
 
 # name in `hyprctl plugin list`  .so file      build script
@@ -34,7 +35,7 @@ for p in "${plugins[@]}"; do
     if [[ -f $lib/$so ]] && grep -q "^Plugin $name by" <<<"$loaded"; then
         continue
     fi
-    notify-send -a Hyprland "Rebuilding $name" "It did not load into Hyprland $(rpm -q --qf '%{version}' hyprland); about a minute."
+    "$notify" -a Hyprland "Rebuilding $name" "It did not load into Hyprland $(rpm -q --qf '%{version}' hyprland); about a minute."
     if "$dir/$script" --keep 2>&1 | systemd-cat -t hypr-plugins; [[ ${PIPESTATUS[0]} -eq 0 ]]; then
         rebuilt+=("$name")
     else
@@ -44,9 +45,9 @@ done
 
 if ((${#rebuilt[@]})); then
     hyprctl reload >/dev/null
-    notify-send -a Hyprland "Plugins rebuilt" "${rebuilt[*]}"
+    "$notify" -a Hyprland "Plugins rebuilt" "${rebuilt[*]}"
 fi
 if ((${#failed[@]})); then
-    notify-send -a Hyprland -u critical "Plugin rebuild failed" \
+    "$notify" -a Hyprland -u critical "Plugin rebuild failed" \
         "${failed[*]} -- journalctl --user -t hypr-plugins"
 fi

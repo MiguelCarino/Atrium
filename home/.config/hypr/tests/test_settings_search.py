@@ -120,7 +120,8 @@ class ReadingSources(unittest.TestCase):
         pages = C.read_pages()
         for words, page in (("bluetooth", "network"), ("tap to click", "input"), ("hdr", "screens"),
                             ("time zone", "region"), ("sonido", "sound"), ("dnd", "notifications"),
-                            ("dark mode", "theme"), ("keybinds", "shortcuts")):
+                            ("dark mode", "theme"), ("keybinds", "shortcuts"),
+                            ("dynamic island", "island")):
             self.assertEqual(C.resolve(pages, words), page, words)
 
     def test_tabs_follow_their_page(self):
@@ -193,7 +194,7 @@ class LauncherSettings(unittest.TestCase):
         for name in ("Change password", "Printers", "Online accounts"):
             argv = by_name[name]
             self.assertEqual(argv[:2], ["sh", "-c"], name)
-            self.assertIn("notify-send", argv[2])
+            self.assertIn(L.NOTIFY, argv[2])
             self.assertIn("accounts.py", argv[2])
 
 

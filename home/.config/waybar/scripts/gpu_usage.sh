@@ -1,15 +1,18 @@
 #!/bin/bash
-# NVIDIA GPU stats for waybar.
-# One nvidia-smi call instead of three, and no bc: nvidia-smi is the expensive
-# part here (~25ms each), so collapsing the queries is most of the win.
+# GPU stats for waybar, whoever made the card: the numbers come from
+# ~/.config/hypr/scripts/gpu.py (NVML in-process on NVIDIA, sysfs / fdinfo on
+# AMD and Intel), never from a forked nvidia-smi.
 #
 #     gpu_usage.sh          one line, then exit -- for manual runs
 #     gpu_usage.sh watch    one line every 5s, forever -- for a module with
 #                           no "interval", which waybar reads continuously
 #
-# Watch mode keeps a single nvidia-smi resident with `-l 5` rather than starting
-# one every five seconds: most of the cost of an nvidia-smi run is the driver
-# handshake at startup, and a resident process pays that once per session.
+# Watch mode keeps a single `gpu.py stream 5` resident: it opens the card once
+# (NVML's init is the expensive part, ~25-80 ms) and then prints a CSV line
+# every five seconds. A number the card does not report (an iGPU has no VRAM
+# of its own, some cards no temperature) comes as N/A and is left out of the
+# pill. With no graphics card the pill is hidden (empty text), and the script
+# idles instead of polling.
 
 # Spacing for the pill text, written as escapes (both are invisible):
 #   SEP  U+2002 en space between the fields -- half an em, about twice a
@@ -39,7 +42,7 @@ theme_color() {
     done < "$THEME_COLORS"
 }
 
-QUERY=utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw,fan.speed
+GPU_PY=${GPU_PY:-$HOME/.config/hypr/scripts/gpu.py}   # the tests point it at a stand-in
 
 # History for the sensors panel, watch mode only -- see cpu_usage.sh. One
 # "epoch usage temp vram% power" line per sample, last five minutes.
@@ -58,47 +61,57 @@ unavailable() {
     printf '{"text":"GPU N/A","class":"unavailable"}\n'
 }
 
+# No card at all: an empty text hides the pill (waybar hides a custom module
+# whose text is empty), and there is nothing to poll for the rest of the
+# session -- a card does not appear without a reboot.
+no_card() {
+    printf '{"text":"","class":"none"}\n'
+}
+
+num() {   # num <value>: is it a number (gpu.py says N/A for what is unknown)?
+    [[ $1 =~ ^[0-9]+(\.[0-9]+)?$ ]]
+}
+
 # --- One JSON line for the sample currently in $usage, $temp, ... ------------
 emit() {
-    local mem_pct text class vram_x10 label_col
+    local mem_pct text class vram_x10 label_col t_txt v_txt temp_i power_i
 
     mem_pct=0
-    ((mem_total > 0)) && mem_pct=$((100 * mem_used / mem_total))
+    num "$mem_used" && num "$mem_total" && ((mem_total > 0)) && mem_pct=$((100 * mem_used / mem_total))
 
     # printf -v rather than $(printf ...): a command substitution forks a
     # subshell, and this runs every few seconds for the life of the bar.
     # Same layout as the CPU pill: neon label, white fixed-width numbers.
     # Compact: load, temperature, VRAM used (GiB). Graphs are in the panel.
-    vram_x10=$((mem_used * 10 / 1024))          # MiB -> GiB, one decimal
+    # What the card does not report is left out (an iGPU: no VRAM field).
     class=normal
-    (( ${temp%%.*} >= 80 )) && class=critical
+    t_txt="" v_txt="" temp_i=0 power_i=0
+    if num "$temp"; then
+        temp_i=${temp%%.*}
+        (( temp_i >= 80 )) && class=critical
+        pad2 "$temp_i" t
+        t_txt="$SEP$t°"
+    fi
+    if num "$mem_used" && num "$mem_total" && ((mem_total > 0)); then
+        vram_x10=$((mem_used * 10 / 1024))          # MiB -> GiB, one decimal
+        v_txt="$SEP$((vram_x10 / 10)).$((vram_x10 % 10))G"
+    fi
+    num "$power" && power_i=${power%%.*}
 
-    pad2 "$usage" u; pad2 "${temp%%.*}" t
+    pad2 "$usage" u
     theme_color gpu '#39ff14' label_col
     # The filled critical pill may want another label colour (cpu_usage.sh).
     [[ $class == critical ]] && theme_color gpu_hot "$label_col" label_col
-    printf -v text "<span color='%s'>GPU</span>%s%s%%%s%s°%s%d.%dG" \
-        "$label_col" "$SEP" "$u" "$SEP" "$t" "$SEP" "$((vram_x10 / 10))" "$((vram_x10 % 10))"
+    printf -v text "<span color='%s'>GPU</span>%s%s%%%s%s" \
+        "$label_col" "$SEP" "$u" "$t_txt" "$v_txt"
 
     # No tooltip: tooltips are off for this pill and the sensors panel shows
-    # the detail; the process list here used to cost a second nvidia-smi.
+    # the detail (gpu.py table: every app's VRAM and share of the card).
 
     printf '{"text":"%s","class":"%s","percentage":%d}\n' \
         "$text" "$class" "$usage"
 
-    record "$EPOCHSECONDS $usage ${temp%%.*} $mem_pct ${power%%.*}"
-}
-
-# Fallback stream for machines without coreutils' stdbuf: one nvidia-smi per
-# sample, which is no worse than what the one-shot mode already costs.
-poll_stream() {
-    local line
-    while :; do
-        line=$(nvidia-smi --query-gpu=$QUERY --format=csv,noheader,nounits 2>/dev/null)
-        [[ -z $line ]] && return
-        printf '%s\n' "$line"
-        sleep 5
-    done
+    record "$EPOCHSECONDS $usage $temp_i $mem_pct $power_i"
 }
 
 if [[ $1 == watch ]]; then
@@ -111,54 +124,59 @@ if [[ $1 == watch ]]; then
     # would otherwise keep its old length forever, one in one out.
     ((${#hist[@]} > HIST_MAX)) && hist=("${hist[@]: -HIST_MAX}")
 
-    # waybar takes a module down by signalling this shell alone, so an
-    # nvidia-smi left behind would keep streaming for the rest of the session
-    # and a reload would stack up another one. Take it with us.
+    # waybar takes a module down by signalling this shell alone, so a stream
+    # left behind would keep running for the rest of the session and a
+    # reload would stack up another one. Take it with us.
     trap 'kill "$smi_pid" 2>/dev/null; exit 0' TERM INT HUP
 
     while :; do
-        # nvidia-smi block-buffers its stdout whenever that is not a terminal,
-        # so a plain `-l 5` would say nothing for minutes and then arrive in one
-        # burst; stdbuf turns the buffering off. The inner `exec` matters: it
-        # makes $! the pid of nvidia-smi itself rather than of a wrapper shell
-        # that would die and orphan it.
-        if command -v stdbuf >/dev/null 2>&1; then
-            exec 3< <(exec stdbuf -o0 nvidia-smi --query-gpu=$QUERY \
-                                       --format=csv,noheader,nounits -l 5 2>/dev/null)
-        else
-            exec 3< <(poll_stream)
-        fi
+        # python3 -u: unbuffered, or the lines would arrive in bursts down a
+        # pipe. The inner `exec` makes $! the stream itself, not a wrapper
+        # shell that would die and orphan it.
+        exec 3< <(exec python3 -u "$GPU_PY" stream 5 2>/dev/null)
         smi_pid=$!
 
         # Reading in the main shell, not down a pipeline: a pipeline would put
         # this loop in a subshell, where nothing it set would survive.
         while IFS=', ' read -r usage temp mem_used mem_total power fan <&3; do
-            # A resident nvidia-smi will occasionally answer [N/A] while the
-            # driver is busy; one bad sample must not turn into garbage JSON.
-            if [[ -z $usage || $usage != [0-9]* ]]; then
+            if [[ $usage == none ]]; then
+                # No graphics card: hide the pill and idle (sleep in the
+                # background + wait, so the trap still ends us at once).
+                exec 3<&-
+                no_card
+                while :; do sleep 3600 & smi_pid=$!; wait "$smi_pid"; done
+            fi
+            # A busy driver can miss one sample (N/A); one bad sample must
+            # not turn into garbage JSON.
+            if ! num "$usage"; then
                 unavailable
                 continue
             fi
+            usage=${usage%%.*}
             emit
         done
         exec 3<&-
         wait "$smi_pid" 2>/dev/null
 
-        # We only get here if nvidia-smi died or was never there. Say so, then
-        # wait before retrying: waybar must never see this script exit, but it
-        # must not see it spin either.
+        # We only get here if the stream died. Say so, then wait before
+        # retrying: waybar must never see this script exit, but it must not
+        # see it spin either.
         unavailable
         sleep 5
     done
 fi
 
 IFS=', ' read -r usage temp mem_used mem_total power fan < <(
-    nvidia-smi --query-gpu=$QUERY --format=csv,noheader,nounits 2>/dev/null
+    python3 "$GPU_PY" stream 0 2>/dev/null | head -n 1
 )
 
-if [[ -z $usage ]]; then
+if [[ $usage == none ]]; then
+    no_card
+    exit 0
+fi
+if ! num "$usage"; then
     unavailable
     exit 0
 fi
-
+usage=${usage%%.*}
 emit

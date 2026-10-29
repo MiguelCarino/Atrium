@@ -124,7 +124,7 @@ report.txt}; the daemon's own in $XDG_RUNTIME_DIR/tasks-daemon.json; asks
 from the command line in $XDG_RUNTIME_DIR/tasks-poke/. Daemon log lines go
 to the journal: journalctl --user -u tasks.
 
-The bar (waybar custom/tasks, signal SIGNAL) shows only when a task needs
+The bar (waybar custom/tasks, bar_signals.py "tasks") shows only when a task needs
 you -- a failure, a plan to approve -- with how many; click opens Settings >
 Background tasks, right-click marks them seen. Settings > Background tasks
 has all of the above.
@@ -150,6 +150,7 @@ import urllib.parse
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 HOME = os.path.expanduser("~")
 CONFIG = os.path.expanduser("~/.config/hypr/tasks.json")
 STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
@@ -159,7 +160,6 @@ DAEMON_STATE = os.path.join(RUNTIME, "tasks-daemon.json")
 POKES = os.path.join(RUNTIME, "tasks-poke")
 SETTINGS_PY = os.path.join(HERE, "settings.py")
 APP, ICON, BAR_ICON = "Tasks", "system-run", "\uf0ae"
-SIGNAL = 27                 # waybar custom/tasks
 
 TICK_S = 2                  # the daemon's loop: pokes, files, processes, what is due
 UNIT_POLL_S = 15            # a unit's state, between ticks
@@ -925,7 +925,15 @@ def attention_count():
 
 
 def signal_bar():
-    run("pkill", f"-RTMIN+{SIGNAL}", "-x", "waybar", timeout=3)
+    """Redraw custom/tasks (bar_signals "tasks"): every change of what needs
+    you comes through here, so the module's interval is only a safety net."""
+    try:
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import bar_signals
+        bar_signals.poke("tasks")
+    except Exception:       # no bar: nothing to redraw
+        pass
 
 
 def set_attention(tid, text):
@@ -940,7 +948,7 @@ def set_attention(tid, text):
 def notify(summary, body, actions=None, urgency="normal"):
     """A notification; with actions ({key: label}) it waits for a click in a
     thread and runs open_action(key)."""
-    argv = ["notify-send", "-a", APP, "-i", ICON, "-u", urgency]
+    argv = [NOTIFY, "-a", APP, "-i", ICON, "-u", urgency]
     if actions:
         argv.append("--wait")
         for key, label in actions.items():
@@ -2173,7 +2181,7 @@ def bar_json():
         return {"text": "", "tooltip": "", "class": "none"}
     tip = "\n".join(f"{t['name']}: {a['text'][:120]}" for t, a in need[:8])
     return {"text": f"{BAR_ICON} {len(need)}", "class": "attention",
-            "tooltip": f"Background tasks need you\n{tip}\nClick: open them  ·  right-click: mark seen"}
+            "tooltip": f"Background tasks need you\n{tip}\n\nClick: open them · Right-click: mark seen"}
 
 
 def run_now(task):

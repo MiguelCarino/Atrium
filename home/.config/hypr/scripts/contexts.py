@@ -81,7 +81,7 @@ Enter, in order: leave the current context; go to its workspace; open the
 terminal and the editor and wait (a few seconds) for their windows -- so
 the session restore that comes next cannot take them for its own windows of
 the same class; then the session restore, detached (it notifies as it goes);
-the preview; the focus; and last the bar (signal SIGNAL) and the
+the preview; the focus; and last the bar (bar_signals.py "context") and the
 automations event (automations.py event context-enter NAME: rules can
 react, and an automation's "context NAME" action enters one). Entering the
 context you are in only opens what is missing and changes nothing else.
@@ -104,8 +104,10 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 sys.path.insert(0, HERE)
 import sessions  # noqa: E402  (capture(), the saved sessions, hyprctl over the socket)
+import desk_common  # noqa: E402  (run: a command with a timeout)
 
 HOME = os.path.expanduser("~")
 CONF = os.path.expanduser("~/.config/hypr/contexts.json")
@@ -122,7 +124,6 @@ NOTIFY_SETTINGS = os.path.join(HERE, "notify-settings.py")
 AUTOMATIONS = os.path.join(HERE, "automations.py")
 SESSIONS = os.path.join(HERE, "sessions.py")
 MODE = "project-focus"
-SIGNAL = 24             # waybar's custom/context (21 is the toolbox bar's custom/awake)
 APP = "Contexts"
 ICON = ""         # diagram-project (Font Awesome solid)
 WINDOW_WAIT_S = 6       # how long enter waits for the terminal's / editor's window
@@ -378,10 +379,8 @@ def render_fragment(ctx=None):
 
 # -- doing -----------------------------------------------------------------------------
 def run(*cmd, timeout=10):
-    try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-    except (OSError, subprocess.SubprocessError):
-        return None
+    """The CompletedProcess, None when it could not run or timed out."""
+    return desk_common.run(cmd, timeout=timeout)
 
 
 def spawn(argv, cwd=None):
@@ -394,11 +393,14 @@ def spawn(argv, cwd=None):
 
 
 def notify(summary, body="", urgency="low"):
-    run("notify-send", "-a", APP, "-i", "folder-open", "-u", urgency, summary, body, timeout=5)
+    run(NOTIFY, "-a", APP, "-i", "folder-open", "-u", urgency, summary, body, timeout=5)
 
 
 def bar_signal():
-    run("pkill", f"-RTMIN+{SIGNAL}", "-x", "waybar", timeout=3)
+    """Redraw custom/context: `bar_signals.py poke context` (the table's name,
+    not a number). Through run(), like the other side effects here, so the
+    tests' stand-in run catches it and no test reaches the live bar."""
+    run(sys.executable, os.path.join(HERE, "bar_signals.py"), "poke", "context", timeout=3)
 
 
 def automation_event(event, name):

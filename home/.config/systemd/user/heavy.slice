@@ -1,0 +1,22 @@
+# Railguard (~/.config/hypr/scripts/railguard.py): what YOU start that is
+# heavy -- `heavy CMD`, and make/ninja/cmake/meson/cargo/rpmbuild typed in a
+# shell (~/.config/hypr/scripts/railguard-shell.sh). It may use nearly the
+# whole machine when nothing else wants it, but the desktop, a game and the
+# agent sessions win whenever they do, and running out of memory ends the
+# build, never them. Agent commands have their own slice (agents.slice).
+[Unit]
+Description=Heavy jobs started by hand (railguard)
+
+[Slice]
+# 22 of 24 threads at most: two always stay for the compositor and input.
+CPUQuota=2200%
+CPUWeight=30
+IOWeight=30
+# Throttled past 22 GB, ended past 24 GB; 7 GB always stay for the rest.
+MemoryHigh=22G
+MemoryMax=24G
+MemorySwapMax=2G
+TasksMax=16384
+ManagedOOMMemoryPressure=kill
+ManagedOOMMemoryPressureLimit=50%
+ManagedOOMMemoryPressureDurationSec=10s

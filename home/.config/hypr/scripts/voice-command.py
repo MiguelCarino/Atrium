@@ -99,10 +99,12 @@ import time
 import unicodedata
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 HOME = os.path.expanduser("~")
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import desktop_conf  # noqa: E402
+import desk_common  # noqa: E402  (hypr_request: hyprctl over the socket)
 
 PROJECTS = desktop_conf.projects_dir()      # your projects folder (desktop.conf)
 DND_UNIT = "voice-dnd-off"           # the transient timer that ends a "DND for an hour"
@@ -267,11 +269,9 @@ def guess_language(text):
 
 # -- the world (what is open, installed, saved) ----------------------------------------
 def hypr_json(*what):
-    try:
-        out = subprocess.run(["hyprctl", *what, "-j"], capture_output=True, text=True, timeout=5).stdout
-        return json.loads(out)
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return None
+    """`hyprctl ARGS -j`, parsed; None when Hyprland does not answer. Over the
+    request socket (desk_common.hypr_request): no process."""
+    return desk_common.hypr_request(what, json=True, timeout=5)
 
 
 def script_json(name, *args, timeout=15):
@@ -1268,7 +1268,7 @@ class Notifier:
         self.id = replace
 
     def _argv(self, title, body, timeout, urgency="normal"):
-        argv = ["notify-send", "-a", "Voice commands", "-i", "audio-input-microphone", "-u", urgency,
+        argv = [NOTIFY, "-a", "Voice commands", "-i", "audio-input-microphone", "-u", urgency,
                 "-t", str(timeout), "-p", "-h", "string:x-canonical-private-synchronous:voice"]
         if self.id:
             argv += ["-r", str(self.id)]

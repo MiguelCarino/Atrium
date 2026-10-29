@@ -164,6 +164,7 @@ THEN_WAIT_S = 30            # "Suspending in 30 s": the time to cancel
 CAL_AHEAD_MIN = 30          # calendar alarms are armed for events starting within this
                             # (or the lead time + 10 min, when that is longer)
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 
 # -- settings (timers.py set KEY VALUE; Settings > Timers & alarms) ----------------------
 # Kept in $XDG_STATE_HOME/hypr/timers.conf, one "key=value" a line, only the
@@ -285,7 +286,6 @@ def sounds_for(loop_sound, chime):
     if choice == "chime":
         return (CHIME if loop_sound else None), (CHIME if chime else None)
     return loop_sound, chime
-BELL_SIGNAL = 14            # custom/notifications in waybar/config (notifications.py SIGNAL)
 
 ICONS = {"timer": "",     # hourglass-half (Font Awesome 6, as escapes
          "alarm": "",     # bell             like the other bar scripts)
@@ -608,9 +608,13 @@ def rounds_today():
 
 
 # -- arming ------------------------------------------------------------------------------
-def systemctl(*args):
-    return subprocess.run(["systemctl", "--user", *args], stdout=subprocess.DEVNULL,
-                          stderr=subprocess.DEVNULL).returncode
+def systemctl(*args, timeout=20):
+    """systemctl --user's exit code; 1 when it failed to run or hung."""
+    try:
+        return subprocess.run(["systemctl", "--user", *args], stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, timeout=timeout).returncode
+    except (OSError, subprocess.SubprocessError):
+        return 1
 
 
 def arm(entry):
@@ -621,10 +625,15 @@ def arm(entry):
     else:
         cal = dt.datetime.fromtimestamp(entry["due"]).strftime("%Y-%m-%d %H:%M:%S")
     what = f"{NAMES[entry['kind']].capitalize()}{': ' + entry['label'] if entry['label'] else ''}"
-    subprocess.run(["systemd-run", "--user", "--quiet", f"--unit={UNIT}{entry['id']}",
-                    f"--on-calendar={cal}", "--timer-property=AccuracySec=1s",
-                    f"--description={what}", sys.executable, os.path.join(HERE, "timers.py"),
-                    "fire", entry["id"]], check=True, stdout=subprocess.DEVNULL)
+    argv = ["systemd-run", "--user", "--quiet", f"--unit={UNIT}{entry['id']}",
+            f"--on-calendar={cal}", "--timer-property=AccuracySec=1s",
+            f"--description={what}", sys.executable, os.path.join(HERE, "timers.py"),
+            "fire", entry["id"]]
+    try:
+        subprocess.run(argv, check=True, stdout=subprocess.DEVNULL, timeout=30)
+    except subprocess.TimeoutExpired as exc:
+        # A hung user manager: the callers' "could not arm it" path.
+        raise subprocess.CalledProcessError(124, argv) from exc
 
 
 def new_id():
@@ -1055,8 +1064,11 @@ def restore():
     if missed:
         lines = [f"{dt.datetime.fromtimestamp(t['due']):%a %H:%M}  {t['label'] or NAMES[t['kind']]}"
                  for t in missed]
-        subprocess.run(["notify-send", "-a", "Timer", "-i", "alarm-symbolic", "Missed while off",
-                        "\n".join(lines)])
+        try:
+            subprocess.run([NOTIFY, "-a", "Timer", "-i", "alarm-symbolic", "Missed while off",
+                            "\n".join(lines)], timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            pass
 
 
 def _restore():
@@ -1095,7 +1107,24 @@ def makoctl(*args):
 
 
 def bell():
-    subprocess.run(["pkill", f"-RTMIN+{BELL_SIGNAL}", "-x", "waybar"])
+    """Redraw the bar's notification bell (bar_signals.py "notifications")."""
+    try:
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import bar_signals
+        return bar_signals.poke("notifications")
+    except Exception:       # noqa: BLE001 - no bar: nothing to redraw
+        return 0
+
+
+def loop_argv(path):
+    """sh running path's player over and over -- the player's argv goes in
+    as the script's own arguments ("$@"), never pasted into the shell text,
+    so no sound path (a quote, a $ in a theme folder) can break or inject.
+    The quiet chime is a short blip, so it gets a pause between rings; the
+    theme's alarm plays back to back (a pause only when the player fails)."""
+    gap = "; sleep 2" if path == CHIME else " || sleep 2"
+    return ["sh", "-c", f'while :; do "$@"{gap}; done', "sh", *play_argv(path)]
 
 
 def dnd_released():
@@ -1117,19 +1146,14 @@ def ask(title, body, actions, loop_sound=None, chime=None, wait=RING_S, urgency=
     was closed or timed out); loop_sound plays until then. Both go through
     the sound and volume settings (sounds_for, play_argv). With ring (a
     timer id), the clock card can answer too: see wait_pick()."""
-    loop = None
+    loop = once = None
     loop_sound, chime = sounds_for(loop_sound, chime)
     if loop_sound:
-        # The theme's alarm plays back to back, as it always has; the quiet
-        # chime is a short blip, so it gets a pause between rings.
-        gap = "; sleep 2" if loop_sound == CHIME else " || sleep 2"
-        play = " ".join(f'"{a}"' for a in play_argv(loop_sound))
-        loop = subprocess.Popen(["sh", "-c", f"while :; do {play}{gap}; done"],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        loop = subprocess.Popen(loop_argv(loop_sound), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                 start_new_session=True)
     elif chime:
-        subprocess.Popen(play_argv(chime), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    argv = ["notify-send", "-a", "Timer", "-u", urgency, "-i", "alarm-symbolic", "--wait"]
+        once = subprocess.Popen(play_argv(chime), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    argv = [NOTIFY, "-a", "Timer", "-u", urgency, "-i", "alarm-symbolic", "--wait"]
     for key, text in actions:
         argv += ["-A", f"{key}={text}"]
     try:
@@ -1142,7 +1166,17 @@ def ask(title, body, actions, loop_sound=None, chime=None, wait=RING_S, urgency=
         out = ""
     finally:
         if loop is not None:
-            os.killpg(loop.pid, 15)
+            try:
+                os.killpg(loop.pid, 15)
+                loop.wait(timeout=3)        # reaped, not a zombie
+            except (OSError, subprocess.SubprocessError):
+                pass
+        if once is not None:
+            try:
+                once.wait(timeout=5)        # a chime is a second long
+            except subprocess.TimeoutExpired:
+                once.kill()
+                once.wait()
     return out
 
 

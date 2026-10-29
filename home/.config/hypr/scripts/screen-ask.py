@@ -68,9 +68,11 @@ import time
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.expanduser("~/.config/waybar/scripts"))
 import llm_models  # noqa: E402
+import desk_common  # noqa: E402  (hypr_request: hyprctl over the socket)
 
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
 MAX_SIDE = 1600             # px, the long side of the picture sent to the model
@@ -112,7 +114,7 @@ def smartclip():
 
 
 def notify(title, body="", urgency="normal"):
-    subprocess.run(["notify-send", "-a", "Ask about the screen", "-i", "dialog-question", "-u", urgency,
+    subprocess.run([NOTIFY, "-a", "Ask about the screen", "-i", "dialog-question", "-u", urgency,
                     "-t", "5000", title, body], capture_output=True, timeout=5)
 
 
@@ -155,11 +157,9 @@ def to_csv(answer):
 
 # -- what may be captured ------------------------------------------------------------------------
 def hyprctl_json(*args):
-    try:
-        out = subprocess.run(["hyprctl", *args, "-j"], capture_output=True, text=True, timeout=3).stdout
-        return json.loads(out or "null")
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return None
+    """`hyprctl ARGS -j`, parsed; None when Hyprland does not answer. Over the
+    request socket (desk_common.hypr_request): no process."""
+    return desk_common.hypr_request(args, json=True, timeout=3)
 
 
 def parse_geometry(text):

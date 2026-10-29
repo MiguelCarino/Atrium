@@ -15,6 +15,12 @@ Keyboard layouts (xkb: which letters the keys type) and input methods
 (fcitx5: Japanese through Mozc) are separate switches that stack; the input
 methods are only reported here, with links to fcitx5's own settings and the
 bar's language menu.
+
+Also here: when the pointer hides (still for N seconds; while typing), how
+far a push on a screen edge jumps across a gap to the next screen
+(lua/edgejump.lua), and the main modifier of the everyday keys (ALT or
+SUPER: lua/shared.lua mainMod; changing it reloads Hyprland, and the page
+lists the combinations SUPER would claim twice).
 """
 import importlib.util
 import os
@@ -28,7 +34,9 @@ PAGE = {"id": "input", "title": "Keyboard & mouse", "icon": "", "group": "Har
         "keywords": ["keyboard", "teclado", "keyboard layout", "language", "xkb", "key repeat", "caps lock",
                      "compose key", "numlock", "mouse", "raton", "pointer speed", "acceleration",
                      "sensitivity", "scrolling", "natural scrolling", "left handed", "touchpad",
-                     "tap to click", "focus follows mouse", "input method", "fcitx", "japanese", "mozc"]}
+                     "tap to click", "focus follows mouse", "input method", "fcitx", "japanese", "mozc",
+                     "hide cursor", "hide pointer", "inactive cursor", "edge jump", "screen edge",
+                     "main modifier", "mod key", "alt key", "super key", "mainmod"]}
 
 INPUT = os.path.join(HYPR, "input-settings.py")
 
@@ -45,6 +53,11 @@ COMPOSE_CHIPS = [("", "None"), ("compose:menu", "Menu key"), ("compose:rctrl", "
                  ("compose:rwin", "Right Super"), ("compose:sclk", "Scroll Lock"), ("compose:prsc", "PrtSc")]
 ACCEL_CHIPS = [("adaptive", "Adaptive"), ("flat", "Flat")]
 FOCUS_CHIPS = [("1", "Follows the mouse"), ("2", "Click; scroll follows the mouse"), ("0", "Click to focus")]
+MOD_CHIPS = [("ALT", "Alt (default)"), ("SUPER", "Super")]
+MOD_SUB = {"ALT": "Alt+Q terminal, Alt+1..9 workspaces, Alt+arrows focus... The Super keys "
+                  "(session, screens, tools) stay on Super.",
+           "SUPER": "Super+Q terminal, Super+1..9 workspaces... The keys that were already Super "
+                    "keep Super too, so some combinations now do two things (below)."}
 FOCUS_SUB = {"1": "The window under the pointer gets the keyboard.",
              "2": "A click focuses; the wheel scrolls whatever is under the pointer.",
              "0": "Only a click (or a key) focuses a window."}
@@ -164,6 +177,11 @@ class Page:
                         "the middle button pastes the last selected text")
         self.switch_row("hide_on_typing", "", "Hide the pointer while typing",
                         "back as soon as the mouse moves")
+        self.slider("hide_after", "Hide a still pointer after (0 = never)", 0, 60, 1, " s")
+        self.slider("edge_reach", "Jump across gaps between screens up to (0 = never)", 0, 2000, 50, " px")
+        w.pack_start(wrapped("Pushing the pointer against a screen edge with no screen right behind it "
+                             "jumps it to the nearest screen across the gap, if that one is this close."),
+                     False, False, 0)
 
         # -- touchpad (only when there is one) --------------------------------------
         self.touch = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -192,6 +210,17 @@ class Page:
         w.pack_start(self.focus_chips.widget, False, False, 0)
         self.focus_sub = wrapped("")
         w.pack_start(self.focus_sub, False, False, 0)
+
+        # -- main modifier ----------------------------------------------------------
+        w.pack_start(sep(), False, False, 0)
+        w.pack_start(heading("MAIN MODIFIER"), False, False, 0)
+        w.pack_start(dp.label("The everyday keys use", "ctl-title"), False, False, 0)
+        self.mod_chips = Chips(lambda key: self.set("main_mod", key))
+        w.pack_start(self.mod_chips.widget, False, False, 0)
+        self.mod_sub = wrapped("")
+        w.pack_start(self.mod_sub, False, False, 0)
+        self.mod_clash = wrapped("")
+        w.pack_start(self.mod_clash, False, False, 0)
 
         # -- reset ----------------------------------------------------------------
         w.pack_start(sep(), False, False, 0)
@@ -344,7 +373,7 @@ class Page:
             + warn).strip())
         ims = st.get("input_methods") or []
         self.im_sub.set_text(("  ·  ".join(m["label"] + (" (on)" if m["active"] else "") for m in ims)
-                              + "  ·  Ctrl+Space switches") if ims else "none set up")
+                              + "  ·  Super+Space reaches it after the last layout") if ims else "none set up")
         # typing
         for key, s in self.sliders.items():
             try:
@@ -378,6 +407,18 @@ class Page:
         # focus
         self.focus_chips.set(FOCUS_CHIPS, val["follow_mouse"])
         self.focus_sub.set_text(FOCUS_SUB.get(val["follow_mouse"], ""))
+        # main modifier
+        mod = val.get("main_mod", "ALT")
+        self.mod_chips.set(MOD_CHIPS, mod)
+        self.mod_sub.set_text(MOD_SUB.get(mod, "") + " Changing it reloads the desktop's config; "
+                              "shortcuts you moved in Keyboard shortcuts keep the keys they were given.")
+        clashes = st.get("main_mod_clashes") or []
+        if clashes:
+            shown = ", ".join(clashes[:12]) + (f" and {len(clashes) - 12} more" if len(clashes) > 12 else "")
+            self.mod_clash.set_text(("Bound twice now: " if mod == "SUPER" else "With Super these would be bound twice: ")
+                                    + shown + ".")
+        else:
+            self.mod_clash.set_text("")
         # reset
         changed = [k for k, v in st["settings"].items() if v["changed"]]
         self.reset_link.set_sensitive(bool(changed))

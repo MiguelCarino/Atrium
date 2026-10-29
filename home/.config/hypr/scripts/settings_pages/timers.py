@@ -7,12 +7,13 @@ of a countdown, with Resume: it would not ring); the stopwatch when
 there is one; the focus round's lengths; what a ring sounds like (the
 theme's alarm, a quiet chime, or nothing), how loud, and how long Snooze
 waits; calendar alarms on or off, how long before the event, and which of
-Evolution's calendars ring. Work hours -- on or off, when they start and end,
-which days, and "today is a day off" -- have their own section.
+Evolution's calendars ring. Work hours get one row here -- on or off, and
+whether it is work time now -- and a link to their own page (Work hours,
+settings_pages/workhours.py), which has the hours, days and day off.
 
 Nothing is kept here: every control runs timers.py (set KEY VALUE, cancel,
-calendar on|off, calendars use|skip) or workhours.py (enable, disable,
-set, off-today, on), which write $XDG_STATE_HOME/hypr/timers.conf,
+calendar on|off, calendars use|skip) or workhours.py (enable, disable),
+which write $XDG_STATE_HOME/hypr/timers.conf,
 timers.json and ~/.config/hypr/workhours.conf, and the page redraws from `timers.py status --json` and
 `workhours.py status --json`. Setting a timer is the launcher's job (ALT+E:
 "timer 5m tea", "alarm 7:30 weekdays"), so this page only lists, resumes and
@@ -30,6 +31,10 @@ import shutil  # noqa: E402
 import subprocess  # noqa: E402
 import time  # noqa: E402
 
+# The Work hours page's helpers, for this page's one work-hours row (and
+# importable from here as before: tests/test_settings_timers.py).
+from .workhours import DAYS, clock_chips, days_arg  # noqa: E402,F401
+
 PAGE = {"id": "timers", "title": "Timers & alarms", "icon": "", "group": "Apps", "order": 20,
         "keywords": ["timer", "temporizador", "alarm", "alarma", "reminder", "recordatorio", "stopwatch",
                      "cronometro", "focus", "pomodoro", "countdown", "snooze", "alarm sound", "ring",
@@ -37,6 +42,7 @@ PAGE = {"id": "timers", "title": "Timers & alarms", "icon": "", "group": "App
 
 TIMERS = os.path.join(HYPR, "timers.py")
 WORKHOURS = os.path.join(HYPR, "workhours.py")
+SETTINGS = os.path.join(HYPR, "settings.py")
 
 # Font Awesome 6 glyphs, as escapes like the other pages.
 KIND_ICON = {"timer": "", "alarm": "", "reminder": "", "focus": "",
@@ -52,10 +58,6 @@ LONG_EVERY = [2, 3, 4, 5, 6]
 SNOOZE = [1, 3, 5, 10, 15, 30]
 LEAD = [0, 5, 10, 15, 30, 60]
 SOUNDS = [("theme", "Theme alarm"), ("chime", "Quiet chime"), ("none", "None")]
-STARTS = ["07:00", "08:00", "08:30", "09:00", "09:30", "10:00"]
-ENDS = ["16:00", "17:00", "17:30", "18:00", "18:30", "19:00"]
-DAYS = [("mon", "Mon"), ("tue", "Tue"), ("wed", "Wed"), ("thu", "Thu"), ("fri", "Fri"), ("sat", "Sat"),
-        ("sun", "Sun")]
 
 
 # -- pure helpers (tests/test_settings_timers.py) ---------------------------------------
@@ -69,11 +71,6 @@ def minute_chips(options, current, zero=None):
     """(key, caption) chips for minute values, plus current when it is not
     one of them; `zero` captions 0 ("At the start")."""
     return [(str(v), zero if v == 0 and zero else minutes(v)) for v in sorted(set(options) | {current})]
-
-
-def clock_chips(options, current):
-    """Chips for "HH:MM" times, plus current, in order."""
-    return [(t, t) for t in sorted(set(options) | {current})]
 
 
 def left_text(secs):
@@ -113,7 +110,7 @@ def item_sub(t, now=None):
 
 
 def work_note(work):
-    """The line under the work-hours controls, from `workhours.py status
+    """The work-hours row's tooltip, from `workhours.py status
     --json`: what the pill says, and which holidays are free."""
     if not work.get("enabled", True):
         return ("Off: no ~/.config/hypr/workhours.conf. On, the bar shows a pill with the time left during "
@@ -124,13 +121,6 @@ def work_note(work):
     return (f"The bar shows a \"{work.get('label') or 'Work'}\" pill with the time left, and `workhours.py "
             f"check` tells a git hook it is work time; {hol} "
             f"(label, time zone, holidays: {work.get('conf', 'workhours.conf')}).{tz}")
-
-
-def days_arg(days, toggled):
-    """The `workhours.py set days` argument after clicking one day: that day
-    added or taken away, in week order; "none" when none is left."""
-    picked = set(days) ^ {toggled}
-    return ",".join(d for d, _ in DAYS if d in picked) or "none"
 
 
 def calendar_sub(cal):
@@ -266,39 +256,9 @@ class Page:
             lambda: self.do(WORKHOURS, "enable" if on else "disable")))
         self.work_row, self.work_sub = row("", "Work hours", "", self.work_switch)
         w.pack_start(self.work_row, False, False, 0)
-        # Everything below the switch, greyed out while work hours are off.
-        outer, w = w, Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        self.work_box = w
-        outer.pack_start(w, False, False, 0)
-        grid, self.start_sub = row("", "Start", "")
-        w.pack_start(grid, False, False, 0)
-        self.start = make_chips(lambda k: self.do(WORKHOURS, "set", "start", k))
-        w.pack_start(self.start.widget, False, False, 0)
-        grid, self.end_sub = row("", "End", "")
-        w.pack_start(grid, False, False, 0)
-        self.end = make_chips(lambda k: self.do(WORKHOURS, "set", "end", k))
-        w.pack_start(self.end.widget, False, False, 0)
-        grid, self.days_sub = row("", "Work days", "")
-        w.pack_start(grid, False, False, 0)
-        self.day_buttons = {}
-        days = Gtk.Box(spacing=4)
-        days.set_margin_start(36)
-        for key, caption in DAYS:
-            b = Gtk.Button(label=caption)
-            b.get_style_context().add_class("dev-pick")
-            b.set_can_focus(False)
-            b.connect("clicked", lambda _b, k=key: self.toggle_day(k))
-            self.day_buttons[key] = b
-            days.pack_start(b, False, False, 0)
-        w.pack_start(days, False, False, 0)
-        self.off_switch = Gtk.Switch()
-        self.off_switch.connect("state-set", lambda _s, on: self.toggle(
-            lambda: self.do(WORKHOURS, "off-today" if on else "on")))
-        grid, self.off_sub = row("", "Today is a day off", "", self.off_switch)
-        w.pack_start(grid, False, False, 0)
-        self.work_note = wrap("")
-        w.pack_start(details(self.work_note), False, False, 0)
-        w = outer
+        # The hours, days, label, time zone, holidays and day off: their page.
+        w.pack_start(links_row(link("Open Work hours", lambda: spawn(SETTINGS, "workhours"))),
+                     False, False, 0)
 
         GLib.timeout_add_seconds(1, self.tick)
 
@@ -338,10 +298,6 @@ class Page:
             GLib.timeout_add_seconds(4, lambda: (b.get_label() == again and b.set_label(text), False)[1])
         b.connect("clicked", clicked)
         return b
-
-    def toggle_day(self, key):
-        if self.work:
-            self.do(WORKHOURS, "set", "days", days_arg(self.work["days"], key))
 
     # -- drawing ---------------------------------------------------------------------
     def refresh(self):
@@ -505,8 +461,7 @@ class Page:
         on = work.get("enabled", True)
         self.work_switch.set_state(on)
         self.work_switch.set_active(on)
-        self.work_box.set_sensitive(on)
-        self.work_note.set_text(work_note(work))
+        self.work_row.set_tooltip_text(work_note(work))
         if not on:
             self.work_sub.set_text("off")
         elif work["working"] and work.get("until"):
@@ -519,21 +474,3 @@ class Page:
                 ", ".join(names[d] for d in days) if days else "no days")
         if on:
             self.work_sub.set_text(f"{state}  ·  {work['start']}–{work['end']}, {span}")
-        self.start.set(clock_chips(STARTS, work["start"]), work["start"])
-        self.end.set(clock_chips(ENDS, work["end"]), work["end"])
-        self.start_sub.set_text("on a work day")
-        self.end_sub.set_text("the same day, after the start")
-        self.days_sub.set_text("click a day to toggle it" if days else
-                               "none picked: work-hours mode never starts")
-        for key, b in self.day_buttons.items():
-            (b.get_style_context().add_class if key in days else b.get_style_context().remove_class)("active")
-        self.off_switch.set_state(work["off_today"])
-        self.off_switch.set_active(work["off_today"])
-        bits = ["free until midnight" if work["off_today"] else
-                "free until midnight (also: right-click the pill)"]
-        if work.get("holiday"):
-            bits.append(f"today is a holiday anyway: {work['holiday']}")
-        elif work.get("next_holiday"):
-            day, name = work["next_holiday"]
-            bits.append(f"next holiday: {name}, {dt.date.fromisoformat(day):%a %d %b}")
-        self.off_sub.set_text("  ·  ".join(bits))

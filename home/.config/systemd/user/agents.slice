@@ -1,0 +1,31 @@
+# Railguard (~/.config/hypr/scripts/railguard.py): every command a coding
+# agent runs -- Claude Code's Bash tool, its hooks and MCP servers, through
+# CLAUDE_CODE_SHELL_PREFIX=~/.config/hypr/scripts/railguard-run -- lands here,
+# one scope per command, instead of in the terminal's own cgroup next to the
+# agent. A runaway build, test run or headless browser is then capped and
+# killed on its own; the agent sessions, the terminal and the compositor
+# (session.slice) keep running.
+#
+# Stop everything the agents started, sessions untouched:
+#     systemctl --user stop agents.slice     (or: railguard.py stop-agents)
+[Unit]
+Description=Commands run by coding agents (railguard)
+
+[Slice]
+# 20 of 24 threads at most, and the desktop wins whenever both want the CPU.
+CPUQuota=2000%
+CPUWeight=30
+IOWeight=30
+# All agent commands together: past MemoryHigh they are slowed down, past
+# MemoryMax the kernel ends the biggest one -- inside this slice only. 11 GB
+# of the 31 stay for the desktop, the browser and the sessions themselves.
+MemoryHigh=18G
+MemoryMax=20G
+# Swap would only turn a runaway into a slow-motion freeze.
+MemorySwapMax=2G
+# A fork bomb stops here.
+TasksMax=8192
+# systemd-oomd ends the worst command scope when this slice stalls on memory.
+ManagedOOMMemoryPressure=kill
+ManagedOOMMemoryPressureLimit=50%
+ManagedOOMMemoryPressureDurationSec=10s

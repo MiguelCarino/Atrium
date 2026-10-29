@@ -1,0 +1,28 @@
+# Dynamic island: ~/.config/hypr/scripts/island.py (its docstring has the rest).
+# Off as shipped: Settings > Bar & toolbox > Island (island.py set on|off)
+# enables or disables it. Mako stays the notification server; with
+# "notifications" on (the default) the island adds mako's "island" mode
+# (mako/island: popups hidden) and draws every notification itself.
+[Unit]
+Description=Dynamic island (media, timers, recording, Railguard, notifications at the top)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/island.py daemon
+Restart=on-failure
+RestartSec=3
+# Never swallow a notification: however the island ends (a crash, a kill,
+# the watchdog below, `island.py set off`), mako gets its popups back. Only
+# removes the island's own mode ("-": no mako is fine), never sets the list,
+# so Do Not Disturb and project-focus stay as they are.
+ExecStopPost=-/usr/bin/makoctl mode -r island
+# island.py pings from its main loop (sd_notify WATCHDOG=1, every 10 s); a
+# hung one is ended here, and the ExecStopPost above runs for it too.
+WatchdogSec=20
+NotifyAccess=main
+MemoryHigh=150M
+
+[Install]
+WantedBy=graphical-session.target

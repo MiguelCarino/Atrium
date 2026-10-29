@@ -293,7 +293,7 @@ class VisionTest(unittest.TestCase):
         v = self.make(runner=r)
         self.assertEqual(self.hold(v, THUMBS), [("gesture", "thumbs_up", "confirm")])
         self.assertIn(["makoctl", "invoke", "-n", "9", "confirm"], r.calls)
-        self.assertTrue(r.ran("notify-send"))
+        self.assertTrue(r.ran(G.NOTIFY))
 
     def test_locked_or_unmapped_does_nothing(self):
         r = Runner({("pidof",): "4242", ("makoctl", "list"): ActionsTest.SHOWN})

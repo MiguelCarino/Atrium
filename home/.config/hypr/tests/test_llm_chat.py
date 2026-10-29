@@ -665,7 +665,8 @@ class Words(unittest.TestCase):
         for key in ("perm_title", "perm_once", "perm_session", "perm_deny", "perm_note", "perm_keys",
                     "perm_bubble", "n_done", "n_perm", "unload", "unload_all"):
             self.assertIn(key, front.UI_JA, key)
-        for theme in ("moe", "cyberpunk", "matrix", "win95", "aero", "lofi", "luna", "orbit", "seasons"):
+        for theme in ("moe", "cyberpunk", "matrix", "win95", "aero", "lofi", "luna", "orbit", "seasons",
+                      "orchard", "orchard-dark"):
             ui = front.ui_strings(theme, conf={"lang": "ja" if theme == "moe" else "en"})
             for key in keys:
                 self.assertIn(key, ui)

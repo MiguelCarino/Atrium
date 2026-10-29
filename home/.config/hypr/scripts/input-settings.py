@@ -19,6 +19,9 @@ about what is in effect.
     input-settings.py layout remove <code>[(<variant>)]
     input-settings.py layout up|down <code>[(<variant>)]   switching order
     input-settings.py layout next         switch to the next layout now
+    input-settings.py cycle               SUPER+Space: the next layout, and
+                                          after the last one Japanese (Mozc),
+                                          then back to the first layout
     input-settings.py layouts [words]     the system's xkb layouts and their
                                           variants, "code<TAB>name" per line,
                                           the ones matching every word
@@ -29,6 +32,20 @@ about what is in effect.
                                           the bar's language menu
 
     input-settings.py apply               re-apply the saved settings
+
+The pointer: hide_after (seconds of a still mouse before it hides, 0 =
+never; cursor.inactive_timeout) and hide_on_typing (cursor.hide_on_key_press)
+-- both on by default (3 s). edge_reach is lua/edgejump.lua's REACH, the
+widest gap between screens a push on an edge jumps across (0 = no jumps).
+
+main_mod is the everyday keys' modifier, ALT (the default) or SUPER: read by
+lua/shared.lua at a config load, so `set main_mod` (and unset / reset when it
+was changed) runs `hyprctl reload` instead of the eval, and the binds are made
+again on the new modifier. The keys that are SUPER on purpose stay SUPER, so
+with SUPER some combinations end up bound twice: status lists them as
+main_mod_clashes (with ALT: the ones that WOULD clash if you switched).
+Shortcut changes (Settings > Keyboard shortcuts) name keys as they were made,
+so one made for ALT+Q has to be made again for SUPER+Q after a switch.
 
 The settings live in ~/.local/state/hypr/input.conf (key=value, the format of
 the display state -- ~/.config/hypr/lua/shared.lua). This writes the file and
@@ -49,7 +66,10 @@ refused here instead. xkb holds at most four layouts at a time.
 Keyboard layouts (xkb) and input methods (fcitx5: Japanese via Mozc) are two
 different switches that stack -- lua/autostart.lua explains it. This script is
 the first; fcitx5 keeps its own list (~/.config/fcitx5/profile), which status
-only reports.
+only reports. SUPER+Space walks both as one list (cycle): us, latam, ...,
+Japanese. For that, lua/input.lua leaves grp:win_space_toggle out of the xkb
+options and lua/binds.lua binds SUPER+Space to cycle instead; any other
+switch key stays plain xkb (layouts only).
 """
 
 import configparser
@@ -64,6 +84,7 @@ import sys
 
 HYPR = os.path.expanduser("~/.config/hypr")
 INPUT_LUA = os.path.join(HYPR, "lua", "input.lua")
+NOTIFY = os.path.join(HYPR, "scripts", "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
                      "hypr", "input.conf")
 XKB_RULES = "/usr/share/X11/xkb/rules/evdev.lst"
@@ -91,6 +112,9 @@ KEYS = {
     "middle_click_paste":            ("bool",),
     "hide_on_typing":                ("bool",),
     "follow_mouse":                  ("choice", "0", "1", "2"),
+    "hide_after":                    ("int", 0, 60),
+    "edge_reach":                    ("int", 0, 2000),
+    "main_mod":                      ("choice", "ALT", "SUPER"),
     "touchpad.natural_scroll":       ("bool",),
     "touchpad.tap_to_click":         ("bool",),
     "touchpad.disable_while_typing": ("bool",),
@@ -104,8 +128,12 @@ LIVE = {
     "natural_scroll": "input:natural_scroll", "left_handed": "input:left_handed",
     "scroll_factor": "input:scroll_factor", "follow_mouse": "input:follow_mouse",
     "numlock": "input:numlock_by_default", "hide_on_typing": "cursor:hide_on_key_press",
-    "middle_click_paste": "misc:middle_click_paste",
+    "middle_click_paste": "misc:middle_click_paste", "hide_after": "cursor:inactive_timeout",
 }
+# Keys read only at a config load (lua/shared.lua): changing one reloads.
+RELOAD_KEYS = {"main_mod"}
+# hyprctl binds -j's modmask bits.
+MOD_BITS = (("SUPER", 64), ("CTRL", 4), ("ALT", 8), ("SHIFT", 1))
 OPTION_GROUPS = {"switch": "switch", "caps": "caps", "compose": "compose"}
 TRUE, FALSE = ("on", "yes", "true", "1"), ("off", "no", "false", "0")
 
@@ -264,21 +292,30 @@ def say_keys(name):
 
 
 # Shortcuts that fight something already on this desktop.
-def switch_warning(option):
+def switch_warning(option, main_mod=None):
     """A sentence when the layout-switch option collides with this desktop's
-    own keys or takes a key away, else "". ALT is the main modifier
-    (lua/shared.lua mainMod), so an Alt-based switch would also fire on every
-    ALT+SHIFT+n bind; Ctrl+Space is fcitx5's input-method switch; Super is held
+    own keys or takes a key away, else "". ALT is the main modifier unless
+    main_mod says SUPER (lua/shared.lua mainMod), so an Alt-based switch would
+    also fire on every ALT+SHIFT+n bind -- and with SUPER as the main
+    modifier still on the ALT ones left (SUPER+ALT+L ...); Super is held
     for SUPER+Tab, SUPER+I...; a switch on a lone Shift or Ctrl turns that key
     into the switch, so it stops being Shift / Ctrl; and xkb fires Ctrl+Shift
     as soon as the second of the two goes down, so it also fires (and eats
-    the Shift) during app shortcuts like Ctrl+Shift+T."""
+    the Shift) during app shortcuts like Ctrl+Shift+T.
+
+    main_mod None (the default): the effective one -- the saved main_mod,
+    else lua/input.lua's default -- so a caller that does not pass it never
+    warns about ALT on a SUPER desktop."""
+    if main_mod is None:
+        main_mod = effective().get("main_mod") or "ALT"
+    main_mod = str(main_mod).upper()
     if not option:
         return "No key: switch from the language pill on the bar."
     name = option.split(":", 1)[-1]
-    if name == "ctrl_space_toggle":
-        return "Ctrl+Space is already the input method switch (Japanese): the two would fight."
     if name == "toggle" or re.search(r"(^|_)[lr]?alts?(_|$)", name):
+        if main_mod == "SUPER":
+            return ("Layouts would also switch during this desktop's shortcuts that use ALT, "
+                    "such as SUPER+ALT+L.")
         return ("ALT is this desktop's main modifier: layouts would also switch during ALT shortcuts "
                 "such as ALT+SHIFT+1.")
     if re.search(r"(^|_)[lr]?win(_|$)", name) and name != "win_space_toggle":
@@ -335,6 +372,8 @@ def check(key, value, cat=None):
             raise ValueError(f"{key} is from {spec[1]} to {spec[2]}")
         return str(int(round(num))) if kind == "int" else f"{round(num, 2):g}"
     if kind == "choice":
+        if key == "main_mod":
+            value = value.upper()
         if value not in spec[1:]:
             raise ValueError(f"{key} is one of {', '.join(spec[1:])}")
         return value
@@ -417,6 +456,50 @@ def apply():
     return hypr_eval('require("lua.input").apply()')
 
 
+def reload():
+    """hyprctl reload, then the config errors it left (None when none)."""
+    run("hyprctl", "reload", timeout=15)
+    errors = run("hyprctl", "configerrors").strip()
+    return None if errors in ("", "ok") else errors
+
+
+def mods_name(mask):
+    return "+".join(name for name, bit in MOD_BITS if mask & bit)
+
+
+def mod_clashes(binds, current):
+    """The combinations claimed twice because of the main modifier, as
+    "MODS+KEY" strings (sorted). binds: hyprctl binds -j. With current ALT:
+    the ALT binds (no SUPER in them) whose SUPER twin is already taken -- what
+    switching to SUPER would double up. With SUPER: the SUPER combinations
+    bound more than once, which is what the switch did. Submaps, release
+    binds and mouse binds are left out: they are their own namespace."""
+    seen = {}
+    for b in binds:
+        if b.get("submap") or b.get("release") or b.get("mouse"):
+            continue
+        combo = (int(b.get("modmask", 0)), str(b.get("key", "")).upper())
+        seen.setdefault(combo, set()).add(b.get("description") or b.get("arg") or "")
+    out = set()
+    if current == "ALT":
+        for (mask, key) in seen:
+            if mask & 8 and not mask & 64 and ((mask & ~8) | 64, key) in seen:
+                out.add(f"{mods_name((mask & ~8) | 64)}+{key}")
+    else:
+        for (mask, key), descs in seen.items():
+            if mask & 64 and len(descs) > 1:
+                out.add(f"{mods_name(mask)}+{key}")
+    return sorted(out)
+
+
+def live_mod_clashes(current):
+    try:
+        binds = json.loads(run("hyprctl", "binds", "-j") or "[]")
+    except ValueError:
+        return []
+    return mod_clashes(binds, current) if isinstance(binds, list) else []
+
+
 def live_option(name):
     try:
         data = json.loads(run("hyprctl", "getoption", name, "-j") or "{}")
@@ -472,6 +555,36 @@ def input_methods():
     return [(i, labels.get(i, i)) for i in items], current
 
 
+def cycle():
+    """One step of SUPER+Space: us -> latam -> ... -> Japanese -> us. Japanese
+    is Mozc on the first layout (romaji on a US keyboard); it is left out when
+    fcitx5 is not running or has no mozc item. Each step says where it landed,
+    since the bar's pill shows the layout only."""
+    count = len(parse_layouts(effective()["layouts"]))
+    active, _ = keyboards()
+    ims, im = input_methods()
+    names = [n for n, _ in ims]
+    direct = next((n for n in names if n.startswith("keyboard-")), "keyboard-us")
+    if im == "mozc":
+        run("fcitx5-remote", "-s", direct)
+        run("hyprctl", "switchxkblayout", "all", "0")
+        landed = 0
+    elif active + 1 < count or "mozc" not in names:
+        landed = (active + 1) % count
+        run("hyprctl", "switchxkblayout", "all", str(landed))
+    else:
+        run("hyprctl", "switchxkblayout", "all", "0")
+        run("fcitx5-remote", "-s", "mozc")
+        landed = None
+    if landed is None:
+        label = "Japanese (Mozc)"
+    else:
+        code, variant = parse_layouts(effective()["layouts"])[landed]
+        label = layout_name(code, variant, xkb())
+    run(NOTIFY, "-a", "Keyboard", "-u", "low", "-t", "1200",
+        "-h", "string:x-canonical-private-synchronous:language", label)
+
+
 def status():
     defs, state = defaults(), read_state()
     eff = effective(state, defs)
@@ -492,12 +605,13 @@ def status():
         "max_layouts": MAX_LAYOUTS,
         "active_keymap": keymap,
         "switch_label": say_keys(switch_name) if switch_name else "",
-        "switch_warning": " ".join(w for w in (switch_warning(eff["switch"]), key_clash(eff)) if w),
+        "switch_warning": " ".join(w for w in (switch_warning(eff["switch"], eff.get("main_mod", "ALT").upper()), key_clash(eff)) if w),
         "live": dict(live, kb_layout=live_layout, kb_options=live_options),
         # Saved and live disagree only when something other than this script
         # changed an option (a hand-run `hyprctl keyword`) or Hyprland refused one.
         "in_sync": live_layout == ",".join(c for c, _ in pairs),
         "touchpad": has_touchpad(),
+        "main_mod_clashes": live_mod_clashes(eff["main_mod"]),
         "input_methods": [{"name": n, "label": lab, "active": n == im} for n, lab in ims],
         "state_file": STATE,
     }
@@ -527,7 +641,7 @@ def save(key, value):
         else:
             state[key] = value
         write_state(state)
-        return apply()
+        return reload() if key in RELOAD_KEYS else apply()
 
 
 def edit_saved_layouts(action, token):
@@ -569,17 +683,20 @@ def main(argv):
                 return 1
         elif cmd == "reset":
             with locked():
+                needs_reload = any(k in read_state() for k in RELOAD_KEYS)
                 try:
                     os.remove(STATE)
                 except FileNotFoundError:
                     pass
-                err = apply()
+                err = reload() if needs_reload else apply()
             if err:
                 print(f"Hyprland said: {err}", file=sys.stderr)
                 return 1
         elif cmd == "keys":
             for key, spec in KEYS.items():
                 print(f"{key}\t{' '.join(str(s) for s in spec)}")
+        elif cmd == "cycle":
+            cycle()
         elif cmd == "layout" and args and args[0] == "next":
             run("hyprctl", "switchxkblayout", "all", "next")
         elif cmd == "layout" and len(args) == 2:

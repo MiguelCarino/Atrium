@@ -7,8 +7,11 @@ yesterday?" -- "¿qué enlace me mandaron el martes?". Everything stays here.
     desktop-memory.py collect          what desktop-memory.timer runs every 5
                                        minutes: take in what is new from each
                                        source that is on, a screenshot when one
-                                       is due, prune what is past its days, and
-                                       now and then the embeddings
+                                       is due, prune what is past its days
+                                       (no embeddings: those wait for the
+                                       hourly desktop-index.py update, which
+                                       calls embed_hourly(), so LM Studio is
+                                       not woken every 5 minutes)
     desktop-memory.py snap [--force]   one screenshot + OCR now (--force: even
                                        when the last one is recent; never when
                                        the screen source is off)
@@ -132,8 +135,10 @@ import unicodedata
 import urllib.error
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 sys.path.insert(0, HERE)
 import privacy_settings  # noqa: E402  (privacy.conf: the memory switches)
+import desk_common  # noqa: E402  (hypr_request: hyprctl over the socket)
 
 HOME = os.path.expanduser("~")
 STATE_HOME = os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local", "state")
@@ -156,8 +161,9 @@ CAPTION_GAP_S = 90          # caption lines further apart start a new paragraph
 CAPTION_PARA = 1500
 THUMB_W = 360               # px, the thumbnail's width
 THUMB_Q = 55
-EMBED_EVERY_S = 1800        # the embeddings at most this often from `collect`
+EMBED_EVERY_S = 1800        # the embeddings at most this often (desktop-index's hourly run)
 EMBED_RUSH = 300            # ... or sooner when this many wait
+EMBED_START_S = 6 * 3600    # LM Studio started for them only when the last pass is this old (or a rush)
 EMBED_BATCH = 32
 K_DEFAULT = 12
 RRF = 60
@@ -803,11 +809,9 @@ def ingest_captions(con, conf, now):
 
 # -- screenshots ---------------------------------------------------------------------------
 def hyprctl_json(*args):
-    try:
-        out = subprocess.run(["hyprctl", *args, "-j"], capture_output=True, text=True, timeout=3).stdout
-        return json.loads(out or "null")
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return None
+    """`hyprctl ARGS -j`, parsed; None when Hyprland does not answer. Over the
+    request socket (desk_common.hypr_request): no process."""
+    return desk_common.hypr_request(args, json=True, timeout=3)
 
 
 def locked():
@@ -956,6 +960,35 @@ def embed_pending(con, log=lambda text: None, force=False, now=None):
         count += len(rows)
     meta(con, "embedded_at", now)
     return count
+
+
+def embed_hourly(log=lambda text: None, now=None):
+    """desktop-index.py update's (the hourly timer's) pass over the memories:
+    with LM Studio already up, the pending ones are embedded (EMBED_EVERY_S
+    apart, sooner for a rush); with it down, it is started only when
+    EMBED_START_S has gone by since the last pass, or a rush waits -- so the
+    memories cost LM Studio a start a few times a day at most, not every
+    5 minutes. How many were embedded (0 when the memory is off)."""
+    now = now or time.time()
+    if not sources_on(privacy_settings.load()):
+        return 0
+    con = connect()
+    try:
+        pending = con.execute("select count(*) from entries where vec is null").fetchone()[0]
+        if not pending:
+            return 0
+        last = float(meta(con, "embedded_at") or 0)
+        di = index()
+        if di.server_models() is None:              # LM Studio is down
+            if now - last < EMBED_START_S and pending < EMBED_RUSH:
+                return 0
+            if di.embedding_model(start=True, log=log) is None:
+                return 0
+        count = embed_pending(con, log, now=now)
+        con.commit()
+        return count
+    finally:
+        con.close()
 
 
 # -- retention / forgetting -------------------------------------------------------------------
@@ -1348,13 +1381,13 @@ def recall(question, now=None, worker=None):
 
 def notify_recall(question):
     # "--": a question starting with "-" is text, not one of notify-send's options.
-    subprocess.run(["notify-send", *NOTIFY_TAG, "-u", "low", "-t", "0", "--", "Remembering…", question],
+    subprocess.run([NOTIFY, *NOTIFY_TAG, "-u", "low", "-t", "0", "--", "Remembering…", question],
                    capture_output=True, timeout=5)
     answer, results, links = recall(question)
     actions = [f"--action=open{i}={label}" for i, (label, _) in enumerate(links)]
     icon = next((target for _, target in links if target.endswith(".jpg")), "document-open-recent")
     try:
-        out = subprocess.run(["notify-send", *NOTIFY_TAG, "-t", "60000", "-i", icon, *actions,
+        out = subprocess.run([NOTIFY, *NOTIFY_TAG, "-t", "60000", "-i", icon, *actions,
                               *(["--wait"] if actions else []), "--", question, answer[:1500]],
                              capture_output=True, text=True, timeout=120).stdout.strip()
     except subprocess.TimeoutExpired:
@@ -1392,15 +1425,12 @@ def collect(log=print, now=None, force_snap=False):
         con.commit()
         shot = snap(con, conf, now, force_snap, log) if "screen" in on else None
         con.commit()
-        embedded = 0
-        if on and not index().busy():
-            embedded = embed_pending(con, log, now=now)
         meta(con, "collected", now)
         con.commit()
     finally:
         con.close()
     line = ", ".join(f"{k} +{v}" for k, v in done.items()) or "every source is off"
-    return line + (f"; screen: {shot}" if shot else "") + (f"; {embedded} embedded" if embedded else "") + \
+    return line + (f"; screen: {shot}" if shot else "") + \
         (f"; {gone} past their days dropped" if gone else "")
 
 

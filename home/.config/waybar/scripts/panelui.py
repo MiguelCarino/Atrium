@@ -138,6 +138,211 @@ def guard_wheel(_widget=None):
 _WHEEL_HOOKED = False
 
 
+# -- small shared widgets ---------------------------------------------------
+def label(text, cls=None, xalign=0.0):
+    """A Gtk.Label with one style class and its x alignment: the line every
+    panel used to write out (or keep a local copy of) for each caption."""
+    widget = Gtk.Label(label=text)
+    if cls:
+        widget.get_style_context().add_class(cls)
+    widget.set_xalign(xalign)
+    return widget
+
+
+ARM_SECONDS = 3
+SURE = "Sure?"
+
+
+class Arming:
+    """The two-click rule, without GTK: press(now) says "armed" for the first
+    press and "fire" for a second one within ARM_SECONDS of it; a press after
+    that arms again. armed(now) says whether it is still waiting. Pure, so
+    the tests can drive it with their own clock.
+
+    by_key: the press came from the keyboard (Enter / Space). A key that
+    armed it and is still held down repeats by itself (after the repeat
+    delay, as little as 100 ms), and that repeat must not count as the
+    second press -- so until release() says the key came up, a keyboard
+    press only answers "held"."""
+
+    def __init__(self, seconds=ARM_SECONDS):
+        self.seconds = seconds
+        self.since = None
+        self.held = False
+
+    def armed(self, now):
+        return self.since is not None and now - self.since < self.seconds
+
+    def press(self, now, by_key=False):
+        if self.armed(now):
+            if by_key and self.held:
+                return "held"
+            self.since, self.held = None, False
+            return "fire"
+        self.since, self.held = now, by_key
+        return "armed"
+
+    def release(self):
+        """The key that armed it came up: the next press is a real one."""
+        self.held = False
+
+    def disarm(self):
+        self.since, self.held = None, False
+
+
+class Armed(Gtk.Button):
+    """A button for something that cannot be undone (cancel every print job,
+    forget a device, reboot): the first click arms it -- it says "Sure?" and
+    takes the .armed class -- and only a second click within ARM_SECONDS
+    runs on_fire(). Left alone it goes back to its caption by itself. The
+    same rule as the power and process cards, in one place for the rest."""
+
+    def __init__(self, caption, on_fire, cls="ctl-link", sure=SURE, seconds=ARM_SECONDS):
+        super().__init__(label=caption)
+        self.caption, self.sure, self.on_fire = caption, sure, on_fire
+        self.arming = Arming(seconds)
+        self._timer = 0
+        if cls:
+            self.get_style_context().add_class(cls)
+        self.connect("clicked", self._on_clicked)
+        self.connect("destroy", lambda *_: self._stop_timer())
+
+    def _stop_timer(self):
+        if self._timer:
+            GLib.source_remove(self._timer)
+            self._timer = 0
+
+    def _on_clicked(self, _button):
+        now = GLib.get_monotonic_time() / 1e6
+        event = Gtk.get_current_event()
+        by_key = event is not None and event.type == Gdk.EventType.KEY_PRESS
+        outcome = self.arming.press(now, by_key)
+        if outcome == "held":           # Enter held down: its repeat, not a second press
+            return
+        self._stop_timer()
+        if outcome == "fire":
+            self._show(False)
+            self.on_fire()
+            return
+        self._show(True)
+        self._timer = GLib.timeout_add(int(self.arming.seconds * 1000), self._expire)
+        if by_key:
+            self._watch_release()
+
+    def _watch_release(self):
+        """Armed from the keyboard: hear the key come up. On the window, not
+        the button -- a release is delivered wherever the focus is by then."""
+        top = self.get_toplevel()
+        if not isinstance(top, Gtk.Window):
+            self.arming.release()
+            return
+        handler = []
+
+        def released(*_args):
+            self.arming.release()
+            top.disconnect(handler[0])
+            return False
+        handler.append(top.connect("key-release-event", released))
+
+    def _expire(self):
+        self._timer = 0
+        self.arming.disarm()
+        self._show(False)
+        return False
+
+    def disarm(self):
+        self._stop_timer()
+        self.arming.disarm()
+        self._show(False)
+
+    def _show(self, armed):
+        self.set_label(self.sure if armed else self.caption)
+        (self.get_style_context().add_class if armed
+         else self.get_style_context().remove_class)("armed")
+
+
+# -- the keyboard -----------------------------------------------------------
+# Widgets a key press can act on, in the order a panel is read: the first of
+# them gets the focus when the card opens, Tab / Up / Down walk them, Enter
+# or Space presses the focused one (GTK's own activate). Labels, graphs and
+# boxes are skipped.
+ACTIONABLE = (Gtk.Button, Gtk.Switch, Gtk.Entry, Gtk.Scale, Gtk.ComboBox)
+# Widgets that use Up / Down themselves (a slider steps, a list moves its
+# row, a text box moves its caret): the arrows stay theirs there.
+ARROW_TAKERS = (Gtk.Scale, Gtk.SpinButton, Gtk.ComboBox, Gtk.TextView,
+                Gtk.TreeView, Gtk.ListBox, Gtk.FlowBox, Gtk.Entry)
+# Text fields a panel may have focused on purpose (a search box): opening
+# the card leaves the focus there rather than moving it to a button.
+TEXT_INPUTS = (Gtk.Entry, Gtk.TextView)
+
+
+def first_match(root, children, wanted):
+    """The first node, depth first in reading order, for which wanted(node)
+    is true, or None. children(node) lists a node's children ([] for a
+    leaf). Pure: the panel hands in GTK's tree, the tests a dict."""
+    stack = [root]
+    while stack:
+        node = stack.pop()
+        if wanted(node):
+            return node
+        stack.extend(reversed(children(node) or []))
+    return None
+
+
+def arrow_move(keyname, focus_takes_arrows):
+    """What an arrow key does in a panel: "next" or "prev" through the
+    actionable widgets for Down / Up (the same walk as Tab and Shift+Tab --
+    a card is a column, so up and down is the natural way through it), or
+    None to leave the key alone: any other key, and Up / Down while the
+    focused widget uses them itself. Left / Right stay GTK's (directional
+    focus, or the slider's own step)."""
+    if focus_takes_arrows:
+        return None
+    return {"Down": "next", "KP_Down": "next", "Up": "prev", "KP_Up": "prev"}.get(keyname)
+
+
+def gtk_children(widget):
+    """A widget's children for first_match: the visible ones of a container
+    (forall, so a button's own label counts as inside it), else none."""
+    if not isinstance(widget, Gtk.Container):
+        return []
+    found = []
+    widget.forall(found.append)
+    return [w for w in found if w.get_visible() and w.get_child_visible()]
+
+
+def actionable(widget):
+    """Can a key press act on this widget right now?"""
+    return (isinstance(widget, ACTIONABLE) and widget.get_visible()
+            and widget.is_sensitive() and widget.get_can_focus()
+            and widget.get_mapped())
+
+
+def _keyboard_one(widget):
+    """Every button reachable by the keyboard. Several panels switch focus
+    off on their tiles and chips so a CLICK would not leave a focus ring on
+    them; focus-on-click off keeps that, and Tab still reaches them."""
+    if getattr(widget, "_kb_ready", False):
+        return
+    widget._kb_ready = True
+    if not widget.get_can_focus():
+        widget.set_can_focus(True)
+        widget.set_focus_on_click(False)
+
+
+def keyboard_reach():
+    """_keyboard_one for every button this program ever maps (rows rebuilt
+    later included), hooked once like guard_wheel."""
+    global _KB_HOOKED
+    if _KB_HOOKED:
+        return
+    _KB_HOOKED = True
+    GObject.add_emission_hook(Gtk.Button, "map", lambda w, *_: (_keyboard_one(w), True)[1])
+
+
+_KB_HOOKED = False
+
+
 class ClickCatcher(Gtk.Window):
     """An invisible sheet over one monitor, under the panel: a click that lands
     on it missed the card, so the panel closes. Exclusive zone 0 keeps it out
@@ -189,6 +394,7 @@ class Panel(Gtk.Window):
         self.add(self.card)
 
         self.setup()
+        keyboard_reach()
         self.build()
         guard_wheel(self.card)
         self.place()
@@ -233,10 +439,43 @@ class Panel(Gtk.Window):
         self.hide()
         self.show()
 
+    # None: focus the first actionable widget when the card opens, unless
+    # the subclass has a keyboard model of its own (it overrides on_key, as
+    # the git card's row keys do) -- then it decides. True / False force it.
+    focus_first = None
+
     def on_key(self, _widget, event):
         if event.keyval == Gdk.KEY_Escape:
             self.quit()
             return True
+        if event.state & (Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.MOD1_MASK):
+            return False
+        move = arrow_move(Gdk.keyval_name(event.keyval) or "",
+                          isinstance(self.get_focus(), ARROW_TAKERS))
+        if move:
+            self.set_focus_visible(True)
+            self.child_focus(Gtk.DirectionType.TAB_FORWARD if move == "next"
+                             else Gtk.DirectionType.TAB_BACKWARD)
+            return True
+        return False
+
+    def wants_focus_first(self):
+        if self.focus_first is not None:
+            return self.focus_first
+        return type(self).on_key is Panel.on_key
+
+    def focus_first_actionable(self):
+        """On open: the focus on the first thing a key can act on, shown with
+        its ring, so Enter does what the eye lands on. A text box the panel
+        focused itself keeps it."""
+        if not self.wants_focus_first():
+            return False
+        if isinstance(self.get_focus(), TEXT_INPUTS):
+            return False
+        target = first_match(self.card, gtk_children, actionable)
+        if target is not None:
+            target.grab_focus()
+            self.set_focus_visible(True)
         return False
 
     # -- placement ----------------------------------------------------------
@@ -314,6 +553,8 @@ class Panel(Gtk.Window):
             return False                # remapping, not the first time up
         self.started = True
         self.on_ready()
+        # Idle: after on_ready's first fill, so rows it adds count too.
+        GLib.idle_add(self.focus_first_actionable)
         return False
 
 

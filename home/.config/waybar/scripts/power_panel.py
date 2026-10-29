@@ -32,6 +32,7 @@ notify-send -- for testing the panel on a live desktop without consequences.
 
 import getpass
 import os
+import shlex
 import socket
 import subprocess
 import sys
@@ -42,6 +43,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.expanduser("~/.config/hypr/scripts/notify")  # notify-send with the theme's mascot (mascot_notify.py)
 sys.path.insert(0, HERE)
 import panelui  # noqa: E402
 
@@ -76,7 +78,7 @@ ACTIONS = [
 # "not found" and exits 127) with the last lines of its output. Only the tail:
 # hyprlock logs a lot while the screen is locked.
 REPORT_FAILURE = (
-    'out=$("$@" 2>&1) || notify-send -u critical "Power panel" '
+    'out=$("$@" 2>&1) || ' + shlex.quote(NOTIFY) + ' -u critical "Power panel" '
     '"$1 failed: $(printf %s "$out" | tail -n 3)"'
 )
 
@@ -260,7 +262,7 @@ class Power(panelui.Panel):
         try:
             if DRYRUN:
                 print(f"power_panel: DRYRUN {key}: {' '.join(cmd)}", flush=True)
-                subprocess.Popen(["notify-send", "Power panel (dry run)",
+                subprocess.Popen([NOTIFY, "Power panel (dry run)",
                                   f"Would run: {' '.join(cmd)}"],
                                  start_new_session=True)
                 return
@@ -270,7 +272,7 @@ class Power(panelui.Panel):
         except OSError as exc:
             # sh missing is near impossible; still, say so rather than vanish.
             try:
-                subprocess.Popen(["notify-send", "-u", "critical", "Power panel",
+                subprocess.Popen([NOTIFY, "-u", "critical", "Power panel",
                                   f"{cmd[0]} failed: {exc}"], start_new_session=True)
             except OSError:
                 pass

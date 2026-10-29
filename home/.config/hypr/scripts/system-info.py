@@ -28,7 +28,8 @@ Sections, in report order:
                (algorithm, stored vs compressed)
     gpu        every NVIDIA GPU (nvidia-smi: VRAM, driver, CUDA, PCIe link,
                power, temperature, VBIOS), the kernel module, any other GPU
-               lspci sees, the Vulkan devices
+               lspci sees -- AMD and Intel with gpu.py's numbers (load, VRAM,
+               temperature, power, from sysfs) -- the Vulkan devices
     displays   every monitor Hyprland knows (also disabled ones): model,
                resolution, refresh rate, scale, rotation, HDR, colour depth,
                VRR, position, size and pixel density, the best mode it offers
@@ -686,8 +687,48 @@ def parse_vulkan_summary(text):
     return [d for d in out if d.get("deviceName")]
 
 
+def gpu_cards():
+    """gpu.py's cards (any maker; in-process: sysfs, NVML), [] if it fails."""
+    try:
+        sys.path.insert(0, HERE)
+        import gpu
+        return gpu.gpus()
+    except Exception:  # noqa: BLE001 -- the page shows what lspci says, as before
+        return []
+
+
+def card_for_bus(cards, bus):
+    """The gpu.py card on lspci's bus ("08:00.0"), or None."""
+    bus = (bus or "").lower()
+    return next((c for c in cards if short_bus(c.get("pci") or "") == bus), None)
+
+
+def gpu_numbers(card):
+    """A gpu.py card's numbers as one line for the page: "busy 7 %  ·  VRAM
+    in use 2161 of 24564 MiB  ·  43 °C  ·  12 W" -- what the card says, the
+    rest left out; an integrated card's memory is the RAM. "" for none."""
+    if not card:
+        return ""
+    parts = []
+    if card.get("util") is not None:
+        parts.append(f"busy {card['util']} %")
+    if card.get("vram_total") and card.get("discrete") is not False:
+        used = card.get("vram_used")
+        parts.append(f"VRAM in use {used} of {card['vram_total']} MiB" if used is not None
+                     else f"{card['vram_total']} MiB VRAM")
+    elif not card.get("discrete"):
+        # An AMD APU's vram_total is its small carve-out of the RAM: not VRAM.
+        parts.append("shares the RAM (integrated)")
+    if card.get("temp") is not None:
+        parts.append(f"{card['temp']} °C")
+    if card.get("power") is not None:
+        parts.append(f"{card['power']:.0f} W")
+    return "  ·  ".join(parts)
+
+
 def gather_gpu():
     rows, facts, nvidia_buses = [], {}, set()
+    cards = gpu_cards()
     if shutil.which("nvidia-smi"):
         gpus = parse_nvidia_csv(run("nvidia-smi", f"--query-gpu={','.join(NVIDIA_FIELDS)}",
                                     "--format=csv,noheader,nounits", timeout=10))
@@ -725,9 +766,13 @@ def gather_gpu():
             continue
         driver = os.path.basename(os.path.realpath(f"/sys/bus/pci/devices/0000:{dev['bus']}/driver")) \
             if os.path.exists(f"/sys/bus/pci/devices/0000:{dev['bus']}/driver") else ""
-        rows.append(make_row(dev["device"], short_vendor(dev["vendor"]), [
-            f"{dev['class']}  ·  bus {dev['bus']}" + (f"  ·  driver {driver}" if driver else "  ·  no driver bound")],
-            icon=ICON["gpu"]))
+        card = card_for_bus(cards, dev["bus"])
+        value = short_vendor(dev["vendor"])
+        if card and card.get("vram_total") and card.get("discrete"):
+            value = f"{card['vram_total'] / 1024:.0f} GB VRAM"
+        rows.append(make_row(dev["device"], value, [
+            f"{dev['class']}  ·  bus {dev['bus']}" + (f"  ·  driver {driver}" if driver else "  ·  no driver bound"),
+            gpu_numbers(card)], icon=ICON["gpu"]))
         facts.setdefault("gpu", dev["device"])
     if shutil.which("vulkaninfo"):
         devs = parse_vulkan_summary(run("vulkaninfo", "--summary", timeout=10))

@@ -1,0 +1,49 @@
+The orchard theme's face (~/.config/themes/orchard/ and orchard-dark/).
+
+Inter -- the UI face (theme.conf font=): the bar, the toolbox, the popup
+    panels, the launcher, wofi, mako, Nautilus, the LLM chat, mpv's OSD.
+    By Rasmus Andersson and the Inter Project Authors
+    (https://github.com/rsms/inter), version 4.1. A neo-grotesk drawn for
+    computer screens -- a tall x-height, open apertures, tabular figures on
+    "tnum" -- and the nearest open face to the system UI sans of the desktop
+    this theme is modelled on. That face itself (Apple's San Francisco) is
+    NOT used and never downloaded: its licence allows it only on Apple
+    hardware. Fedora's Adwaita Sans is GNOME's own fork of Inter and is
+    already installed, so every stack reads "Inter, Adwaita Sans, IBM Plex
+    Sans": if this folder ever goes missing the theme looks almost the same.
+    Variable: one wght axis, 100-900, so every weight the stylesheets ask
+    for (300 the search field, 400 body, 500 bar items, 600 headings, 700
+    the focused app's title) is an exact instance, and the Italic is its own
+    variable file.
+    Family name: the variable files are "Inter Variable", not "Inter" (the
+    name of the static cuts, Inter.ttc, which is not installed). The alias
+    in ~/.config/fontconfig/conf.d/60-inter-family.conf maps "Inter" onto
+    "Inter Variable" (fc-match "Inter" printed Noto Sans before it).
+    Files:  InterVariable.ttf  InterVariable-Italic.ttf
+    Source: https://github.com/rsms/inter/releases/tag/v4.1
+            https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip
+            (sha256 9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e)
+            the two .ttf files and LICENSE.txt taken from the zip's top
+            level, unmodified.
+
+Licence: SIL Open Font License 1.1 (OFL-1.1), LICENSE.txt here (copyright
+(c) 2016 The Inter Project Authors): free to use, bundle and redistribute,
+not to sell on its own; the licence travels with the files. No file was
+modified.
+
+The terminal face is NOT here: Adwaita Mono (Fedora's adwaita-mono-fonts,
+OFL; GNOME's build of Iosevka) is installed system-wide and has a Bold,
+which COSMIC Terminal needs (theme.py check confirms it).
+
+Installed by copying into this folder and
+    fc-cache -f ~/.local/share/fonts
+then checked with `fc-match Inter:semibold`: InterVariable.ttf "Inter
+Variable" "SemiBold". If it is missing: download the zip again from the URL
+above, check its sha256, copy the three files here and rerun fc-cache.
+
+Fetched 2026-10-27.
+
+sha256
+    4989b125924991b90d05b2d16e0e388c48f7d5bb8b30539bbf9c755278d0ccaf  InterVariable.ttf
+    d6f1f6a172d9e588438db9f986fd5cfad7b30f644374080a8a9d4d91e344586f  InterVariable-Italic.ttf
+    262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a  LICENSE.txt

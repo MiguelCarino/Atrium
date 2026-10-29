@@ -12,7 +12,11 @@ and as a complete fallback if mpris.so ever fails to load.
 
 Modes:
     player.py watch               continuous JSON for the bar pill: one line per
-                                  change, driven by `playerctl --follow`
+                                  change, driven by `playerctl --follow`. The
+                                  pill hides while the dynamic island carries
+                                  the media (island.py: a mini thumbnail in the
+                                  notch that grows into the full island on
+                                  hover)
     player.py status              the same line, once, for a polled module
     player.py toggle|next|prev    playback control
     player.py seek <seconds>      jump to an absolute position
@@ -21,8 +25,8 @@ Modes:
     player.py select <instance>   follow that one (the panel's source buttons)
 
 The pill is short on purpose: an icon and "Playing" or "Paused", plus "2/3"
-when more than one player is up. The title is in its tooltip and in the
-preview panel, where there is room for it. With several players, the one
+when more than one player is up. The title is in the preview panel, where
+there is room for it (the pill has no tooltip). With several players, the one
 followed is the one you last switched to (SELECTED) while it is still there;
 otherwise a playing one, preferring a real video player (mpv, vlc) over a
 browser tab. Controls always go to the followed player's own MPRIS instance
@@ -43,7 +47,7 @@ import json
 import os
 import re
 import shutil
-import select
+import select as select_io   # "select" is also this file's own command (def select)
 import signal
 import socket
 import subprocess
@@ -56,6 +60,14 @@ CACHE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "waybar-player")
 THUMB = os.path.join(CACHE, "thumb.jpg")
 STATE_CACHE = os.path.join(CACHE, "state.json")
 SELECTED = os.path.join(CACHE, "selected")     # instance last switched to
+# While the dynamic island carries the media (island.py tucked(): on, its look
+# on the bar's centre, media on, and running), the pill here hides. island.py
+# sends SIGUSR1 to this watcher when that changes, so it re-decides at once.
+ISLAND_SOCK = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}",
+                           "island.sock")
+ISLAND_SETTINGS = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
+                               "hypr", "island.json")
+ISLAND_LOOKS = ("notch", "island", "glass", "outline")   # island.py BAR_LOOKS
 # The panel asks for state on its own clock while the bar pill polls on waybar's,
 # and both land on playerctl. One shared answer per tick is plenty.
 STATE_TTL = 0.8
@@ -423,9 +435,27 @@ def escape(text):
 _UNSET = object()
 
 
+def media_in_island():
+    """True while the island carries the media (island.py tucked(), and
+    its daemon is up: its socket exists only while it runs)."""
+    if not os.path.exists(ISLAND_SOCK):
+        return False
+    try:
+        with open(ISLAND_SETTINGS) as fh:
+            conf = json.load(fh)
+    except (OSError, ValueError):
+        return False
+    return bool(isinstance(conf, dict) and conf.get("enabled") and conf.get("match_bar", True)
+                and conf.get("style", "notch") in ISLAND_LOOKS and conf.get("media", True))
+
+
 def emit_status(state=_UNSET):
     # A sentinel, not None: None is a real answer ("no player"), and treating
     # it as "not given" made every idle publish query the players twice.
+    if media_in_island():
+        # The island shows it: an empty text hides the module.
+        print(json.dumps({"text": "", "tooltip": "", "class": "elsewhere"}), flush=True)
+        return
     if state is _UNSET:
         state = current()
     if not state:
@@ -443,31 +473,17 @@ def emit_status(state=_UNSET):
         index = names.index(state["player"]) + 1 if state["player"] in names else 1
         which = f" {index}/{len(players)}"
 
-    tooltip = [f"<b>{escape(title)}</b>"]
-    if state["artist"]:
-        tooltip.append(escape(state["artist"]))
-    tooltip.append(
-        f"{state['source']} · {'paused' if state['paused'] else 'playing'}")
-    if state["duration"]:
-        tooltip.append(f"{hms(state['position'])} / {hms(state['duration'])}")
-    if len(players) > 1:
-        tooltip.append("")
-        for p in players:
-            mark = "\u25b6" if p["player"] == state["player"] else "\u00a0\u00a0"
-            tooltip.append(f"{mark} {escape(p['source'])}: {escape(ellipsize(p['title'], 40))}"
-                           f"{' (paused)' if p['paused'] else ''}")
-    tooltip.append("\n<i>click for the preview panel · middle: play/pause · "
-                   "right: next" + (" · scroll: switch source" if len(players) > 1 else "")
-                   + "</i>")
-
+    # No tooltip: custom/player has "tooltip": false (the preview panel is
+    # the long form), and building one forced a full playerctl re-query every
+    # 5 s just to move its position clock.
     classes = ["paused" if state["paused"] else "playing"]
     if state["is_video"]:
         classes.append("video")
     classes.append(state["source"] or "unknown")
 
+    text = f"{icon} {'Paused' if state['paused'] else 'Playing'}{which}"
     print(json.dumps({
-        "text": f"{icon} {'Paused' if state['paused'] else 'Playing'}{which}",
-        "tooltip": "\n".join(tooltip),
+        "text": text,
         "class": classes,
         "alt": state["source"],
     }), flush=True)
@@ -587,8 +603,8 @@ def cached_art(url, dest):
 # watch — the pill, event-driven
 # --------------------------------------------------------------------------
 EMIT_LOCK = threading.Lock()
-HEARTBEAT = 5.0         # s: while something is PLAYING (the tooltip clock moves)
-IDLE_HEARTBEAT = 60.0   # s: paused or nothing playing -- a safety re-check only
+HEARTBEAT = 60.0        # s: a safety re-check only; playerctl --follow reports changes
+IDLE_HEARTBEAT = 60.0   # s: the same, paused or with nothing playing
 DEBOUNCE = 0.12
 
 _playing = False                # what the last publish saw
@@ -611,12 +627,10 @@ def publish():
 
 
 def heartbeat():
-    """Nothing announces the passage of time, so while a track PLAYS the
-    tooltip's clock would sit at whatever it said when it last changed; this
-    refreshes it. Paused, or with no player at all, nothing moves, and
-    playerctl --follow reports any change -- so then it only re-checks once a
-    minute (it used to run playerctl every 5 s even with no players). A
-    publish that flips playing/paused wakes it to switch pace at once."""
+    """A safety re-check once a minute: playerctl --follow reports every
+    change. It used to re-run every 5 s while a track played, only to move
+    the position clock of a tooltip the module has switched off. (The
+    pacing by playing/paused is kept so the two can differ again.)"""
     while True:
         if _wake.wait(HEARTBEAT if _playing else IDLE_HEARTBEAT):
             _wake.clear()
@@ -632,13 +646,13 @@ def follow(proc):
     buffered reader can hold lines select() cannot see."""
     fd = proc.stdout.fileno()
     while True:
-        ready, _, _ = select.select([fd], [], [])
+        ready, _, _ = select_io.select([fd], [], [])
         if not ready:
             continue
         if not os.read(fd, 65536):
             return              # playerctl exited
         # Keep swallowing until the stream has been quiet for DEBOUNCE.
-        while select.select([fd], [], [], DEBOUNCE)[0]:
+        while select_io.select([fd], [], [], DEBOUNCE)[0]:
             if not os.read(fd, 65536):
                 drop_cache()
                 publish()

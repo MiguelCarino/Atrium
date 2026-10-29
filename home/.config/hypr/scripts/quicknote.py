@@ -35,7 +35,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import launcher  # noqa: E402  (close_running, focused_monitor, load_css, on_sigterm)
 
-INBOX = os.path.expanduser("~/Documents/Notes/inbox.md")
+INBOX = os.path.expanduser(os.environ.get("MEMO_INBOX", "~/Documents/Notes/inbox.md"))  # = memo.py / Settings > Notes
 PID_FILE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "quicknote.pid")
 RECENT = 3
 WIDTH = 720
@@ -77,8 +77,8 @@ class Note(Gtk.Window):
             self.set_visual(visual)
 
         GtkLayerShell.init_for_window(self)
-        # "launcher": the wofi-glass layer rule (pop-in, blur, dim behind) in
-        # lua/rules.lua matches this namespace.
+        # "launcher": lua/rules.lua's wofi-glass layer rule (blur, dim
+        # behind) and lua/display.lua's anim-launcher (the pop-in) match it.
         GtkLayerShell.set_namespace(self, "launcher")
         GtkLayerShell.set_layer(self, GtkLayerShell.Layer.OVERLAY)
         GtkLayerShell.set_keyboard_mode(self, GtkLayerShell.KeyboardMode.EXCLUSIVE)

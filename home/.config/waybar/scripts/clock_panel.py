@@ -13,6 +13,12 @@ comes up under them -- what rings, Snooze and Stop, the same as the
 notification's buttons (timers.py snooze / stop ID) -- and goes once it is
 answered, from here or from the notification.
 
+Under them NEXT: the next three calendar events (calendar_events.py: the
+ICS files and subscriptions in ~/.config/hypr/calendars.conf, Evolution's
+and khal's calendars), "today 16:00  Dentist" -- read in a thread once the
+card is up, looked at again each minute, and not shown at all when there is
+nothing coming (or no calendar).
+
 Below, four tabs (the last one used is reopened, in clock-panel.json):
 
   World      a row per time zone you added: the city, its time, how far it is
@@ -63,6 +69,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, time as dtime, timedelta, timezone
 
@@ -87,6 +94,7 @@ import panelui  # noqa: E402
 
 HYPR = os.path.expanduser("~/.config/hypr/scripts")
 sys.path.insert(0, HYPR)
+import desk_common  # noqa: E402  (atomic_write_json)
 try:
     import timers           # the state file and its helpers (no GTK)
 except ImportError:
@@ -95,6 +103,10 @@ try:
     import workhours        # your working hours, for the meeting planner (no GTK)
 except ImportError:
     workhours = None
+try:
+    import calendar_events  # the next events (no GTK)
+except ImportError:
+    calendar_events = None
 TIMERS = os.path.join(HYPR, "timers.py")
 
 STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hypr")
@@ -111,6 +123,8 @@ REPEAT_DAYS = {"": (), "daily": tuple(range(7)), "weekdays": tuple(range(5)), "w
 DEFAULT_WORK = (9.0, 17.0)  # the planner's working hours, either side, without workhours.conf
 WIDTH = 420
 TICK_MS = 250
+UPCOMING_N = 3              # calendar events under the readings
+UPCOMING_DAYS = 60          # how far ahead they are looked for
 
 # Font Awesome 6 (copy, check, xmark, thumbtack, pause, play, pen, bell, bell-slash)
 ICON_COPY, ICON_DONE, ICON_X = "", "", ""
@@ -128,11 +142,7 @@ def read_json(path, default):
 
 
 def write_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w") as handle:
-        json.dump(data, handle)
-    os.replace(tmp, path)
+    desk_common.atomic_write_json(path, data)
 
 
 def load_zones():
@@ -219,6 +229,18 @@ def repeat_choice(t):
         return ""
     days = tuple(sorted(t.get("days") or ()))
     return next((k for k, v in REPEAT_DAYS.items() if v and v == days), None)
+
+
+def upcoming_rows(occs, now, n=UPCOMING_N, twelve=False):
+    """[(when, title)] for the NEXT rows: the next n occurrences still to
+    come at `now` (calendar_events' dicts), the place after the title."""
+    if calendar_events is None:
+        return []
+    rows = []
+    for o in calendar_events.upcoming(occs, now, n):
+        title = o["summary"] + (f"  ·  {o['location'].splitlines()[0]}" if o.get("location") else "")
+        rows.append((calendar_events.when_text(o, now, twelve), title))
+    return rows
 
 
 def utc_offset(delta):
@@ -410,6 +432,14 @@ class ClockPanel(panelui.Panel):
         self.utc_value = self.readout(top, "UTC", lambda: self.utc_text(full=True))
         self.epoch_value = self.readout(top, "EPOCH", lambda: str(int(time.time())))
         self.card.pack_start(top, False, False, 0)
+
+        # The next calendar events: hidden until there are some.
+        self.next_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.next_box.get_style_context().add_class("clk-next")
+        self.next_box.set_no_show_all(True)
+        self.card.pack_start(self.next_box, False, False, 0)
+        self.next_occs = []
+        self.next_sig = None
 
         # The ringing row: hidden until something rings (tick_ringing).
         self.ring_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
@@ -1149,11 +1179,64 @@ class ClockPanel(panelui.Panel):
                 return True
         return super().on_key(widget, event)
 
+    # the next calendar events ---------------------------------------------------
+    def load_upcoming(self):
+        """The events from now on, in a thread (Evolution can take a second
+        or two); draw_upcoming on the GTK side."""
+        if calendar_events is None:
+            return
+
+        def work():
+            try:
+                now = datetime.now().astimezone()
+                occs = calendar_events.occurrences(calendar_events.load_events(), now - timedelta(days=1),
+                                                   now + timedelta(days=UPCOMING_DAYS))
+            except Exception as exc:  # noqa: BLE001  (a calendar the parser trips on)
+                print(f"clock_panel: calendar: {exc}", file=sys.stderr)
+                occs = []
+            GLib.idle_add(self.got_upcoming, occs)
+        threading.Thread(target=work, daemon=True).start()
+
+    def got_upcoming(self, occs):
+        self.next_occs = occs
+        self.draw_upcoming()
+        return False
+
+    def draw_upcoming(self):
+        """The NEXT rows from the events read (each minute: "today" turns
+        into "now", a past one drops off)."""
+        twelve = (clock.prefs() or {}).get("clock") == "12"
+        rows = upcoming_rows(self.next_occs, datetime.now().astimezone(), twelve=twelve)
+        if rows == self.next_sig:
+            return True
+        self.next_sig = rows
+        self.clear(self.next_box)
+        if rows:
+            self.section("NEXT", self.next_box)
+        for when, title in rows:
+            row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            row.get_style_context().add_class("clk-row")
+            w = Gtk.Label(label=when, xalign=0)
+            w.get_style_context().add_class("sn-label")
+            w.set_width_chars(16)
+            t = Gtk.Label(label=title, xalign=0)
+            t.get_style_context().add_class("sn-value")
+            t.set_ellipsize(3)
+            row.pack_start(w, False, False, 0)
+            row.pack_start(t, True, True, 0)
+            self.next_box.pack_start(row, False, False, 0)
+        for child in self.next_box.get_children():
+            child.show_all()
+        self.next_box.set_visible(bool(rows))
+        return True
+
     def on_ready(self):
         # Again now that the pages are shown: a Gtk.Stack ignores a switch to
         # a child that is not visible yet, so build()'s one did nothing.
         self.stack.set_visible_child_name(self.tab)
         GLib.timeout_add(TICK_MS, self.tick)
+        self.load_upcoming()
+        GLib.timeout_add_seconds(60, self.draw_upcoming)
 
 
 def main():

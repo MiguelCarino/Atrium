@@ -5,7 +5,8 @@
 --   desktop theme      ~/.config/themes/<name>/theme.conf: border colours,
 --                      rounding, gaps, border size, blur, shadow, and the
 --                      theme's own window/layer rules (hypr.lua)
---   animation preset   snappy / smooth / fancy / calm
+--   animation preset   snappy / smooth / fancy / calm / spring, plus the
+--                      layer animations and portrait-screen workspace slides
 --   screen filter      a GLSL screen shader from ~/.config/hypr/shaders/
 --   accent             the focused-window border, from the wallpaper
 --   your window look   hyprlook.* overrides of the theme's look (gaps,
@@ -29,79 +30,178 @@ local S = require("lua.shared")
 local M = {}
 
 -- ========================= Animations =========================
--- "smooth" is the set that used to sit in lua/settings.lua, unchanged. Its
--- reasoning still holds and still applies to the others:
+-- The reasoning behind every preset:
 --
 -- Hyprland's stock global speed is 10, and speed is in deciseconds, so the
--- default for anything not overridden was a full second. On a 180 Hz panel
--- that reads as the desktop waiting for you. The target is "present but never
--- in the way": nothing a keypress causes takes more than ~0.35 s, and things
--- leaving are faster than things arriving, because you already know where a
--- closed window went.
+-- default for anything not overridden was a full second. On a 144-180 Hz
+-- panel that reads as the desktop waiting for you. The target is "present but
+-- never in the way": nothing a keypress causes takes more than 0.4 s (0.3 s
+-- in the default), and things leaving are faster than things arriving,
+-- because you already know where a closed window went.
 --
--- easeOutQuint does nearly all the work: it covers most of the distance in
--- the first third of the time, so a 0.3 s animation feels finished at ~0.1 s
--- and the rest is settling. That is what makes short durations look smooth
--- rather than abrupt.
+-- The curves do most of the work. A decelerating curve (easeOutQuint,
+-- easeOutExpo, emphasized) covers most of the distance in the first third of
+-- the time, so a 0.3 s animation feels finished at ~0.1 s and the rest is
+-- settling -- that is what makes short durations look smooth rather than
+-- abrupt. Things leaving use an ACCELERATING curve (exitAccel): they start
+-- gently and are gone quickly, instead of decelerating into nothing, which
+-- is what made a closing window look like it hesitated.
 --
--- The other presets:
+-- The presets (scripts/display.py anim <preset>|cycle, Settings > Screens):
+--   smooth  the default and the reference: ~0.3 s arrivals on emphasized /
+--           easeOutQuint, ~0.15 s exits on exitAccel, a short slide-and-fade
+--           between workspaces.
 --   snappy  about 60% of smooth's durations, smaller pop-in. For working fast.
---   fancy   longer, with a slight overshoot on windows arriving and a wider
---           workspace slide. For showing the desktop off.
+--   fancy   a little longer, with a short springy overshoot (softBack, ~4%
+--           and one settle, never a wobble) on windows and layers arriving,
+--           and a full workspace slide. Still under 0.4 s everywhere: it used
+--           to run windows at 0.45 s and everything else at 0.6 s.
 --   calm    no movement at all, only fades: windows and workspaces cross-fade
---           in place. For when motion is distracting.
+--           in place, layers (bar panels, launcher, notifications, the
+--           island) fade instead of sliding or popping. The reduced-motion
+--           preset: Settings > Accessibility > Reduce motion picks it.
+--   spring  macOS-like (orchard's): windows pop in from 92% on a curve that
+--           overshoots by ~3% and settles, leave faster on an ease-in
+--           (macExit), and workspaces glide as one sheet (spaceSlide, a full
+--           slide with no fade) -- bouncy, but never wobbly.
+--
+-- Every preset sets EVERY leaf in LEAVES below, the children included
+-- (fadeIn, fadeLayersOut, ...): a child set by one preset keeps that value
+-- when a later preset only sets its parent -- Hyprland only passes a parent
+-- down to children nobody set -- so switching snappy -> calm at runtime
+-- would otherwise keep snappy's fades. A leaf a preset leaves out takes its
+-- parent's values (the same inheritance Hyprland uses), so the tables only
+-- list what differs.
 --
 -- None of them sets animations.enabled = false: that is gamemode's switch,
 -- and lua/gamemode.lua reads it to tell whether gamemode is on.
 -- ALT+SHIFT+G still turns everything off in one press, whatever the preset.
-hl.curve("easeOutQuint", { type = "bezier", points = { {0.23, 1},   {0.32, 1}    } })
-hl.curve("linear",       { type = "bezier", points = { {0, 0},      {1, 1}       } })
-hl.curve("quick",        { type = "bezier", points = { {0.15, 0},   {0.1, 1}     } })
-hl.curve("overshot",     { type = "bezier", points = { {0.05, 0.9}, {0.1, 1.08}  } })
-hl.curve("easeInOut",    { type = "bezier", points = { {0.65, 0},   {0.35, 1}    } })
+hl.curve("easeOutQuint", { type = "bezier", points = { {0.23, 1},    {0.32, 1}    } })
+hl.curve("linear",       { type = "bezier", points = { {0, 0},       {1, 1}       } })
+hl.curve("quick",        { type = "bezier", points = { {0.15, 0},    {0.1, 1}     } })
+hl.curve("overshot",     { type = "bezier", points = { {0.05, 0.9},  {0.1, 1.08}  } })
+hl.curve("easeInOut",    { type = "bezier", points = { {0.65, 0},    {0.35, 1}    } })
+-- easeOutExpo: even more front-loaded than quint -- most of a workspace slide
+-- is done in the first frames, the rest is a soft landing.
+hl.curve("easeOutExpo",  { type = "bezier", points = { {0.16, 1},    {0.30, 1}    } })
+-- Material 3's pair: emphasized (decelerate) for things arriving,
+-- exitAccel (its emphasized-accelerate) for things leaving.
+hl.curve("emphasized",   { type = "bezier", points = { {0.05, 0.7},  {0.10, 1}    } })
+hl.curve("exitAccel",    { type = "bezier", points = { {0.30, 0},    {0.80, 0.15} } })
+-- softBack: easeOutBack with the overshoot cut to ~4% -- a pop-in that
+-- lands, rather than one that bounces.
+hl.curve("softBack",     { type = "bezier", points = { {0.34, 1.25}, {0.64, 1}    } })
+-- spring's: a bezier whose first handle rises past 1 (1.12) overshoots by
+-- about 3% and settles back -- the springy arrival without a second bounce;
+-- macEase is the gentle ease-out the system uses for everything else,
+-- macExit an ease-in (things leaving speed up as they go), spaceSlide a
+-- quick start that coasts in, like swiping between full-screen spaces.
+hl.curve("spring",       { type = "bezier", points = { {0.20, 1.12}, {0.30, 1.00} } })
+hl.curve("macEase",      { type = "bezier", points = { {0.25, 0.10}, {0.25, 1.00} } })
+hl.curve("macExit",      { type = "bezier", points = { {0.40, 0.00}, {1.00, 1.00} } })
+hl.curve("spaceSlide",   { type = "bezier", points = { {0.32, 0.72}, {0.00, 1.00} } })
+
+-- Hyprland's animation tree, parents before children: { leaf, parent }.
+-- workspacesIn/Out and specialWorkspaceIn/Out are left out on purpose:
+-- nothing needs them apart from their parent, and lua/ambient.lua calms the
+-- desktop by setting the parents only.
+local LEAVES = {
+    { "global" },
+    { "windows",          "global" },
+    { "windowsIn",        "windows" },
+    { "windowsOut",       "windows" },
+    { "windowsMove",      "windows" },
+    { "layers",           "global" },
+    { "layersIn",         "layers" },
+    { "layersOut",        "layers" },
+    { "fade",             "global" },
+    { "fadeIn",           "fade" },
+    { "fadeOut",          "fade" },
+    { "fadeSwitch",       "fade" },
+    { "fadeShadow",       "fade" },
+    { "fadeDim",          "fade" },
+    { "fadeLayers",       "fade" },
+    { "fadeLayersIn",     "fadeLayers" },
+    { "fadeLayersOut",    "fadeLayers" },
+    { "fadePopups",       "fade" },
+    { "fadePopupsIn",     "fadePopups" },
+    { "fadePopupsOut",    "fadePopups" },
+    { "fadeDpms",         "fade" },
+    { "border",           "global" },
+    { "workspaces",       "global" },
+    { "specialWorkspace", "workspaces" },
+    { "zoomFactor",       "global" },
+    { "monitorAdded",     "global" },
+}
+M.leaves = LEAVES
 
 --          leaf               speed (ds)  curve           style
 local PRESETS = {
     smooth = {
-        { "global",           4,   "easeOutQuint" },
-        { "border",           4,   "easeOutQuint" },
-        { "windowsIn",        3,   "easeOutQuint", "popin 90%" },
-        { "windowsOut",       1.8, "linear",       "popin 90%" },
-        { "windowsMove",      3,   "easeOutQuint" },
-        { "fade",             2.5, "quick" },
-        { "layersIn",         2.5, "easeOutQuint", "fade" },
-        { "layersOut",        1.5, "linear",       "fade" },
+        { "global",           3,   "easeOutQuint" },
+        { "border",           3,   "easeOutQuint" },
+        { "windowsIn",        3,   "emphasized",   "popin 90%" },
+        { "windowsOut",       1.6, "exitAccel",    "popin 92%" },
+        { "windowsMove",      2.8, "easeOutQuint" },
+        -- Layers (the bar's panels, the launcher, notifications, the island)
+        -- get their own style from the layer rules further down; this is
+        -- their timing, and the style of any other layer surface.
+        { "layersIn",         2.2, "easeOutExpo",  "fade" },
+        { "layersOut",        1.4, "exitAccel",    "fade" },
+        { "fade",             2.2, "easeOutQuint" },
+        { "fadeOut",          1.5, "exitAccel" },
+        { "fadeSwitch",       2.4, "easeOutQuint" },
+        { "fadeDim",          2.6, "easeOutQuint" },
+        { "fadeLayersIn",     2,   "easeOutQuint" },
+        { "fadeLayersOut",    1.3, "exitAccel" },
+        { "fadePopupsIn",     1.4, "easeOutQuint" },
+        { "fadePopupsOut",    1,   "exitAccel" },
+        { "fadeDpms",         3,   "easeInOut" },
         -- Workspaces slide rather than fade so you can tell which way you
         -- went: e+1 / e-1 (ALT+wheel) and SUPER+Tab get a direction, not just
-        -- a cut.
-        { "workspaces",       3,   "easeOutQuint", "slidefade 15%" },
+        -- a cut. On a portrait screen they slide vertically (see "Portrait
+        -- screens" below).
+        { "workspaces",       3,   "easeOutQuint", "slidefade 20%" },
         -- Scratchpads (ALT+grave, SUPER+Return, SUPER+A) drop in vertically,
         -- so an overlay never looks like a workspace switch.
-        { "specialWorkspace", 3,   "easeOutQuint", "slidefadevert 15%" },
+        { "specialWorkspace", 2.8, "easeOutQuint", "slidefadevert 15%" },
     },
     snappy = {
-        { "global",           2.5, "easeOutQuint" },
-        { "border",           2.5, "easeOutQuint" },
-        { "windowsIn",        1.8, "easeOutQuint", "popin 95%" },
-        { "windowsOut",       1.1, "linear",       "popin 95%" },
+        { "global",           2,   "easeOutQuint" },
+        { "border",           2,   "easeOutQuint" },
+        { "windowsIn",        1.8, "easeOutExpo",  "popin 95%" },
+        { "windowsOut",       1.1, "exitAccel",    "popin 96%" },
         { "windowsMove",      1.8, "easeOutQuint" },
+        { "layersIn",         1.5, "easeOutExpo",  "fade" },
+        { "layersOut",        1,   "exitAccel",    "fade" },
         { "fade",             1.5, "quick" },
-        { "layersIn",         1.5, "easeOutQuint", "fade" },
-        { "layersOut",        1,   "linear",       "fade" },
-        { "workspaces",       1.8, "easeOutQuint", "slidefade 10%" },
-        { "specialWorkspace", 1.8, "easeOutQuint", "slidefadevert 10%" },
+        { "fadeOut",          1,   "exitAccel" },
+        { "fadeLayersIn",     1.3, "quick" },
+        { "fadeLayersOut",    0.9, "exitAccel" },
+        { "fadePopupsIn",     1,   "quick" },
+        { "fadePopupsOut",    0.8, "exitAccel" },
+        { "fadeDpms",         2,   "easeInOut" },
+        { "workspaces",       1.8, "easeOutExpo",  "slidefade 10%" },
+        { "specialWorkspace", 1.8, "easeOutExpo",  "slidefadevert 10%" },
     },
     fancy = {
-        { "global",           6,   "easeOutQuint" },
-        { "border",           6,   "easeOutQuint" },
-        { "windowsIn",        4.5, "overshot",     "popin 75%" },
-        { "windowsOut",       2.5, "easeInOut",    "popin 80%" },
-        { "windowsMove",      4.5, "overshot" },
-        { "fade",             3.5, "quick" },
-        { "layersIn",         3.5, "overshot",     "popin 85%" },
-        { "layersOut",        2,   "linear",       "fade" },
-        { "workspaces",       4.5, "easeOutQuint", "slidefade 30%" },
-        { "specialWorkspace", 4.5, "overshot",     "slidefadevert 25%" },
+        { "global",           4,   "easeOutQuint" },
+        { "border",           4,   "easeOutQuint" },
+        { "windowsIn",        3.8, "softBack",     "popin 85%" },
+        { "windowsOut",       2,   "exitAccel",    "popin 88%" },
+        { "windowsMove",      3.5, "softBack" },
+        { "layersIn",         3,   "softBack",     "popin 90%" },
+        { "layersOut",        1.6, "exitAccel",    "fade" },
+        { "fade",             2.8, "easeOutQuint" },
+        { "fadeOut",          1.8, "exitAccel" },
+        { "fadeDim",          3,   "easeOutQuint" },
+        { "fadeLayersIn",     2.4, "easeOutQuint" },
+        { "fadeLayersOut",    1.5, "exitAccel" },
+        { "fadePopupsIn",     1.6, "easeOutQuint" },
+        { "fadePopupsOut",    1.1, "exitAccel" },
+        { "fadeDpms",         3.5, "easeInOut" },
+        { "workspaces",       3.8, "easeOutExpo",  "slide" },
+        { "specialWorkspace", 3.5, "softBack",     "slidefadevert 20%" },
     },
     calm = {
         { "global",           3,   "easeInOut" },
@@ -109,21 +209,200 @@ local PRESETS = {
         { "windowsIn",        2.5, "easeInOut",    "popin 100%" },
         { "windowsOut",       2,   "easeInOut",    "popin 100%" },
         { "windowsMove",      0.1, "linear" },
-        { "fade",             2.5, "easeInOut" },
         { "layersIn",         2.5, "easeInOut",    "fade" },
         { "layersOut",        2,   "easeInOut",    "fade" },
+        { "fade",             2.5, "easeInOut" },
+        { "fadeOut",          2,   "easeInOut" },
         { "workspaces",       3,   "easeInOut",    "fade" },
         { "specialWorkspace", 3,   "easeInOut",    "fade" },
+        -- The magnifier jumps rather than glides: a zoom is motion too.
+        { "zoomFactor",       0.1, "linear" },
+    },
+    spring = {
+        { "global",           4,   "macEase" },
+        { "border",           3,   "macEase" },
+        { "windowsIn",        3,   "spring",       "popin 92%" },
+        { "windowsOut",       1.5, "macExit",      "popin 94%" },
+        { "windowsMove",      3.5, "spring" },
+        { "layersIn",         2.5, "spring",       "popin 96%" },
+        { "layersOut",        1.5, "macExit",      "fade" },
+        { "fade",             2.5, "macEase" },
+        { "fadeOut",          1.5, "macExit" },
+        { "fadeLayersOut",    1.4, "macExit" },
+        { "fadePopupsOut",    1,   "macExit" },
+        { "workspaces",       4,   "spaceSlide",   "slide" },
+        { "specialWorkspace", 3.5, "spring",       "slidefadevert 10%" },
     },
 }
-M.presets = { "snappy", "smooth", "fancy", "calm" }
+-- scripts/theme.py PRESETS and scripts/display.py PRESETS list the same
+-- names (tests/test_theme_island.py keeps the three equal).
+M.presets = { "snappy", "smooth", "fancy", "calm", "spring" }
+-- The presets in which nothing moves, only fades: the layer rules below
+-- switch every layer to a fade while one of these is on.
+local STILL = { calm = true }
 
-local function apply_animations(name)
-    for _, a in ipairs(PRESETS[name] or PRESETS.smooth) do
+-- A list in the PRESETS shape -> one { leaf, speed, curve, style } per leaf
+-- of LEAVES, in tree order, a missing leaf taking its parent's values.
+-- Public so lua/ambient.lua (or anything else that sets animations at
+-- runtime) can lay down a complete set the same way.
+function M.expand(list)
+    local own, out, resolved = {}, {}, {}
+    for _, a in ipairs(list) do own[a[1]] = a end
+    for _, node in ipairs(LEAVES) do
+        local leaf, parent = node[1], node[2]
+        local a = own[leaf]
+        local spec
+        if a then
+            spec = { leaf, a[2], a[3], a[4] }
+        elseif parent and resolved[parent] then
+            local p = resolved[parent]
+            spec = { leaf, p[2], p[3], p[4] }
+        else
+            spec = { leaf, 10, "default" }      -- Hyprland's own global
+        end
+        resolved[leaf] = spec
+        out[#out + 1] = spec
+    end
+    return out
+end
+
+function M.preset(name)
+    return PRESETS[name] and name or "smooth"
+end
+
+function M.animate(list)
+    for _, a in ipairs(M.expand(list)) do
         local spec = { leaf = a[1], enabled = true, speed = a[2], bezier = a[3] }
         if a[4] then spec.style = a[4] end
         hl.animation(spec)
     end
+end
+
+-- ---- Layers: the bar, its panels, the launcher, notifications ----
+-- Declared here, after every rule in lua/rules.lua, so they win a tie with
+-- the island-slide rule there (wofi-glass only frosts and dims, it sets no
+-- animation any more); created once per Lua state
+-- and only switched with set_enabled, like the theme rules below.
+--
+--   panels         the bar's cards (waybar-panel, scripts/panelui.py):
+--                  a short pop-in from 95% with the fade -- a card appearing
+--                  under the pill you clicked, not a sheet sliding over the
+--                  bar from the screen's edge
+--   launcher       a smaller pop than rules.lua's 80%: 92% reads as the card
+--                  arriving, 80% as it growing
+--   notifications  mako sits in the top-right corner: it slides in from the
+--                  right edge and back out
+--   the island     keeps rules.lua's slide from the top edge
+--   panel-dismiss  the invisible click-catcher under a panel: never animated
+--                  (fading a transparent sheet is GPU time for nothing)
+--
+-- In a STILL preset (calm) every one of them, the island included, fades
+-- in place instead -- reduce motion means nothing slides or pops.
+--
+-- xray: the bar sits in its own reserved strip, where nothing but the
+-- wallpaper is ever behind it, so it can blur the wallpaper alone -- which
+-- Hyprland renders once and caches -- instead of re-blurring the live scene
+-- under it every frame something below changes. It looks the same (the only
+-- difference: a floating window dragged under the bar is not frosted into
+-- it). The island is NOT on it: expanded (a notification, a track, a timer)
+-- it hangs well below the strip over windows, where xray would frost the
+-- wallpaper instead of the window under it -- a hole in the desktop. The
+-- panels, the toolbox, the launcher and mako float over windows too, so
+-- they keep the real blur.
+local LAYER_RULES = {
+    { name = "anim-bar-xray",       always = true,
+      match = { namespace = "^(waybar-main)$" }, xray = true },
+    { name = "anim-panel-dismiss",  always = true,
+      match = { namespace = "^(panel-dismiss)$" }, no_anim = true },
+    { name = "anim-panels",         motion = true,
+      match = { namespace = "^(waybar-panel)$" }, animation = "popin 95%" },
+    { name = "anim-launcher",       motion = true,
+      match = { namespace = "^(wofi|launcher)$" }, animation = "popin 92%" },
+    { name = "anim-notifications",  motion = true,
+      match = { namespace = "^(notifications)$" }, animation = "slide right" },
+    { name = "anim-layers-still",   motion = false,
+      match = { namespace = "^(waybar-.*|wofi|launcher|notifications)$" }, animation = "fade" },
+}
+local layer_rules = {}      -- name -> HL rule
+
+-- name -> on, for a preset (pure: tests/test_animations.py).
+function M.layer_rules_for(name)
+    local still = STILL[M.preset(name)] == true
+    local on = {}
+    for _, r in ipairs(LAYER_RULES) do
+        if r.always then on[r.name] = true
+        else on[r.name] = (r.motion == not still) end
+    end
+    return on
+end
+
+local function apply_layer_rules(name)
+    local on = M.layer_rules_for(name)
+    for _, r in ipairs(LAYER_RULES) do         -- in order: the still rule last
+        if not layer_rules[r.name] then
+            local spec = { name = r.name, match = r.match }
+            for _, k in ipairs({ "xray", "no_anim", "animation" }) do spec[k] = r[k] end
+            layer_rules[r.name] = hl.layer_rule(spec)
+        end
+        layer_rules[r.name]:set_enabled(on[r.name] == true)
+    end
+end
+
+-- ---- Portrait screens ----
+-- A workspace switch slides sideways, which on a screen turned on its side
+-- moves the picture along its SHORT edge. A workspace rule for every rotated
+-- monitor (transform 1, 3, 5, 7: 90 / 270, flipped or not) gives its
+-- workspaces the vertical form of the preset's style instead -- slide ->
+-- slidevert, slidefade 20% -> slidefadevert 20%; a fade stays a fade, so
+-- calm stays still. Created once per (monitor, style) and switched with
+-- set_enabled; re-checked when a monitor comes, goes or is rotated.
+
+-- "slidefade 20%" -> "slidefadevert 20%" (pure: tests/test_animations.py).
+function M.vertical(style)
+    if not style or style == "" then return nil end
+    local word, rest = style:match("^(%S+)(.*)$")
+    if word == "slide" or word == "slidefade" then return word .. "vert" .. rest end
+    return style
+end
+
+function M.portrait(transform)
+    return type(transform) == "number" and transform % 2 == 1
+end
+
+local ws_rules = {}         -- "<monitor>|<style>" -> HL workspace rule
+local current_anim = "smooth"
+
+local function apply_orientation(name)
+    local style
+    for _, a in ipairs(PRESETS[M.preset(name)]) do
+        if a[1] == "workspaces" then style = a[4] end
+    end
+    local vert = M.vertical(style)
+    local wanted = {}
+    if vert then
+        for _, m in ipairs(hl.get_monitors and hl.get_monitors() or {}) do
+            if M.portrait(m.transform) and m.name then
+                local key = m.name .. "|" .. vert
+                wanted[key] = true
+                if not ws_rules[key] then
+                    ws_rules[key] = hl.workspace_rule({ workspace = "m[" .. m.name .. "]", animation = vert })
+                end
+            end
+        end
+    end
+    for key, rule in pairs(ws_rules) do rule:set_enabled(wanted[key] == true) end
+end
+
+local function apply_animations(name)
+    name = M.preset(name)
+    current_anim = name
+    M.animate(PRESETS[name])
+    apply_layer_rules(name)
+    apply_orientation(name)
+end
+
+for _, ev in ipairs({ "monitor.added", "monitor.removed", "monitor.layout_changed" }) do
+    hl.on(ev, function() apply_orientation(current_anim) end)
 end
 
 -- ========================= Screen filter =========================
@@ -135,6 +414,10 @@ end
 local SHADER_DIR = os.getenv("HOME") .. "/.config/hypr/shaders/"
 
 local function apply_filter(name)
+    -- Gamemode clears the shader (lua/gamemode.lua: a screen shader is a
+    -- full-screen pass every frame and rules out direct scanout); a filter
+    -- picked mid-game is written to the state and comes back with gamemode OFF.
+    if not hl.get_config("animations.enabled") then return end
     local current = hl.get_config("decoration.screen_shader") or ""
     local ours = current == "" or current:sub(1, #SHADER_DIR) == SHADER_DIR
     if not ours then return end
@@ -162,6 +445,9 @@ end
 --   hypr.blur=yes|no  hypr.blur_size  _passes  _brightness  _contrast
 --                     _vibrancy  _vibrancy_darkness  _noise
 --   hypr.shadow=yes|no  hypr.shadow_range  _render_power  _color
+--   hypr.shadow_color_inactive   "" = transparent (settings.lua's value), so
+--                       leaving a theme that set one really resets it
+--   hypr.shadow_offset  "x y" px ("0 0" = no offset; orchard: "0 14")
 -- A key that is missing everywhere leaves that option alone.
 --
 -- Gamemode: animations.enabled == false means gamemode is on (lua/gamemode.lua
@@ -218,7 +504,11 @@ local function apply_look(t)
         active_border   = gradient(t["hypr.active_border"]),
         inactive_border = gradient(t["hypr.inactive_border"]),
     } }
-    local decoration = { shadow = { color = t["hypr.shadow_color"] } }
+    -- The unfocused shadow: the theme's, else transparent -- never left at
+    -- the last theme's (an empty key would otherwise leave it alone).
+    local inactive = t["hypr.shadow_color_inactive"]
+    if inactive == nil or inactive == "" then inactive = "rgba(00000000)" end
+    local decoration = { shadow = { color = t["hypr.shadow_color"], color_inactive = inactive } }
     if not gamemode then
         general.gaps_in      = tonumber(t["hypr.gaps_in"])
         general.gaps_out     = tonumber(t["hypr.gaps_out"])
@@ -237,6 +527,9 @@ local function apply_look(t)
         decoration.shadow.enabled      = flag(t["hypr.shadow"])
         decoration.shadow.range        = tonumber(t["hypr.shadow_range"])
         decoration.shadow.render_power = tonumber(t["hypr.shadow_render_power"])
+        -- "x y" -> { x, y }, the vec2 shape lua/settings.lua sets it in.
+        local ox, oy = (t["hypr.shadow_offset"] or "0 0"):match("^%s*(%-?[%d%.]+)%s+(%-?[%d%.]+)%s*$")
+        decoration.shadow.offset = { tonumber(ox) or 0, tonumber(oy) or 0 }
     end
     hl.config({ general = general, decoration = decoration })
 end

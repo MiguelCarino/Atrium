@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+# notify-send with the mascot: every desktop script calls this instead
+# (mascot_notify.py explains). Same arguments and output as notify-send,
+# plus --mood calm|alert|relieved and --say TOPIC[|ARG...] in front.
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import mascot_notify  # noqa: E402
+
+mascot_notify.drop_in(sys.argv[1:])

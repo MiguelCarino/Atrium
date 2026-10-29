@@ -60,6 +60,19 @@ ICON = "<span font_family='Font Awesome 6 Brands'>\uf841</span>"
 QUIET_GIT = dict(os.environ, GIT_TERMINAL_PROMPT="0")    # never hang on a prompt
 
 
+def redraw_pill(name):
+    """Redraw a bar pill by its name in ~/.config/hypr/scripts/bar_signals.py
+    (the one table of signal numbers); a direct kill, no pkill fork."""
+    hypr = os.path.expanduser("~/.config/hypr/scripts")
+    if hypr not in sys.path:
+        sys.path.insert(0, hypr)
+    try:
+        import bar_signals
+        bar_signals.poke(name)
+    except Exception:       # no bar, or no hypr scripts: nothing to redraw
+        pass
+
+
 def repo_dirs():
     try:
         names = sorted(os.listdir(ROOT), key=str.lower)
@@ -302,7 +315,7 @@ def commit(path):
         if answer.strip().lower() == "y":
             cmd = ["git", "push"] if has_upstream else ["git", "push", "-u", "origin", "HEAD"]
             subprocess.run(cmd)
-    subprocess.run(["pkill", "-RTMIN+15", "-x", "waybar"])
+    redraw_pill("repos")
     input("\nDone. Press Enter to close. ")
 
 
@@ -347,13 +360,14 @@ def bar():
     todo = [r for r in repos if needs_attention(r)]
     if not todo:
         return {"text": ICON, "class": "clean",
-                "tooltip": f"All {len(repos)} repos clean and pushed\n\nClick: rescan, pull, commit"}
+                "tooltip": f"All {len(repos)} repos clean and pushed"}
     unpushed = [r for r in todo if r["ahead"] or (not r["upstream"] and not r["error"])]
     lines = [f"{len(todo)} of {len(repos)} repos need attention", ""]
     lines += [f"{r['name']}  ({r['branch']}):  {describe(r)}" for r in todo[:25]]
     if len(todo) > 25:
         lines.append(f"... and {len(todo) - 25} more")
-    lines += ["", "Click: rescan, pull, commit   Right-click: rescan (no fetch)"]
+    # No click hints: custom/repos has "tooltip": false (the git panel is
+    # the long form).
     tooltip = "\n".join(lines).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     # The number is the same change counter as the panel's header: files
     # changed or new in every repo, plus dotfiles not synced from ~.

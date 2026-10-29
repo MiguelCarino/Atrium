@@ -73,15 +73,17 @@
 
     // Night light button. All logic is in ~/.config/hypr/scripts/nightlight.sh;
     // click = same as SUPER+N (flip until the next 20:00/07:00 boundary, then
-    // the schedule takes over again). The script sends SIGRTMIN+11 to every
-    // waybar whenever it changes the screen, so this row updates at once; the
-    // 60 s interval only catches an override quietly expiring between the
-    // 5-minute timer ticks. class on/off drives the colour.
+    // the schedule takes over again). The script signals this row (11,
+    // bar_signals.py "nightlight") whenever it changes the screen, and
+    // toolbox.sh does each time the card opens, so it needs no interval: it
+    // used to re-run every 60 s while folded away. An override lapsing shows
+    // when the 5-minute tick applies it -- when the screen itself changes.
+    // class on/off drives the colour.
     "custom/nightlight": {
         "tooltip": false,
         "exec": "$HOME/.config/hypr/scripts/nightlight.sh status --json",
         "return-type": "json",
-        "interval": 60,
+        "interval": "once",
         "signal": 11,
         "format": "{icon}   Night light",
         "align": 0,
@@ -94,16 +96,17 @@
     // This used to be waybar's built-in idle_inhibitor, a Wayland inhibitor
     // only this waybar knew about -- a second "Keep awake" the Power page
     // could not see. scripts/toolbox_awake.py has the details. Left: on until
-    // turned off / off. Right: on for an hour. Signal 21: after a click, and
-    // from toolbox.sh each time the card opens; the interval only catches a
-    // timed one running out while it is open.
+    // turned off / off. Right: on for an hour. Signal 21: after a click,
+    // from toolbox.sh each time the card opens, and from a one-off timer
+    // toolbox_awake.py books for when an hour's Keep awake runs out -- so no
+    // interval (it used to run every 60 s, card open or not).
     "custom/awake": {
         "tooltip": false,
         "exec": "$HOME/.config/waybar/scripts/toolbox_awake.py",
         "return-type": "json",
-        "interval": 60,
+        "interval": "once",
         "signal": 21,
-        "format": "{icon}   {}",
+        "format": "{icon}   {text}",
         "align": 0,
         "format-icons": { "activated": "\uf0f4", "deactivated": "\uf186" },
         "on-click": "$HOME/.config/waybar/scripts/toolbox_awake.py toggle",

@@ -73,6 +73,10 @@ PREV = os.path.join(STATE, "hypridle.conf.prev")
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
 AWAKE_FILE = os.path.join(RUNTIME, "keep-awake.json")
 AWAKE_UNIT = "keep-awake.service"
+# Run by systemd when keep-awake.service ends -- its minutes are up, or it is
+# stopped -- so the toolbox's Keep awake pill (custom/awake) redraws then,
+# not at its next poll.
+AWAKE_REDRAW = f"/usr/bin/python3 {os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bar_signals.py')} poke awake"
 SCREEN_COLOR = "~/.config/hypr/scripts/screen-color.py"     # the shell in hypridle expands ~
 CPU_WATTS = "/run/cpu-power/watts"
 
@@ -306,13 +310,11 @@ listener {{
 """,
     "lock": """\
 # {when}: lock.{grace_note}
-# Calls hyprlock directly rather than going through loginctl, so that only this
-# path gets the grace period (lock_cmd above is shared with sleep). SUPER+ALT+L
-# runs plain hyprlock and locks at once.
+{how}
 listener {{
     # idle-settings: lock
     timeout = {timeout}
-    on-timeout = pidof hyprlock || hyprlock{grace}
+    on-timeout = {lock}
 }}
 """,
     "off_after_lock": """\
@@ -357,6 +359,52 @@ listener {{
 }
 
 
+# Why the idle lock is written the way it is: the usual way (loginctl
+# lock-session, the same lock as SUPER+ALT+L, presence.py and sleep), or, only
+# with a grace period, hyprlock itself -- lock_cmd is shared with sleep and
+# must never carry a grace.
+LOCK_HOW = {False: "# The usual way: loginctl lock-session, which runs lock_cmd above (the same\n"
+                   "# lock as SUPER+ALT+L, the power menu and sleep; pidof keeps it to one).",
+            True: "# Calls hyprlock directly rather than going through loginctl, so that only this\n"
+                  "# path gets the grace period (lock_cmd above is shared with sleep). SUPER+ALT+L\n"
+                  "# goes through loginctl lock-session (lock_cmd) and locks at once."}
+
+
+def lock_command(grace):
+    """The idle lock listener's on-timeout: `loginctl lock-session` (logind
+    knows the session is locked, lock_cmd's pidof guard stops a second
+    hyprlock), or hyprlock itself when there is a grace period, which only
+    hyprlock's own --grace can give."""
+    grace = seconds(grace)
+    return f"pidof hyprlock || hyprlock --grace {grace}" if grace else "loginctl lock-session"
+
+
+# Listeners other scripts need: written when the file has none calling that
+# script yet, and from then on kept like any listener of your own (a hand
+# edit to one stays). Each costs one `test` while its service is off.
+# The command it calls -> the block.
+COMPANIONS = {
+    "screentime-idle": """\
+# 60 s: "no keyboard or mouse" for screentime.py (Settings > Screen time), so
+# the minutes away from the computer do not count as screen time. Only a word
+# to its socket (scripts/screentime-idle, sh + ncat); with the service off
+# there is no socket and nothing runs past one test. Not managed by
+# idle-settings.py.
+listener {
+    timeout = 60
+    on-timeout = ~/.config/hypr/scripts/screentime-idle on
+    on-resume = ~/.config/hypr/scripts/screentime-idle off
+}""",
+}
+
+
+def missing_companions(parsed):
+    """The COMPANIONS blocks no listener of the file calls yet, as kept
+    listeners ({"raw": lines})."""
+    have = "\n".join("\n".join(lst["raw"]) for lst in parsed["listeners"])
+    return [{"raw": block.splitlines()} for marker, block in COMPANIONS.items() if marker not in have]
+
+
 def summary(v):
     parts = []
     for key, name in (("dim", "dim"), ("lock", "lock"), ("screens_off", "screens off"), ("suspend", "suspend")):
@@ -397,7 +445,8 @@ def render(v, parsed):
                 f"# without a password, so nudging the mouse as the lock fades in does not\n"
                 f"# cost you a login." if g else " No grace period: the password is asked at once.")
         blocks.append((v["lock"], BLOCKS["lock"].format(when=minutes_text(v["lock"]), grace_note=note,
-                                                       timeout=v["lock"], grace=f" --grace {g}" if g else "")))
+                                                       timeout=v["lock"], how=LOCK_HOW[bool(g)],
+                                                       lock=lock_command(g))))
     if v["off_after_lock"]:
         blocks.append((v["off_after_lock"], BLOCKS["off_after_lock"].format(
             when=minutes_text(v["off_after_lock"]), timeout=v["off_after_lock"], off=DPMS_OFF, on=DPMS_ON)))
@@ -424,6 +473,7 @@ def render(v, parsed):
     for _t, text in sorted(blocks, key=lambda b: b[0]):
         out.append(with_extras(text, parsed))
     kept = [lst for lst in parsed["listeners"] if not lst["kind"]] + [{"raw": r} for r in parsed["other"]]
+    kept += missing_companions(parsed)
     if kept:
         out.append("# ---- kept as they were (not managed by idle-settings.py) ----\n")
         for lst in kept:
@@ -544,12 +594,27 @@ def awake(state, minutes=None):
            else "Keep awake is on (Settings > Power)")
     subprocess.run(["systemd-run", "--user", "--quiet", "--collect", f"--unit={AWAKE_UNIT}",
                     "--description=Keep awake (idle-settings.py)",
+                    f"--property=ExecStopPost={AWAKE_REDRAW}",
                     "systemd-inhibit", "--what=idle", "--who=Keep awake", f"--why={why}", "--mode=block",
                     "sleep", str(mins * 60) if mins else "infinity"],
                    capture_output=True, timeout=10)
     os.makedirs(RUNTIME, exist_ok=True)
     with open(AWAKE_FILE, "w") as handle:
         json.dump({"until": until, "minutes": mins or None}, handle)
+    redraw_awake()
+
+
+def redraw_awake():
+    """The toolbox's Keep awake pill, now (bar_signals "awake"). Turning it
+    off needs no call here: the unit's ExecStopPost does it."""
+    try:
+        here = os.path.dirname(os.path.abspath(__file__))
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        import bar_signals
+        bar_signals.poke("awake")
+    except Exception:       # noqa: BLE001 - no bar, nothing to redraw
+        pass
 
 
 def holders():
@@ -634,8 +699,17 @@ def logind():
             out["mem_sleep"] = m.group(1) if m else None
     except OSError:
         out["mem_sleep"] = None
-    out["nvidia_suspend"] = run("systemctl", "is-enabled", "nvidia-suspend.service").strip() or None
+    out["nvidia_suspend"] = nvidia_suspend_state(run("systemctl", "is-enabled", "nvidia-suspend.service"))
     return out
+
+
+def nvidia_suspend_state(text):
+    """`systemctl is-enabled nvidia-suspend.service` -> "enabled" / "disabled"
+    / ... or None when there is no such unit (an AMD or Intel machine, or
+    NVIDIA without its suspend helpers packaged): systemd answers
+    "not-found", or nothing at all on stdout, and neither means "off"."""
+    word = (text or "").strip().splitlines()[0].strip() if (text or "").strip() else ""
+    return None if word in ("", "not-found") else word
 
 
 def status():

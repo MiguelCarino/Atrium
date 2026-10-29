@@ -22,9 +22,10 @@ set -u
 HISTORY="${XDG_DATA_HOME:-$HOME/.local/share}/colorpick/history"
 HISTORY_MAX=30
 SWATCH_DIR="${XDG_RUNTIME_DIR:-/tmp}/colorpick"
+NOTIFY="$HOME/.config/hypr/scripts/notify"  # notify-send with the theme's mascot (mascot_notify.py)
 
 notify() {  # notify <urgency> <icon> <summary> [body]
-    notify-send -a "Colour picker" -u "$1" -i "$2" \
+    "$NOTIFY" -a "Colour picker" -u "$1" -i "$2" \
         -h string:x-canonical-private-synchronous:colorpick "$3" "${4:-}"
 }
 

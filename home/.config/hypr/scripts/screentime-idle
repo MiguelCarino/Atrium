@@ -1,0 +1,17 @@
+#!/bin/sh
+# screentime-idle -- hypridle's listener for screentime.py, the cheap way.
+#
+#     screentime-idle on|off
+#
+# The same word `screentime.py idle on|off` sends ("idle on" to its datagram
+# socket, $XDG_RUNTIME_DIR/screentime.sock) without starting Python each time
+# you stop typing for a minute and each time you start again. No socket (the
+# service is off): one `test` and done. Through ncat (nmap-ncat) when it is
+# installed, else screentime.py itself.
+case "$1" in on|off) ;; *) echo "usage: screentime-idle on|off" >&2; exit 2 ;; esac
+sock="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/screentime.sock"
+[ -S "$sock" ] || exit 0
+if command -v ncat >/dev/null 2>&1 && printf 'idle %s' "$1" | ncat -U --udp --send-only "$sock" 2>/dev/null; then
+    exit 0
+fi
+exec python3 "$HOME/.config/hypr/scripts/screentime.py" idle "$1"

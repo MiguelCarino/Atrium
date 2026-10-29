@@ -114,11 +114,19 @@
 @define-color mon2-dim   alpha(@mon2-hue, 0.62);
 @define-color mon3       alpha(@mon3-hue, 0.32);
 @define-color mon3-dim   alpha(@mon3-hue, 0.72);
+/* mon4: a fourth screen (workspace 7, hypr/lua/workspaces.lua). Amber, the
+   one neon left outside the other three. No theme defines it yet, so every
+   theme gets this one until it says otherwise. */
+@define-color mon4-hue   #ffb000;
+@define-color mon4       alpha(@mon4-hue, 0.30);
+@define-color mon4-dim   alpha(@mon4-hue, 0.70);
 
-/* A workspace with no home monitor. Nothing should reach this (ALT+1..6 all
-   have workspace rules), but if something does it must not borrow a
-   monitor's colour -- neutral steel, outside the neon set. */
+/* A workspace with no home monitor. Nothing should reach this (ALT+1..7 all
+   have workspace rules, hypr/lua/workspaces.lua), but if something does it
+   must not borrow a monitor's colour -- neutral steel, outside the neon set.
+   -dim is its unlit number (workspace-tint.py writes @<colour>-dim). */
 @define-color mon-unknown alpha(@steel, 0.30);
+@define-color mon-unknown-dim alpha(@steel, 0.62);
 
 /* --- PALETTE 4: clock modes, status, alerts -----------------------------------
    Clock modes: .local stays plain; UTC and epoch are the ones that shout. */
@@ -223,6 +231,8 @@ window#waybar.hidden {
 #custom-settings,
 #custom-toolbox,
 #custom-power,
+#custom-logo,
+#custom-menuclock,
 #custom-capture,
 #custom-repos,
 #custom-timers,
@@ -274,6 +284,8 @@ window#waybar.hidden {
 #custom-settings:hover,
 #custom-toolbox:hover,
 #custom-power:hover,
+#custom-logo:hover,
+#custom-menuclock:hover,
 #custom-repos:hover,
 #custom-timers:hover,
 #custom-workhours:hover,
@@ -301,6 +313,8 @@ window#waybar.hidden {
 #custom-settings,
 #custom-toolbox,
 #custom-power,
+#custom-logo,
+#custom-menuclock,
 #custom-capture,
 #custom-timers,
 #custom-workhours,
@@ -1064,13 +1078,15 @@ window#waybar.empty #window {
 }
 
 /* ---------------------------------------------------------------------------
-   Health (custom/doctor), USB drives (custom/drives), phone (custom/phone):
+   Health (custom/doctor), USB drives (custom/drives), printing
+   (custom/printing), phone (custom/phone):
    small pills that only exist while they have something to say -- an empty
    text hides the module, so there is no idle style to collapse.
    --------------------------------------------------------------------------- */
 #custom-doctor,
 #custom-tasks,
 #custom-drives,
+#custom-printing,
 #custom-phone {
     margin: 4px 6px 4px 0;
     padding-left: 12px;
@@ -1088,6 +1104,13 @@ window#waybar.empty #window {
     background-color: alpha(@red, 0.85);
     color: @text-bright;
 }
+#custom-printing.held {
+    color: @yellow;
+}
+#custom-printing.error {
+    background-color: alpha(@red, 0.85);
+    color: @text-bright;
+}
 #custom-phone.low {
     color: @yellow;
 }
@@ -1095,6 +1118,60 @@ window#waybar.empty #window {
 #custom-tasks.attention {
     background-color: alpha(@yellow, 0.85);
     color: @ink-warn;
+}
+
+/* ---------------------------------------------------------------------------
+   Reboot needed (custom/reboot), Keep awake (custom/keepawake), memory
+   pressure (custom/mempressure), Bluetooth (custom/bluetooth): the same
+   small pill. The first three only exist while they have something to say;
+   Bluetooth stays while an adapter is on or has devices paired.
+   --------------------------------------------------------------------------- */
+#custom-reboot,
+#custom-keepawake,
+#custom-mempressure,
+#custom-bluetooth {
+    margin: 4px 6px 4px 0;
+    padding-left: 12px;
+    padding-right: 12px;
+    border-radius: 3px 12px 3px 12px;
+    color: @text;
+    background-color: @surface;
+    border: 1px solid alpha(@cyan, 0.35);
+}
+#custom-reboot:hover,
+#custom-keepawake:hover,
+#custom-mempressure:hover,
+#custom-bluetooth:hover {
+    background-color: @surface-hover;
+    border-color: @edge-lit;
+}
+#custom-reboot.needed {
+    color: @yellow;
+}
+#custom-keepawake.on {
+    color: @cyan;
+    border-bottom-color: @cyan;
+}
+#custom-mempressure.warn {
+    background-color: alpha(@yellow, 0.85);
+    color: @ink-warn;
+}
+#custom-mempressure.crit {
+    background-color: alpha(@red, 0.85);
+    color: @text-bright;
+}
+#custom-bluetooth.off {
+    color: alpha(@text, 0.45);
+}
+#custom-bluetooth.connected {
+    color: @cyan;
+}
+#custom-bluetooth.low {
+    color: @yellow;
+}
+/* A VPN up: the network pill's shield (network.py adds class vpn). */
+#custom-network.vpn {
+    border-bottom-color: @green;
 }
 
 /* Wallpaper accent (scripts/theme-from-wallpaper.py, ~/.config/hypr/scripts).
@@ -1115,3 +1192,11 @@ window#waybar.empty #window {
    before anything could import a missing file: a missing @import target
    leaves waybar completely unstyled. */
 @import url("generated/theme.css");
+
+/* The dynamic island's look on the centre capsules (~/.config/hypr/scripts/
+   island.py, match_bar): the date / clock / weather and updates / git /
+   notifications group takes the island's design and width, so the island
+   opens out of it. After the theme on purpose -- it is a choice made on top
+   of the theme. island.py writes it (a comment only when off), theme.py
+   ensure creates it when missing: a missing import leaves waybar unstyled. */
+@import url("generated/island-bar.css");

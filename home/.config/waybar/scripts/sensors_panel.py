@@ -12,7 +12,9 @@ columns: the graphs and readings on the left, the processes on the right.
           swap back into RAM -- offered only while RAM can take it (see
           SWAP_HEADROOM), two clicks like End
     GPU   load, temperature, VRAM, power  + every app on the GPU: its share of
-          the GPU's compute (SM %) and its VRAM, with End buttons
+          the GPU's compute (SM %, NVIDIA only) and its VRAM, with End
+          buttons -- any card gpu.py reads (NVIDIA, AMD, Intel); a number
+          the card does not report (an iGPU's VRAM, a temperature) stays 0
 
 The app tables are proctable.py (shared with the network panel): End takes two
 clicks and sends SIGTERM; the session's own processes have no button.
@@ -55,7 +57,7 @@ import themecolors  # noqa: E402
 
 HIST_DIR = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "waybar-sensors")
 POLL_MS = 2000
-GPU_PROCS_EVERY = 2         # nvidia-smi is ~50ms, so the GPU list every 2nd poll
+GPU_PROCS_EVERY = 2         # the GPU's app list every 2nd poll (a full fdinfo walk on AMD / Intel)
 
 # Graph colours: the desktop theme's color.cpu / color.gpu (theme.conf ->
 # generated/colors.conf, see themecolors.py), cyberpunk's as the fallback --
@@ -246,38 +248,52 @@ class Graph(Gtk.DrawingArea):
         return False
 
 
-def gpu_apps(n=APP_ROWS):
-    """Every process on the GPU from `nvidia-smi pmon` (graphics AND compute,
-    unlike --query-compute-apps), grouped by name: summed SM % (its share of
-    the GPU's compute over the last sample) and framebuffer MB."""
-    try:
-        out = subprocess.run(["nvidia-smi", "pmon", "-c", "1", "-s", "um"],
-                             capture_output=True, text=True, timeout=3).stdout
-    except (subprocess.SubprocessError, OSError):
-        return []
-    apps = {}
-    for line in out.splitlines():
-        if line.startswith("#") or not line.strip():
-            continue
-        f = line.split()
-        if len(f) < 12:
-            continue
+_GPU = []      # [gpu.py module] once imported ([None] when it would not load)
+
+
+def _gpu():
+    """~/.config/hypr/scripts/gpu.py, imported once: the card read in-process
+    (NVML on NVIDIA, fdinfo on AMD / Intel), so the panel forks nothing."""
+    if not _GPU:
+        hypr = os.path.expanduser("~/.config/hypr/scripts")
+        if hypr not in sys.path:
+            sys.path.insert(0, hypr)
         try:
-            pid = int(f[1])
-        except ValueError:
-            continue
-        sm = int(f[3]) if f[3].isdigit() else 0
-        fb = int(f[9]) if f[9].isdigit() else 0
-        name = " ".join(f[11:])
-        app = apps.setdefault(name, {"name": name, "sm": 0, "fb": 0, "pids": []})
-        app["sm"] += sm
-        app["fb"] += fb
-        app["pids"].append(pid)
-    ranked = sorted(apps.values(), key=lambda a: (-a["sm"], -a["fb"]))[:n]
+            import gpu
+            _GPU.append(gpu)
+        except Exception:  # noqa: BLE001  (no table beats no panel)
+            _GPU.append(None)
+    return _GPU[0]
+
+
+def group_gpu_rows(rows, n=APP_ROWS):
+    """gpu.process_table() rows -> the table's rows, grouped by name: summed
+    SM % (the share of the card's compute; NVIDIA only, "-" elsewhere) and
+    memory."""
+    apps = {}
+    for r in rows:
+        app = apps.setdefault(r["name"], {"name": r["name"], "sm": None, "fb": 0, "pids": []})
+        if r.get("sm") is not None:
+            app["sm"] = (app["sm"] or 0) + r["sm"]
+        app["fb"] += r.get("mib") or 0
+        app["pids"].append(r["pid"])
+    ranked = sorted(apps.values(), key=lambda a: (-(a["sm"] or 0), -a["fb"]))[:n]
     return [{"name": a["name"], "pids": a["pids"],
              "values": [f"{a['sm']}%" if a["sm"] else "-",
                         f"{a['fb'] / 1024:.1f}G" if a["fb"] >= 1024 else f"{a['fb']}M"]}
             for a in ranked]
+
+
+def gpu_apps(n=APP_ROWS):
+    """Every process on the main card (graphics AND compute) with its memory
+    and, on NVIDIA, its share of the compute since the last poll."""
+    mod = _gpu()
+    if mod is None:
+        return []
+    try:
+        return group_gpu_rows(mod.process_table(), n)
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def memory_apps(n=APP_ROWS):
@@ -627,7 +643,7 @@ class Sensors(panelui.Panel):
 
     def poll(self):
         self.section.update(read_hist(self.KIND))
-        # /proc reads are cheap: every poll. nvidia-smi is ~80ms: every other.
+        # /proc reads are cheap: every poll. The GPU's apps: every other.
         if self.KIND == "cpu":
             self.section.set_procs(self.top())
             self.memory.update()

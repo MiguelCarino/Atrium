@@ -133,6 +133,11 @@ def pick_model(status):
         models = api("/api/v0/models", timeout=3)["data"]
     except Exception:
         status("starting LM Studio…")
+        try:
+            # Inside its limits first (lmstudio.service), as llm_models.ensure_local does.
+            llm_models._limits_module().ensure_daemon(status)
+        except Exception:  # noqa: BLE001 -- a broken limits script: the old way
+            pass
         llm_models._lms("server", "start", timeout=60)
         models = api("/api/v0/models", timeout=5)["data"]
     usable = [m for m in models if m.get("type") in ("llm", "vlm")]

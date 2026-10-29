@@ -1,0 +1,13 @@
+# Once a day, and at the next login when the computer was off at that time
+# (Persistent). Enabled from Settings > Storage > Backup once the repository
+# is made (`backup.py schedule on|off`); off until then.
+[Unit]
+Description=Daily backup of your files
+
+[Timer]
+OnCalendar=*-*-* 12:30
+Persistent=true
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target

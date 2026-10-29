@@ -82,6 +82,7 @@ import importlib.util
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 sys.path.insert(0, HERE)
 import desktop_conf  # noqa: E402  (your projects folder)
 import folder_access  # noqa: E402  (which folders' text the model may see)
@@ -642,14 +643,14 @@ NOTIFY_TAG = ["-a", "Ask your desktop", "-h", "string:x-canonical-private-synchr
 
 
 def notify_answer(question):
-    subprocess.run(["notify-send", *NOTIFY_TAG, "-u", "low", "-t", "0", "Asking your desktop…", question])
+    subprocess.run([NOTIFY, *NOTIFY_TAG, "-u", "low", "-t", "0", "Asking your desktop…", question])
     answer, files = ask(question)
     # Files, and the desktop memory's links (search_memory) by their site.
     files = [f for f in files if os.path.exists(f) or f.startswith(("http://", "https://"))][:3]
     actions = [f"--action=open{i}=Open " + (re.sub(r"^https?://(www\.)?", "", f).split("/")[0] if "://" in f
                                              else os.path.basename(f))[:40] for i, f in enumerate(files)]
     try:
-        out = subprocess.run(["notify-send", *NOTIFY_TAG, "-t", "60000", "-i", "system-search",
+        out = subprocess.run([NOTIFY, *NOTIFY_TAG, "-t", "60000", "-i", "system-search",
                               *actions, *(["--wait"] if actions else []), question, answer[:1500]],
                              capture_output=True, text=True, timeout=120).stdout.strip()
     except subprocess.TimeoutExpired:

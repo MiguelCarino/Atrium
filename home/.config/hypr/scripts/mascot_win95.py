@@ -227,6 +227,13 @@ TOPIC_LINES = {
             "Nicer than 'Hide Assistant'. Thanks!",
             "Office Assistant is now happy.",
             "*blushes in 16 colors*"),
+    # railguard.py's notifications (mascot_notify.py says them, voice on)
+    "rg_memory": "It looks like {0} was using all the memory. I've closed it for you!",
+    "rg_vram": "It looks like {0} filled the graphics memory. It has been terminated.",
+    "rg_game_vram": "It looks like {0} is using nearly all the graphics memory. Lower the details?",
+    "rg_panic": "{0} has performed an illegal operation and will be shut down.",
+    "rg_stuck": "Out of memory. Close some programs and try again. (I can't find which!)",
+    "rg_agents": "All agent tasks have been ended. Your sessions are safe. Click OK.",
 }
 # The reaction sign over the head (mascot_mood.EMOTE_TONES), in the 16-colour
 # palette: it sits on the window's face grey (#acacac), never on the title

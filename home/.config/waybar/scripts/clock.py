@@ -1,11 +1,21 @@
 #!/usr/bin/env python3
 """The bar's clock, in whichever of three readings you last asked for.
 
-    clock.py watch    continuous JSON for custom/clock — one line a second
+    clock.py watch    continuous JSON for custom/clock — a line whenever the
+                      reading changes (every second with seconds shown, else
+                      every minute); it also redraws custom/day when the date
+                      changes and custom/menuclock each minute in the menu-
+                      bar layout (bar_signals "day", signal 10), so those
+                      two need no polling interval of their own
     clock.py cycle    local → UTC → epoch → local, redrawn immediately (the
                       pill's right click; its left click opens the clock
                       card, clock_panel.py)
     clock.py day      one-shot JSON for custom/day, which opens the calendar
+    clock.py menubar  one-shot JSON for custom/menuclock: the date and time
+                      as one menu-bar reading at the bar's far right,
+                      "Tue 27 Oct  21:21" (a theme with bar.clock=menubar)
+    clock.py logo     one-shot JSON for custom/logo: the theme's glyph
+                      (bar.logo=), the bar's first item
 
 Local time is the default and what you get back after a full cycle; UTC is for
 reading logs and talking to people elsewhere; epoch is for pasting into things
@@ -17,12 +27,23 @@ How it is written comes from ~/.config/hypr/region.conf (hypr/scripts/
 region.py; Settings > Date, time & region): clock=24|12, seconds=on|off and
 date=short|dmy|iso. The watcher re-reads it whenever its mtime moves -- one
 stat() a tick -- and region.py also wakes it with SIGUSR1, so a change shows
-on the same second. Without region.py (a copy of the bar elsewhere) the
+on the same second. A tick is a second while the reading has seconds, else
+up to 5 s (sleep_for: the minute boundary, capped so a resume from suspend
+is caught), and a line is printed only when it differs from the last one. Without region.py (a copy of the bar elsewhere) the
 defaults are the old fixed look: 24-hour with seconds, "Tue, Oct 20".
 
 A time zone change (timedatectl set-timezone) rewrites /etc/localtime under
 a running watcher; time.tzset() each tick makes the C library look again,
 so the local reading follows without restarting the bar.
+
+The menu-bar layout (orchard's bar.clock=menubar; theme.py writes it to
+~/.config/waybar/generated/bar.conf as clock= and logo=): the date and time
+leave the centre for the far right, in one reading with no seconds --
+"Tue 27 Oct  21:21", or "Tue 27 Oct  9:21 PM" with region.conf clock=12,
+"10月27日(火)  21:21" for a ja theme. custom/day and custom/clock then
+print an empty text (waybar hides an empty custom module) and the watcher
+keeps running, so switching back shows the centre clock on the next tick.
+Without bar.conf (an older theme.py, a fresh copy) nothing changes.
 
 A world clock pinned in the clock card (its pin toggle; "pin" in
 $XDG_STATE_HOME/hypr/world-clocks.json, next to the zones) is a second,
@@ -135,9 +156,8 @@ MODE_FILE = os.path.join(RUNTIME, "waybar-clock.mode")
 PID_FILE = os.path.join(RUNTIME, "waybar-clock.pid")
 
 MODES = ("local", "utc", "epoch")
-# custom/day is a plain interval module; this is the SIGRTMIN offset waybar
-# listens on for it, so a mode change shows up there without a minute's wait.
-DAY_SIGNAL = 10
+# The longest the watcher sleeps in one go (see sleep_for).
+MAX_SLEEP = 5
 
 
 def mode():
@@ -201,45 +221,122 @@ def day_text(current, moment, conf=None):
     return moment.strftime("%a, %b %d")
 
 
-def tooltip(moment, pin=None):
-    """Whichever readings are not on screen, so the other two are one hover
-    away instead of two clicks (and the pinned zone in full, with its day)."""
-    local = moment.astimezone() if moment.tzinfo else moment
-    utc = local.astimezone(timezone.utc)
-    lines = [
-        f"<b>{local.strftime('%A, %d %B %Y')}</b>",
-        f"local  {hms(local)} {local.strftime('%Z')}",
-        f"UTC    {hms(utc)}",
-        f"epoch  {int(local.timestamp())}",
-    ]
-    if pin and ZoneInfo is not None:
+BAR_CONF = os.path.expanduser("~/.config/waybar/generated/bar.conf")
+_bar = {"mtime": None, "conf": {}}
+
+
+def bar_style(path=None):
+    """bar.conf as a dict ({"clock": "menubar", "logo": ""} ...), {} when
+    missing. Re-read only when its mtime moves: the watcher asks every tick."""
+    path = path or BAR_CONF
+    try:
+        mtime = os.stat(path).st_mtime_ns
+    except OSError:
+        _bar.update(mtime=None, conf={})
+        return {}
+    if mtime != _bar["mtime"]:
+        conf = {}
         try:
-            there = local.astimezone(ZoneInfo(pin))
-            lines.append(f"{zone_code(pin):<6} {hms(there)} {there:%a}  ({pin.rsplit('/', 1)[-1].replace('_', ' ')})")
-        except Exception:
+            with open(path) as handle:
+                for line in handle:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        key, sep, value = line.partition("=")
+                        if sep:
+                            conf[key.strip()] = value.strip()
+        except OSError:
             pass
-    return "\n".join(lines + [
-        "",
-        "<i>click to cycle · the date opens the calendar</i>",
-    ])
+        _bar.update(mtime=mtime, conf=conf)
+    return dict(_bar["conf"])
+
+
+def menubar(conf=None):
+    """Is the menu-bar layout on (bar.clock=menubar)?"""
+    return (conf if conf is not None else bar_style()).get("clock") == "menubar"
+
+
+def menubar_text(moment, conf=None, language=None):
+    """The menu bar's one reading: "Tue 27 Oct  21:21" -- the weekday, the
+    day without a leading zero, the month, two spaces, the time as
+    region.conf says but never with seconds ("9:21 PM" at clock=12). ja:
+    "10月27日(火)  21:21". English names whatever the locale: the bar's
+    other words are English too."""
+    short = dict(conf if conf is not None else prefs(), seconds="off")
+    when = hms(moment, short) if region else moment.strftime("%H:%M")
+    if (language or lang()) == "ja":
+        return f"{moment.month}月{moment.day}日({JA_WEEKDAYS[moment.weekday()]})  {when}"
+    weekday = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")[moment.weekday()]
+    month = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov",
+             "Dec")[moment.month - 1]
+    return f"{weekday} {moment.day} {month}  {when}"
 
 
 def emit(kind):
     time.tzset()        # follow a time zone change (see the docstring)
+    style = bar_style()
+    if kind == "logo":
+        print(json.dumps({"text": style.get("logo", ""), "class": "logo"}), flush=True)
+        return
+    if kind == "menubar":
+        # Always local: the menu bar is the wall clock; UTC and epoch stay
+        # one right click away on the clock card.
+        moment = now_in("local")
+        text = menubar_text(moment) if menubar(style) else ""
+        print(json.dumps({"text": text, "class": "menubar"}), flush=True)
+        # Signal 10 is how a theme switch reaches the bar (theme.py): tell the
+        # watcher too, which may be in a minute-long step and would otherwise
+        # notice the new layout only at its next tick.
+        poke()
+        return
+    print(json.dumps(reading(kind, style)), flush=True)
+
+
+def reading(kind, style=None):
+    """custom/clock's or custom/day's JSON (not printed). No tooltip: both
+    modules have "tooltip": false -- the clock card and the calendar are the
+    long form -- so none is built, every second, for nobody."""
+    style = bar_style() if style is None else style
     current = mode()
     moment = now_in(current)
-    pin = pinned_zone() if kind == "clock" else None
-    if kind == "clock":
+    if menubar(style):
+        text = ""       # the reading lives at the far right (custom/menuclock)
+    elif kind == "clock":
         conf = prefs()
+        pin = pinned_zone()
         text = clock_text(current, moment, conf) + ("" if current == "epoch" else pin_text(pin, conf, moment))
     else:
         text = day_text(current, moment)
-    print(json.dumps({
-        "text": text,
-        "tooltip": tooltip(moment, pin),
-        "class": current,
-    }), flush=True)
+    return {"text": text, "class": current}
 
+
+def tick_step(current, conf, style):
+    """How often the watcher's reading can change: every second while it
+    shows seconds (or the epoch), else once a minute -- the menu-bar layout
+    (the centre is empty; custom/menuclock has minutes only) and a clock
+    with seconds=off."""
+    if menubar(style):
+        return 60
+    if current == "epoch" or conf.get("seconds", "on") != "off":
+        return 1
+    return 60
+
+
+def sleep_for(now, step, cap=MAX_SLEEP):
+    """Seconds to the next whole `step` boundary (+5 ms, to land just after
+    it), never more than `cap`: the sleep runs on the monotonic clock, which
+    stands still in a suspend, so a long one would leave a stale minute on
+    screen after a resume."""
+    return min(step - (now % step) + 0.005, cap)
+
+
+def due_signals(before, after, menubar_on):
+    """Which waybar redraws a tick owes, from the previous and the current
+    local (date, minute) keys: custom/day when the date changed, and every
+    minute in the menu-bar layout, where custom/menuclock is a one-shot
+    module with no interval of its own (both are signal 10, "day")."""
+    if before is None or before == after:
+        return False
+    return before[0] != after[0] or (menubar_on and before[1] != after[1])
 
 class Redraw(Exception):
     """Raised out of the sleep by SIGUSR1 so a mode change is instant."""
@@ -266,16 +363,28 @@ def watch():
         handle.write(str(os.getpid()))
     signal.signal(signal.SIGUSR1, on_usr1)
 
+    last_line = None
+    last_key = None
     while True:
-        emit("clock")
+        time.tzset()        # follow a time zone change (see the docstring)
+        style = bar_style()
+        line = json.dumps(reading("clock", style))
+        if line != last_line:   # waybar redraws on every line, same or not
+            print(line, flush=True)
+            last_line = line
+        local = datetime.now()
+        key = (local.date(), local.strftime("%H:%M"))
+        if due_signals(last_key, key, menubar(style)):
+            redraw_day()
+        last_key = key
         if _pending:
             _pending = False
             continue
         try:
             _sleeping = True
-            # Land just after the next second rather than drifting a few
+            # Land just after the next boundary rather than drifting a few
             # milliseconds later on every iteration.
-            time.sleep(1.0 - (time.time() % 1.0) + 0.005)
+            time.sleep(sleep_for(time.time(), tick_step(mode(), prefs(), style)))
         except Redraw:
             pass
         finally:
@@ -292,10 +401,20 @@ def poke():
         pass        # no watcher: the next tick picks the change up anyway
 
 
+def redraw_day():
+    """custom/day, custom/logo and custom/menuclock re-run (bar_signals
+    "day", signal 10). A direct kill of the waybar, no pkill fork."""
+    try:
+        import bar_signals
+        bar_signals.poke("day")
+    except Exception:       # a bar without the hypr scripts: nothing to redraw
+        pass
+
+
 def cycle():
     set_mode(MODES[(MODES.index(mode()) + 1) % len(MODES)])
     poke()
-    os.system(f"pkill -SIGRTMIN+{DAY_SIGNAL} waybar")
+    redraw_day()
 
 
 def main():
@@ -303,8 +422,8 @@ def main():
     try:
         if action == "cycle":
             cycle()
-        elif action == "day":
-            emit("day")
+        elif action in ("day", "menubar", "logo"):
+            emit(action)
         else:
             watch()
     except (KeyboardInterrupt, BrokenPipeError):

@@ -151,7 +151,8 @@ of this (files go over the paired channel).
 WHERE THINGS LIVE:
 
     ~/.config/hypr/peers.json        settings + the paired machines (their
-                                     names, ids and public certificates)
+                                     names, ids and public certificates, and
+                                     the MAC seen at pairing, for wol.py)
     ~/.config/hypr/privacy.conf      machines_clipboard / machines_memory
                                      (privacy_settings.py; OFF as shipped)
     $XDG_DATA_HOME/peers/            identity.key / identity.pem, seen.json,
@@ -200,6 +201,7 @@ except ImportError:         # status still answers; pairing says what to install
     x509 = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 sys.path.insert(0, HERE)
 import privacy_settings  # noqa: E402
 
@@ -362,9 +364,23 @@ def load(path=None):
 
 
 def tidy_peer(p):
-    return {"id": p["id"], "name": p.get("name") if valid_name(p.get("name")) else p["id"][:8],
-            "cert": p["cert"], "paired": p.get("paired") or 0,
-            "kvm_side": p.get("kvm_side") if p.get("kvm_side") in SIDES else ""}
+    out = {"id": p["id"], "name": p.get("name") if valid_name(p.get("name")) else p["id"][:8],
+           "cert": p["cert"], "paired": p.get("paired") or 0,
+           "kvm_side": p.get("kvm_side") if p.get("kvm_side") in SIDES else ""}
+    if isinstance(p.get("mac"), str) and re.fullmatch(r"(?:[0-9a-f]{2}:){5}[0-9a-f]{2}", p["mac"]):
+        out["mac"] = p["mac"]       # noted at pairing, for wol.py (Wake-on-LAN)
+    return out
+
+
+def neighbour_mac(host):
+    """The paired machine's MAC from this computer's neighbour table
+    (wol.py: `ip -j neigh`, else /proc/net/arp; no packet sent), or None.
+    It has just talked to us, so the entry is fresh."""
+    try:
+        import wol
+        return wol.neighbour_mac(host)
+    except Exception:   # noqa: BLE001 - no MAC: only Wake-on-LAN misses it
+        return None
 
 
 def write_json(path, data, mode=0o644):
@@ -756,7 +772,7 @@ def notify(summary, body="", urgency="low", actions=(), timeout_ms=None):
     """A notification; with actions, waits and returns the key picked ("")."""
     if effect("notify", summary=summary, body=body, actions=[k for k, _ in actions]):
         return os.environ.get("PEERS_SINK_PICK", "")
-    argv = ["notify-send", "-a", APP, "-i", ICON, "-u", urgency]
+    argv = [NOTIFY, "-a", APP, "-i", ICON, "-u", urgency]
     if timeout_ms:
         argv += ["-t", str(timeout_ms)]
     for key, label in actions:
@@ -1433,12 +1449,20 @@ def sas(data):
     return f"{n // 1000:03d} {n % 1000:03d}"
 
 
-def add_peer(name, pem, host, port):
+def add_peer(name, pem, host, port, mac=None):
+    """Remember a paired machine: its certificate, and its MAC (mac, else
+    the neighbour table's for host) so wol.py can wake it later."""
     fp = fingerprint(pem_to_der(pem))
+    mac = mac or neighbour_mac(host)
 
     def change(conf):
+        # A re-pairing whose lookup came back empty keeps the MAC noted before.
+        old = next((p.get("mac") for p in conf["peers"] if p["id"] == fp and p.get("mac")), None)
         conf["peers"] = [p for p in conf["peers"] if p["id"] != fp]
-        conf["peers"].append({"id": fp, "name": name, "cert": pem, "paired": int(time.time()), "kvm_side": ""})
+        peer = {"id": fp, "name": name, "cert": pem, "paired": int(time.time()), "kvm_side": ""}
+        if mac or old:
+            peer["mac"] = mac or old
+        conf["peers"].append(peer)
         conf["enabled"] = True
     update(change)
     note_seen(fp, host=host, port=port, seen=time.time(), name=name)

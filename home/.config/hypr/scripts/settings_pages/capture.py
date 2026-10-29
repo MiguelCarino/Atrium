@@ -28,10 +28,12 @@ PAGE = {"id": "capture", "title": "Screenshots & recording", "icon": "", "gro
                      "instant replay", "replay buffer", "shadowplay", "hdr recording", "microphone",
                      "frame rate", "fps", "ocr", "text recognition", "tesseract", "languages",
                      "look it up", "search engine", "google", "duckduckgo", "gamemode", "game mode",
-                     "games", "steam", "game profiles", "blur", "gaps", "captura", "grabar"]}
+                     "games", "steam", "game profiles", "blur", "gaps", "captura", "grabar",
+                     "encoder", "nvenc", "vaapi"]}
 
 CAPTURE = os.path.join(HYPR, "capture-settings.py")
 RECORD = os.path.join(HYPR, "record.sh")
+GPU = os.path.join(HYPR, "gpu.py")
 NOTIFY = os.path.join(HYPR, "notify-settings.py")
 SETTINGS = os.path.join(HYPR, "settings.py")
 
@@ -51,7 +53,11 @@ STRIP = [("gamemode_blur", "\uf0d0", "Turn blur off",
          ("gamemode_shadow", "\uf042", "Turn shadows off", "the soft shadow under each window"),
          ("gamemode_rounding", "\uf096", "Square corners", "no rounded window corners"),
          ("gamemode_gaps", "\uf0db", "No gaps", "windows fill the screen edge to edge"),
-         ("gamemode_borders", "\uf0c8", "Thin borders", "window borders go down to 1 pixel")]
+         ("gamemode_borders", "\uf0c8", "Thin borders", "window borders go down to 1 pixel"),
+         ("gamemode_shader", "\uf042", "Screen filter off",
+          "the colour filter and night light's shader stop for the game")]
+# Who encodes recordings: capture.conf rec_encoder (record.sh's REC_ENCODER).
+ENCODERS = [("auto", "Automatic"), ("gpu", "Graphics card"), ("cpu", "CPU")]
 # Tesseract's names for the languages someone is likeliest to want, for the
 # "add one" hint; any other installed one shows up by its code.
 LANG_NAMES = {"eng": "English", "spa": "Spanish", "fra": "French", "deu": "German", "ita": "Italian",
@@ -73,6 +79,30 @@ def attempt(*cmd, timeout=20, env=None):
     if r.returncode == 0:
         return ""
     return (r.stderr.strip().splitlines() or [f"{os.path.basename(cmd[0])} failed ({r.returncode})"])[-1]
+
+
+def encoder_text(pick):
+    """gpu.py encoder --json -> the Video encoder row's line."""
+    if not pick:
+        return "not known yet (gpu.py did not answer)"
+    if pick.get("encoder") == "gpu":
+        name = {"nvenc": "NVENC", "vaapi": "VAAPI"}.get(pick.get("api"), pick.get("api") or "?")
+        return f"the graphics card ({name})" + ("" if pick.get("hdr") else "  ·  no HDR")
+    return ("the CPU (x264): no hardware encoder found  ·  30 fps at most, SDR  ·  "
+            "AMD: mesa-va-drivers-freeworld (RPM Fusion), Intel: intel-media-driver")
+
+
+def encoder_note(choice, followed=True):
+    """The line under the encoder chips: what a forced choice means, and
+    whether record.sh reads the setting yet ("" for automatic, followed)."""
+    bits = []
+    if choice == "gpu":
+        bits.append("the card even where detection said no: a recording may fail to start")
+    elif choice == "cpu":
+        bits.append("x264 on the CPU: 30 fps at most, SDR, no load on the card")
+    if not followed:
+        bits.append("record.sh does not read this setting yet (REC_ENCODER=gpu|cpu still works)")
+    return "  ·  ".join(bits)
 
 
 def home(path):
@@ -165,6 +195,16 @@ class Page:
         w.pack_start(heading("SCREEN RECORDING"), False, False, 0)
         self.rec_row, self.rec_sub = row("\uf03d", "Recorder", "")
         w.pack_start(self.rec_row, False, False, 0)
+        grid, self.encoder_sub = row("\uf2db", "Video encoder", "checking\u2026")
+        w.pack_start(grid, False, False, 0)
+        self.encoder = self.make_chips(lambda k: self.set("rec_encoder", k))
+        w.pack_start(self.encoder.widget, False, False, 0)
+        self.encoder_note = dp.label("", "ctl-sub")
+        self.encoder_note.set_line_wrap(True)
+        self.encoder_note.set_xalign(0)
+        self.encoder_note.set_margin_start(36)
+        self.encoder_note.set_no_show_all(True)
+        w.pack_start(self.encoder_note, False, False, 0)
         self.folder_row(w, "rec_dir", "\uf07c", "Save recordings and replays in")
         grid, self.range_sub = row("\uf185", "Dynamic range", "")
         w.pack_start(grid, False, False, 0)
@@ -329,6 +369,9 @@ class Page:
             self.format_sub.set_text("checking…")
         background(lambda: (run_json(CAPTURE, "status", timeout=15), run_json(NOTIFY, "status", timeout=15)),
                    self.show)
+        # What record.sh will encode with (gpu.py: cached per boot, ~1 s the first time).
+        background(lambda: run_json("python3", GPU, "encoder", "--json", timeout=15),
+                   lambda pick: self.encoder_sub.set_text(encoder_text(pick)))
 
     def show(self, result):
         data, notify = result
@@ -379,6 +422,10 @@ class Page:
                                  "mic": "only the default microphone",
                                  "none": "silent video"}[v["rec_audio"]])
         self.fps.set(FPS, v["rec_fps"])
+        self.encoder.set(ENCODERS, v.get("rec_encoder", "auto"))
+        note = encoder_note(v.get("rec_encoder", "auto"), data.get("encoder_followed", True))
+        self.encoder_note.set_text(note)
+        self.encoder_note.set_visible(bool(note))
         self.fps_sub.set_text("for recordings and the replay; higher means bigger files")
         self.replay.set([(s, seconds_text(s)) for s in REPLAY], v["replay_seconds"])
         sub = (f"ALT+F10 saves the last {seconds_text(v['replay_seconds'])}  ·  "

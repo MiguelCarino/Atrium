@@ -10,6 +10,9 @@ After=graphical-session.target
 OnActiveSec=2min
 OnUnitActiveSec=5min
 AccuracySec=30s
+# Spread out, so this, brief.timer and timers-calendar.timer do not all
+# fire in the same second.
+RandomizedDelaySec=40s
 
 [Install]
 WantedBy=graphical-session.target

@@ -20,7 +20,8 @@
 -- HYPRCURSOR_SIZE for hyprcursor themes), and every app it starts inherits
 -- them (XWayland apps draw their own pointer from these two). 24 and
 -- Adwaita when nothing is set, as before. ~/.config/uwsm/env
--- reads the same keys for the services uwsm starts.
+-- reads the same keys, and follows the same theme chain, for the services
+-- uwsm starts.
 do
     local S = require("lua.shared")
     local st = S.state()
@@ -58,7 +59,10 @@ do
     end
     if want then hl.env("XCURSOR_THEME", want) end
 end
-hl.env("QT_QPA_PLATFORM", "wayland")
+-- "wayland;xcb": Wayland first, X11 through XWayland as the fallback for a Qt
+-- app whose Qt has no Wayland plugin (AppImages, vendored Qt builds) -- with
+-- plain "wayland" such an app refuses to start. Also in ~/.config/uwsm/env.
+hl.env("QT_QPA_PLATFORM", "wayland;xcb")
 -- Qt6 apps (qBittorrent, Okular, Ark...) take style and palette from
 -- ~/.config/qt6ct, set to the dark COSMIC palette. The qt5ct/qt6ct configs
 -- were there before this line, but nothing loaded them. Qt5 apps look for a

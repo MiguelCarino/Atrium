@@ -132,19 +132,79 @@ hl.config({
         swallow_regex                = "^(com\\.system76\\.CosmicTerm|kitty)$",
         disable_hyprland_logo        = true,
         -- Both default to false, which is only safe while nothing ever turns
-        -- the displays off. hypridle now does, at 15 minutes, so without these
-        -- the sole way back is the on-resume hook firing correctly -- and if it
-        -- ever does not, three dark monitors ignore the mouse and the keyboard
-        -- alike. These make any input wake them, independently of hypridle.
+        -- the displays off. hypridle does (screens off after the idle time in
+        -- Settings > Power & screen lock -- hypridle.conf, written by
+        -- scripts/idle-settings.py, is where the minutes are), and so do
+        -- presence.py and the lock's own "screens off after locking", so
+        -- without these the sole way back is an on-resume hook firing
+        -- correctly -- and if it ever does not, every dark monitor ignores the
+        -- mouse and the keyboard alike. These make any input wake them,
+        -- independently of hypridle.
         mouse_move_enables_dpms      = true,
         key_press_enables_dpms       = true,
+        -- If hyprlock ever crashes, the session stays locked (Hyprland's red
+        -- "lockdead" screen) and a new hyprlock may take the lock over --
+        -- `hyprctl --instance 0 dispatch 'hl.dsp.exec_cmd("hyprlock")'` from
+        -- a TTY. Without this, the only way out of that screen is to log out.
+        allow_session_lock_restore   = true,
+        -- An app asking to be focused (a link opened from the terminal, a
+        -- "show window" from a tray icon, xdg-activation in general) gets the
+        -- focus instead of only turning urgent. Guarded right after this
+        -- block: while the focused window is fullscreen (a game, a film),
+        -- this is switched off, so nothing can pull you out of it; the app
+        -- turns urgent instead, as before.
+        focus_on_activate            = true,
     },
+    -- XWayland apps draw at scale 1 and let Hyprland scale them: on the upper
+    -- screen (scale 0.8) that meant blurry X11 windows. force_zero_scaling
+    -- has them draw at the screen's own pixel size instead -- sharp, at the
+    -- cost of X11 apps that do not scale themselves looking a little small
+    -- there (GDK_SCALE / the app's own zoom fixes one that matters).
+    xwayland = { force_zero_scaling = true },
 })
+
+-- ========================= Focus on activate: the guard =========================
+-- misc.focus_on_activate (above) lets an app that asks for focus take it.
+-- Never from a fullscreen window: a game or a film must not be thrown to
+-- the desktop because a chat app or a terminal link wanted attention. So it
+-- is switched off while the focused window is fullscreen (mode 2: real
+-- fullscreen; a maximised window, 1, still gives way) and back on when it
+-- is not -- the activation then only marks the window urgent, as Hyprland
+-- does with the option off. hl.config only on a change, so a focus change
+-- that does not cross that line costs one table read. A reload starts with
+-- it on and this puts it right at once.
+do
+    local last = nil
+    local function guard()
+        local ok, w = pcall(hl.get_active_window)
+        local fs = ok and w and tonumber(w.fullscreen) or 0
+        local want = fs < 2
+        if want ~= last then
+            last = want
+            hl.config({ misc = { focus_on_activate = want } })
+        end
+    end
+    -- window.fullscreen may arrive before the window's own state reads the
+    -- new mode, so it looks again a moment later too. The timer is held in
+    -- an upvalue (a timer nothing refers to can be collected before it fires).
+    local again = nil
+    local function soon()
+        guard()
+        if again then again:set_enabled(false) end
+        again = hl.timer(guard, { timeout = 60, type = "oneshot" })
+    end
+    hl.on("window.active", guard)
+    hl.on("window.fullscreen", soon)
+    hl.on("window.close", soon)
+    guard()
+end
 
 -- ========================= Animations =========================
 -- The curves and every hl.animation live in lua/display.lua now, as presets
--- (snappy / smooth / fancy / calm) you can switch at runtime from the display
--- panel or the launcher. "smooth" is exactly the set that used to be here.
+-- (snappy / smooth / fancy / calm / spring) you can switch at runtime from
+-- the display panel or the launcher, together with the layer animations (bar
+-- panels, launcher, notifications, island) and the vertical workspace slide
+-- on a rotated screen. "smooth" is the default.
 
 -- ========================= Input =========================
 -- Keyboard, mouse and touchpad, from ~/.local/state/hypr/input.conf (see the

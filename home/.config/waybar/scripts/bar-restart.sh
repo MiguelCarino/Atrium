@@ -42,11 +42,12 @@ set -u
 
 HERE=$(dirname "$(readlink -f "$0")")
 RUNTIME=${XDG_RUNTIME_DIR:-/tmp}
+NOTIFY=$HOME/.config/hypr/scripts/notify  # notify-send with the theme's mascot (mascot_notify.py)
 
 note() {
     # The bar is the usual place for status, and it is the thing being
     # restarted, so problems are reported through mako instead.
-    notify-send -a "Waybar" -u "${2:-normal}" "Bar restart" "$1" 2>/dev/null || true
+    "$NOTIFY" -a "Waybar" -u "${2:-normal}" "Bar restart" "$1" 2>/dev/null || true
 }
 
 # Pressing ALT+G twice quickly (or running this from a terminal while the

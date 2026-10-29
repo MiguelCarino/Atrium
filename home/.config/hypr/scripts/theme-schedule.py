@@ -40,6 +40,7 @@ RANDOM = "random"
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import theme  # noqa: E402  (the theme list; no GTK)
+import desk_common  # noqa: E402  (hypr_request: hyprctl over the socket)
 
 NIGHTLIGHT = os.path.join(HERE, "nightlight.sh")
 THEME = os.path.join(HERE, "theme.py")
@@ -150,11 +151,9 @@ def period(now=None):
 
 
 def game_running():
-    try:
-        out = subprocess.run(["hyprctl", "clients", "-j"], capture_output=True, text=True, timeout=3).stdout
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return '"class": "steam_app_' in out
+    clients = desk_common.hypr_request("clients", json=True, timeout=3)   # over the socket: no process
+    return any(str(c.get("class") or "").startswith("steam_app_")
+               for c in clients if isinstance(c, dict)) if isinstance(clients, list) else False
 
 
 AMBIENT_LIVE = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "ambient.json")

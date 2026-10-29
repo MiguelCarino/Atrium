@@ -208,6 +208,13 @@ TOPIC_LINES = {
     "poke_spam": ("[ALERT] Input flood! Back off, choom!", "Poke me again and I call MaxTac."),
     "pet": ("...preem. Keep that up, choom.", "[SYS] affection.exe: running.",
             "Visor's going pink... d-don't stop."),
+    # railguard.py's notifications (mascot_notify.py says them, voice on)
+    "rg_memory": "[ICE] {0} was eating the RAM. Flatlined it, choom.",
+    "rg_vram": "[ICE] {0} jacked the VRAM. Zeroed.",
+    "rg_game_vram": "[WARN] {0} is maxing the VRAM. Dial the textures down, choom.",
+    "rg_panic": "Panic button hit. {0} is history.",
+    "rg_stuck": "[WARN] RAM's redlining and I can't find the culprit...",
+    "rg_agents": "Every agent job's been cut. Sessions still jacked in.",
 }
 
 

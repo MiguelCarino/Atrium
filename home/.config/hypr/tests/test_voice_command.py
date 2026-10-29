@@ -73,7 +73,8 @@ class FakeWorld:
         return {"id": 1, "name": "1"}
 
     def themes(self):
-        return ["cyberpunk", "matrix", "aero", "win95", "moe", "lofi", "luna", "orbit", "seasons"]
+        return ["cyberpunk", "matrix", "aero", "win95", "moe", "lofi", "luna", "orbit", "seasons",
+                "orchard", "orchard-dark"]
 
     def current_theme(self):
         return "matrix"
@@ -522,6 +523,9 @@ class Flow(unittest.TestCase):
         auto = vc.automations()
         for patch in (mock.patch.dict(os.environ, env), mock.patch.object(vc, "HERE", scripts),
                       mock.patch.object(auto, "HERE", scripts), mock.patch.object(vc, "UNDO_S", 1),
+                      # the mascot drop-in, straight to the fake notify-send
+                      mock.patch.object(vc, "NOTIFY", os.path.join(bin_dir, "notify-send")),
+                      mock.patch.object(auto, "NOTIFY", os.path.join(bin_dir, "notify-send")),
                       mock.patch.object(vc.time, "sleep", lambda s: None), mock.patch.object(vc, "log", lambda t: None)):
             patch.start()
             self.addCleanup(patch.stop)

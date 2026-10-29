@@ -83,6 +83,7 @@ import urllib.parse
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import privacy_settings  # noqa: E402  (privacy.conf: the per-kind switches)
+import desk_common  # noqa: E402  (hypr_request: hyprctl over the socket)
 
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
 STATE = os.path.join(RUNTIME, "smart-clipboard.json")
@@ -758,11 +759,9 @@ def remember_own(text, path=STATE):
 
 # -- the hook ----------------------------------------------------------------------------------------
 def hyprctl_json(*args):
-    try:
-        out = subprocess.run(["hyprctl", *args, "-j"], capture_output=True, text=True, timeout=2).stdout
-        return json.loads(out or "null")
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return None
+    """`hyprctl ARGS -j`, parsed; None when Hyprland does not answer. Over the
+    request socket (desk_common.hypr_request): no process."""
+    return desk_common.hypr_request(args, json=True, timeout=2)
 
 
 def private_focus(window=None, conf=None):

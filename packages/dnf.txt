@@ -53,6 +53,7 @@ gstreamer1-plugin-libav
 bluez
 NetworkManager
 udisks2
+cups
 psmisc
 lm_sensors
 fwupd
@@ -73,6 +74,7 @@ python3-pyyaml
 python3-psutil
 luajit
 python3-cryptography
+python3-cups
 
 # Tools the scripts call
 jq
@@ -85,6 +87,9 @@ poppler-utils
 qt5ct
 qt6ct
 firefox
+nvtop               # the GPU panel's "nvtop" button; NVIDIA, AMD and Intel alike
+# The graphics card's own driver / VA-API packages are not here: install.sh
+# picks them by the cards it finds (akmod-nvidia only on NVIDIA).
 
 # Building the Hyprland plugins (hyprview, hypr-cube)
 cmake

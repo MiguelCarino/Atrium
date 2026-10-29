@@ -1,0 +1,24 @@
+# ~/.config/mako/island -- the dynamic island's mode, included by
+# ~/.config/mako/config after generated/settings and before the theme.
+#
+# While the island (~/.config/hypr/scripts/island.py, island.service) is
+# running with "Show notifications in the island" on, it adds this mode
+# (`makoctl mode -a island`) and draws every notification itself; it takes
+# it off again (`makoctl mode -r island`) when it stops -- island.service's
+# ExecStopPost does too, so a crashed island never swallows a notification.
+# Never `makoctl mode -s`: do-not-disturb, project-focus and this mode are
+# all added and removed on their own.
+#
+# invisible=1 only stops the popup: mako still owns
+# org.freedesktop.Notifications, keeps every notification in `makoctl list`
+# (so actions and dismiss work by id) and in the history (the bell's panel).
+# default-timeout=0: the island decides how long each one shows (its queue
+# shows them one after the other) and dismisses it into the history then.
+# An app's own expire timeout still holds. The sound sections (low urgency,
+# Do Not Disturb) come earlier and still apply.
+#
+# Here, AFTER generated/settings, so these lines beat its [urgency=...]
+# timeouts: mako applies criteria in file order, later ones winning.
+[mode=island]
+invisible=1
+default-timeout=0

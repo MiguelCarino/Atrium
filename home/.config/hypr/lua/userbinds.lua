@@ -200,10 +200,21 @@ end
 -- and turns it off again (also when the box closes, loses focus, or after 15
 -- seconds). SUPER+Escape leaves it by hand if anything ever went wrong; the
 -- bar's submap label shows "keycapture" while it is on.
+--
+-- "dictation" is the same kind of mode for voice typing (scripts/voice.py):
+-- on only while it types a phrase, so a key still held from SUPER+CTRL+V
+-- (or pressed meanwhile) cannot turn the typed letters into shortcuts --
+-- switching workspaces, spinning the cube, moving windows. Its own key
+-- stops the dictation; SUPER+Escape leaves the mode by hand.
 function M.finish()
     add_custom()
     real_submap("keycapture", function()
         real_bind("SUPER+Escape", hl.dsp.submap("reset"))
+    end)
+    real_submap("dictation", function()
+        real_bind("SUPER+Escape", hl.dsp.submap("reset"))
+        real_bind("SUPER+H", hl.dsp.exec_cmd("~/.config/hypr/scripts/voice.py toggle"))
+        real_bind("SUPER+CTRL+V", hl.dsp.exec_cmd("~/.config/hypr/scripts/voice.py toggle"))
     end)
 end
 

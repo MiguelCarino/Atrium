@@ -136,6 +136,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 
 INTERVAL = 600.0    # s of VISIBLE time before a monitor's image changes
@@ -367,14 +368,31 @@ def set_wallpaper(output, path):
     return True
 
 
+RETHEME_TIMEOUT_S = 120
+
+
+def reap(proc, timeout=None, name=""):
+    """Wait for a child in a thread of its own (so it never lingers as a
+    zombie, and never holds up the poll); past `timeout` it is killed."""
+    def wait():
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            log(f"{name or proc.args[0]}: still running after {timeout} s, killed", always=True)
+            proc.kill()
+            proc.wait()
+    threading.Thread(target=wait, daemon=True).start()
+
+
 def retheme():
     """Let theme-from-wallpaper.py re-pick the accent from the picture just
-    shown. Detached and fire-and-forget: it reads the state file this daemon
-    just wrote, does nothing while the theme is off, and must never hold up
-    the next poll."""
+    shown. In the background: it reads the state file this daemon just
+    wrote, does nothing while the theme is off, and must never hold up the
+    next poll. Reaped by a thread (it was left a zombie for hours before)."""
     try:
-        subprocess.Popen([THEME_SCRIPT, "apply"], stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL, start_new_session=True)
+        reap(subprocess.Popen([THEME_SCRIPT, "apply"], stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, start_new_session=True),
+             RETHEME_TIMEOUT_S, "theme-from-wallpaper.py")
     except OSError as e:
         log(f"theme: {e}")
 
@@ -432,8 +450,11 @@ class Motion:
         # Leftovers of a previous daemon (killed without cleaning up).
         # Anchored to the exact command start() runs: a loose pattern also
         # matched any shell whose command line merely mentioned the script.
-        subprocess.run(["pkill", "-f", f"^{re.escape(sys.executable)} {re.escape(MOTION_PLAYER)} "],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            subprocess.run(["pkill", "-f", f"^{re.escape(sys.executable)} {re.escape(MOTION_PLAYER)} "],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            pass
         atexit.register(self.stop_all)
 
     def start(self, output, path):
@@ -455,6 +476,10 @@ class Motion:
                 proc.wait(timeout=3)
             except subprocess.TimeoutExpired:
                 proc.kill()
+                try:
+                    proc.wait(timeout=3)        # reaped, not left a zombie
+                except subprocess.TimeoutExpired:
+                    pass
             log(f"{output}: moving wallpaper stopped ({why})")
 
     def stop_all(self):
@@ -480,7 +505,10 @@ class Motion:
             mons = hypr_request("j/monitors")
         except (OSError, ValueError):
             mons = []
-        locked = subprocess.run(["pidof", "hyprlock"], stdout=subprocess.DEVNULL).returncode == 0
+        try:
+            locked = subprocess.run(["pidof", "hyprlock"], stdout=subprocess.DEVNULL, timeout=5).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            locked = False
         out = {}
         for m in mons:
             if locked:

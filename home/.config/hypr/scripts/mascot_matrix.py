@@ -245,6 +245,13 @@ TOPIC_LINES = {
     "poke_spam": ("> stop. you're tripping the alarms.", "> enough! the agents will notice."),
     "pet": ("> …thanks. the matrix feels warmer.", "> ok. that was nice.",
             "> head pats. not in the training program."),
+    # railguard.py's notifications (mascot_notify.py says them, voice on)
+    "rg_memory": "> kill -9 {0}. memory leak contained.",
+    "rg_vram": "> {0} flooded the vram. process terminated.",
+    "rg_game_vram": "> {0} owns the vram. watching, not touching.",
+    "rg_panic": "> panic handler: {0} unplugged.",
+    "rg_stuck": "> oom imminent. no target in sight…",
+    "rg_agents": "> all agent processes down. operators still online.",
 }
 
 CAT = (" /\\_/\\ ", "(=o.o=)")

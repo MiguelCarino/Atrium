@@ -53,6 +53,9 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import desk_common  # noqa: E402  (hypr_request: hyprctl over the socket)
 # The host files sit next to the scripts in the config (../lua/hosts), so a
 # copy of the desktop elsewhere reads its own.
 HOSTS = os.path.join(os.path.dirname(HERE), "lua", "hosts")
@@ -118,12 +121,8 @@ def host():
 # -- live --------------------------------------------------------------------
 def hyprctl_monitors(include_disabled=False):
     """hyprctl monitors -j as a list ([] without Hyprland)."""
-    cmd = ["hyprctl", "monitors", "all", "-j"] if include_disabled else ["hyprctl", "monitors", "-j"]
-    try:
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=3).stdout
-        mons = json.loads(out)
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return []
+    mons = desk_common.hypr_request("monitors all" if include_disabled else "monitors",
+                                    json=True, timeout=3)      # over the socket: no process
     return mons if isinstance(mons, list) else []
 
 

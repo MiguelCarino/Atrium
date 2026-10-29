@@ -130,6 +130,7 @@ import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 RULES = os.path.expanduser("~/.config/hypr/automations.json")
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 CTL_SOCK = os.path.join(RUNTIME, "automations.sock")
@@ -570,7 +571,7 @@ def action_argv(act):
     if name == "nightlight":
         return [os.path.join(HERE, "nightlight.sh"), value], "wait"
     if name == "notify":
-        return ["notify-send", "-a", "Automations", "-i", "system-run-symbolic", "Automation", value], "wait"
+        return [NOTIFY, "-a", "Automations", "-i", "system-run-symbolic", "Automation", value], "wait"
     if name == "shell":
         return ["sh", "-c", value], "wait"
     if name == "open":
@@ -751,7 +752,7 @@ class Engine:
 
 
 def notify(summary, body):
-    run("notify-send", "-a", "Automations", "-i", "system-run-symbolic", summary, body, timeout=5)
+    run(NOTIFY, "-a", "Automations", "-i", "system-run-symbolic", summary, body, timeout=5)
 
 
 # -- watching: Hyprland ---------------------------------------------------------
@@ -1117,9 +1118,10 @@ class Daemon:
         path = hypr_socket()
         if not path:
             return
+        import hyprbus      # the shared relay (only what Windows.event reads), or socket2 directly
         try:
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.connect(path)
+            sock = hyprbus.connect({"openwindow", "closewindow", "monitoradded", "monitorremoved"},
+                                   direct=path)
         except OSError:
             return
         self.hypr, self.hypr_buf = sock, b""

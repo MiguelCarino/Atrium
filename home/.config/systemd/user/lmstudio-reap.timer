@@ -1,0 +1,12 @@
+# Every 5 min while lmstudio.service runs: lmstudio-reap.service. Pulled in
+# by lmstudio.service.d/reap.conf (Wants=) and stopped with it (PartOf=), so
+# nothing ticks while LM Studio is down.
+[Unit]
+Description=Look every 5 minutes whether LM Studio sits idle
+PartOf=lmstudio.service
+
+[Timer]
+OnActiveSec=5min
+OnUnitActiveSec=5min
+AccuracySec=1min
+RandomizedDelaySec=30s

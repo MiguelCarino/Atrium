@@ -86,6 +86,7 @@ import time
 
 os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")     # before any `import cv2`
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 sys.path.insert(0, HERE)
 import desklog  # noqa: E402
 import privacy_settings  # noqa: E402  (the switches)
@@ -603,7 +604,7 @@ def focus_on_monitor(monitor, runner=run):
 
 
 def feedback(title, body, runner=run):
-    runner("notify-send", "-a", "Gestures", "-i", "input-touchpad", "-u", "low", "-t", "1500",
+    runner(NOTIFY, "-a", "Gestures", "-i", "input-touchpad", "-u", "low", "-t", "1500",
            "-h", "string:x-canonical-private-synchronous:gesture", title, body)
 
 
@@ -996,7 +997,7 @@ def toggle(which):
                          text=True, timeout=30)
     if res.returncode:
         return (res.stderr or res.stdout).strip() or f"gestures: could not switch {which}"
-    subprocess.run(["notify-send", "-a", "Gestures", "-i", "camera-web", "-u", "low",
+    subprocess.run([NOTIFY, "-a", "Gestures", "-i", "camera-web", "-u", "low",
                     f"{'Gestures' if which == 'gestures' else 'Gaze'} {'on' if on else 'off'}",
                     "the camera icon in the bar shows when it is in use" if on else ""],
                    capture_output=True, timeout=5, check=False)

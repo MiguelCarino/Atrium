@@ -33,7 +33,19 @@ import desktop_conf  # noqa: E402  (desktop.conf: dotfiles=)
 
 REPO = desktop_conf.dotfiles_repo()             # None: no dotfiles repo set
 SYNC = os.path.join(REPO, "sync.sh") if REPO else None
-SIGNAL = 15             # the git pill (custom/repos)
+
+
+def redraw_pill(name):
+    """Redraw a bar pill by its name in ~/.config/hypr/scripts/bar_signals.py
+    (the one table of signal numbers); a direct kill, no pkill fork."""
+    hypr = os.path.expanduser("~/.config/hypr/scripts")
+    if hypr not in sys.path:
+        sys.path.insert(0, hypr)
+    try:
+        import bar_signals
+        bar_signals.poke(name)
+    except Exception:       # no bar, or no hypr scripts: nothing to redraw
+        pass
 
 
 def check():
@@ -61,7 +73,7 @@ def sync():
         answer = ""
     if answer == "y":
         subprocess.run([SYNC, "--commit"])
-    subprocess.run(["pkill", f"-RTMIN+{SIGNAL}", "-x", "waybar"])
+    redraw_pill("repos")
     input("\nDone -- press Enter to close. ")
 
 

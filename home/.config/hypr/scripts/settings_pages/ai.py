@@ -7,7 +7,7 @@ and whether a game clears the card.
 Everything goes through two scripts; the page reads them back after every
 change:
 
-    llm-gpu.py status --json     the card (nvidia-smi), lms ps, the installed
+    llm-gpu.py status --json     the card (gpu.py), lms ps, the installed
                                  models with the fit calculator's verdict,
                                  the gamemode switches (llm-gpu.conf)
     llm-gpu.py load | unload | set ...
@@ -623,7 +623,8 @@ class Page:
         clear(self.card)
         card = data.get("gpu")
         if not card:
-            self.card.pack_start(wrapped("No NVIDIA card found (or its driver is not loaded)"), False, False, 0)
+            self.card.pack_start(wrapped("No graphics card found, or its driver is not loaded "
+                                         "(gpu.py could not read the card)"), False, False, 0)
             self.card.show_all()
             return
         pct = round(100 * card["used"] / card["total"]) if card["total"] else 0

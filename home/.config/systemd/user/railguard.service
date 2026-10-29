@@ -1,0 +1,17 @@
+# Railguard watchdog: ~/.config/hypr/scripts/railguard.py (its docstring
+# explains the layers and the thresholds).
+[Unit]
+Description=Railguard: end runaway RAM/VRAM hogs before the desktop freezes
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/railguard.py daemon
+Restart=always
+RestartSec=2
+# With the compositor and the terminals, so it is never the one starved.
+Slice=session.slice
+CPUWeight=1000
+IOWeight=1000
+MemoryMin=64M
+
+[Install]
+WantedBy=default.target

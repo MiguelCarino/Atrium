@@ -84,6 +84,24 @@ Modes, by the first character typed:
             and open it, or add it to the quick-note inbox
     >       commands: every toggle and tool of this desktop -- display, filters,
             animations, theme, recording, panels, updates, work hours...
+    keys    keyboard shortcuts only ("keys screenshot", "keys super s";
+            "keys" alone: all of them): every bind with a description, as the
+            shortcuts panel (SUPER+F1) lists them, from `hyprctl binds -j`
+            each time the launcher shows -- the keys on each row, Enter does
+            what they do (launcher_shortcuts.py: the bind is looked up in
+            lua/userbinds.lua's table and called, nothing is pressed for
+            you). Without "keys" they still come up, named for what they do
+            ("terminal", "fullscreen"), after the apps, windows, settings and
+            commands. ("?" stays the AI's.)
+    pw      passwords ("pw github"): the entries of your password manager
+            with the words, through the Secret Service (KeePassXC with its
+            Secret Service integration on, or GNOME Keyring, KWallet...; the
+            row says which). Enter copies the password and clears the
+            clipboard 30 s later if it still holds it; the secret is fetched
+            by launcher_secrets.py in a process of its own, never by the
+            launcher, and kept out of the clipboard history. No provider
+            running, nothing shared or a locked database: one row saying so
+            (Enter opens KeePassXC / asks the provider to unlock).
     =       calculator only. Enter copies the result.
     #       colour history (scripts/colorpick.sh). Enter copies the hex.
     :       emoji by name (":fire", ":thumbs"). Enter copies it.
@@ -154,6 +172,7 @@ Modes, by the first character typed:
             Q4_K_M if the repo has it, else the next of QUANTS -- and its
             size (the real one for the top HF_SIZED, "~" a guess from the
             parameter count for the rest), the fit against this GPU's VRAM
+            (gpu.py's main card; the RAM with no card or an integrated one)
             ("fits GPU": weights + ~1.5 GB of context; "partial offload":
             within VRAM + half the RAM; "too big"), parameters ("30.5B (A3B
             active)" for a mixture of experts), downloads, likes, last
@@ -361,9 +380,10 @@ match in generic name / keywords / executable > letters in order (fuzzy).
 With nothing typed, the most launched apps come first (counts kept in
 ~/.cache/launcher-usage.json), so the hero is the app you open most.
 
-Looks: launcher.css next to this file. The compositor side (pop-in, the
-screen dimming behind it, blur) is the `wofi-glass` layer rule in
-~/.config/hypr/lua/rules.lua, which matches this window's namespace too.
+Looks: launcher.css next to this file. The compositor side: the screen
+dimming behind it and the blur are the `wofi-glass` layer rule in
+~/.config/hypr/lua/rules.lua, the pop-in is lua/display.lua's anim-launcher
+rule (a fade in a still preset); both match this window's namespace.
 """
 
 import json
@@ -394,6 +414,7 @@ def _fast_request():
 _fast_request()
 
 import re  # noqa: E402
+import shlex  # noqa: E402
 import signal  # noqa: E402
 import shutil  # noqa: E402
 import subprocess  # noqa: E402
@@ -410,6 +431,7 @@ gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gdk, Gio, GLib, Gtk, GtkLayerShell, Pango  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 CSS_FILE = os.path.join(HERE, "launcher.css")
 PID_FILE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "launcher.pid")
 SOCK = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "launcher.sock")
@@ -436,6 +458,8 @@ import llm_models  # noqa: E402  (no GTK either: the model list and llm.json)
 import timers  # noqa: E402  (no GTK: timers, alarms, the stopwatch -- systemd user timers)
 import sessions as session_store  # noqa: E402  (no GTK: saved workspace sessions, sessions.py)
 import contexts as context_store  # noqa: E402  (no GTK: project contexts, contexts.py)
+import launcher_shortcuts  # noqa: E402  (no GTK: the keyboard shortcuts, from hyprctl binds -j)
+import launcher_secrets  # noqa: E402  (no GTK until asked: passwords through the Secret Service)
 
 from settings_pages import _catalog as settings_catalog  # noqa: E402  (no GTK: the Settings pages and their keywords)
 
@@ -461,8 +485,8 @@ def told(title, argv, then=None):
     q = shlex.quote
     cmd = " ".join(q(a) for a in argv)
     report = f"out=$({' '.join(q(a) for a in then)} 2>&1); " if then else ""
-    return ["sh", "-c", f"out=$({cmd} 2>&1) || {{ notify-send -a Launcher -i dialog-warning {q(title)} \"$out\"; "
-                        f"exit 1; }}; {report}notify-send -a Launcher {q(title)} \"$out\""]
+    return ["sh", "-c", f"out=$({cmd} 2>&1) || {{ {q(NOTIFY)} -a Launcher -i dialog-warning {q(title)} \"$out\"; "
+                        f"exit 1; }}; {report}{q(NOTIFY)} -a Launcher {q(title)} \"$out\""]
 
 
 def warned(title, argv):
@@ -471,7 +495,7 @@ def warned(title, argv):
     fails -- "GNOME Settings is not installed" and the like."""
     import shlex
     cmd = " ".join(shlex.quote(a) for a in argv)
-    return ["sh", "-c", f"out=$({cmd} 2>&1) || notify-send -a Launcher -i dialog-warning {shlex.quote(title)} \"$out\""]
+    return ["sh", "-c", f"out=$({cmd} 2>&1) || {shlex.quote(NOTIFY)} -a Launcher -i dialog-warning {shlex.quote(title)} \"$out\""]
 
 
 # (name, subtitle, icon name, argv). Kept in one table on purpose: adding a
@@ -481,6 +505,10 @@ def warned(title, argv):
 COMMANDS = [
     ("Settings", "every setting of this desktop, searchable  (SUPER+I; or type a page: \"settings sound\")",
      "preferences-system", [SETTINGS]),
+    # Through python3, as welcome.service runs it (the file need not be
+    # executable): a function, so it is not taken for an executable argv.
+    ("Welcome", "the first-login card again: theme, screens, microphone, smart features, the two keys",
+     "help-about", lambda: spawn([sys.executable, os.path.join(HYPR, "welcome.py")])),
     ("Display panel", "HDR, screen filter, animations, theme  (SUPER+ALT+D)", "video-display",
      [PANEL, "toggle", "display", "--at", "bar-right"]),
     # The main screen (display.py's primary(): Settings > Screens' choice, else
@@ -498,7 +526,7 @@ COMMANDS = [
 ] + [
     (f"Animations: {preset}", "animation preset", "preferences-desktop-display",
      [os.path.join(HYPR, "display.py"), "anim", preset])
-    for preset in ("snappy", "smooth", "fancy", "calm")
+    for preset in ("snappy", "smooth", "fancy", "calm", "spring")
 ] + [
     (f"Theme: {label}", "desktop theme: bar, panels, windows, wallpapers", "preferences-desktop-theme",
      [os.path.join(HYPR, "theme.py"), "set", name])
@@ -534,8 +562,8 @@ COMMANDS = [
      "edit-find", [os.path.join(HYPR, "screen-actions.py"), "region"]),
     ("Desktop health check", "every service, timer and check; restarts what failed", "utilities-system-monitor",
      ["sh", "-c", f"{os.path.join(HYPR, 'doctor.py')} --fix >/dev/null; "
-                  f"notify-send -a Doctor 'Desktop health' \"$({os.path.join(HYPR, 'doctor.py')} | tail -n 1)\"; "
-                  "pkill -RTMIN+18 -x waybar"]),
+                  f"{shlex.quote(NOTIFY)} -a Doctor 'Desktop health' \"$({os.path.join(HYPR, 'doctor.py')} | tail -n 1)\"; "
+                  f"{shlex.quote(sys.executable)} {os.path.join(HYPR, 'bar_signals.py')} poke doctor"]),
     ("Errors today", "the desktop's log: errors and warnings from today", "utilities-log-viewer",
      [os.path.expanduser("~/.config/waybar/scripts/panel.py"), "toggle", "logs"]),
     ("Snapshot now", "a system snapshot before you try something (snapper)", "document-save",
@@ -588,6 +616,9 @@ COMMANDS = [
     # Measured: --all took 1:25 for 48 frames on four screens, peaking near 550 MB.
     ("Render Seasons wallpapers", "make-seasons-wallpaper.py --all (about 90 s)", "preferences-desktop-wallpaper",
      [os.path.join(HYPR, "make-seasons-wallpaper.py"), "--all"]),
+    # 25 originals, one per era of a modern desktop's wallpapers, every screen.
+    ("Render Orchard wallpapers", "make-orchard-wallpaper.py --all (25 eras, several minutes)",
+     "preferences-desktop-wallpaper", [os.path.join(HYPR, "make-orchard-wallpaper.py"), "--all"]),
     # The seasons theme's own season and hemisphere (theme.py season pin /
     # hemisphere): they re-apply at once if a seasonal theme is current, and
     # are kept for later otherwise.
@@ -630,6 +661,8 @@ COMMANDS = [
      [PANEL, "toggle", "gpu", "--at", "bar-right"]),
     ("Network", "connections and the apps using them", "network-wired",
      [PANEL, "toggle", "network", "--at", "bar-right"]),
+    ("Bluetooth", "paired devices: connect, battery, pair new", "bluetooth-active",
+     [PANEL, "toggle", "bluetooth", "--at", "bar-right"]),
     ("Repos", "uncommitted / unpushed work in your projects folder", "applications-development",
      [PANEL, "toggle", "repos", "--at", "bar-right"]),
     ("Disks and shader caches", "usage, clear Steam / driver caches", "drive-harddisk",
@@ -734,6 +767,7 @@ COMMANDS = [
      "utilities-terminal", lambda: claude_tui()),
 ]
 CLAUDE_ONLY = ("Claude Code session",)      # COMMANDS offered only with the claude CLI
+CHAT_COMMANDS = ("LLM chat",) + CLAUDE_ONLY  # found by "chat", "llm", "ai" too
 
 
 def nth(n):
@@ -839,9 +873,51 @@ class Item:
             self._run()
 
 
+# -- children: started and left to run, but reaped ---------------------------------
+# spawn() and launch() start things the launcher does not wait for. Each is
+# a child of this process until it ends, and an ended child nobody waits for
+# stays a <defunct> zombie -- under the resident launcher (launcher.service,
+# up for days) they piled up (a remmina-file-wrapper was seen). So every
+# such Popen is kept in _CHILDREN and reap() collects the ended ones: at
+# each spawn, at each show, and every REAP_EVERY seconds while the GTK loop
+# runs (start_reaper). Polling, not a SIGCHLD handler: a Python handler for
+# SIGCHLD would replace GLib's own (GIO's app launching reaps through it),
+# and GLib's signal sources cannot watch SIGCHLD. subprocess.run()'s
+# children never come here: run() waits for them itself.
+_CHILDREN = []
+_CHILDREN_LOCK = threading.Lock()   # spawn() may run in a search thread while the loop reaps
+REAP_EVERY = 5              # seconds
+
+
+def remember(proc):
+    """Keep a started Popen to be reaped once it ends; returns it."""
+    if proc is not None:
+        with _CHILDREN_LOCK:
+            _CHILDREN.append(proc)
+    reap()
+    return proc
+
+
+def reap():
+    """Collect the children that have ended (Popen.poll() waits for one
+    without blocking). Returns how many were collected."""
+    with _CHILDREN_LOCK:
+        done = [p for p in _CHILDREN if p.poll() is not None]
+        for p in done:
+            _CHILDREN.remove(p)
+    return len(done)
+
+
+def start_reaper():
+    """reap() every REAP_EVERY seconds from the GTK loop, for as long as it runs."""
+    GLib.timeout_add_seconds(REAP_EVERY, lambda: reap() >= 0)
+
+
 def spawn(argv):
-    subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                     start_new_session=True)
+    """Start argv in a session of its own, not waited for (reaped later).
+    Returns None, as it always has: callers use it inside GLib callbacks."""
+    remember(subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              start_new_session=True))
 
 
 def copy(text):
@@ -853,7 +929,8 @@ def copy(text):
 
 def command_items():
     claude = claude_cli() is not None
-    return [Item(name, sub, icon, argv, extra="chat llm ai" + (" claude" if name in CLAUDE_ONLY else ""))
+    return [Item(name, sub, icon, argv, extra=("chat llm ai" if name in CHAT_COMMANDS else "")
+                 + (" claude" if name in CLAUDE_ONLY else ""))
             if callable(argv) else Item(name, sub, icon, (lambda a=argv: spawn(a)), extra=" ".join(argv[:2]))
             for name, sub, icon, argv in COMMANDS
             if claude or name not in CLAUDE_ONLY] + model_commands() + mascot_commands()
@@ -936,8 +1013,11 @@ def colour_items():
     for hexa in out.split():
         swatch = os.path.join(swatches, hexa.lstrip("#") + ".png")
         if not os.path.exists(swatch):
-            subprocess.run(["magick", "-size", "64x64", f"xc:{hexa}", swatch],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                subprocess.run(["magick", "-size", "64x64", f"xc:{hexa}", swatch],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+            except (OSError, subprocess.SubprocessError):
+                pass            # no swatch: the generic icon below
         r, g, b = (int(hexa[i:i + 2], 16) for i in (1, 3, 5))
         items.append(Item(hexa, f"rgb({r}, {g}, {b})", swatch if os.path.exists(swatch) else "applications-graphics",
                           lambda h=hexa: spawn([os.path.join(HYPR, "colorpick.sh"), "copy", h])))
@@ -1136,7 +1216,7 @@ def save_text(text, open_after=False):
     if open_after:
         spawn(["gio", "open", path])
     else:
-        spawn(["notify-send", "-a", "Launcher", "-i", "document-save", "Saved",
+        spawn([NOTIFY, "-a", "Launcher", "-i", "document-save", "Saved",
                path.replace(HOME, "~", 1)])
 
 
@@ -1144,7 +1224,7 @@ def add_to_inbox(text):
     import quicknote        # here, not at the top: quicknote imports this file
     # One markdown list item: continuation lines indented under it.
     quicknote.append("\n  ".join(line.rstrip() for line in text.strip().splitlines()))
-    spawn(["notify-send", "-a", "Launcher", "-i", "accessories-text-editor", "Added to the notes inbox",
+    spawn([NOTIFY, "-a", "Launcher", "-i", "accessories-text-editor", "Added to the notes inbox",
            quicknote.INBOX.replace(HOME, "~", 1)])
 
 
@@ -1933,8 +2013,11 @@ def swatch(hexa):
     path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "colorpick", hexa.lstrip("#") + ".png")
     if not os.path.exists(path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        subprocess.run(["magick", "-size", "64x64", f"xc:{hexa}", path],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            subprocess.run(["magick", "-size", "64x64", f"xc:{hexa}", path],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            pass                # no swatch: the generic icon
     return path if os.path.exists(path) else "applications-graphics"
 
 
@@ -2375,24 +2458,36 @@ def hf_query(text):
     return rest.strip() if first.lower() in GET_WORDS else None
 
 
+def ram_bytes():
+    """MemTotal from /proc/meminfo, in bytes (32 GB if it cannot be read)."""
+    try:
+        with open("/proc/meminfo") as handle:
+            return int(handle.readline().split()[1]) * 1024
+    except (OSError, ValueError, IndexError):
+        return 32e9
+
+
+def vram_bytes(card, ram):
+    """The memory a model can be loaded into on the GPU, from gpu.py's
+    primary() card: its vram_total (MiB); no card, or an integrated one
+    (vram_total None, or an AMD APU's small carve-out with discrete False:
+    it shares the RAM) -> the RAM itself."""
+    card = card or {}
+    total = card.get("vram_total")
+    return total * 1024 ** 2 if total and card.get("discrete") is not False else ram
+
+
 def hardware():
-    """{"vram", "ram"} in bytes: nvidia-smi's first GPU (24 GB if it cannot
-    be asked), /proc/meminfo. Blocking once (~50 ms): the search thread."""
+    """{"vram", "ram"} in bytes: gpu.py's main card (any maker; in-process,
+    nothing forked), /proc/meminfo. Blocking once (~50 ms): the search thread."""
     if not _HW:
-        vram = 24e9
+        ram = ram_bytes()
         try:
-            out = subprocess.run(["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
-                                 capture_output=True, text=True, timeout=3).stdout.split()
-            vram = float(out[0]) * 1024 ** 2 if out else vram
-        except (OSError, subprocess.SubprocessError, ValueError):
-            pass
-        ram = 32e9
-        try:
-            with open("/proc/meminfo") as handle:
-                ram = int(handle.readline().split()[1]) * 1024
-        except (OSError, ValueError, IndexError):
-            pass
-        _HW.update(vram=vram, ram=ram)
+            import gpu
+            card = gpu.primary()
+        except Exception:  # noqa: BLE001 -- no card info is the no-card answer
+            card = None
+        _HW.update(vram=vram_bytes(card, ram), ram=ram)
     return _HW
 
 
@@ -2518,7 +2613,9 @@ def count(n):
 def fit(size):
     """vs this machine: the weights plus ~1.5 GB of context in VRAM, or
     split with system RAM (half of it), or not at all."""
-    hw = _HW or {"vram": 24e9, "ram": 32e9}
+    if not _HW:
+        ram = ram_bytes()
+    hw = _HW or {"vram": ram, "ram": ram}      # before hardware() has run: as if no card
     if size + 1.5e9 <= hw["vram"]:
         return "fits GPU"
     if size <= hw["vram"] + hw["ram"] / 2:
@@ -2529,7 +2626,7 @@ def fit(size):
 def start_download(repo, variant):
     """llm_models.py get, detached (in_scope): a launcher restart leaves it be."""
     if llm_models.downloading(repo):
-        spawn(["notify-send", "-a", "LM Studio", "-i", "dialog-information", "Already downloading",
+        spawn([NOTIFY, "-a", "LM Studio", "-i", "dialog-information", "Already downloading",
                f"{repo} is being downloaded already"])
         return
     spawn(in_scope(["python3", os.path.join(HYPR, "llm_models.py"), "get", repo] + ([variant] if variant else [])))
@@ -2777,7 +2874,7 @@ SCREEN_PROMPT = "Explain what's on my screen"
 
 
 def notify(text):
-    spawn(["notify-send", "-a", "LLM chat", "-i", CHAT_ICON, "LLM chat", text])
+    spawn([NOTIFY, "-a", "LLM chat", "-i", CHAT_ICON, "LLM chat", text])
 
 
 def clipboard_prompt(prompt):
@@ -2841,7 +2938,7 @@ def ask_about_screen(prompt, cwd, tui=False, model=None):
     else:
         then = chat_argv(words, cwd, model=model, images=[path])
     # $1 the monitor ("" for all of them), $2 the file, the rest the command.
-    shot = ('sleep 0.5; grim ${1:+-o "$1"} "$2" || { notify-send -a "LLM chat" "LLM chat" '
+    shot = ('sleep 0.5; grim ${1:+-o "$1"} "$2" || { ' + shlex.quote(NOTIFY) + ' -a "LLM chat" "LLM chat" '
             '"grim could not take the screenshot"; exit 1; }; shift 2; exec "$@"')
     spawn(in_scope(["sh", "-c", shot, "sh", output or "", path] + then))
 
@@ -3304,7 +3401,7 @@ KIND_ICON = {"alarm": "alarm", "calendar": "x-office-calendar", "reminder": "emb
 
 
 def timer_notify(text):
-    spawn(["notify-send", "-a", "Timer", "-t", "3000", "-i", "alarm-symbolic", text])
+    spawn([NOTIFY, "-a", "Timer", "-t", "3000", "-i", "alarm-symbolic", text])
 
 
 def at_text(epoch):
@@ -4269,12 +4366,125 @@ def rank(apps, query, usage):
     return [a for _, a in hits]
 
 
+# -- keyboard shortcuts (launcher_shortcuts.py) ------------------------------------------
+SHORTCUT_ICON = "input-keyboard"
+
+
+def shortcut_items(binds=None):
+    """One Item per shortcut with a description (`hyprctl binds -j`, or the
+    `binds` given): named for what it does, its keys and section under it.
+    Enter runs the bind after the card has gone (spawn_argv). Matched on
+    the name and the section only -- not the keys, or "alt" would bring up
+    every ALT shortcut among the apps; "keys alt" does that (shortcut_matches)."""
+    found = launcher_shortcuts.entries(launcher_shortcuts.read_binds() if binds is None else binds)
+    out = []
+    for e in found:
+        item = Item(e["text"], f"{e['label']}  ·  {e['section']} shortcut", SHORTCUT_ICON,
+                    (lambda e=e: spawn(launcher_shortcuts.spawn_argv(e, NOTIFY))))
+        item.extra = f"{e['section']} shortcut".lower()
+        item.key = "keys:" + e["keys"]
+        item.entry = e
+        out.append(item)
+    return out
+
+
+def shortcut_matches(shortcuts, words):
+    """"keys <words>": the shortcuts every word finds (launcher_shortcuts.
+    matches: keys by name, the description by its words), exactly the keys
+    typed first; all of them for none."""
+    shortcuts = list(shortcuts)
+    if not words.strip():
+        return shortcuts or [Item("No shortcuts", "Hyprland gave no binds (hyprctl binds -j)", SHORTCUT_ICON)]
+    hits = launcher_shortcuts.matches([i.entry for i in shortcuts], words)
+    by_entry = {id(i.entry): i for i in shortcuts}
+    return [by_entry[id(e)] for e in hits] or \
+        [Item("No shortcut has those words", "try fewer words, or the keys: \"keys super s\"", SHORTCUT_ICON)]
+
+
+# -- passwords (launcher_secrets.py) ---------------------------------------------------
+PASSWORD_ICON = "dialog-password"
+KEEPASSXC_DESKTOP = "org.keepassxc.KeePassXC.desktop"
+
+
+def desktop_app(desktop_id):
+    """The installed app with this .desktop id, or None. (PyGObject raises
+    TypeError "constructor returned NULL" for one that is not installed,
+    instead of giving None.)"""
+    try:
+        return Gio.DesktopAppInfo.new(desktop_id)
+    except (TypeError, GLib.Error):
+        return None
+
+
+def wants_passwords(text):
+    """"pw" or "pw <words>" (not "pwd", nor "password": that one makes one)."""
+    low = text.lower()
+    return low.strip() == "pw" or low.startswith("pw ")
+
+
+def copy_password(path):
+    """Enter on a password row: launcher_secrets.py fetches the secret, copies
+    it and clears it after CLEAR_AFTER s, in a process of its own (it may
+    first wait for the provider's "allow access?" and it outlives the card)
+    -- so the secret never passes through the launcher at all."""
+    spawn(launcher_secrets.copy_argv(path))
+
+
+def unlock_passwords(index, paths):
+    index.forget()
+    spawn(launcher_secrets.unlock_argv(paths))
+
+
+def password_items(words, index):
+    """"pw <words>": the matching entries of the Secret Service provider, or
+    one row that says why there are none (nothing running, nothing shared,
+    locked) and, where it can, does something about it on Enter."""
+    got = index.get() if index else None
+    if got is None:
+        return [Item("Looking in your password manager…", "the Secret Service (org.freedesktop.secrets)",
+                     PASSWORD_ICON)]
+    provider, state = got["provider"], got["state"]
+    if state in ("none", "error"):
+        app = desktop_app(KEEPASSXC_DESKTOP)
+        why = ("no password manager answers on the Secret Service" if state == "none"
+               else f"{provider} did not answer ({got.get('error', 'error')})")
+        return [Item("Unlock KeePassXC / enable Secret Service integration",
+                     f"{why}: start KeePassXC with Tools > Settings > Secret Service Integration on"
+                     + ("  ·  Enter opens KeePassXC" if app else "  (KeePassXC is not installed; "
+                        "any Secret Service provider works)"),
+                     PASSWORD_ICON, (lambda: launch(App(app))) if app else None)]
+    if state == "empty":
+        return [Item("Enable Secret Service integration",
+                     f"{provider} shares no passwords: in KeePassXC, Database > Database settings > "
+                     "Secret Service Integration, pick the group to expose", PASSWORD_ICON)]
+    out = []
+    for row in launcher_secrets.search(got["items"], words):
+        label = row["label"] or "(no name)"
+        item = Item(label, launcher_secrets.subtitle(row, provider), PASSWORD_ICON,
+                    (lambda p=row["path"]: copy_password(p)))
+        item.key = None         # never learned: no password names in launcher-picks.json
+        out.append(item)
+    if got["locked"]:
+        n = len(got["locked"])
+        unlock = Item(f"Unlock {provider}" if state == "locked" else f"Unlock {n} more in {provider}",
+                      f"{n} locked {'collection' if n == 1 else 'collections'}  ·  Enter asks {provider} "
+                      "to unlock (its own window)", "changes-allow",
+                      (lambda paths=list(got["locked"]): unlock_passwords(index, paths)))
+        unlock.key = None
+        out.append(unlock)
+    if not out:
+        out = [Item("No password matches", f"nothing in {provider} has those words", PASSWORD_ICON)]
+        out[0].key = None
+    return out
+
+
 def results(apps, commands, text, usage, windows=(), files=(), webs=(), clips=(), quotes=(),
-            places=None, quick=None):
+            places=None, quick=None, shortcuts=(), secrets=None):
     """Everything the box should show for what is typed, best first.
     `files` and `quotes` are the slow searches' items for this text (they
     arrive later, from a thread); `webs` the installed browsers; `clips` the
-    clipboard history rows; `quick` the ?? answer's QuickAnswer, if any."""
+    clipboard history rows; `quick` the ?? answer's QuickAnswer, if any;
+    `shortcuts` shortcut_items(); `secrets` the launcher_secrets.Index."""
     mode, rest = (text[:1], text[1:].strip()) if text[:1] in "=>#:!" else ("", text)
     if mode == "!":
         return run_items(rest)
@@ -4285,6 +4495,11 @@ def results(apps, commands, text, usage, windows=(), files=(), webs=(), clips=()
     # text[:1] AND: "" is "in" every string, so an empty box was path mode.
     if text[:1] and text[:1] in "/~":
         return path_items(text)
+    only = launcher_shortcuts.wants_only(text)
+    if only is not None:
+        return shortcut_matches(shortcuts, only)
+    if wants_passwords(text):
+        return password_items(text.strip()[2:].strip(), secrets)
     if mode == ">":
         return rank(commands, rest, {}) + settings_items(rest, explicit=True) if rest else commands
     if mode == "=":
@@ -4333,6 +4548,9 @@ def results(apps, commands, text, usage, windows=(), files=(), webs=(), clips=()
         # first, then "Airplane mode on / off" and the like.
         out += settings_items(text)
         out += [c for c in rank(commands, text, {}) if (score(c, query) or 0) >= 200]
+        # The shortcuts after the commands: "terminal" is the app first, its
+        # keys further down ("ALT + Q  ·  Apps shortcut").
+        out += [k for k in rank(list(shortcuts), text, {}) if (score(k, query) or 0) >= 200]
         out += clip_items(clips, text)
     shown = {w.path for w in watched if getattr(w, "path", None)}
     out += watched + [f for f in files if getattr(f, "path", None) not in shown]
@@ -4348,8 +4566,8 @@ def launch(app):
     bump_usage(app.id)
     if UNDER_UWSM and app.id:
         # Its own systemd scope in the session, like every uwsm-launched app.
-        subprocess.Popen(["uwsm", "app", "--", app.id], start_new_session=True,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        remember(subprocess.Popen(["uwsm", "app", "--", app.id], start_new_session=True,
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
     else:
         app.info.launch([], Gdk.Display.get_default().get_app_launch_context())
 
@@ -4465,6 +4683,8 @@ def read_clipboard():
     try:
         types = subprocess.run(["wl-paste", "-l"], capture_output=True, text=True,
                                timeout=1).stdout.split()
+        if "x-kde-passwordManagerHint" in types:
+            return None     # a password (wl-copy --sensitive: "pw" Enter): never shown back
         image = next((t for t in types if t.startswith("image/")), None)
         if image:
             return "image", image
@@ -4485,7 +4705,7 @@ def save_clip_image(mime):
     path = os.path.join(folder, time.strftime(f"clipboard-%Y%m%d-%H%M%S.{ext}"))
     with open(path, "wb") as handle:
         subprocess.run(["wl-paste", "-n", "-t", mime], stdout=handle, timeout=5)
-    spawn(["notify-send", "-a", "Launcher", "-i", "image-x-generic", "Image saved", path.replace(HOME, "~", 1)])
+    spawn([NOTIFY, "-a", "Launcher", "-i", "image-x-generic", "Image saved", path.replace(HOME, "~", 1)])
 
 
 def clip_paths(text):
@@ -4647,9 +4867,13 @@ PLACEHOLDER = {
 
 
 # A theme's own wording of the hint, over its language's. orbit: a console
-# command line (the same keys, in the flight-console's capitals).
+# command line (the same keys, in the flight-console's capitals). orchard:
+# one word, as a modern desktop's search field says it -- the prefixes still
+# work, they are just not spelled out over the big light field.
 THEME_PLACEHOLDER = {
     "orbit": "▸ apps, windows, files, the web     > CMD   = CALC   # COLOUR   : EMOJI   ? ASK AI   ?? QUICK   ?get MODELS",
+    "orchard": "Search",
+    "orchard-dark": "Search",
 }
 
 
@@ -4687,6 +4911,8 @@ class Launcher(Gtk.Window):
         self.catchers = []
         self.apps = all_apps()
         self.commands = command_items()
+        self.shortcuts = shortcut_items()
+        self.secrets = launcher_secrets.Index(on_ready=lambda: GLib.idle_add(self.secrets_read))
         self.windows = window_items()
         self.browsers = browsers()
         # Typed a city before the index was in: show it now, not at the next key.
@@ -4843,8 +5069,10 @@ class Launcher(Gtk.Window):
     def reload_lists(self):
         if not self.get_visible():
             return False
+        reap()
         self.apps = all_apps()
         self.commands = command_items()
+        self.shortcuts = shortcut_items()
         self.windows = window_items()
         self.browsers = browsers()
         self.clips = clip_history()
@@ -4884,11 +5112,19 @@ class Launcher(Gtk.Window):
             self.refresh(keep_selection=True)
         return False
 
+    def secrets_read(self):
+        """The password index landed (launcher_secrets.Index, its thread):
+        redraw if "pw" is still what is typed."""
+        if self.get_visible() and wants_passwords(self.entry.get_text()):
+            self.refresh(keep_selection=True)
+        return False
+
     def hide_launcher(self):
         for catcher in self.catchers:
             catcher.destroy()
         self.catchers = []
         self.hide()
+        self.secrets.forget()      # the next "pw" asks again: locked since, or unlocked
         if self.search_timer:
             GLib.source_remove(self.search_timer)
             self.search_timer = 0
@@ -5017,7 +5253,8 @@ class Launcher(Gtk.Window):
         try:
             found = results(self.apps, self.commands, text, self.usage, self.windows,
                             self.files if mine else [], self.browsers, self.clips,
-                            self.quotes if mine else [], self.places, self.quick)
+                            self.quotes if mine else [], self.places, self.quick,
+                            shortcuts=self.shortcuts, secrets=self.secrets)
             found = learned_order(found, text, self.picks, self.apps)
         except Exception as exc:
             # A bug in one mode must not leave the box showing what was there
@@ -5341,6 +5578,7 @@ def run_daemon():
         return True
 
     GLib.io_add_watch(server.fileno(), GLib.IO_IN, on_request)
+    start_reaper()
     try:
         Gtk.main()
     finally:
@@ -5363,6 +5601,7 @@ def main():
         handle.write(str(os.getpid()))
     on_sigterm(Gtk.main_quit)
     load_css()
+    start_reaper()
     win = Launcher()
     if len(sys.argv) > 1:
         win.entry.set_text(sys.argv[1])

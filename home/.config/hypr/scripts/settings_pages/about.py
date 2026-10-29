@@ -11,10 +11,10 @@ every section -- and closes it again; it opens closed each time.
 
 Every section is gathered in its own thread when the page is shown and
 fills in as soon as its own commands answer: the processor and memory in a
-few milliseconds, the graphics card (nvidia-smi, vulkaninfo) and the
-package counts (rpm -qa) in about a second. Until then a section says
-"checking…"; on a later visit the old answer stays up while the new one is
-gathered, so nothing jumps around.
+few milliseconds, the graphics card (gpu.py; nvidia-smi and vulkaninfo where
+they are installed) and the package counts (rpm -qa) in about a second.
+Until then a section says "checking…"; on a later visit the old answer
+stays up while the new one is gathered, so nothing jumps around.
 
 The text the page shows is system-info.py's own rows, so "Copy all as text",
 "Save report" and `system-info.py text` in a terminal say exactly the same

@@ -85,8 +85,10 @@ import urllib.parse
 from collections import Counter
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import desk_common  # noqa: E402  (atomic_write_json)
 
 HOME = os.path.expanduser("~")
+NOTIFY = os.path.expanduser("~/.config/hypr/scripts/notify")  # notify-send with the theme's mascot (mascot_notify.py)
 STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local", "state"),
                          "hypr", "sessions")
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
@@ -552,11 +554,7 @@ def session_path(name):
 
 
 def write_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = f"{path}.{os.getpid()}.tmp"
-    with open(tmp, "w") as handle:
-        json.dump(data, handle, indent=1)
-    os.replace(tmp, path)
+    desk_common.atomic_write_json(path, data, indent=1)
 
 
 def load_session(name):
@@ -753,7 +751,7 @@ class Notifier:
     def __call__(self, summary_text, body="", urgency="low"):
         if not self.enabled:
             return
-        cmd = ["notify-send", "-a", "Sessions", "-i", "view-restore", "-u", urgency, "-p"]
+        cmd = [NOTIFY, "-a", "Sessions", "-i", "view-restore", "-u", urgency, "-p"]
         if self.id:
             cmd += ["-r", self.id]
         try:
@@ -887,7 +885,7 @@ def offer(delay=20):
     body = f"{info['windows']} windows from {when(data.get('saved', 0))}: {info['apps']}" + \
         (f"\nlast thing in focus: {focus}" if focus else "")
     try:
-        out = subprocess.run(["notify-send", "-a", "Sessions", "-i", "view-restore", "-t", "60000", "--wait",
+        out = subprocess.run([NOTIFY, "-a", "Sessions", "-i", "view-restore", "-t", "60000", "--wait",
                               "--action=restore=Restore", "--action=no=Not now",
                               "Pick up where you left off?", body],
                              capture_output=True, text=True, timeout=120).stdout

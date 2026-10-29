@@ -9,7 +9,7 @@ back to, so it tiles and takes focus like any app; app id "llm-chat").
 The top is the mascot's stage -- the theme's ASCII animation (mascots.py:
 moe's cat-eared girl, matrix's hacker, win95's paperclip, aero's glass orb,
 cyberpunk's android, lofi's sleepy cat, luna's manila folder, orbit's little
-probe, seasons' fox kit) on the theme's
+probe, seasons' fox kit, orchard's honeybee Hum) on the theme's
 dark card, a speech bubble over it -- the middle the conversation, the
 bottom a box to type the next message in and a status line.
 
@@ -265,7 +265,7 @@ says, it is never woken to ask) in a thread when the model menu opens, a
 local model is picked, and after a local reply, and counted down from that
 look in between (never `lms` per keystroke or per frame). The menu then
 lists "Unload <model>" for each loaded one and "Unload all local models":
-`llm-gpu.py unload KEY|--all` in a thread, the card's memory (nvidia-smi)
+`llm-gpu.py unload KEY|--all` in a thread, the card's memory (gpu.py)
 and RAM (MemAvailable) read before and after, what it freed said in the
 status line. Not while a reply is going (or a model is being readied): a
 note says to stop it first, with a "Stop and unload" button that stops the
@@ -331,6 +331,7 @@ gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 sys.path.insert(0, HERE)
 CSS_FILE = os.path.join(HERE, "llm-chat.css")
 APP_ID = "llm-chat"
@@ -358,6 +359,8 @@ TITLES = {
     "luna": "LLM Chat · Luna",
     "orbit": "LLM · CAPCOM",
     "seasons": "LLM · Seasons",
+    "orchard": "LLM chat · Hum",
+    "orchard-dark": "LLM chat · Hum",
 }
 UI_EN = {"stop": "■ Stop", "send": "Send", "wait": "Queue", "stopping": "Stopping…",
          "done": "✓ done", "placeholder": "Ask {model}…  (Enter send · Shift+Enter newline)",
@@ -397,6 +400,11 @@ UI_THEME = {
     "seasons": {"stop": "■ Hush", "send": "Send ›", "wait": "Queue ›", "done": "✓ done",
                 "placeholder": "Ask {model}, take a stroll through it…  (Enter send · Shift+Enter newline)"},
 }
+# orchard: plain, sentence-case words, as a modern desktop's own apps say them.
+UI_THEME["orchard"] = {"stop": "■ Stop", "send": "Send", "wait": "Queue", "done": "✓ Done",
+                       "placeholder": "Message {model}  (Enter send · Shift+Enter newline)",
+                       "perm_bubble": "Hum is waiting for your OK."}
+UI_THEME["orchard-dark"] = dict(UI_THEME["orchard"])
 UI_THEME["cyberpunk"]["perm_bubble"] = "Auth required, choom…"
 UI_THEME["matrix"]["perm_bubble"] = "> awaiting authorization_"
 UI_THEME["win95"]["perm_bubble"] = "It looks like the AI needs your permission."
@@ -425,7 +433,7 @@ UI_JA = {"stop": "■ 止める", "send": "送信 ♡", "wait": "待つ ♡", "s
 # The face reply headings are drawn in, where the theme has one for it.
 HEADING_FONT = {"moe": "Hachi Maru Pop", "aero": "Selawik", "win95": "W95FA",
                 "lofi": "Comfortaa", "luna": "Tahoma", "orbit": "Barlow Semi Condensed",
-                "seasons": "Alegreya Sans"}
+                "seasons": "Alegreya Sans", "orchard": "Inter", "orchard-dark": "Inter"}
 
 # A --permission-mode (or a Permissions key: ask, auto, acceptEdits, plan)
 # that wins over the saved pick when the window opens; unset = the pick.
@@ -4013,7 +4021,7 @@ class Front(Gtk.Window):
                 return
             icon = {"permission": "dialog-password-symbolic", "failed": "dialog-error-symbolic"}.get(
                 event, "emblem-default-symbolic")
-            argv = ["notify-send", "-a", NOTIFY_APP, "-u", urgency, "-i", icon, "-p", "--wait",
+            argv = [NOTIFY, "-a", NOTIFY_APP, "-u", urgency, "-i", icon, "-p", "--wait",
                     "-A", f"default={self.ui['n_open']}", summary, body]
             try:
                 proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,

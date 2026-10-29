@@ -209,12 +209,85 @@ The choice is theme=<name> in ~/.local/state/hypr/display.conf and survives
                  top 106 px at luminance <= 0.0051, light accents <= 0.12%
                  of a frame). Each season's theme.conf narrows
                  wallpaper_prefix= to its own three
+    orchard/     Orchard: a macOS-like light desktop (the look of the recent
+                 releases), drawn with our own means -- nothing in it is
+                 Apple's. The bar is a translucent light MENU BAR across the
+                 whole top edge (alpha(#c7c7cd, 0.88) over the frost,
+                 luminance 0.43-0.52): the leaf mark at the far left (Font
+                 Awesome's leaf, U+F06C -- never the Apple logo), the
+                 workspaces as small dots, the focused app's name in bold;
+                 monochrome status glyphs, the Control-Centre glyph, power
+                 and "Tue 27 Oct  21:21" at the far right (new theme keys
+                 bar.logo=, bar.workspaces=dots, bar.clock=menubar, written
+                 by theme.py to waybar/generated/bar.conf); nothing is a
+                 pill, a state is coloured TEXT (the REC dot is the one
+                 fill). The dynamic island is ON in its notch design with
+                 match_bar whenever an Orchard theme is entered (theme.conf
+                 island.enabled / island.style / island.match_bar; theme.py
+                 snapshots your previous island settings to
+                 ~/.local/state/hypr/island.before-theme.json and puts them
+                 back when you switch to a theme that sets none), so the
+                 bar's centre is the black notch holding the weather and the
+                 updates / git / bell indicators. Control-Centre-like cards
+                 (16px corners, modules, 24px slider capsules, 38x22
+                 switches, round icon wells, a deep-blue weather-widget
+                 well), a Search-style launcher (a 720px card raised to a
+                 quarter of the screen, a 26px light field, the placeholder
+                 "Search"), wofi as its results list, top-right translucent
+                 notification cards (mako, 372px, 16px corners), Nautilus
+                 with red / yellow / green traffic-light dots on the LEFT
+                 (gtk4.css + gtk_button_layout=close,minimize,maximize:, a
+                 new theme key) and a grey sidebar selection. HDR-dimmed as
+                 luna is: no large field above luminance 0.52-0.55. The
+                 accent ROLE is the fixed system blue #007aff
+                 (accent_follow=no; as text #0058c4, as a fill #0062cc);
+                 status keeps the "increased contrast" system hues (green
+                 #248a3d, orange #b25000, red #d70015), never blue. Windows
+                 get 10px squircle corners (hypr.rounding_power=2.6), a 1px
+                 NEUTRAL hairline and a large soft shadow dropped 14px
+                 (hypr.shadow_offset, hypr.shadow_color_inactive: new keys),
+                 and the "spring" animation preset (lua/display.lua: a ~3%
+                 overshoot pop-in, a gliding workspace slide). Inter 4.1
+                 (OFL; ~/.local/share/fonts/themes/orchard/README; never
+                 Apple's SF fonts) with Adwaita Sans as its fallback,
+                 Adwaita Mono in a Basic-profile terminal (ink on a dimmed
+                 light page) with a zsh-style "you@host dir %" prompt,
+                 WhiteSur icons and the WhiteSur cursor (icons below), a
+                 glassy tink / soft pop / marimba of our own
+                 (make-theme-sounds.py orchard), a minimal dark uosc in
+                 mpv, and Hum, an original little honeybee who tends the
+                 orchard, as the LLM chat's mascot (mascot_orchard.py; no
+                 fruit). Wallpapers drawn from scratch -- ORIGINAL
+                 renderings that evoke each era of that desktop, no Apple
+                 picture downloaded or traced, descriptive names only:
+                 ~/.config/hypr/scripts/make-orchard-wallpaper.py --all
+                 (orchard-01-azure-swoosh.png ... orchard-25-alpine-lake.png,
+                 one per era from the first glossy-blue release to the
+                 liquid-glass one, at each screen's logical size; the top
+                 106 px kept calm under the bar). Day and night follow the
+                 sun with
+                     theme-schedule.py day orchard
+                     theme-schedule.py night orchard-dark
+                 (with theme_auto=on a manual `theme.py set orchard` holds
+                 only until the next day / night boundary)
+    orchard-dark/ Orchard Dark: the same desktop in the dark appearance
+                 (inherit=orchard): a smoky translucent bar (alpha(#1e1e20,
+                 0.60)), graphite cards and Nautilus (view #1e1e1e), text
+                 #ebebf0, the dark-mode system blue #0a84ff (text #409cff,
+                 fill #0071e3) and status hues (#30d158, #ff9f0a, #ff453a),
+                 white hairlines on the windows and deeper shadows,
+                 WhiteSur-dark icons, a near-black terminal. Its stylesheets
+                 are orchard's rules line for line under a dark PALETTE
+                 block (stylesheets do not inherit). Hum is rebound to the
+                 dark stage (mascot_orchard_dark.py)
     icons        icon_theme= in theme.conf (gsettings icon-theme, live in
                  GTK apps; mako's icon-path): cyberpunk Adwaita, aero
                  oxygen (needs `sudo dnf install oxygen-icon-theme`; Adwaita
                  until then), matrix Phosphor, win95 Win95, moe Moe, lofi
                  Lofi, luna Luna, orbit Orbit, seasons Seasons-Spring/
-                 -Summer/-Autumn/-Winter (built, folder colour per season).
+                 -Summer/-Autumn/-Winter (built, folder colour per season),
+                 orchard WhiteSur-light (dark status glyphs for the light bar),
+                 orchard-dark WhiteSur-dark (downloaded).
                  Phosphor, Win95, Moe, Lofi, Luna, Orbit and the four
                  Seasons sets are BUILT, not installed (all but Phosphor
                  and Win95 are Papirus with recoloured folders):
@@ -223,7 +296,15 @@ The choice is theme=<name> in ~/.local/state/hypr/display.conf and survives
                  after sheet). Win95 inherits Chicago95
                  (~/.local/share/icons/Chicago95/README: source, licence,
                  reinstall) and adds the apps it lacks, aliased to a
-                 Chicago95 picture or put through the 16-colour filter
+                 Chicago95 picture or put through the 16-colour filter.
+                 WhiteSur / WhiteSur-light / WhiteSur-dark (vinceliuice's
+                 WhiteSur-icon-theme, GPL-3.0) are DOWNLOADED, not built,
+                 with every Apple-logo icon deleted after install (start-
+                 here*, distributor-logo*, the apple / macos / finder logo
+                 glyphs; they fall back to the inherited themes); the
+                 cursor is WhiteSur-cursors (vinceliuice, GPL-3.0). Source,
+                 commit, licence and the removed files are in the ledger
+                 ~/.local/share/icons/README-downloaded
     tools/statebar.py      a test bar with every pill state, for screenshots
                            (`statebar.py shot FILE.png`; deterministic, so two
                            shots of one theme compare pixel for pixel)

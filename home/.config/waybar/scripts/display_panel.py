@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Display panel -- HDR, screen filter, animations and wallpaper theme in one
-card. Opened from the toolbox's Display row, SUPER+ALT+D, or the launcher's
-"> display" command.
+"""Display panel. The popup (the toolbox's Display row, SUPER+ALT+D, the
+launcher's "> display") is QuickDisplay: HDR, brightness, night light and
+filter, then "All display settings" -- Settings > Screens. The Settings window
+lays out DisplayControls, everything below, as its Screens / Theme / Effects
+pages.
 
     HDR          one switch per HDR-capable output, and the SDR white slider:
                  how bright ordinary (SDR) windows are inside HDR, in nits
@@ -23,7 +25,7 @@ card. Opened from the toolbox's Display row, SUPER+ALT+D, or the launcher's
     NIGHT LIGHT  on a schedule / always on / off, when it comes on and goes
                  off, how warm (nightlight.sh mode / start / end / temp)
     FILTER       off, or one GLSL screen shader (~/.config/hypr/shaders/)
-    ANIMATIONS   snappy / smooth / fancy / calm (lua/display.lua)
+    ANIMATIONS   snappy / smooth / fancy / calm / spring (lua/display.lua)
     THEME        the desktop theme (~/.config/themes/, ~/.config/hypr/scripts/
                  theme.py): one chip per theme folder, and the accent switch --
                  the bar, panels, launcher and window border take their accent
@@ -162,11 +164,7 @@ def hz(rate):
     return f"{float(rate):.2f}".rstrip("0").rstrip(".")
 
 
-def label(text, cls, xalign=0.0):
-    widget = Gtk.Label(label=text)
-    widget.get_style_context().add_class(cls)
-    widget.set_xalign(xalign)
-    return widget
+label = panelui.label        # one caption helper for every panel
 
 
 THEME_DOTS = {}     # theme name -> its colour dots (markup), read once
@@ -638,6 +636,38 @@ def short_name(description):
     return " ".join(words[-2:])
 
 
+# "Remember this layout": the keys that pin a screen where it is now.
+LAYOUT_KEYS = ("mode", "rate", "scale", "transform", "position")
+
+
+def live_layout(info):
+    """{key: value} of one screen's live arrangement (a `display.py status`
+    output), in display.conf's spelling -- what `display.py restore` takes."""
+    return {"mode": info.get("resolution", ""),
+            "rate": str(info.get("rate", "")),
+            "scale": str(info.get("scale", "")),
+            "transform": str(info.get("transform", 0)),
+            "position": f"{info.get('x', 0)}x{info.get('y', 0)}"}
+
+
+def remember_plan(outputs):
+    """[(screen, ["key=value", ...])] that would write the live arrangement
+    of every screen in use into display.conf -- only the screens where a
+    stored key differs from what is live (one already pinned needs no
+    write, and every write re-runs lua/monitors.lua). Screens switched off
+    or mirroring another are left as they are: they have no place of their
+    own to remember. A key with no live value is skipped, never blanked."""
+    plan = []
+    for info in outputs:
+        if not info.get("enabled", True) or info.get("mirror_of"):
+            continue
+        chosen = info.get("chosen") or {}
+        live = {k: v for k, v in live_layout(info).items() if v not in ("", "None")}
+        if any(chosen.get(k, "") != v for k, v in live.items()):
+            plan.append((info["name"], [f"{k}={v}" for k, v in live.items()]))
+    return plan
+
+
 def map_screens(outputs):
     """display.py status's outputs as LayoutMap's screens: the ones in use
     and not mirroring (a mirror has no place of its own)."""
@@ -756,7 +786,19 @@ class Arrangement:
         self.reset.set_halign(Gtk.Align.END)
         self.reset.set_tooltip_text("Forget this screen's choices: the layout in lua/hosts/<host>.lua")
         self.reset.connect("clicked", lambda _b: self.do("restore", *[f"{k}=" for k in SCREEN_KEYS]))
-        self.widget.pack_start(self.reset, False, False, 0)
+        # Remember this layout: every screen's live mode, rate, scale,
+        # rotation and position into display.conf (display.py restore, no
+        # "Keep this?" -- nothing on screen changes), so an arrangement made
+        # with hyprctl or another tool survives the next reload.
+        self.remember = Gtk.Button(label="Remember this layout")
+        self.remember.get_style_context().add_class("ctl-link")
+        self.remember.set_tooltip_text("Keep every screen's current resolution, rate, scale, "
+                                       "rotation and position after a reload or re-login")
+        self.remember.connect("clicked", self.on_remember)
+        ends = Gtk.Box(spacing=8)
+        ends.pack_start(self.remember, False, False, 0)
+        ends.pack_end(self.reset, False, False, 0)
+        self.widget.pack_start(ends, False, False, 0)
 
     def pick(self, key):
         self.target = key
@@ -781,6 +823,26 @@ class Arrangement:
         if not self.updating:
             self.do("screen", "on" if state else "off")
         return True                     # redrawn from status, not here
+
+    def on_remember(self, _button):
+        outputs = (self.everything.get("display") or {}).get("outputs", [])
+        plan = remember_plan(outputs)
+        if not plan:
+            self.remember.set_label("Already remembered")
+            GLib.timeout_add(2500, lambda: (self.remember.set_label("Remember this layout"), False)[1])
+            return
+        self.remember.set_sensitive(False)
+
+        def work():
+            for name, pairs in plan:
+                run(DISPLAY, "restore", name, *pairs)
+
+        def done(_out):
+            self.remember.set_sensitive(True)
+            self.remember.set_label("Remembered")
+            GLib.timeout_add(2500, lambda: (self.remember.set_label("Remember this layout"), False)[1])
+            self.on_change()
+        background(work, done)
 
     def on_place(self, _button):
         side = self.side.keys[self.side.get_active()] if self.side.get_active() >= 0 else ""
@@ -1544,9 +1606,108 @@ class DisplayControls:
         return True
 
 
+class QuickDisplay:
+    """The popup's card: only what is changed often -- HDR per screen, one
+    brightness for all screens, night light, screen filter -- and, last, a
+    link to the rest (Settings > Screens, the full DisplayControls)."""
+
+    def __init__(self, card, on_close):
+        self.on_close = on_close
+        self.updating = False
+        self.brightness = None
+        group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        group.get_style_context().add_class("ctl-group")
+        card.pack_start(group, False, False, 0)
+        group.pack_start(label("DISPLAY", "kb-heading"), False, False, 0)
+        self.hdr_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        group.pack_start(self.hdr_box, False, False, 0)
+        self.hdr = {}
+        self.bright_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        group.pack_start(self.bright_box, False, False, 0)
+        group.pack_start(label("Night light", "ctl-sub"), False, False, 0)
+        self.night = Chips(lambda key: self.act(NIGHTLIGHT, "mode", key))
+        group.pack_start(self.night.widget, False, False, 0)
+        row = Gtk.Box(spacing=8)
+        row.pack_start(label("Filter", "ctl-sub"), True, True, 0)
+        self.filters = combo(lambda key: self.act(DISPLAY, "filter", key or "off"))
+        row.pack_start(self.filters, False, False, 0)
+        group.pack_start(row, False, False, 0)
+        more = Gtk.Button(label="All display settings  \u203a")
+        more.get_style_context().add_class("ctl-link")
+        more.set_halign(Gtk.Align.END)
+        more.connect("clicked", self.on_more)
+        card.pack_start(more, False, False, 0)
+        self.refresh()
+
+    def on_more(self, _button):
+        open_settings("screens")
+        self.on_close()
+
+    def act(self, *cmd):
+        if not self.updating:
+            background(lambda: run(*cmd), lambda _out: self.refresh())
+
+    def refresh(self):
+        def read():
+            try:
+                night = json.loads(run(NIGHTLIGHT, "status", "--json").strip().splitlines()[-1])
+            except (ValueError, IndexError):
+                night = {}
+            return status(), night
+        background(read, lambda result: self.show(*result))
+
+    def hdr_row(self, name):
+        row = Gtk.Box(spacing=8)
+        row.pack_start(label(f"{ICON_HDR}  HDR  ·  {name}", "ctl-title"), True, True, 0)
+        switch = Gtk.Switch()
+        switch.set_valign(Gtk.Align.CENTER)
+        switch.connect("state-set", self.on_hdr, name)
+        row.pack_start(switch, False, False, 0)
+        self.hdr_box.pack_start(row, False, False, 0)
+        row.show_all()
+        self.hdr[name] = (row, switch)
+        return self.hdr[name]
+
+    def on_hdr(self, _switch, state, name):
+        if not self.updating:
+            # Not quiet: HDR can fail to take, and the toast says why. The
+            # monitor needs a moment to come back before the redraw.
+            background(lambda: run(DISPLAY, "hdr", name, "on" if state else "off", "--confirm", quiet=False),
+                       lambda _out: GLib.timeout_add(1200, lambda: (self.refresh(), False)[1]))
+        return False
+
+    def show(self, everything, night):
+        self.updating = True
+        st = everything.get("display") or {}
+        here = set()
+        for info in st.get("outputs", []):
+            if info.get("hdr_capable"):
+                here.add(info["name"])
+                row, switch = self.hdr.get(info["name"]) or self.hdr_row(info["name"])
+                switch.set_state(bool(info.get("hdr_wanted")))
+                row.show()
+        for name, (row, _switch) in self.hdr.items():
+            row.set_visible(name in here)
+        screens = everything.get("screens") or {}
+        if self.brightness is None and screens.get("ranges"):
+            lo, hi = screens["ranges"]["brightness"]
+            self.brightness = Slider("brightness", "Brightness  ·  all screens", lo, hi, 5, "%",
+                                     lambda key, value: self.act(SCREEN_COLOR, "set", "all", key, str(value)))
+            self.bright_box.pack_start(self.brightness.widget, False, False, 0)
+            self.bright_box.show_all()
+        if self.brightness and screens.get("all"):
+            self.brightness.show(screens["all"]["brightness"])
+        if "mode" in night:
+            self.night.set([("auto", "Schedule"), ("on", "On"), ("off", "Off")], night["mode"])
+        if st:
+            fill_combo(self.filters, [("", "Off")] + [(f["name"], f["label"]) for f in st.get("filters", [])],
+                       st.get("filter", ""))
+        self.updating = False
+
+
 class Display(panelui.Panel):
     def build(self):
-        self.controls = DisplayControls(self.card)
+        self.controls = QuickDisplay(self.card, self.quit)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Capture panel -- what the camera pill on the bar (custom/capture) opens.
+"""Capture panel -- what the media pill on the bar (custom/capture) opens.
 
-    SCREENSHOT  Region, Window, Monitor, Annotate, Text (OCR), Pretty
-    RECORD      Monitor, Region, Replay on/off, Save replay, SDR/HDR, Folder
+    SCREENSHOT     Region, Window, Monitor, Annotate, Text (OCR), Pretty
+    RECORD         Monitor, Region, Replay on/off, Save replay, SDR/HDR, Folder
+    VOICE & NOTES  Voice memo (Stop while one runs), Last memo, Memos, Quick
+                   note, Notes, Dictate
 
 Every tile is a front for something that already has a key bind; this panel
 adds no capture logic of its own:
@@ -10,6 +12,9 @@ adds no capture logic of its own:
     hyprshot -m region|window|output   ALT+SHIFT+S / ALT+CTRL+S / ALT+S
     hypr/scripts/screenshot.sh         SUPER+SHIFT+S (annotate), SUPER+O (ocr), SUPER+CTRL+S (pretty)
     hypr/scripts/record.sh             ALT+F9 / ALT+SHIFT+F9 / ALT+F10 / ALT+SHIFT+F10
+    hypr/scripts/memo.py               SUPER+CTRL+N (a voice memo, written down by Whisper)
+    hypr/scripts/quicknote.py          SUPER+SHIFT+N (a note; "open" = the inbox)
+    hypr/scripts/voice.py toggle       dictation into the focused window
 
 The record row follows the recorder live: it reads the same two pid files as
 the REC pill (recording.capture), once a second while the panel is open. While
@@ -29,6 +34,7 @@ slurp's overlay would open under a click catcher that is still up.
 """
 
 import os
+import shlex
 import subprocess
 import sys
 
@@ -43,8 +49,12 @@ import panelui  # noqa: E402
 import recording  # noqa: E402
 
 HYPR = os.path.expanduser("~/.config/hypr/scripts")
+NOTIFY = os.path.join(HYPR, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 SHOT = os.path.join(HYPR, "screenshot.sh")
 RECORD = os.path.join(HYPR, "record.sh")
+MEMO = os.path.join(HYPR, "memo.py")
+NOTE = os.path.join(HYPR, "quicknote.py")
+VOICE = os.path.join(HYPR, "voice.py")
 # Same directory as scrDir in hypr/lua/shared.lua and SCR_DIR in screenshot.sh.
 SCR_DIR = os.path.expanduser("~/Pictures/Screenshots")
 REC_DIR = os.environ.get("REC_DIR", os.path.expanduser("~/Videos/Recordings"))
@@ -72,13 +82,24 @@ RECORDS = [
     ("rec-folder",   "", "Folder",         None),     # opens REC_DIR
 ]
 
+# Memos and notes share the inbox (~/Documents/Notes/inbox.md): a memo's text
+# lands there beside the typed notes.
+NOTES = [
+    ("memo",        "\uf130", "Voice memo", [MEMO, "toggle"]),         # microphone
+    ("memo-last",   "\uf04b", "Last memo",  [MEMO, "last"]),            # play
+    ("memo-folder", "\uf07c", "Memos",      [MEMO, "folder"]),          # folder-open
+    ("note",        "\uf249", "Quick note", [NOTE]),                    # note-sticky
+    ("note-inbox",  "\uf02d", "Notes",      [NOTE, "open"]),            # book
+    ("dictate",     "\uf3c9", "Dictate",    [VOICE, "toggle"]),         # microphone-lines
+]
+
 STOP_GLYPH = ""
 
 # Runs "$@" after the panel is gone and reports a failure through mako -- the
 # panel has exited by then, so nothing else would. Exit 1 with no output is
 # how slurp says "Escape pressed", which is not a failure worth a toast.
 LAUNCH = (
-    'sleep "$0"; out=$("$@" 2>&1) || { [ -n "$out" ] && notify-send -a Capture '
+    'sleep "$0"; out=$("$@" 2>&1) || { [ -n "$out" ] && ' + shlex.quote(NOTIFY) + ' -a Capture '
     '-u critical "Capture" "$1 failed: $(printf %s "$out" | tail -n 3)"; }'
 )
 
@@ -126,11 +147,12 @@ class Tile:
 class Capture(panelui.Panel):
     def setup(self):
         self.tiles = {}
-        self.commands = {key: cmd for key, _g, _c, cmd in SCREENSHOTS + RECORDS}
+        self.commands = {key: cmd for key, _g, _c, cmd in SCREENSHOTS + RECORDS + NOTES}
         self.fired = False
 
     def build(self):
-        for heading, actions in (("SCREENSHOT", SCREENSHOTS), ("RECORD", RECORDS)):
+        for heading, actions in (("SCREENSHOT", SCREENSHOTS), ("RECORD", RECORDS),
+                                 ("VOICE & NOTES", NOTES)):
             self.card.pack_start(label(heading, "kb-heading", 0.0), False, False, 0)
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
             row.set_homogeneous(True)
@@ -156,6 +178,10 @@ class Capture(panelui.Panel):
         self.tiles["rec-replay"].show(
             caption="Replay on" if replay_now else "Replay off", live=replay_now)
         self.tiles["rec-save"].show(sensitive=replay_now)
+        if recording.memo():
+            self.tiles["memo"].show(STOP_GLYPH, "Stop memo", live=True)
+        else:
+            self.tiles["memo"].show()
         hdr = self.range() == "hdr"
         self.tiles["rec-range"].show(caption="HDR" if hdr else "SDR", live=hdr)
         return True
@@ -197,7 +223,7 @@ class Capture(panelui.Panel):
                              env=env)
         except OSError as exc:
             try:
-                subprocess.Popen(["notify-send", "-u", "critical", "Capture",
+                subprocess.Popen([NOTIFY, "-u", "critical", "Capture",
                                   f"{cmd[0]} failed: {exc}"], start_new_session=True)
             except OSError:
                 pass

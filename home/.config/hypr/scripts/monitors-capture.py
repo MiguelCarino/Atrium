@@ -63,9 +63,10 @@ local S = require("lua.shared")
 local M = {{}}
 M.hdr_capable = {{ {hdr} }}
 -- The screens in order: the first is the primary (workspaces 1, 2, 3, 5, the
--- bar), the second gets workspace 4, the third 6 (lua/rules.lua). Written as
--- the screen at 0x0 first, then Hyprland's order; reorder freely, but keep
--- this and the line above on one line each (scripts/screens.py reads them).
+-- bar), the second gets workspace 4, the third 6, the fourth 7 and so on
+-- (lua/workspaces.lua). Written as the screen at 0x0 first, then Hyprland's
+-- order; reorder freely, but keep this and the line above on one line each
+-- (scripts/screens.py reads them).
 M.screens = {{ {order} }}
 
 -- screen: lua/monitors.lua's, which lays the display.conf choices over each

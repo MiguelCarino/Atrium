@@ -3,8 +3,9 @@
 Everything goes through voice.py: `status --json` for what is going on (the
 daemon, the engine, the card's free memory, gamemode) and the settings,
 `set KEY VALUE` to change one, `captions on|off` for the switch. The page
-keeps nothing of its own. The status is read in the background -- it runs
-nvidia-smi and hyprctl -- so opening the page never waits on them.
+keeps nothing of its own. The status is read in the background -- it asks
+the graphics card (gpu.py) and runs hyprctl -- so opening the page never
+waits on them.
 
 "Try it" runs `voice.py selftest`: espeak-ng speaks a sentence in English
 and one in Spanish into a file, and the page shows what came back and how
@@ -32,7 +33,9 @@ COMMAND = os.path.join(HYPR, "voice-command.py")
 # Font Awesome 6 Solid, as escapes (see audio_panel.py on why).
 ICON_CC, ICON_CHIP, ICON_GLOBE, ICON_KEYBOARD = "\uf20a", "\uf2db", "\uf0ac", "\uf11c"
 ICON_BOLT, ICON_CHECK = "\uf0e7", "\uf058"
+ICON_WAVE, ICON_QUOTE = "\uf83e", "\uf10d"   # wave-square, quote-left
 LANGUAGES = [("auto", "Detect (Spanish / English)"), ("es", "Spanish"), ("en", "English")]
+LIVE = [("on", "As I speak"), ("off", "When I stop")]
 OUTPUTS = [("type", "Type it"), ("paste", "Paste it"), ("copy", "Clipboard only")]
 DEVICES = [("auto", "Card, CPU if busy"), ("cuda", "Graphics card only"), ("cpu", "CPU only")]
 IN_GAMES = [("off", "Pause it"), ("cpu", "Use the CPU")]
@@ -45,7 +48,7 @@ def engine_line(info):
     w = info.get("worker")
     plan = info.get("plan") or [None, None, None, ""]
     free = info.get("gpu_free_mb")
-    card = f"card: {free / 1024:.1f} GB free" if free is not None else "no NVIDIA card"
+    card = f"card: {free / 1024:.1f} GB free" if free is not None else "no card CUDA can drive: the CPU"
     if w:
         where = "graphics card" if w["device"] == "cuda" else "CPU"
         now = f"{w['model']} loaded on the {where}, unused for {w['idle_s'] // 60} min"
@@ -115,18 +118,23 @@ class Page:
 
         w.pack_start(sep(), False, False, 0)
         w.pack_start(heading("VOICE TYPING"), False, False, 0)
-        grid, _ = row(ICON_KEYBOARD, "SUPER+CTRL+V starts, again stops and types",
-                      "Or hold SUPER+ALT+V to talk; the text goes to the cursor")
+        grid, _ = row(ICON_KEYBOARD, "SUPER+H starts, again stops (or SUPER+CTRL+V)",
+                      "Into the window you started in, even if you click elsewhere meanwhile. "
+                      "Or hold SUPER+ALT+V to talk")
         w.pack_start(grid, False, False, 0)
         w.pack_start(dp.label("Language", "ctl-sub"), False, False, 0)
         self.language = Chips(lambda key: self.set("language", key))
         w.pack_start(self.language.widget, False, False, 0)
+        w.pack_start(dp.label("Typing", "ctl-sub"), False, False, 0)
+        self.live = Chips(lambda key: self.set("live", key))
+        w.pack_start(self.live.widget, False, False, 0)
         w.pack_start(dp.label("The text", "ctl-sub"), False, False, 0)
         self.output = Chips(lambda key: self.set("output", key))
         w.pack_start(self.output.widget, False, False, 0)
         w.pack_start(details(note("Paste presses Ctrl+V, which terminals do not take (they want "
                                   "Ctrl+Shift+V): Type it works everywhere. For holding SUPER+ALT+V, let go "
-                                  "of V first. The recording stays in memory and is deleted once it is text.")),
+                                  "of V first. As I speak: each phrase is typed at the pause after it (not with "
+                                  "SUPER+ALT+V held: that types once you let go). The recording stays in memory and is deleted once it is text.")),
                      False, False, 0)
 
         w.pack_start(sep(), False, False, 0)
@@ -147,6 +155,22 @@ class Page:
         self.lines = Slider("caption_lines", "Lines kept on screen", 1, 4, 1, "",
                             lambda key, value: self.set(key, value))
         w.pack_start(self.lines.widget, False, False, 0)
+
+        # memo.py / memo_card.py: the card under the bar while a memo records.
+        w.pack_start(sep(), False, False, 0)
+        w.pack_start(heading("VOICE MEMOS"), False, False, 0)
+        self.memo_card = Gtk.Switch()
+        self.memo_card.connect("state-set", lambda _s, state: self.switch("memo_card", state))
+        grid, _ = row(ICON_WAVE, "Card while recording",
+                      "SUPER+CTRL+N: the time, the sound as waves and Stop, under the bar until it ends",
+                      self.memo_card)
+        w.pack_start(grid, False, False, 0)
+        self.memo_text = Gtk.Switch()
+        self.memo_text.connect("state-set", lambda _s, state: self.switch("memo_text", state))
+        grid, _ = row(ICON_QUOTE, "Words while recording",
+                      "Shows what you say on the card, just for show (uses the voice engine)",
+                      self.memo_text)
+        w.pack_start(grid, False, False, 0)
 
         w.pack_start(sep(), False, False, 0)
         w.pack_start(heading("VOICE COMMANDS"), False, False, 0)
@@ -208,11 +232,15 @@ class Page:
         self.in_games.set(IN_GAMES, s["in_games"])
         self.language.set(LANGUAGES, s["language"])
         self.output.set(OUTPUTS, s["output"])
+        self.live.set(LIVE, s.get("live", "on"))
         self.idle.show(int(s["idle_min"]))
         self.size.show(int(s["caption_size"]))
         self.lines.show(int(s["caption_lines"]))
         self.translate.set_state(s["translate"] == "on")
         self.commands.set_state(s.get("commands", "on") == "on")
+        self.memo_card.set_state(s.get("memo_card", "on") == "on")
+        self.memo_text.set_state(s.get("memo_text", "on") == "on")
+        self.memo_text.set_sensitive(s.get("memo_card", "on") == "on")
         self.confirm.set_state(s.get("command_confirm", "off") == "on")
         self.command_language.set(LANGUAGES, s.get("command_language", "auto"))
         self.captions.set_state(bool(info.get("captions")))

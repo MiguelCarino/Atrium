@@ -9,3 +9,6 @@ Description=Save the open windows to the automatic session slot
 Type=oneshot
 ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/sessions.py autosave
 Nice=10
+# Every 3 min: systemd's start/finish lines, 480 a day, are noise (the
+# script itself says nothing when all went well).
+LogLevelMax=notice

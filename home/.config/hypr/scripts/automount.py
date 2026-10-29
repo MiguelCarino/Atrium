@@ -12,7 +12,12 @@
                                 power it off, so it can be pulled out; a busy
                                 one says which program holds it
     automount.py bar            waybar JSON for custom/drives: a USB glyph
-                                while something removable is mounted
+                                while something removable is mounted (read
+                                from mountinfo first: no D-Bus while none is)
+    automount.py click left|right
+                                the pill's clicks (click_plan): one drive --
+                                open it / eject it; several -- Files on
+                                /run/media/$USER either way, never "eject all"
     automount.py get [--json]   the two choices below
     automount.py set mount on|off
                                 off: a plugged-in drive is left unmounted and
@@ -27,22 +32,34 @@ a change needs no restart. Settings > Storage writes it through `set`.
 
 Only removable drives (USB sticks and disks, SD cards); never internal
 disks, and never a filesystem udisks marks to ignore or not to automount.
-The bar pill is signalled (SIGNAL) on every change.
+The bar pill is signalled (bar_signals.py "drives") on every change.
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
 
-import gi
-from gi.repository import Gio, GLib
+# gi (PyGObject) is imported on first use (load_gi), not here: it costs
+# ~80 ms and ~30 MB, and `bar` -- re-run on every drive change -- usually
+# needs none of it (bar_fast).
+Gio = GLib = None
+
+
+def load_gi():
+    global Gio, GLib
+    if Gio is None:
+        import gi  # noqa: F401
+        from gi.repository import Gio as _Gio, GLib as _GLib
+        Gio, GLib = _Gio, _GLib
 
 BUS = "org.freedesktop.UDisks2"
 FS, BLOCK, DRIVE = (BUS + ".Filesystem", BUS + ".Block", BUS + ".Drive")
-SIGNAL = 19             # waybar custom/drives
 FILES = "nautilus"
 CONF = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "hypr", "automount.conf")
+sys.path.insert(0, os.path.expanduser("~/.config/hypr/scripts"))
+import desk_common  # noqa: E402  (notify: the notification, through scripts/notify)
 DEFAULTS = {"mount": True, "open": False}
 
 
@@ -91,6 +108,7 @@ def open_files(point):
 
 
 def manager():
+    load_gi()
     return Gio.DBusObjectManagerClient.new_for_bus_sync(
         Gio.BusType.SYSTEM, Gio.DBusObjectManagerClientFlags.NONE, BUS, "/org/freedesktop/UDisks2",
         None, None, None)
@@ -143,18 +161,84 @@ def mounted(mgr):
 
 
 def poke_bar():
-    subprocess.run(["pkill", f"-RTMIN+{SIGNAL}", "-x", "waybar"], capture_output=True)
+    """Redraw custom/drives (bar_signals "drives"): the daemon calls this on
+    every mount, unmount and removal, so the module needs no polling."""
+    try:
+        here = os.path.dirname(os.path.abspath(__file__))
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        import bar_signals
+        bar_signals.poke("drives")
+    except Exception:       # no bar: nothing to redraw
+        pass
+
+
+# -- the bar without D-Bus --------------------------------------------------------
+MEDIA = os.path.join("/run/media", os.environ.get("USER") or os.path.basename(os.path.expanduser("~")))
+
+
+def unescape_mount(field):
+    """mountinfo writes a space as \\040 (and tab, newline, backslash alike)."""
+    return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), field)
+
+
+def media_mounts(mountinfo_text, media=None):
+    """Mount points under /run/media/$USER (where udisks mounts a drive for
+    this user, as Files would) in a /proc/self/mountinfo text."""
+    media = (media or MEDIA).rstrip("/") + "/"
+    out = []
+    for line in mountinfo_text.splitlines():
+        f = line.split(" ")
+        if len(f) > 4:
+            point = unescape_mount(f[4])
+            if point.startswith(media):
+                out.append(point)
+    return out
+
+
+def bar_rows():
+    """The bar's rows: [] straight from mountinfo when nothing is mounted
+    under /run/media/$USER or /media (udisks' two homes: per user, and the
+    shared one a UDISKS_FILESYSTEM_SHARED rule picks) -- the usual case: no
+    gi, no D-Bus -- else udisks' answer, which also checks the drive really
+    is removable and has its label."""
+    try:
+        with open("/proc/self/mountinfo") as handle:
+            text = handle.read()
+        if not media_mounts(text) and not media_mounts(text, "/media"):
+            return []
+    except OSError:
+        pass
+    return mounted(manager())
+
+
+def click_plan(rows, button):
+    """What a click on the pill does, as (action, argument):
+    left    one drive: ("open", its mount); several: ("open", /run/media/$USER)
+            so Files shows them all side by side
+    right   one drive: ("eject", its mount); several: ("open", the media
+            folder) -- never "eject everything" from one stray click: Files
+            has an eject button per drive"""
+    if not rows:
+        return ("none", "")
+    if len(rows) == 1:
+        return ("open" if button == "left" else "eject", rows[0]["mount"])
+    return ("open", os.path.dirname(rows[0]["mount"].rstrip("/")) or MEDIA)
+
+
+def bar_json(rows):
+    if not rows:
+        return {"text": "", "class": "none"}
+    tip = "\n".join(f"{r['label']}  {r['mount']}" for r in rows)
+    hint = ("Click: open in Files · Right-click: eject it" if len(rows) == 1 else
+            "Click or right-click: Files, with an eject button per drive")
+    return {"text": "\uf287" + (f" {len(rows)}" if len(rows) > 1 else ""),
+            "tooltip": f"{tip}\n\n{hint}", "class": "mounted"}
 
 
 def notify(title, body, actions=(), icon="drive-removable-media"):
     """notify-send; returns the action picked (blocks: run in a thread)."""
-    cmd = ["notify-send", "-a", "Drives", "-i", icon, title, body]
-    if actions:
-        cmd[1:1] = ["--wait"] + [f"--action={k}={v}" for k, v in actions]
-    try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=600).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        return ""
+    return desk_common.notify(title, body, app="Drives", icon=icon, actions=actions, timeout=600)
 
 
 def background(fn, *args):
@@ -296,13 +380,13 @@ def main(argv):
     elif cmd == "set" and len(argv) > 2:
         write_conf(argv[1], argv[2])
     elif cmd == "bar":
-        rows = mounted(manager())
-        if not rows:
-            print(json.dumps({"text": "", "class": "none"}))
-        else:
-            tip = "\n".join(f"{r['label']}  {r['mount']}" for r in rows)
-            print(json.dumps({"text": "" + (f" {len(rows)}" if len(rows) > 1 else ""),
-                              "tooltip": f"{tip}\n\nClick: open  ·  Right-click: eject all", "class": "mounted"}))
+        print(json.dumps(bar_json(bar_rows())))
+    elif cmd == "click" and argv[1:2] in (["left"], ["right"]):
+        action, target = click_plan(bar_rows(), argv[1])
+        if action == "open":
+            open_files(target)
+        elif action == "eject":
+            sys.exit(0 if eject(target) else 1)
     else:
         sys.exit(__doc__)
 

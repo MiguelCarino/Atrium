@@ -7,7 +7,12 @@ PartOf=graphical-session.target
 After=graphical-session.target mako.service
 
 [Service]
-Type=simple
+# Once per login, then it is done: RemainAfterExit keeps it "active
+# (exited)" after a clean run, so doctor.py's "every enabled unit runs"
+# check does not report it as not running (it did, as "inactive"), and a
+# second start in the same session is a no-op.
+Type=exec
+RemainAfterExit=yes
 ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
 ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/sessions.py offer --delay 20
 

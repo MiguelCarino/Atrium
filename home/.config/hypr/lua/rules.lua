@@ -16,7 +16,8 @@
 -- live screens:
 --   P       the primary -- display.conf's primary=<o> (Settings > Screens,
 --           scripts/display.py primary), else the host file's first screen
---   SCREENS the screens in order; the second gets workspace 4, the third 6
+--   SCREENS the screens in order; the second gets workspace 4, the third 6,
+--           the fourth 7 ... (lua/workspaces.lua)
 -- Read at every load, so a choice survives a reload and a re-login. pcall:
 -- if lua/monitors.lua ever fails to load, nothing is pinned (P nil) rather
 -- than the whole file failing with it.
@@ -162,9 +163,20 @@ hl.window_rule({
 -- it sits on top and leaves the layout alone. Matched on title because the
 -- dialog's class is its parent app's (firefox, chrome, codium...), and on the
 -- portal's own class for apps that go through xdg-desktop-portal.
+--
+-- The whole title, not a prefix, and the title the window was BORN with as
+-- well as the one it has now: a plain prefix match also floated (and
+-- resized to 1100x700) an editor whose document was called "Save As notes"
+-- or a browser tab titled "Open File formats ...". A dialog is created with
+-- its title; a main window that later shows a document with such a name was
+-- not, so initial_title keeps it tiled. Only a trailing ellipsis ("..." or
+-- the single character) is allowed after the name, and then " — App": Qt
+-- adds the application's name that way to every window title it shows on
+-- Wayland, so a KDE app's dialog is "Open File — Okular".
+local FILE_DIALOG = "^(Open File|Open Files|Open Folder|Save File|Save As|Save Image|File Upload|Choose Files?|Select a File|Enter name of file to save to)( ?(…|\\.\\.\\.))?( — [^—]+)?$"
 hl.window_rule({
     name   = "float-file-dialogs",
-    match  = { title = "^(Open File|Open Files|Open Folder|Save File|Save As|Save Image|File Upload|Choose Files?|Select a File|Enter name of file to save to).*$" },
+    match  = { title = FILE_DIALOG, initial_title = FILE_DIALOG },
     float  = true,
     center = true,
     size   = "1100 700",
@@ -269,6 +281,15 @@ hl.layer_rule({
     ignore_alpha = 0.2,
 })
 
+-- The dynamic island (scripts/island.py) is frosted by the rule above; this
+-- only makes it slide down from the screen's top edge (it hangs in the bar's
+-- strip, like a notch) when it shows, and back up.
+hl.layer_rule({
+    name        = "island-slide",
+    match       = { namespace = "^(waybar-island)$" },
+    animation   = "slide top",
+})
+
 -- Same treatment for the launcher, whose surface calls itself plain "wofi".
 -- Its card is a much larger sheet than any pill, so without the frost you read
 -- whatever web page happens to be underneath it straight through the list.
@@ -277,8 +298,13 @@ hl.layer_rule({
     match       = { namespace = "^(wofi|launcher)$" },   -- launcher: scripts/launcher.py
     blur        = true,
     ignore_alpha = 0.2,
-    -- Spotlight: the card pops in and everything behind it dims.
-    animation   = "popin 80%",
+    -- Spotlight: everything behind the card dims. How it appears is
+    -- lua/display.lua's layer rules (anim-launcher: popin 92%, or a fade
+    -- in a still preset): one of the two always matches, and display.lua is
+    -- always loaded (hyprland.lua requires it unconditionally; a load error
+    -- would stop the config before it anyway), so an animation here never
+    -- showed. The island-slide rule above stays: display.lua leaves the
+    -- island to it except in a still preset.
     dim_around  = true,
 })
 
@@ -340,14 +366,25 @@ hl.layer_rule({
 -- The only genuinely roaming workspaces are non-persistent ones, and those are
 -- the ones that evaporate when empty -- see the note on the ALT+n loop in
 -- lua/binds.lua.
--- 1, 2, 3 and 5 live on the primary screen (P, top of this file). 4 lives on
--- the second screen of SCREENS and 6 on the third -- by place in the host
+-- Which workspace lives where is lua/workspaces.lua's homes(): 1, 2, 3 and 5
+-- on the primary (P, top of this file); 4 on the second screen of SCREENS, 6
+-- on the third, 7 on the fourth, and so on one each -- by place in the host
 -- file's list, NOT by "whatever is not the primary", so picking another
--- primary in Settings > Screens moves 1/2/3/5 and leaves 4 and 6 where they
--- were. A machine with fewer screens keeps 4 and 6 (persistent, so the bar's
--- pills stay) on the primary, without default = true -- that screen already
--- lands on 1. With no screen known at all (P nil: the first load of a session
--- on a machine with no host file), nothing is pinned; the next reload pins.
+-- primary in Settings > Screens moves 1/2/3/5 and leaves the others where
+-- they were. A machine with fewer screens keeps 4 and 6 (persistent, so the
+-- bar's pills stay) on the primary, without default = true -- that screen
+-- already lands on 1. With no screen known at all (P nil: the first load of a
+-- session on a machine with no host file), nothing is pinned; the next
+-- reload pins.
+--
+-- The first six are written out as pin() calls -- scripts/window-look.py
+-- reads them from this file when Hyprland does not answer, and
+-- tests/test_workspace_homes.py checks they say what homes() says. Every
+-- screen past the third is generated from SCREENS (W.slot), so a screen added
+-- to the host file gets its workspace and its keys (lua/binds.lua loops to
+-- W.last()) with nothing else to edit -- before, a fourth screen's workspace
+-- was unpinned and no key reached it.
+local W = require("lua.workspaces")
 local function pin(ws, mon, default)
     local rule = { workspace = ws, persistent = true }
     if mon then
@@ -363,3 +400,7 @@ pin("3", P)
 pin("5", P)
 pin("4", second or P, second ~= nil)
 pin("6", third or P,  third ~= nil)
+for n = 4, #SCREENS do
+    local ws = W.slot(n)
+    if ws <= W.last(SCREENS) then pin(tostring(ws), SCREENS[n], true) end
+end

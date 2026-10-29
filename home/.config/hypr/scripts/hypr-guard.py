@@ -26,13 +26,15 @@ import glob
 import json
 import os
 import shutil
-import socket
 import subprocess
 import sys
 import threading
 import time
 
 HYPR = os.path.expanduser("~/.config/hypr")
+sys.path.insert(0, os.path.join(HYPR, "scripts"))
+import desk_common  # noqa: E402  (notify: the notification, through scripts/notify)
+import hyprbus  # noqa: E402  (Hyprland's events: the shared relay, or socket2 directly)
 GOOD = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
                     "hypr", "last-good")
 
@@ -89,13 +91,8 @@ def restore():
 
 
 def notify(title, body, actions=(), urgency="critical"):
-    cmd = ["notify-send", "-a", "Hyprland config", "-u", urgency, "-i", "dialog-warning", title, body]
-    if actions:
-        cmd[1:1] = ["--wait"] + [f"--action={k}={v}" for k, v in actions]
-    try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=3600).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        return ""
+    return desk_common.notify(title, body, app="Hyprland config", urgency=urgency,
+                              icon="dialog-warning", actions=actions, timeout=3600)
 
 
 def restored_toast(aside):
@@ -155,23 +152,10 @@ def socket_path():
 def daemon():
     guard = Guard()
     guard.loaded()                      # the load that happened at login
-    while True:
-        try:
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.connect(socket_path())
-        except (OSError, TypeError):
-            time.sleep(2)
-            continue
-        buf = b""
-        with sock:
-            while True:
-                chunk = sock.recv(65536)
-                if not chunk:
-                    break
-                buf += chunk
-                *lines, buf = buf.split(b"\n")
-                if any(line.startswith(b"configreloaded>>") for line in lines):
-                    guard.loaded()
+    # Only reloads: through hyprbus nothing else wakes this up (reconnects,
+    # after a Hyprland restart, are subscribe()'s).
+    for _name, _data in hyprbus.subscribe({"configreloaded"}, direct=socket_path):
+        guard.loaded()
 
 
 def main(argv):

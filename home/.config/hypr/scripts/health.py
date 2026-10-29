@@ -122,6 +122,10 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import desk_common  # noqa: E402  (read_json)
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 HOME = os.path.expanduser("~")
 CONFIG = os.path.join(HOME, ".config", "hypr", "health.json")
 STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local", "state"),
@@ -434,18 +438,14 @@ def path_for(name):
 
 def read_json(name, default):
     try:
-        with open(path_for(name)) as handle:
-            data = json.load(handle)
-        return data if isinstance(data, type(default)) else default
-    except (OSError, ValueError):
+        path = path_for(name)       # makes the folder: may fail too
+    except OSError:
         return default
+    return desk_common.read_json(path, default, typed=True)
 
 
 def write_json(name, data):
-    tmp = path_for(f"{name}.{os.getpid()}.tmp")
-    with open(tmp, "w") as handle:
-        json.dump(data, handle, indent=1, ensure_ascii=False)
-    os.replace(tmp, path_for(name))
+    desk_common.atomic_write_json(path_for(name), data, indent=1, ensure_ascii=False)
 
 
 def last_report():
@@ -1274,7 +1274,7 @@ def report_text(rep):
 
 
 def notify(summary, body, open_page=True):
-    argv = ["notify-send", "-a", APP, "-i", ICON]
+    argv = [NOTIFY, "-a", APP, "-i", ICON]
     if open_page:
         argv += ["--wait", "-A", "open=Open"]
     argv += [redact(summary), redact(body)[:900]]

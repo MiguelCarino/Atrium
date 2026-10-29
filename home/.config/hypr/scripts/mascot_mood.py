@@ -113,6 +113,10 @@ RUN = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
 STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hypr")
 SETTINGS = os.path.join(STATE_DIR, "mascot.json")
 SIGNALS = ("talk", "weather", "time", "calendar", "workhours", "pc", "chance")
+# The mascot in the desktop's notifications (mascot_notify.py): its little
+# icon on them, quick low-urgency toasts too, and a line in its own voice on
+# top -- the voice ships off.
+NOTIFY_DEFAULTS = {"icon": True, "toasts": False, "voice": False}
 
 # The reaction groups (mascot.json "reactions"; module docstring). Topics by
 # name; "?question", "?error" and "?result" are the quiet reactions with no
@@ -208,6 +212,13 @@ DEFAULT_LINES = {
     "poke": "hey there!",
     "poke_spam": "hey! stop poking!",
     "pet": "aww...",
+    # railguard.py's notifications (mascot_notify.py says them, voice on)
+    "rg_memory": "{0} was eating all the memory -- I stopped it",
+    "rg_vram": "{0} filled the GPU's memory -- I stopped it",
+    "rg_game_vram": "{0} is using nearly all the GPU memory...",
+    "rg_panic": "got it -- {0} is gone",
+    "rg_stuck": "memory's running out and I can't find who to stop...",
+    "rg_agents": "all the agents' commands stopped -- the sessions are safe",
 }
 
 # The sign over the head for each topic (and for the quiet reactions, by
@@ -369,16 +380,27 @@ def read_settings():
     motion = data.get("reduce_motion", "auto")
     if motion not in MOTION_MODES:
         motion = "auto"
+    notifications = dict(NOTIFY_DEFAULTS)
+    if isinstance(data.get("notifications"), dict):
+        notifications.update({k: bool(v) for k, v in data["notifications"].items()
+                              if k in notifications})
     return {"enabled": bool(data.get("enabled", True)),
             "random_only": bool(data.get("random_only", False)),
-            "signals": signals, "reactions": reactions, "reduce_motion": motion}
+            "signals": signals, "reactions": reactions, "reduce_motion": motion,
+            "notifications": notifications}
 
 
-def save_settings(enabled=None, random_only=None, reduce_motion=None, **switches):
+def save_settings(enabled=None, random_only=None, reduce_motion=None, notifications=None,
+                  **switches):
     """Change some switches -- signals and reaction groups by name:
-    weather=False, stage=False; reduce_motion True, False or "auto" -- and
-    write mascot.json whole; returns read_settings() after."""
+    weather=False, stage=False; reduce_motion True, False or "auto";
+    notifications a dict of NOTIFY_DEFAULTS keys -- and write mascot.json
+    whole; returns read_settings() after."""
     cur = read_settings()
+    for k, v in (notifications or {}).items():
+        if k not in NOTIFY_DEFAULTS:
+            raise ValueError(f"no notification switch {k!r} (one of {', '.join(NOTIFY_DEFAULTS)})")
+        cur["notifications"][k] = bool(v)
     if enabled is not None:
         cur["enabled"] = bool(enabled)
     if random_only is not None:

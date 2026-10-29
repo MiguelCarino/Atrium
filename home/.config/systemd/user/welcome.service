@@ -1,0 +1,18 @@
+# The first-login welcome: ~/.config/hypr/scripts/welcome.py (its docstring
+# has the rest) -- theme, screens, microphone, smart features, the keys.
+# Once: "Don't show this again" (on by default) writes the marker below, and
+# with it there systemd does not start anything. `welcome.py --reset` shows
+# it at the next login again; `welcome.py` shows it now.
+[Unit]
+Description=First-login welcome (theme, screens, microphone, smart features)
+PartOf=graphical-session.target
+After=graphical-session.target waybar.service mako.service
+ConditionPathExists=!%h/.local/state/hypr/welcome-done
+
+[Service]
+Type=simple
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/welcome.py --first-login
+
+[Install]
+WantedBy=graphical-session.target

@@ -32,6 +32,9 @@ Each check is ok / warn / fail (info = only shown in the report):
     dotfiles    your dotfiles repo's sync.sh --check (desktop.conf's dotfiles=,
                 desktop_conf.py): home and the repo agree and nothing is
                 unpushed (warn only). No repo set: no such line at all
+    backup      backup.py (restic / kopia), once one is set up: the last good
+                backup is under a week old (backup.py WARN_DAYS; warn past it, when
+                the last run failed); not set up: no line
     snapshots   snapper, if installed: the newest snapshot is under 2 days old
                 (installed but not set up yet is info, not a warning)
     health      the last nightly checkup (health.py, the self-healing one):
@@ -95,7 +98,7 @@ def unit_props(units):
     if not units:
         return {}
     _, out, _ = sh("systemctl", "--user", "show", "-p",
-                   "Id,LoadState,ActiveState,SubState,Result,Type,Triggers", *units)
+                   "Id,LoadState,ActiveState,SubState,Result,Type,Triggers,RemainAfterExit,ConditionResult", *units)
     props, cur = {}, {}
     for line in out.splitlines() + [""]:
         if not line:
@@ -106,6 +109,26 @@ def unit_props(units):
         key, _, value = line.partition("=")
         cur[key] = value
     return props
+
+
+def service_state(p):
+    """(level, text) for a wanted service from its `systemctl show` props.
+    Not running is only a failure for a daemon that should be: a oneshot, a
+    unit that did its work and exited cleanly with RemainAfterExit, and one
+    whose Condition...= said "not now" (welcome.service once it has been
+    seen) all ended the way they are meant to."""
+    active, result = p.get("ActiveState"), p.get("Result")
+    if active == "failed":
+        return "fail", f"failed ({result})"
+    if active == "active":
+        return "ok", p.get("SubState") or "running"
+    if p.get("ConditionResult") == "no":
+        return "ok", "not needed now (its condition is not met)"
+    if p.get("Type") == "oneshot":
+        return "ok", p.get("SubState") or "done"
+    if p.get("RemainAfterExit") == "yes" and result in (None, "", "success"):
+        return "ok", "ran and exited"
+    return "fail", f"not running ({active})"
 
 
 def check_units():
@@ -127,12 +150,9 @@ def check_units():
                 results.append(check("units", "fail", f"{unit}: not waiting ({p.get('ActiveState')})", unit))
             else:
                 results.append(check("units", "ok", f"{unit}: waiting", unit))
-        elif p.get("ActiveState") == "failed":
-            results.append(check("units", "fail", f"{unit}: failed ({p.get('Result')})", unit))
-        elif p.get("ActiveState") != "active" and p.get("Type") != "oneshot":
-            results.append(check("units", "fail", f"{unit}: not running ({p.get('ActiveState')})", unit))
         else:
-            results.append(check("units", "ok", f"{unit}: {p.get('SubState', 'running')}", unit))
+            level, text = service_state(p)
+            results.append(check("units", level, f"{unit}: {text}", unit))
     for svc, timer in triggered.items():
         p = svc_props.get(svc, {})
         if p.get("Result") not in (None, "success"):
@@ -308,6 +328,20 @@ def check_health(light):
         return [check("health", "info", f"no checkup report ({exc})")]
 
 
+def check_backup():
+    """backup.py's last run (a file read, no restic call): None (no line)
+    when no backup is set up."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("backup", os.path.join(HERE, "backup.py"))
+        backup = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(backup)
+        found = backup.doctor_check()
+    except Exception as exc:        # noqa: BLE001 - backups are extra, never what breaks doctor
+        return check("backup", "info", f"backup status unreadable ({exc})")
+    return check("backup", *found) if found else None
+
+
 def run_checks(light=False, health=True):
     """light: the bar's every-minute run -- skips the slow, informational
     ones (LM Studio, the dotfiles rsync dry run). health: the last nightly
@@ -316,6 +350,7 @@ def run_checks(light=False, health=True):
     out = units + [check_hyprland(), check_screen(), check_launcher(), check_clipboard()]
     out += check_disks()
     out += [check_journal(wanted_units()), check_snapshots()]
+    out += [c for c in (check_backup(),) if c]
     if health:
         out += check_health(light)
     if not light:
@@ -356,7 +391,6 @@ def bar(checks):
     if not bad:
         return {"text": "", "tooltip": "Desktop health: all good", "class": "ok"}
     tip = "\n".join(f"{c['level'].upper()}  {c['text']}" for c in bad[:12])
-    tip += "\n\nClick: logs panel   Right-click: restart what failed"
     return {"text": f"{ICON} {len(bad)}", "tooltip": tip, "class": worst(checks)}
 
 

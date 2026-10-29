@@ -142,9 +142,6 @@ class Warnings(unittest.TestCase):
                     "grp:alt_altgr_toggle", "grp:ctrl_alt_toggle"):
             self.assertIn("ALT", ins.switch_warning(opt), opt)
 
-    def test_input_method_clash(self):
-        self.assertIn("input method", ins.switch_warning("grp:ctrl_space_toggle"))
-
     def test_the_default_is_quiet(self):
         self.assertEqual(ins.switch_warning("grp:win_space_toggle"), "")
         self.assertEqual(ins.switch_warning("grp:shifts_toggle"), "")

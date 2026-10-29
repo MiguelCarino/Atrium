@@ -1,0 +1,131 @@
+/* ===========================================================================
+   ORCHARD DARK -- wofi (~/.config/wofi/style.css): the SUPER+W window
+   switcher and the SUPER+V clipboard picker. Copied to
+   waybar/generated/theme-wofi.css by theme.py, which also writes
+   `@define-color cyan #0a84ff` above this text (theme.conf accent=).
+
+   orchard/wofi.css in the dark appearance: the RULES below are orchard's
+   line for line (its header explains the results card, the query line and
+   the 28px rows that take the accent fill when chosen); only this header
+   and the PALETTE differ.
+
+   HDR (DP-1): the card is alpha(#28282a, 0.90) over the frost, about
+   #2e2e2f (luminance 0.027).
+
+   Contrast, measured with the WCAG formula, on #2e2e2f:
+     text #ebebf0 11.4:1, dim #a1a1a6 5.3:1, the hint #7c7c80 3.3:1;
+     white on the chosen row #0071e3 4.7:1
+   =========================================================================== */
+
+/* --- PALETTE (orchard-dark) ------------------------------------------------- */
+@define-color oc-hover        alpha(#ffffff, 0.08);
+@define-color accent-fill     #0071e3;
+@define-color edge-lit        alpha(#ffffff, 0.10);
+@define-color sep             alpha(#ffffff, 0.10);
+
+@define-color magenta         #0071e3;
+@define-color violet          alpha(#ebebf0, 0.30);
+@define-color mist            #a1a1a6;
+@define-color sel-mid         #0071e3;
+@define-color surface         alpha(#28282a, 0.90);
+@define-color groove          alpha(#000000, 0.00);
+@define-color edge            alpha(#000000, 0.45);
+@define-color text            #ebebf0;
+@define-color text-dim        #a1a1a6;
+@define-color text-bright     #ebebf0;
+@define-color ink             #ffffff;
+@define-color placeholder_text_color #7c7c80;
+/* --- END PALETTE ------------------------------------------------------------ */
+
+* {
+    font-family: "Inter", "Adwaita Sans", "IBM Plex Sans", "Noto Color Emoji", sans-serif;
+    font-weight: 400;
+}
+
+#outer-box {
+    padding: 6px 6px 8px 6px;
+    border: 1px solid @edge;
+    border-bottom: 1px solid @edge;
+    border-radius: 12px;
+    animation: none;
+    background-color: @surface;
+    background-image: none;
+    box-shadow: inset 0 1px @edge-lit;
+}
+
+#input,
+#input:focus {
+    font-size: 20px;
+    font-weight: 300;
+    margin: 0px 0px 6px 0px;
+    padding: 10px 14px;
+    min-height: 28px;
+    color: @text;
+    caret-color: @cyan;
+    border: none;
+    border-bottom: 1px solid @sep;
+    border-radius: 0px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+#input image {
+    color: @text-dim;
+}
+
+#input selection {
+    background-color: alpha(@cyan, 0.30);
+    color: @text;
+}
+
+#entry {
+    min-height: 28px;
+    margin: 1px 0px;
+    padding: 5px 10px;
+    border: none;
+    border-left: none;
+    border-radius: 6px;
+    background-color: transparent;
+    background-image: none;
+    transition: none;
+}
+
+#entry:hover {
+    background-color: @oc-hover;
+    border-color: transparent;
+}
+
+#entry:selected {
+    padding-left: 10px;
+    background-color: @accent-fill;
+    background-image: none;
+    border: none;
+    border-left: none;
+    box-shadow: none;
+}
+
+#entry:selected #text {
+    color: @ink;
+    font-weight: 400;
+}
+
+#img {
+    margin-right: 8px;
+}
+
+scrollbar slider {
+    min-width: 3px;
+    border-radius: 2px;
+    background-color: @violet;
+}
+
+/* The rows in the theme's monospace face (font_mono=, Adwaita Mono):
+   window-switcher.py lays its rows out as space-padded columns (workspace,
+   app, title), which line up only in a fixed-width face (win95's wofi.css
+   measured it). The query line above keeps Inter. */
+#text {
+    font-family: "Adwaita Mono", "IBM Plex Mono", "Noto Color Emoji", monospace;
+    font-size: 13px;
+    color: @text;
+}

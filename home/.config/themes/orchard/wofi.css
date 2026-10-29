@@ -1,0 +1,136 @@
+/* ===========================================================================
+   ORCHARD -- wofi (~/.config/wofi/style.css): the SUPER+W window switcher and
+   the SUPER+V clipboard picker. Copied to waybar/generated/theme-wofi.css by
+   theme.py, which also writes `@define-color cyan #007aff` above this text
+   (theme.conf accent=; wofi never imports generated/accent.css).
+
+   The Search window's RESULTS list: one frosted card (12px corners, a
+   hairline, a lit inner top line), a big light-weight query line with a
+   hairline under it, then plain 28px rows -- transparent until chosen, the
+   chosen one the accent fill under white with 6px corners. The base's
+   #outer-box is the card (window#window stays a transparent hole, so the
+   spec's "#window" radius lands here). No slide-in on the chosen row: the
+   system's lists do not move.
+
+   HDR (DP-1): the card is alpha(#c7c7cd, 0.90) over the frost (about
+   #c4c4c9, luminance 0.55, a small window); nothing on it is white but the
+   chosen row's text.
+
+   Contrast, measured with the WCAG formula, on #c4c4c9:
+     text #1d1d1f 9.7:1, dim #4f4f54 4.7:1, the hint (placeholder) #6e6e73
+     2.9:1; white on the chosen row #0062cc 5.8:1
+   @cyan (the injected #007aff) is the caret only.
+   =========================================================================== */
+
+/* --- PALETTE (orchard: light) ----------------------------------------------- */
+@define-color oc-hover        alpha(#1d1d1f, 0.07);
+@define-color accent-fill     #0062cc;
+@define-color edge-lit        alpha(#ffffff, 0.45);
+@define-color sep             alpha(#000000, 0.10);
+
+@define-color magenta         #0062cc;   /* the base's caret / bottom edge: structure */
+@define-color violet          alpha(#1d1d1f, 0.30);   /* scrollbar */
+@define-color mist            #4f4f54;
+@define-color sel-mid         #0062cc;
+@define-color surface         alpha(#c7c7cd, 0.90);   /* the card */
+@define-color groove          alpha(#000000, 0.00);
+@define-color edge            alpha(#000000, 0.12);
+@define-color text            #1d1d1f;
+@define-color text-dim        #4f4f54;
+@define-color text-bright     #1d1d1f;
+@define-color ink             #ffffff;    /* text on the chosen row */
+@define-color placeholder_text_color #6e6e73;
+/* --- END PALETTE ------------------------------------------------------------ */
+
+* {
+    font-family: "Inter", "Adwaita Sans", "IBM Plex Sans", "Noto Color Emoji", sans-serif;
+    font-weight: 400;
+}
+
+#outer-box {
+    padding: 6px 6px 8px 6px;
+    border: 1px solid @edge;
+    border-bottom: 1px solid @edge;
+    border-radius: 12px;
+    animation: none;
+    background-color: @surface;
+    background-image: none;
+    box-shadow: inset 0 1px @edge-lit;
+}
+
+#input,
+#input:focus {
+    font-size: 20px;
+    font-weight: 300;
+    margin: 0px 0px 6px 0px;
+    padding: 10px 14px;
+    min-height: 28px;
+    color: @text;
+    caret-color: @cyan;
+    border: none;
+    border-bottom: 1px solid @sep;
+    border-radius: 0px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+#input image {
+    color: @text-dim;
+}
+
+#input selection {
+    background-color: alpha(@cyan, 0.30);
+    color: @text;
+}
+
+#entry {
+    min-height: 28px;
+    margin: 1px 0px;
+    padding: 5px 10px;
+    border: none;
+    border-left: none;
+    border-radius: 6px;
+    background-color: transparent;
+    background-image: none;
+    transition: none;
+}
+
+#entry:hover {
+    background-color: @oc-hover;
+    border-color: transparent;
+}
+
+#entry:selected {
+    padding-left: 10px;
+    background-color: @accent-fill;
+    background-image: none;
+    border: none;
+    border-left: none;
+    box-shadow: none;
+}
+
+#entry:selected #text {
+    color: @ink;
+    font-weight: 400;
+}
+
+#img {
+    margin-right: 8px;
+}
+
+scrollbar slider {
+    min-width: 3px;
+    border-radius: 2px;
+    background-color: @violet;
+}
+
+/* The rows in the theme's monospace face (font_mono=, Adwaita Mono):
+   window-switcher.py lays its rows out as space-padded columns (workspace,
+   app, title), which line up only in a fixed-width face (win95's wofi.css
+   measured it). The query line above keeps Inter. */
+#text {
+    font-family: "Adwaita Mono", "IBM Plex Mono", "Noto Color Emoji", monospace;
+    font-size: 13px;
+    color: @text;
+}

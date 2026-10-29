@@ -241,7 +241,11 @@ class Client:
 
 def daemon():
     # hyprsunset would hold the CTM manager and block this one.
-    if subprocess.run(["pkill", "-x", "hyprsunset"], capture_output=True).returncode == 0:
+    try:
+        killed = subprocess.run(["pkill", "-x", "hyprsunset"], capture_output=True, timeout=5).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        killed = False
+    if killed:
         time.sleep(0.5)                 # let the compositor drop its hold first
     client = Client()
     reload_r, reload_w = os.pipe()
@@ -291,7 +295,10 @@ def poke():
             return
     except (OSError, ValueError):
         pass
-    subprocess.run(["systemctl", "--user", "start", UNIT], capture_output=True)
+    try:
+        subprocess.run(["systemctl", "--user", "start", UNIT], capture_output=True, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        pass
 
 
 def resolve(data, target):

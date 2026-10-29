@@ -8,6 +8,7 @@ After=graphical-session.target
 OnActiveSec=2min
 OnUnitActiveSec=3min
 AccuracySec=30s
+RandomizedDelaySec=20s
 
 [Install]
 WantedBy=graphical-session.target

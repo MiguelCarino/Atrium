@@ -1,0 +1,13 @@
+# The idle reaper for lmstudio.service: stops it once it has sat 15 min
+# with no model loaded and no client connected (llm-limits.py reap; its
+# docstring has the rules). It starts again on demand, as it always did.
+[Unit]
+Description=Stop LM Studio when it has been idle with no model loaded
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/llm-limits.py reap --idle-min 15
+Nice=10
+# systemd's own start/finish lines every 5 min are noise (the script logs
+# only a stop or a failure itself).
+LogLevelMax=notice

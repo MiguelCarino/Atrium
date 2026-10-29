@@ -39,22 +39,24 @@ Usage
 import json
 import os
 import select
-import socket
 import subprocess
 import sys
 import time
 
 sys.path.insert(0, os.path.expanduser("~/.config/hypr/scripts"))
 import screens  # noqa: E402  (hypr/scripts/screens.py: the screens in order)
+import desk_common  # noqa: E402  (hypr/scripts/desk_common.py: hyprctl over the socket)
+import hyprbus  # noqa: E402  (hypr/scripts/hyprbus.py: the shared event relay, or socket2 directly)
 
 # Which @define-color each output's pills wear. Names match style.css: the
 # screens in their order (screens.py order(): the host file's M.screens, else
-# the live ones) wear mon1, mon2, mon3 -- the primary, the second screen, the
-# third. An output past the third, or one the order does not know (a monitor
+# the live ones) wear mon1, mon2, mon3, mon4 -- the primary, the second screen,
+# the third, the fourth (its workspace is 7, hypr/lua/workspaces.lua). An
+# output past the fourth, or one the order does not know (a monitor
 # plugged in later on a machine with a host file, say), falls back to
 # @mon-unknown, the same neutral the strip already used for workspaces with
 # no fixed home.
-COLORS = ("mon1", "mon2", "mon3")
+COLORS = ("mon1", "mon2", "mon3", "mon4")
 FALLBACK = "mon-unknown"
 
 
@@ -91,15 +93,9 @@ EVENTS = {
 
 
 def hyprctl_workspaces():
-    """Current workspaces, or None if Hyprland is not answering."""
-    try:
-        out = subprocess.run(
-            ["hyprctl", "-j", "workspaces"],
-            capture_output=True, text=True, timeout=2, check=True,
-        ).stdout
-        return json.loads(out)
-    except (subprocess.SubprocessError, OSError, ValueError):
-        return None
+    """Current workspaces, or None if Hyprland is not answering. Over the
+    request socket: every workspace event used to start a hyprctl."""
+    return desk_common.hypr_request("workspaces", json=True, timeout=2)
 
 
 def pill_order(workspaces):
@@ -200,8 +196,7 @@ def watch():
 
     while True:
         try:
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.connect(path)
+            sock = hyprbus.connect(EVENTS, direct=path)
         except OSError:
             # Hyprland is gone or not up yet. Retry rather than die: this is
             # started from the autostart block and should survive a restart.

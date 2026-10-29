@@ -70,7 +70,6 @@ import json
 import os
 import re
 import select
-import socket
 import subprocess
 import sys
 import tempfile
@@ -80,8 +79,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import desklog  # noqa: E402
 import privacy_settings  # noqa: E402  (the private apps)
 import sessions  # noqa: E402  (hypr_json, hypr_eval, lua_str, TRANSIENT_*, GAME_RE)
+import hyprbus  # noqa: E402  (Hyprland's events: the shared relay, or socket2 directly)
 
 HOME = os.path.expanduser("~")
+NOTIFY = os.path.expanduser("~/.config/hypr/scripts/notify")  # notify-send with the theme's mascot (mascot_notify.py)
 STORE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local", "state"),
                      "hypr", "smartlayout.json")
 DEFAULTS = {"mode": "learn", "evidence": 3, "follow": "on"}
@@ -655,10 +656,10 @@ def serve():
     while True:
         path = sessions.hypr_dir()
         try:
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.connect(os.path.join(path, ".socket2.sock") if path else "")
+            if not path:                # no Hyprland yet (the relay may still answer: wait for one)
+                raise OSError("no Hyprland instance")
+            sock = hyprbus.connect(REFRESH_ON, direct=os.path.join(path, ".socket2.sock"))
         except OSError:
-            sock.close()
             time.sleep(2)
             continue
         instance = os.path.basename(path)
@@ -779,7 +780,7 @@ def arrange(notify=True, sleep=time.sleep):
 
 def note(summary, body=""):
     try:
-        subprocess.run(["notify-send", "-a", "Smart layout", "-i", "view-grid", "-u", "low", summary, body],
+        subprocess.run([NOTIFY, "-a", "Smart layout", "-i", "view-grid", "-u", "low", summary, body],
                        timeout=5, capture_output=True)
     except (OSError, subprocess.SubprocessError):
         pass

@@ -68,10 +68,12 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 sys.path.insert(0, HERE)
 import display  # noqa: E402  (the display state file's reader / writer, hypr_eval)
 import theme  # noqa: E402  (the resolved theme.conf; no GTK, cheap to import)
 import screens  # noqa: E402  (the primary screen and the screens' order)
+import desk_common  # noqa: E402  (hypr_request: hyprctl over the socket)
 
 PREFIX = "hyprlook."
 
@@ -290,7 +292,7 @@ def notify(title):
     if os.environ.get("DISPLAY_QUIET"):
         print(title)
         return
-    subprocess.run(["notify-send", "-a", "Display", "-u", "low", "-t", "2000",
+    subprocess.run([NOTIFY, "-a", "Display", "-u", "low", "-t", "2000",
                     "-h", "string:x-canonical-private-synchronous:window-look", title],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -386,7 +388,35 @@ def parse_workspace_rules(text, primary=None, order=None):
             default = default == "true"
         found.append((m.start(), {"workspace": m.group(1), "monitor": mon,
                                   "default": bool(mon) and default, "persistent": True}))
+    # Every screen past the third: lua/rules.lua's `for n = 4, #SCREENS`
+    # loop, pin(W.slot(n), SCREENS[n], true) -- generated, so not in the file
+    # as pin() calls; generated_pins() says the same from the screens' order.
+    loop = re.search(r"\bW\.slot\(", code)
+    if loop:
+        found += [(loop.start(), rule) for rule in generated_pins(order)]
     return [rule for _, rule in sorted(found, key=lambda pair: pair[0])]
+
+
+def slot(n):
+    """lua/workspaces.lua's M.slot: the workspace the n-th screen (n >= 2)
+    gets as its own -- 4, 6, then n + 3 (the fourth screen's is 7)."""
+    return {2: 4, 3: 6}.get(n, n + 3)
+
+
+def last_workspace(count):
+    """lua/workspaces.lua's M.last: the highest workspace a key reaches with
+    `count` screens -- 6, or the last screen's own from the fourth on; 10 at
+    most (the 0 key)."""
+    return min(slot(count) if count >= 4 else 6, 10)
+
+
+def generated_pins(order):
+    """The pins lua/rules.lua makes in its loop for the 4th screen on:
+    [{workspace, monitor, default, persistent}] -- workspace slot(n) on the
+    n-th screen of `order`, its default, while it is a key's (last_workspace)."""
+    top = last_workspace(len(order))
+    return [{"workspace": str(slot(n)), "monitor": order[n - 1], "default": True, "persistent": True}
+            for n in range(4, len(order) + 1) if slot(n) <= top]
 
 
 def live_workspace_rules(reply):
@@ -426,11 +456,9 @@ def required(module, index_text):
 
 
 def hyprctl_json(*args):
-    try:
-        out = subprocess.run(["hyprctl", "-j", *args], capture_output=True, text=True, timeout=3).stdout
-        return json.loads(out)
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return None
+    """`hyprctl ARGS -j`, parsed; None when Hyprland does not answer. Over the
+    request socket (desk_common.hypr_request): no process."""
+    return desk_common.hypr_request(args, json=True, timeout=3)
 
 
 def workspaces_data(rules_text, binds_text, index_text, monitors, workspaces, plugins, built,
@@ -469,19 +497,40 @@ def workspaces_data(rules_text, binds_text, index_text, monitors, workspaces, pl
             "unplaced": [r["workspace"] for r in rules if not r["monitor"]]}
 
 
+def pick_main_mod(value):
+    """lua/shared.lua's rule for input.conf's main_mod: ALT or SUPER (any
+    case), anything else (or nothing) ALT."""
+    value = (value or "").strip().upper()
+    return value if value in ("ALT", "SUPER") else "ALT"
+
+
+def main_mod():
+    """The main modifier lua/shared.lua binds with (mainMod): the one
+    input-settings.py saved (its effective(): the saved value or the
+    default). It is no longer a literal in shared.lua to be read off, so
+    the file is not asked. ALT when input-settings.py cannot be read."""
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("input_settings", os.path.join(HERE, "input-settings.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return pick_main_mod(mod.effective().get("main_mod"))
+    except Exception:  # noqa: BLE001
+        return "ALT"
+
+
 def workspaces_status():
     try:
         built = set(os.listdir(PLUGIN_DIR))
     except OSError:
         built = set()
-    # lua/shared.lua's mainMod (ALT here), for the binds written as mainMod .. "+x".
-    found = re.search(r'local\s+mainMod\s*=\s*"(\w+)"', read_text(os.path.join(HYPR_DIR, "lua", "shared.lua")))
+    # The everyday keys' modifier, for the binds written as mainMod .. "+x".
     # The rules Hyprland holds now; the file (with the primary screen from
     # screens.py, for the rules that say `monitor = P`) only when it does
     # not answer.
     return workspaces_data(read_text(RULES_LUA), read_text(BINDS_LUA), read_text(INDEX_LUA),
                            hyprctl_json("monitors"), hyprctl_json("workspaces"),
-                           hyprctl_json("plugin", "list"), built, found.group(1) if found else "ALT",
+                           hyprctl_json("plugin", "list"), built, main_mod(),
                            None, hyprctl_json("workspacerules"))
 
 

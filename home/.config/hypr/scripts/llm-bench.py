@@ -29,7 +29,7 @@ Results: ~/.local/state/hypr/llm-bench.json. What it does per model:
                     does not) is run anyway, once, to show what spilling to
                     RAM really costs
     each            `lms load KEY -y -c CTX --parallel N --ttl`, timed; the
-                    card's memory the new llama-server holds (nvidia-smi)
+                    card's memory the new llama-server holds (gpu.py)
                     against the calculator's "needed"; spilled = its
                     --n-gpu-layers below the model's layers, or
                     --n-cpu-moe above 0 (LM Studio's choice, from /proc);
@@ -356,29 +356,35 @@ def mem_available():
     return 0
 
 
-def smi_apps():
+def gpu_apps():
+    """{pid: bytes} of every process holding memory on the main card --
+    gpu.py's processes(): NVML on NVIDIA, the DRM fdinfo on AMD and Intel
+    (your own processes, which llama-server is). Graphics ones too (a
+    Vulkan llama-server is one): the callers only look at the pids that are
+    new after a load."""
     try:
-        out = subprocess.run(["nvidia-smi", "--query-compute-apps=pid,used_memory",
-                              "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=10).stdout
-    except (OSError, subprocess.SubprocessError):
+        import gpu
+        return {int(pid): int(mib) * 2**20 for pid, mib in (gpu.processes() or {}).items()}
+    except Exception:  # noqa: BLE001 -- no card info: no per-process numbers
         return {}
-    apps = {}
-    for line in out.strip().splitlines():
-        bits = [b.strip() for b in line.split(",")]
-        try:
-            apps[int(bits[0])] = int(bits[-1]) * 2**20
-        except (ValueError, IndexError):
-            pass
-    return apps
 
 
-def smi_used():
+def card_memory(card):
+    """A gpu.py card -> (used, total) in bytes; (0, 0) for no card or one
+    that does not say, and for an integrated GPU (discrete False: an AMD
+    APU's few hundred MiB carve-out is not the room a model has -- the RAM
+    is its memory)."""
+    if not card or card.get("discrete") is False or card.get("vram_used") is None \
+            or not card.get("vram_total"):
+        return 0, 0
+    return card["vram_used"] * 2**20, card["vram_total"] * 2**20
+
+
+def gpu_used():
     try:
-        out = subprocess.run(["nvidia-smi", "--query-gpu=memory.used,memory.total",
-                              "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=10).stdout
-        used, total = (int(x) * 2**20 for x in out.strip().splitlines()[0].split(","))
-        return used, total
-    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+        import gpu
+        return card_memory(gpu.primary())
+    except Exception:  # noqa: BLE001
         return 0, 0
 
 
@@ -424,7 +430,19 @@ def port():
     return llm_models.server_port()
 
 
+def ensure_daemon(status=lambda text: None):
+    """LM Studio's daemon started inside its limits (lmstudio.service), the
+    same path llm_models.ensure_local takes before it talks to lms -- so the
+    `lms server start` after it does not start llmster outside them. A
+    broken limits script is no reason not to bench: then the old way."""
+    try:
+        llm_models._limits_module().ensure_daemon(status)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def ensure_server():
+    ensure_daemon()
     state = llm_models._json_out(lms("server", "status", "--json").stdout) or {}
     if not state.get("running"):
         lms("server", "start", timeout=90)
@@ -515,7 +533,7 @@ class Bench:
     def predicted(self, row, ctx, par):
         meta = self.gpu.meta_for(row.get("path"))
         kv, how = self.gpu.estimate(row, ctx, par, meta)
-        _used, total = smi_used()
+        _used, total = gpu_used()
         f = self.gpu.fit(self.gpu.card_size(row, meta), kv, total)
         return {"need": f["need"], "kv": kv, "kv_how": how, "spare": f["spare"], "verdict": f["verdict"]}, meta
 
@@ -540,8 +558,8 @@ class Bench:
             res["others_loaded"] = others
         self.n += 1
         ident = f"bench-{secrets.token_hex(3)}"
-        before = set(smi_apps())
-        used0, _total = smi_used()
+        before = set(gpu_apps())
+        used0, _total = gpu_used()
         self.log(f"  {alias} {ctx // 1024}k x{par} ({kind}): loading…")
         t0 = time.monotonic()
         proc = subprocess.Popen([llm_models.LMS, "load", row["modelKey"], "-y", "-c", str(ctx), "--parallel",
@@ -571,11 +589,11 @@ class Bench:
                     "load failed: " + (why or (tail[-1] if tail else f"exit {proc.returncode}"))
                 return res
             time.sleep(1.5)
-            apps = smi_apps()
+            apps = gpu_apps()
             new = [p for p in apps if p not in before and os.path.basename(server_argv(p)[0] if
                                                                           server_argv(p) else "") == "llama-server"]
             pid = new[0] if new else None
-            used1, _ = smi_used()
+            used1, _ = gpu_used()
             res["vram_total_delta"] = used1 - used0
             res["vram"] = apps.get(pid) if pid else used1 - used0
             if pid:
@@ -595,7 +613,7 @@ class Bench:
                         "ttft_s": round(ans["ttft"], 2) if ans["ttft"] else None,
                         "pp_tps": round(pp, 1) if pp else None, "gen_tps": round(gen, 1) if gen else None})
             if pid:
-                res["vram_after_run"] = smi_apps().get(pid)
+                res["vram_after_run"] = gpu_apps().get(pid)
             self.log(f"    pp {res['pp_tps']} t/s, gen {res['gen_tps']} t/s, ttft {res['ttft_s']} s")
             if par >= 4 and not res.get("spilled"):
                 answers = [None] * 4
@@ -745,7 +763,7 @@ def cmd_run(argv):
     all_runs = merge(old.get("runs") or [], runs, done)
     all_quality = {k: v for k, v in (old.get("quality") or {}).items() if k not in done} | quality
     sizes = {a: r.get("sizeBytes") or 0 for r, a in chat_models(rows)}
-    used, total = smi_used()
+    used, total = gpu_used()
     data = {"time": int(time.time()), "took_s": int(time.time() - t0), "quick": quick,
             "card_total": total, "before": [r.get("identifier") for r in before],
             "runs": all_runs, "quality": all_quality,

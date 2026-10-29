@@ -23,9 +23,12 @@ return {
             no_blur = false,
         },
         -- mpv in a wide pane of glass: a 10 px translucent white rim with a
-        -- cool highlight across it, round corners, and blur on so the rim
-        -- frosts whatever is behind it. The picture stays opaque
-        -- (browsers-mpv-opaque's force_rgbx).
+        -- cool highlight across it and round corners. The picture stays
+        -- opaque (browsers-mpv-opaque's force_rgbx) and so does its blur
+        -- setting: no_blur is left to that rule (on), because a blur pass
+        -- under a playing video is redrawn every frame of it -- 24-60 times
+        -- a second for something the opaque picture hides -- just to frost a
+        -- 10 px rim. The rim is still translucent glass over the wallpaper.
         -- Settings > Theme > Video player "Theme" is this; any other preset
         -- there (lua/mpvframe.lua) wins over it.
         {
@@ -34,7 +37,6 @@ return {
             border_size  = 10,
             border_color = "rgba(ffffff5c) rgba(bfe3ff33) rgba(ffffff5c) 135deg rgba(ffffff38) rgba(bfe3ff22) rgba(ffffff38) 135deg",
             rounding     = 12,
-            no_blur      = false,
         },
     },
 }

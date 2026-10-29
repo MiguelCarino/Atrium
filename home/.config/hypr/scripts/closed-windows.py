@@ -34,13 +34,13 @@ import fcntl
 import json
 import os
 import select
-import socket
 import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import desklog  # noqa: E402
 import sessions  # noqa: E402  (capture, restore: one way to relaunch a window)
+import hyprbus  # noqa: E402  (Hyprland's events: the shared relay, or socket2 directly)
 
 STACK = os.path.join(sessions.RUNTIME, "closed-windows.json")
 KEEP = 20
@@ -182,6 +182,9 @@ def handle(tracker, line):
         tracker.dirty = True
 
 
+HYPR_EVENTS = {"openwindow", "closewindow"} | DIRTY             # what handle() reads
+
+
 def socket2():
     path = sessions.hypr_dir()
     return os.path.join(path, ".socket2.sock") if path else None
@@ -192,8 +195,7 @@ def serve():
     while True:
         path = socket2()
         try:
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.connect(path or "")
+            sock = hyprbus.connect(HYPR_EVENTS, direct=path or "")
         except OSError:
             time.sleep(2)
             continue

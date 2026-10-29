@@ -439,8 +439,10 @@ def airplane(mode):
         before = {"wifi": nmcli("radio", "wifi")[1].strip() == "enabled", "bluetooth": bt_powered()}
         if not on:                                  # do not overwrite what was saved last time
             os.makedirs(STATE_DIR, exist_ok=True)
-            with open(AIRPLANE_STATE, "w") as fh:
+            tmp = AIRPLANE_STATE + ".tmp"           # atomic, like every other state write here
+            with open(tmp, "w") as fh:
                 json.dump(before, fh)
+            os.replace(tmp, AIRPLANE_STATE)
         ok, _, err = sh("rfkill", "block", "all")
         done(ok, "airplane mode on: Wi-Fi and Bluetooth are off" if ok else err or "rfkill failed")
     try:

@@ -53,6 +53,7 @@ if (( ${#_cfg[@]} == 4 )); then
     SCR_DIR=${_cfg[0]}; FORMAT=${_cfg[1]}; COPY=${_cfg[2]}; OCR_LANGS=${_cfg[3]}
 fi
 APP="Screenshot"     # notify-send app name, groups them in mako
+NOTIFY="$(dirname "$(readlink -f "$0")")/notify"  # notify-send with the theme's mascot (mascot_notify.py)
 
 # A PNG in, the file in the chosen format out. PNG is a plain copy; JPEG and
 # WebP go through ImageMagick at a quality where text stays crisp. Without
@@ -71,7 +72,7 @@ save_as() {   # save_as <png> <path without extension> -> prints the file writte
 }
 
 notify() {  # notify <urgency> <summary> [body]
-    notify-send -a "$APP" -u "$1" "$2" "${3:-}"
+    "$NOTIFY" -a "$APP" -u "$1" "$2" "${3:-}"
 }
 
 # need <command> [dnf packages] [full hint] -> exits with a notification if

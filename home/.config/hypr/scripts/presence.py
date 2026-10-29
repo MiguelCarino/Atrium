@@ -11,7 +11,9 @@ it on there.
     presence.py pause [MINUTES]         release the camera for a while (default 60)
     presence.py resume                  ... and take it back now
     presence.py toggle-pause            the key: pause for an hour, or resume
-    presence.py idle on|off             hypridle's listener (IDLE_S of no input)
+    presence.py idle on|off             hypridle's listener (IDLE_S of no input); hypridle
+                                        itself sends the same word with scripts/presence-idle
+                                        (sh + ncat, no Python start every 20 s)
     presence.py watch                   look WATCH_FPS times a second for WATCH_S (the
                                         page's live view keeps asking while it is open)
     presence.py cameras [--json]        the capture devices (from sysfs: none is opened)
@@ -92,6 +94,7 @@ import time
 
 os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")     # before any `import cv2`
 HERE = os.path.dirname(os.path.abspath(__file__))
+NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 sys.path.insert(0, HERE)
 import desklog  # noqa: E402
 import privacy_settings  # noqa: E402  (the master switch)
@@ -807,7 +810,7 @@ def main(argv):
             return "presence: not running (Settings > Privacy turns it on)"
         paused = live.get("paused_for", 0) > 0
         poke("resume" if paused else "pause 60")
-        subprocess.run(["notify-send", "-a", "Presence", "-i", "camera-web", "-u", "low",
+        subprocess.run([NOTIFY, "-a", "Presence", "-i", "camera-web", "-u", "low",
                         "Presence resumed" if paused else "Presence paused for an hour",
                         "" if paused else "the camera is released; SUPER+CTRL+SHIFT+P again resumes"],
                        capture_output=True, timeout=5, check=False)

@@ -94,7 +94,9 @@ icons=1
 max-icon-size=48
 icon-location=left
 
-on-button-left=invoke-default-action
+# Left click: go to the window that sent it (or open its app), then the
+# default action as before -- or, with none, close it (hypr/scripts/notify_source.py).
+on-button-left=exec ~/.config/hypr/scripts/notify_source.py go "$id"
 on-button-middle=dismiss
 on-button-right=dismiss-all
 # The desktop theme's notification sound (theme-sound.sh: silent when theme
@@ -135,6 +137,12 @@ include=~/.config/mako/sections
 # from. mako.service runs `notify-settings.py ensure` (a drop-in) so the
 # file exists before mako reads this include.
 include=~/.config/mako/generated/settings
+
+# The dynamic island's mode (~/.config/hypr/scripts/island.py): while it
+# runs with notifications in the island, popups are hidden and it draws
+# them instead (mako still keeps them, by id and in the history). After
+# generated/settings so its timeout wins; a static file, never missing.
+include=~/.config/mako/island
 
 # Desktop theme (see PALETTE above). Must stay the LAST line: an include is
 # read in place, so anything after it would override the theme. Empty for

@@ -1,0 +1,19 @@
+#!/bin/sh
+# presence-idle -- hypridle's 20 s listener for presence.py, the cheap way.
+#
+#     presence-idle on|off
+#
+# Same word `presence.py idle on|off` sends ("idle on" to its control socket,
+# $XDG_RUNTIME_DIR/presence.sock, a datagram), without starting Python every
+# time you stop typing for 20 seconds and every time you start again. With
+# presence off there is no socket and this is one `test` and done; with it on
+# the word goes through ncat (nmap-ncat), falling back to presence.py itself
+# when ncat is not installed or the send fails (a socket left behind by a
+# daemon that died: then presence.py fails just as quietly).
+case "$1" in on|off) ;; *) echo "usage: presence-idle on|off" >&2; exit 2 ;; esac
+sock="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/presence.sock"
+[ -S "$sock" ] || exit 0
+if command -v ncat >/dev/null 2>&1 && printf 'idle %s' "$1" | ncat -U --udp --send-only "$sock" 2>/dev/null; then
+    exit 0
+fi
+exec python3 "$HOME/.config/hypr/scripts/presence.py" idle "$1"

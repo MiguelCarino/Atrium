@@ -91,8 +91,20 @@ import panelui  # noqa: E402
 import themecolors  # noqa: E402
 import repos  # noqa: E402
 
-SIGNAL = 15                 # custom/repos
 MAGENTA = themecolors.hex("danger", "#ff2a6d")   # the theme's color.danger
+
+
+def redraw_pill(name):
+    """Redraw a bar pill by its name in ~/.config/hypr/scripts/bar_signals.py
+    (the one table of signal numbers); a direct kill, no pkill fork."""
+    hypr = os.path.expanduser("~/.config/hypr/scripts")
+    if hypr not in sys.path:
+        sys.path.insert(0, hypr)
+    try:
+        import bar_signals
+        bar_signals.poke(name)
+    except Exception:       # no bar, or no hypr scripts: nothing to redraw
+        pass
 
 
 def label(text, cls, xalign=0.0):
@@ -317,7 +329,7 @@ class Repos(panelui.Panel):
         self.fetching = False
         self.rescan_button.set_label("Rescan")
         self.rescan_button.set_sensitive(not self.pulling_all)
-        subprocess.run(["pkill", f"-RTMIN+{SIGNAL}", "-x", "waybar"])
+        redraw_pill("repos")
         self.draw()
 
     def rescan(self):

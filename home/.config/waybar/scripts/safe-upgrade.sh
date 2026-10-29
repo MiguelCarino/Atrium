@@ -13,7 +13,8 @@
 #                 from it, and the whole root can be rolled back from a live
 #                 USB with `btrfs subvolume snapshot`.
 #   2. dnf        sudo dnf upgrade --refresh, interactive as always.
-#   3. nvidia     the check that matters on this machine. The NVIDIA driver is
+#   3. nvidia     only on machines with the NVIDIA driver (skipped elsewhere: AMD and
+#                 Intel drivers ship inside the kernel). The NVIDIA driver is
 #                 an out-of-tree kernel module (akmod-nvidia from RPM Fusion),
 #                 built per kernel. Rebooting into a new kernel that has no
 #                 module -- or one built for an older driver than the userspace
@@ -24,8 +25,9 @@
 #   4. flatpak    flatpak update -y (user + system).
 #   5. firmware   fwupdmgr get-updates: listed only, never flashed from here.
 #
-# Then it pokes the updates pill (SIGRTMIN+8) so the count is right at once,
-# and records how it went for Settings > Software updates
+# Then it pokes the updates pill (bar_signals.py "updates") so the count is right at once,
+# and, once the record below is written, the reboot pill ("reboot", after a fresh
+# needs-restarting), and records how it went for Settings > Software updates
 # (hypr/scripts/software-updates.py reads it) in
 # $XDG_STATE_HOME/hypr/last-upgrade.tsv -- tab-separated "key<TAB>value" lines:
 #     finished <epoch>   dnf <dnf's exit status>
@@ -69,13 +71,13 @@ sudo dnf upgrade --refresh
 dnf_rc=$?
 kernel_after=$(newest_kernel)
 
-step "3/5  NVIDIA module for the newest kernel ($kernel_after)"
+step "3/5  Out-of-tree GPU driver for the newest kernel ($kernel_after)"
 driver=$(rpm -q --qf '%{VERSION}\n' xorg-x11-drv-nvidia 2>/dev/null | sort -V | tail -1)
 safe=1
 nvidia=none module=
 if [[ -z $driver || $driver == *"not installed"* ]]; then
     driver=
-    echo "  no NVIDIA driver installed; nothing to check"
+    echo "  no out-of-tree GPU driver (NVIDIA akmod) installed; nothing to check"
 else
     [[ $kernel_after != "$kernel_before" ]] && echo "  new kernel: $kernel_before -> $kernel_after"
     # Builds only what is missing or stale; a no-op when all is in place.
@@ -96,7 +98,7 @@ flatpak update -y 2>&1 | tail -n 15 | sed 's/^/  /'
 step "5/5  firmware (list only)"
 fwupdmgr get-updates --no-unreported-check 2>/dev/null | sed 's/^/  /' || echo "  none, or fwupd unavailable"
 
-pkill -RTMIN+8 -x waybar 2>/dev/null
+"$HOME/.config/hypr/scripts/bar_signals.py" poke updates 2>/dev/null
 
 if ((!safe)); then reboot=unsafe
 elif [[ $kernel_after != "$(uname -r)" ]]; then reboot=safe
@@ -114,6 +116,13 @@ mkdir -p "${record%/*}" && {
     printf 'nvidia\t%s\n' "$nvidia"
     printf 'reboot\t%s\n' "$reboot"
 } > "$record.tmp" && mv -f "$record.tmp" "$record"
+
+# The reboot pill: needs-restarting asked afresh (its 30-min cache predates
+# this upgrade; it takes seconds, so detached, outliving this terminal),
+# then bar_signals.py "reboot" redraws it.
+setsid -f sh -c '"$HOME/.config/waybar/scripts/reboot_needed.py" refresh >/dev/null 2>&1
+                 "$HOME/.config/hypr/scripts/bar_signals.py" poke reboot >/dev/null 2>&1' \
+    </dev/null >/dev/null 2>&1
 
 echo
 if ((safe)); then

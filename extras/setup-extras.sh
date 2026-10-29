@@ -9,8 +9,10 @@
 #   extras/setup-extras.sh tts        only the voices       (~200 MB)
 #   extras/setup-extras.sh camera     only the camera models (~150 MB)
 #
-#   voice   faster-whisper (voice typing, captions, voice commands); with an
-#           NVIDIA card also its CUDA libraries, so it runs on the GPU
+#   voice   faster-whisper (voice typing, captions, voice commands); with a
+#           working NVIDIA driver also its CUDA libraries (~1.5 GB), so it
+#           runs on the card. Without one (AMD, Intel, no card) it runs on
+#           the CPU: fine for the small and base models, slow for large ones
 #   tts     Piper and one English voice (Settings > Speech offers more)
 #   camera  OpenCV and three small ONNX models: the face detector (presence)
 #           and the hand models (gestures). The features stay OFF until you
@@ -35,7 +37,13 @@ fetch() {  # fetch URL FILE
 voice() {
     echo "== speech-to-text =="
     local pkgs=(faster-whisper)
-    command -v nvidia-smi >/dev/null && pkgs+=(nvidia-cublas-cu12 nvidia-cudnn-cu12)
+    # A driver that answers, not only nvidia-smi on the PATH (it is there
+    # with the driver package even when the module failed to build).
+    if nvidia-smi -L >/dev/null 2>&1; then
+        pkgs+=(nvidia-cublas-cu12 nvidia-cudnn-cu12)
+    else
+        echo "  no working NVIDIA driver: speech-to-text will run on the CPU"
+    fi
     venv "$DATA/voice" "${pkgs[@]}"
     echo "  the model downloads on first use (Settings > Voice picks its size)"
 }

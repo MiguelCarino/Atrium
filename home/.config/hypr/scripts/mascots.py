@@ -53,6 +53,8 @@ mascot_common.Canvas, single-column characters only.
     luna       mascot_luna.py       a cheerful manila folder on a green hill, XP taskbar below
     orbit      mascot_orbit.py      a little probe (dish, solar panels, a blinking LED) over a planet's limb
     seasons    mascot_seasons.py    a fox kit under a tree that turns with the seasons
+    orchard    mascot_orchard.py    Hum, a little honeybee between a blossom tree and a straw hive
+    orchard-dark  mascot_orchard_dark.py  Hum again, drawn for the dark appearance
 """
 
 import importlib
@@ -74,6 +76,8 @@ MODULES = {
     "luna": "mascot_luna",
     "orbit": "mascot_orbit",
     "seasons": "mascot_seasons",
+    "orchard": "mascot_orchard",
+    "orchard-dark": "mascot_orchard_dark",
 }
 THEMES = tuple(MODULES)
 DEFAULT = "moe"

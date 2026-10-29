@@ -39,3 +39,12 @@
 /* The desktop theme, again (see the top of this file): same file as the one
    style.css imports, so a theme writes its toolbox rules in its waybar.css. */
 @import url("generated/theme.css");
+
+/* Off is the plain look in the card, as Keep awake already is: on the bar a
+   dim pill reads "off", but in a menu a dim row reads "can't be clicked".
+   On still lights up (the theme's colours above). After the theme on purpose. */
+#custom-fsstate.idle,
+#custom-fsstate.none,
+#custom-nightlight.off {
+    color: @text;
+}

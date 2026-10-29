@@ -211,9 +211,17 @@ theme.conf KEYS (cyberpunk's file lists every one with its value)
                                blur_brightness, blur_contrast, blur_vibrancy,
                                blur_vibrancy_darkness, blur_noise,
                                shadow=yes|no, shadow_range,
-                               shadow_render_power, shadow_color
+                               shadow_render_power, shadow_color,
+                               shadow_color_inactive (the unfocused
+                               windows' shadow; "" = none, the transparent
+                               rgba(00000000) lua/settings.lua sets),
+                               shadow_offset ("x y" px, "0 0" = a glow
+                               rather than a drop shadow), rounding_power
+                               (the corner shape: 2 round, more = squircle;
+                               also a your-window-look key, see display.lua)
     anim=fancy                 animation preset set by `set` (snappy, smooth,
-                               fancy, calm); you can change it afterwards
+                               fancy, calm, spring); you can change it
+                               afterwards
     wallpaper_prefix=skyline-  the slideshow's set: file-name prefix, same
                                name in every monitor's folder
     wallpaper_video=           a MOVING wallpaper: a video file name looked
@@ -224,6 +232,13 @@ theme.conf KEYS (cyberpunk's file lists every one with its value)
     gtk_color_scheme=prefer-dark   gsettings org.gnome.desktop.interface
     gtk_accent_color=blue          (accent: blue teal green yellow orange red
                                     pink purple slate)
+    gtk_button_layout=appmenu:close   gsettings org.gnome.desktop.wm.preferences
+                               button-layout: where GTK / libadwaita windows
+                               (Files) put their title-bar buttons -- words
+                               from appmenu close minimize maximize icon
+                               spacer, "left:right" around the colon.
+                               orchard: close,minimize,maximize: (the three
+                               dots on the left, its gtk4.css paints them)
     icon_theme=Adwaita         gsettings icon-theme (GTK apps, live) and
                                mako's icon-path: a folder name in
                                ~/.local/share/icons or /usr/share/icons.
@@ -286,6 +301,28 @@ theme.conf KEYS (cyberpunk's file lists every one with its value)
                                display.conf (the display panel's slider)
                                overrides it per theme. Derived, never set:
                                term.opacity and cosmic.alpha
+    island.enabled=            the dynamic island (island.py) while this theme
+    island.style=              is on: yes|no, one of ISLAND_STYLES, yes|no.
+    island.match_bar=          "" (every theme but orchard) = the theme leaves
+                               the island alone. Only `set` hands them over
+                               (island_handoff): it keeps what you had in
+                               ~/.local/state/hypr/island.before-theme.json
+                               and puts it back when you switch to a theme
+                               that sets none -- unless you changed that
+                               setting yourself meanwhile. Not apply, ensure
+                               or a season tick: a login never flips the island
+    bar.clock=                 menubar: the date and time move to the bar's
+                               far right as one "Tue 27 Oct  21:21" (clock.py
+                               menubar, honouring region.conf clock=12); the
+                               centre's custom/day and custom/clock print
+                               nothing (waybar hides them). "" = the centre
+                               clock as always
+    bar.logo=                  a glyph for custom/logo, the bar's first item
+                               (orchard: Font Awesome's leaf). "" = hidden
+    bar.workspaces=            dots: the workspaces as ● (active) and ○ dots
+                               (theme-modules.json). "" = their numbers
+                               (bar.clock and bar.logo are written to
+                               waybar/generated/bar.conf, which clock.py reads)
     color.<name>=#rrggbb       colours DRAWN by code rather than CSS -- Pango
                                markup in bar scripts, cairo graphs in panels:
                                written to waybar/generated/colors.conf, read
@@ -335,6 +372,8 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import screens  # noqa: E402  (scripts/screens.py: the primary, the screens' order)
+import desk_common  # noqa: E402  (run: a command with a timeout)
+import bar_signals  # noqa: E402  (the bar's signal numbers; poke() redraws a pill)
 
 HOME = os.path.expanduser("~")
 THEMES_DIR = os.path.join(HOME, ".config", "themes")
@@ -344,15 +383,33 @@ BASE_MONO = "IBM Plex Mono"
 STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local", "state"),
                      "hypr", "display.conf")
 HYPR = os.path.join(HOME, ".config", "hypr", "scripts")
+NOTIFY = os.path.join(HYPR, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 WAYBAR = os.path.join(HOME, ".config", "waybar")
 BAR_RESTART = os.path.join(WAYBAR, "scripts", "bar-restart.sh")   # never SIGUSR2 (crashes waybar 0.15)
 GEN = os.path.join(WAYBAR, "generated")
 SLIDESHOW = os.path.join(HYPR, "wallpaper-slideshow.py")
 SLIDESHOW_STATE = os.path.join(HOME, ".cache", "wallpaper-slideshow.json")
 ACCENT_SCRIPT = os.path.join(HYPR, "theme-from-wallpaper.py")
-PRESETS = ["snappy", "smooth", "fancy", "calm"]   # lua/display.lua M.presets
+PRESETS = ["snappy", "smooth", "fancy", "calm", "spring"]   # lua/display.lua M.presets, display.py PRESETS
 GTK_ACCENTS = ["blue", "teal", "green", "yellow", "orange", "red", "pink", "purple", "slate"]
 GTK_SCHEMES = ["default", "prefer-dark", "prefer-light"]
+# gtk_button_layout's words (org.gnome.desktop.wm.preferences button-layout).
+BUTTON_WORDS = ("appmenu", "close", "minimize", "maximize", "icon", "spacer")
+BUTTON_LAYOUT = re.compile(r"^[a-z,:]*$")
+# The island hand-off (island_handoff, below). ISLAND_STYLES is island.py's
+# STYLES, copied so that `check` needs no import (tests/test_theme_island.py
+# keeps the two equal). The keys in the order `set` sends them: enabled LAST,
+# so a service that starts reads the final look.
+ISLAND = os.path.join(HYPR, "island.py")
+ISLAND_STYLES = ("notch", "island", "glass", "theme", "outline")
+ISLAND_KEYS = ("style", "match_bar", "enabled")
+ISLAND_SNAPSHOT = os.path.join(os.path.dirname(STATE), "island.before-theme.json")
+# The bar's layout keys -> waybar/generated/bar.conf (clock.py reads it).
+# bar_conf() joins it to GEN when asked, so a test that points GEN at a
+# scratch folder never writes the live one.
+BAR_CONF_NAME = "bar.conf"
+BAR_CLOCKS = ("", "menubar")
+BAR_WORKSPACES = ("", "dots")
 
 # The values cyberpunk/theme.conf holds, so that a deleted or half-written
 # theme folder can never leave a key unanswered (the slideshow, for one, asks
@@ -364,8 +421,10 @@ DEFAULTS = {
     "font": BASE_FONT, "font_mono": BASE_MONO,
     "anim": "fancy", "wallpaper_prefix": "skyline-", "wallpaper_video": "",
     "gtk_color_scheme": "prefer-dark", "gtk_accent_color": "blue",
-    "icon_theme": "Adwaita",
+    "icon_theme": "Adwaita", "gtk_button_layout": "appmenu:close",
     "crt_suggest": "no", "lang": "en", "cursor_theme": "Adwaita",
+    "island.enabled": "", "island.style": "", "island.match_bar": "",
+    "bar.clock": "", "bar.logo": "", "bar.workspaces": "",
     "term.font": BASE_MONO, "term.font_size": "14", "glass": "12", "term.bright_bold": "no",
     "cosmic.background": "#0d1018", "cosmic.foreground": "#c8d3e6", "cosmic.accent": "#00f0ff",
     "cosmic.radius": "1",
@@ -1052,14 +1111,33 @@ def modules_text(conf):
     """waybar/generated/theme-modules.json: module options that differ by
     theme, merged into the bar's config through its "include" (waybar keeps
     the main file's keys and takes only the ones it lacks, so the main
-    config leaves these out). Now: the workspace numbers."""
+    config leaves these out). Now: the workspace numbers -- or, with
+    bar.workspaces=dots (orchard), a dot each: ● the active one, ○ the rest
+    ("active" and "default" are the two state names waybar-ext-workspaces(5)
+    documents; it has no "urgent" icon, style.css colours .urgent). The
+    kanji win over dots: a ja theme's numbers are the point of it."""
     if conf.get("lang") == "ja":
         icons = {str(i + 1): k for i, k in enumerate(KANJI)}
         icons["default"] = "{name}"
         ws = {"format": "{icon}", "format-icons": icons}
+    elif conf.get("bar.workspaces") == "dots":
+        ws = {"format": "{icon}", "format-icons": {"active": "●", "default": "○"}}
     else:
         ws = {"format": "{name}"}
     return json.dumps({"ext/workspaces": ws}, ensure_ascii=False, indent=1) + "\n"
+
+
+def bar_conf():
+    return os.path.join(GEN, BAR_CONF_NAME)
+
+
+def bar_text(conf):
+    """waybar/generated/bar.conf: the bar-layout keys clock.py reads
+    (bar_style()): clock=menubar moves the date and time to the far right,
+    logo= is custom/logo's glyph. Empty values = the usual bar."""
+    return (f"# {MARK} from theme '{conf['id']}' -- do not edit.\n"
+            f"clock={conf.get('bar.clock', '')}\n"
+            f"logo={conf.get('bar.logo', '')}\n")
 
 
 def write_if_changed(path, text):
@@ -1366,6 +1444,20 @@ def write_generated(conf, only_missing=False):
     if not (only_missing and os.path.exists(MODULES)):
         if write_if_changed(MODULES, modules_text(conf)):
             changed.append("modules")
+    if not (only_missing and os.path.exists(bar_conf())):
+        # `ensure` writes the theme's real one when it is missing: it is a
+        # plain key file, so the "placeholder" is simply the right answer.
+        if write_if_changed(bar_conf(), bar_text(conf)):
+            changed.append("bar")
+    # The lock screen's colours and fonts: ~/.config/hypr/hyprlock.conf
+    # sources this after its own (cyberpunk) defaults; hyprlock reads it at
+    # every lock, so nothing to restart. scripts/hyprlock_theme.py says
+    # where each value comes from.
+    import hyprlock_theme  # noqa: E402  (scripts/hyprlock_theme.py)
+    lock = os.path.join(GEN, hyprlock_theme.NAME)
+    if not (only_missing and os.path.exists(lock)):
+        if write_if_changed(lock, hyprlock_theme.text(conf)):
+            changed.append("hyprlock")
     if not only_missing:
         changed += write_terminals(conf)
     if only_missing:
@@ -1376,7 +1468,11 @@ def write_generated(conf, only_missing=False):
         for path, text in ((os.path.join(GEN, "accent.css"),
                             "/* placeholder from theme.py ensure: no accent yet. */\n"),
                            (os.path.expanduser(MAKO_ACCENT),
-                            "# placeholder from theme.py ensure: no accent yet.\n")):
+                            "# placeholder from theme.py ensure: no accent yet.\n"),
+                           # island.py's bar-centre look (match_bar), imported
+                           # last by style.css; empty until the island writes it.
+                           (os.path.join(GEN, "island-bar.css"),
+                            "/* placeholder from theme.py ensure: no island look yet. */\n")):
             if not os.path.exists(path):
                 write_if_changed(path, text)
                 changed.append(os.path.basename(path))
@@ -1385,10 +1481,8 @@ def write_generated(conf, only_missing=False):
 
 # -- applying ------------------------------------------------------------------
 def run(cmd, timeout=10, **kw):
-    try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, **kw)
-    except (OSError, subprocess.SubprocessError):
-        return None
+    """The CompletedProcess, None when it could not run or timed out."""
+    return desk_common.run(cmd, timeout=timeout, **kw)
 
 
 def icon_theme_dirs(name):
@@ -1487,6 +1581,24 @@ def apply_gsettings(conf):
         now = run(["gsettings", "get", schema, key])
         if now is not None and now.stdout.strip().strip("'") != want:
             run(["gsettings", "set", schema, key, want])
+    # The title-bar buttons (orchard: the three dots on the left). Every other
+    # theme inherits cyberpunk's appmenu:close, so leaving orchard puts the
+    # stock layout back. Live: GTK4 windows follow the setting at once.
+    layout = conf.get("gtk_button_layout", DEFAULTS["gtk_button_layout"])
+    if button_layout_ok(layout):
+        wm = "org.gnome.desktop.wm.preferences"
+        now = run(["gsettings", "get", wm, "button-layout"])
+        if now is not None and now.stdout.strip().strip("'") != layout:
+            run(["gsettings", "set", wm, "button-layout", layout])
+
+
+def button_layout_ok(value):
+    """gtk_button_layout: at most one colon, comma-separated BUTTON_WORDS
+    on either side (an empty side is fine: "close,minimize,maximize:")."""
+    if not BUTTON_LAYOUT.match(value or "") or value.count(":") > 1:
+        return False
+    words = [w for side in value.split(":") for w in side.split(",") if w]
+    return all(w in BUTTON_WORDS for w in words)
 
 
 def wallpaper_matches(conf):
@@ -1518,8 +1630,9 @@ def apply(conf, quiet=False):
         # The slideshow re-reads the prefix on every pick; `next` makes it pick
         # now instead of at the next 10-minute turn.
         run([SLIDESHOW, "next"])
-    # The toolbox's Display row (signal 13) shows the theme in its tooltip.
-    run(["pkill", "-RTMIN+13", "-x", "waybar"])
+    # The toolbox's Display row (bar_signals "display") shows the theme in
+    # its tooltip.
+    bar_signals.poke("display")
     if "kitty" in changed:
         run(["pkill", "-USR1", "-x", "kitty"])     # kitty: reload kitty.conf
     if "modules" in changed:
@@ -1533,17 +1646,21 @@ def apply(conf, quiet=False):
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError as exc:
             print(f"theme.py: bar restart: {exc}", file=sys.stderr)
-    if "lang" in changed:
-        run(["pkill", "-RTMIN+10", "-x", "waybar"])    # custom/day redraws in the new language
+    if "lang" in changed or "bar" in changed:
+        # custom/day redraws in the new language; custom/logo and
+        # custom/menuclock (the same "day" signal) re-read bar.conf -- and
+        # custom/day blanks or comes back with bar.clock. custom/clock's
+        # watcher reads bar.conf by itself every tick.
+        bar_signals.poke("day")
     if "colors" in changed:
         # updates.sh reads color.pending once per run and runs hourly, so the
-        # pending box kept the old theme's colour for up to an hour: signal 8
-        # re-runs it now. The weather glyph (wttr.py, every 30 minutes) is the
-        # same story: signal 16, and wttr.py redraws it from the answer it
-        # already has instead of fetching again. (cpu_usage.sh / gpu_usage.sh
-        # re-read the colours every tick by themselves.)
-        run(["pkill", "-RTMIN+8", "-x", "waybar"])
-        run(["pkill", "-RTMIN+16", "-x", "waybar"])
+        # pending box kept the old theme's colour for up to an hour: its
+        # signal ("updates") re-runs it now. The weather glyph (wttr.py, every
+        # 30 minutes) is the same story ("weather"), and wttr.py redraws it
+        # from the answer it already has instead of fetching again.
+        # (cpu_usage.sh / gpu_usage.sh re-read the colours every tick by
+        # themselves.)
+        bar_signals.poke("updates", "weather")
     return changed
 
 
@@ -1551,7 +1668,7 @@ def notify(title, body=""):
     if os.environ.get("DISPLAY_QUIET"):
         print(title + (f"\n{body}" if body else ""))
         return
-    run(["notify-send", "-a", "Display", "-u", "low", "-t", "6000" if body else "2500",
+    run([NOTIFY, "-a", "Display", "-u", "low", "-t", "6000" if body else "2500",
          "-h", "string:x-canonical-private-synchronous:display", title] + ([body] if body else []))
 
 
@@ -1946,7 +2063,7 @@ def cmd_nautilus_watch(title):
         # Not the "display" synchronous slot of the other theme toasts: a
         # later accent toast must not silently take the button away.
         toast = subprocess.Popen(
-            ["notify-send", "-a", "Display", "-u", "normal", "-t", "15000", "-w",
+            [NOTIFY, "-a", "Display", "-u", "normal", "-t", "15000", "-w",
              "-A", "default=Restart Files now", title, body],
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     except OSError:
@@ -2014,6 +2131,132 @@ def end_fade(proc):
         pass
 
 
+# -- the island hand-off ------------------------------------------------------------
+# A theme may want the dynamic island a certain way (orchard: on, the black
+# notch, the bar's centre matching it -- the camera housing of a menu bar).
+# `set` hands island.* over to island.py and remembers what you had, once,
+# in ISLAND_SNAPSHOT:
+#     {"saved":   {key: your value before the first island theme},
+#      "applied": {key: the value the current island theme set},
+#      "theme":   that theme}
+# Switching to a theme that wants none of them puts each saved key back --
+# but only where the live value is still the one the theme applied: a style
+# you picked in Settings while on orchard is yours and stays. Then the file
+# goes. orchard -> orchard-dark keeps the FIRST snapshot (saved is only ever
+# added to), so the way back is always to what you had before either.
+# Only cmd_set calls this: apply, ensure (every login) and the season ticks
+# never touch the island, and island.py's own DEFAULTS stay as they are.
+def island_word(key, value):
+    """A conf / snapshot value as `island.py set` takes it."""
+    if key == "style":
+        return str(value)
+    return "on" if value else "off"
+
+
+def island_wanted(conf):
+    """{key: value} of the island.* keys this conf sets, normalised as
+    island.json holds them (yes/no -> bool); unset or unreadable = absent."""
+    want = {}
+    for key in ISLAND_KEYS:
+        raw = (conf.get(f"island.{key}") or "").strip().lower()
+        if not raw:
+            continue
+        if key == "style":
+            if raw in ISLAND_STYLES:
+                want[key] = raw
+        elif raw in ("yes", "no"):
+            want[key] = raw == "yes"
+    return want
+
+
+def island_live(run=run):
+    """island.json's settings through `island.py status --json`, or None
+    (no island.py, a broken one, unreadable answer)."""
+    out = run([sys.executable, ISLAND, "status", "--json"])
+    if out is None or out.returncode != 0:
+        return None
+    try:
+        settings = json.loads(out.stdout or "").get("settings")
+    except (ValueError, AttributeError):
+        return None
+    return settings if isinstance(settings, dict) else None
+
+
+def read_island_snapshot():
+    try:
+        with open(ISLAND_SNAPSHOT) as handle:
+            snap = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(snap, dict):
+        return None
+    snap["saved"] = snap.get("saved") if isinstance(snap.get("saved"), dict) else {}
+    snap["applied"] = snap.get("applied") if isinstance(snap.get("applied"), dict) else {}
+    return snap
+
+
+def write_island_snapshot(snap):
+    os.makedirs(os.path.dirname(ISLAND_SNAPSHOT), exist_ok=True)
+    tmp = f"{ISLAND_SNAPSHOT}.{os.getpid()}.tmp"
+    with open(tmp, "w") as handle:
+        json.dump(snap, handle, indent=1, sort_keys=True)
+        handle.write("\n")
+    os.replace(tmp, ISLAND_SNAPSHOT)
+
+
+def island_handoff(conf, run=run):
+    """Give the island what theme `conf` wants, or give you back what you
+    had (see above). Returns the `island.py set` calls made, as
+    [(key, word)]. Any failure (island.py missing, a set refused) is a line
+    on stderr, never an error: a theme switch must not fail on the island."""
+    calls = []
+    want = island_wanted(conf)
+    snap = read_island_snapshot()
+    if not want and snap is None:
+        return calls                # the usual case: nothing to do, no island.py run
+    live = island_live(run)
+    if live is None:
+        print("theme.py: island hand-off skipped (island.py status failed)", file=sys.stderr)
+        return calls
+
+    def send(key, value):
+        out = run([sys.executable, ISLAND, "set", key, island_word(key, value)], timeout=30)
+        if out is None or out.returncode != 0:
+            why = (out.stderr or "").strip() if out is not None else "did not run"
+            print(f"theme.py: island.py set {key}: {why}", file=sys.stderr)
+        calls.append((key, island_word(key, value)))
+
+    snap = snap or {"saved": {}, "applied": {}}
+    # Keys the new theme no longer sets: back to yours (unless you changed
+    # them meanwhile). With nothing wanted, that is all of them. Off goes
+    # first when it is the way back, so the old look never flashes.
+    back = [k for k in ISLAND_KEYS if k in snap["saved"] and k not in want]
+    if snap["saved"].get("enabled") is False and "enabled" in back:
+        back = ["enabled"] + [k for k in back if k != "enabled"]
+    for key in back:
+        if key in live and live[key] == snap["applied"].get(key):
+            send(key, snap["saved"][key])
+        snap["saved"].pop(key, None)
+        snap["applied"].pop(key, None)
+    if not want:
+        try:
+            os.remove(ISLAND_SNAPSHOT)
+        except OSError:
+            pass
+        return calls
+    for key in want:
+        if key not in snap["saved"] and key in live:
+            snap["saved"][key] = live[key]
+    snap["applied"] = dict(want)
+    snap["theme"] = conf.get("id", "")
+    # Written before the calls: a switch cut short still knows the way back.
+    write_island_snapshot(snap)
+    for key in ISLAND_KEYS:         # style, match_bar, then enabled
+        if key in want and live.get(key) != want[key]:
+            send(key, want[key])
+    return calls
+
+
 def cmd_set(name):
     if not exists(name):
         have = ", ".join(n for n, _ in themes())
@@ -2028,6 +2271,9 @@ def cmd_set(name):
     write_state(state)
     try:
         changed = apply(conf)
+        # Under the fade, so the bar's centre turning into the notch (or
+        # back) is hidden with the rest of the switch.
+        island_handoff(conf)
     finally:
         end_fade(fade)
     switch_sound()
@@ -2048,7 +2294,7 @@ KNOWN = set(DEFAULTS) | {
     "hypr.blur", "hypr.blur_size", "hypr.blur_passes", "hypr.blur_brightness",
     "hypr.blur_contrast", "hypr.blur_vibrancy", "hypr.blur_vibrancy_darkness",
     "hypr.blur_noise", "hypr.shadow", "hypr.shadow_range", "hypr.shadow_render_power",
-    "hypr.shadow_color",
+    "hypr.shadow_color", "hypr.shadow_color_inactive", "hypr.shadow_offset", "hypr.rounding_power",
 }
 
 
@@ -2199,6 +2445,41 @@ def cmd_check(name):
     sys.exit(1 if problems else 0)
 
 
+def check_layout_keys(conf):
+    """The newer keys' lint, kept apart from check_conf so it needs no GTK
+    and no installed fonts (tests/test_theme_island.py runs it): the window
+    shape and shadow, the title-bar buttons, the island hand-off, the bar's
+    layout."""
+    problems = []
+    if conf.get("hypr.rounding_power", ""):
+        try:
+            if not 1 <= float(conf["hypr.rounding_power"]) <= 10:
+                raise ValueError
+        except ValueError:
+            problems.append(f"hypr.rounding_power={conf['hypr.rounding_power']!r}: a number 1-10")
+    offset = conf.get("hypr.shadow_offset", "")
+    if offset and not re.match(r"^-?\d+(\.\d+)?\s+-?\d+(\.\d+)?$", offset):
+        problems.append(f"hypr.shadow_offset={offset!r}: two numbers, \"x y\" (px)")
+    inactive = conf.get("hypr.shadow_color_inactive", "")
+    if inactive and not re.match(r"^rgba?\([0-9a-fA-F]{6}([0-9a-fA-F]{2})?\)$", inactive):
+        problems.append(f"hypr.shadow_color_inactive={inactive!r}: rgba(rrggbbaa) or empty")
+    if not button_layout_ok(conf.get("gtk_button_layout", "")):
+        problems.append(f"gtk_button_layout={conf.get('gtk_button_layout')!r}: words from "
+                        f"{', '.join(BUTTON_WORDS)}, comma-separated, one colon at most")
+    if conf.get("island.style", "") not in ("",) + ISLAND_STYLES:
+        problems.append(f"island.style={conf.get('island.style')!r}: one of {', '.join(ISLAND_STYLES)}, or empty")
+    for key in ("island.enabled", "island.match_bar"):
+        if conf.get(key, "") not in ("", "yes", "no"):
+            problems.append(f"{key}={conf.get(key)!r}: yes, no or empty")
+    if conf.get("bar.clock", "") not in BAR_CLOCKS:
+        problems.append(f"bar.clock={conf.get('bar.clock')!r}: menubar or empty")
+    if conf.get("bar.workspaces", "") not in BAR_WORKSPACES:
+        problems.append(f"bar.workspaces={conf.get('bar.workspaces')!r}: dots or empty")
+    if len(conf.get("bar.logo", "")) > 4:
+        problems.append(f"bar.logo={conf.get('bar.logo')!r}: a glyph or two, not text")
+    return problems
+
+
 def check_conf(name, conf, own):
     """Problems of one resolved conf of theme `name` (`own`: the keys its
     files set): keys and colours, the terminal font, icons, wallpapers,
@@ -2268,6 +2549,7 @@ def check_conf(name, conf, own):
     for key in ("hypr.rounding", "hypr.gaps_in", "hypr.gaps_out", "hypr.border_size"):
         if key in conf and not conf[key].isdigit():
             problems.append(f"{key}={conf[key]!r} is not a whole number")
+    problems += check_layout_keys(conf)
     prefix = conf.get("wallpaper_prefix", "")
     walls = os.path.join(HOME, "Pictures", "Wallpapers")
     # Every screen's folder (screens.py: the host file's screens, else the

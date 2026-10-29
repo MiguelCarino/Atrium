@@ -310,6 +310,26 @@ label.cal-today {
     padding: 8px 4px 2px 4px;
 }
 
+/* Events (calendar_events.py): the dot under a day with any is part of the
+   cell's text (so it takes the cell's colour); this marks the day picked
+   for the list. */
+label.cal-selected {
+    border: 1px solid @cyan;
+    padding: 3px 0px;           /* the border takes 1px of label.cal-day's 4px */
+}
+
+label.cal-events-title {
+    padding: 10px 4px 4px 4px;
+}
+
+.cal-events {
+    padding: 0px 4px 2px 4px;
+}
+
+.cal-event {
+    padding: 2px 0px;
+}
+
 /* ===========================================================================
    Shortcuts panel (scripts/keybinds_panel.py)
    =========================================================================== */
@@ -1371,6 +1391,31 @@ label.git-mark.git-on {
 
 label.sn-value.git-hl {
     color: @cyan;
+}
+
+/* --- The keyboard (scripts/panelui.py) ----------------------------------------
+   Every card opens with its first button, switch or slider focused, and Tab /
+   Up / Down walk the rest, Enter presses. GTK draws this ring only while the
+   focus is keyboard focus (focus-visible), so a click leaves none behind.
+   Palette names only; a theme can repeat the selector. */
+#panel button:focus,
+#panel switch:focus,
+#panel scale:focus,
+#panel checkbutton:focus,
+#panel combobox button:focus {
+    outline-color: @edge-lit;
+    outline-style: solid;
+    outline-width: 2px;
+    outline-offset: 1px;
+    -gtk-outline-radius: 4px;
+}
+
+/* panelui.Armed: a button for something that cannot be undone, after its
+   first click ("Sure?", ARM_SECONDS to take the second). */
+#panel button.armed,
+#panel button.armed:hover {
+    color: @magenta;
+    background-color: alpha(@magenta, 0.12);
 }
 
 /* Wallpaper accent (scripts/theme-from-wallpaper.py, ~/.config/hypr/scripts).

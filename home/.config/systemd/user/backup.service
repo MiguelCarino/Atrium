@@ -1,0 +1,19 @@
+# The daily backup of your files: ~/.config/hypr/scripts/backup.py run --timer
+# (restic or kopia; Settings > Storage > Backup). Does nothing until a backup
+# is set up (the second ExecCondition). Lowest CPU and disk priority, inside
+# railguard's heavy.slice, so it never gets in the way; a failure is a
+# critical notification with the reason.
+[Unit]
+Description=Back up your files (restic / kopia)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecCondition=/usr/bin/python3 %h/.config/hypr/scripts/backup.py configured
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/backup.py run --timer
+Slice=heavy.slice
+Nice=19
+IOSchedulingClass=idle
+CPUSchedulingPolicy=idle

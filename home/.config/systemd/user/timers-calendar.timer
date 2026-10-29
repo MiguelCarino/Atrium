@@ -9,6 +9,8 @@ After=graphical-session.target
 OnActiveSec=30s
 OnUnitActiveSec=5min
 AccuracySec=30s
+# Spread out from desktop-memory.timer and brief.timer (same 5-min period).
+RandomizedDelaySec=40s
 
 [Install]
 WantedBy=graphical-session.target

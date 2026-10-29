@@ -19,9 +19,17 @@
     "layer": "top",
     "position": "top",
     "margin": "0 0 0 0",
+    // A fixed height: left to its content the bar was 36 px at start and
+    // 38 px once a taller pill had shown up (waybar's "Requested height: 36
+    // is less than the minimum height: 38" in the journal), and every such
+    // change moved the reserved strip -- every tiled window reflowed by 2 px.
+    "height": 38,
     "reload_style_on_change": true,
 
+    // custom/logo first: empty (so hidden) unless the theme sets bar.logo
+    // (orchard's leaf) -- the menu bar's mark, top left.
     "modules-left": [
+        "custom/logo",
         "ext/workspaces",
         "hyprland/submap",
         "hyprland/language",
@@ -39,28 +47,34 @@
         "custom/notifications"
     ],
     "modules-right": [
+        "custom/reboot",
         "custom/doctor",
         "custom/tasks",
         "custom/context",
         "custom/workhours",
+        "custom/keepawake",
         "custom/timers",
         "custom/recording",
         "custom/voice",
         "custom/capture",
         "custom/player",
         "custom/drives",
+        "custom/printing",
         "custom/phone",
         "custom/mic",
         "custom/camera",
         "custom/location",
         "privacy",
+        "custom/mempressure",
         "custom/cpu",
         "custom/gpu",
         "custom/disk",
+        "custom/bluetooth",
         "custom/network",
         "pulseaudio",
         "custom/toolbox",
-        "custom/power"
+        "custom/power",
+        "custom/menuclock"
     ],
 
     //***************************
@@ -150,11 +164,15 @@
     // custom/clock has no interval: clock.py holds the second hand itself and
     // is woken by SIGUSR1 when the mode changes, so the new reading appears on
     // the same click rather than at the next tick.
+    //
+    // custom/day is pushed, not polled: clock.py's watcher sends signal 10
+    // (bar_signals.py "day") when the date changes, cycle sends it on a mode
+    // change, theme.py and region.py on theirs. 3600 is only a safety net.
     "custom/day": {
         "tooltip": false,
         "exec": "$HOME/.config/waybar/scripts/clock.py day",
         "return-type": "json",
-        "interval": 60,
+        "interval": 3600,
         "signal": 10,
         "format": "{}",
         "on-click": "$HOME/.config/waybar/scripts/panel.py toggle calendar"
@@ -188,7 +206,7 @@
         // newest kernel and says whether a reboot is safe, then flatpak and a
         // firmware listing). It re-signals this pill.
         "on-click": "$HOME/.config/waybar/scripts/panel.py toggle updates",
-        "on-click-right": "pkill -SIGRTMIN+8 waybar"
+        "on-click-right": "$HOME/.config/hypr/scripts/bar_signals.py poke updates"
     },
 
     // Left: forecast panel (scripts/weather_panel.py). Right: wttr.in in the
@@ -273,7 +291,7 @@
         "signal": 15,
         "format": "{}",
         "on-click": "$HOME/.config/waybar/scripts/panel.py toggle repos",
-        "on-click-right": "pkill -RTMIN+15 -x waybar"
+        "on-click-right": "$HOME/.config/hypr/scripts/bar_signals.py poke repos"
     },
 
     // Screen recording indicator. The recorder is ~/.config/hypr/scripts/record.sh
@@ -284,35 +302,38 @@
     // and nothing at all when idle: the script prints empty text, and waybar
     // hides a custom module with no text.
     //
-    // No "interval": recording.py stats two pid files in $XDG_RUNTIME_DIR once
-    // a second (no forks) and prints only when something changed -- which,
-    // apart from the REC clock, is almost never.
+    // No "interval": recording.py sleeps on inotify for record.sh's pid files
+    // in $XDG_RUNTIME_DIR, ticks once a second only while REC's clock runs,
+    // and prints only when something changed.
     //
     // Left: stop the recording, or save the replay if only the buffer runs.
     // Right: stop the replay buffer (never starts one -- the pill is only
     // visible while something is capturing).
     // Desktop health (hypr/scripts/doctor.py): nothing while every service,
     // timer and check is fine; a stethoscope and a count when not. Click: the
-    // logs panel (errors today); right-click: restart what failed.
+    // logs panel (errors today); right-click: restart what failed. No
+    // tooltip: the logs panel opens right under it (tooltips are off on
+    // every pill that has a panel).
     "custom/doctor": {
+        "tooltip": false,
         "exec": "$HOME/.config/hypr/scripts/doctor.py bar",
         "return-type": "json",
         "interval": 60,
         "signal": 18,
         "format": "{}",
         "on-click": "$HOME/.config/waybar/scripts/panel.py toggle logs",
-        "on-click-right": "$HOME/.config/hypr/scripts/doctor.py --fix >/dev/null; pkill -RTMIN+18 -x waybar"
+        "on-click-right": "$HOME/.config/hypr/scripts/doctor.py --fix >/dev/null; $HOME/.config/hypr/scripts/bar_signals.py poke doctor"
     },
 
     // Background tasks (hypr/scripts/tasks.py): nothing while no task needs
     // you; a count when one does (a build failed, a tidy plan waits for your
-    // OK). tasks.py signals 27 when that changes. Click: Settings >
-    // Background tasks; right-click: mark the failures seen (a plan stays
-    // until it is approved or discarded).
+    // OK). tasks.py signals 27 whenever that changes, so the interval is only
+    // a safety net. Click: Settings > Background tasks; right-click: mark the
+    // failures seen (a plan stays until it is approved or discarded).
     "custom/tasks": {
         "exec": "$HOME/.config/hypr/scripts/tasks.py bar",
         "return-type": "json",
-        "interval": 300,
+        "interval": 3600,
         "signal": 27,
         "format": "{}",
         "on-click": "$HOME/.config/hypr/scripts/settings.py tasks",
@@ -320,26 +341,54 @@
     },
 
     // USB drives (hypr/scripts/automount.py): shown while one is mounted.
-    // Click: open it in Files; right-click: eject all, safe to pull out.
+    // Pushed: automount.service signals 19 on every mount, unmount and
+    // removal; the interval is only a safety net (and `bar` reads mountinfo
+    // first, so with no drive it costs no D-Bus). With one drive: click
+    // opens it in Files, right-click ejects it (safe to pull out). With
+    // several: either click opens Files on /run/media, an eject button per
+    // drive -- one stray right-click never ejects everything.
     "custom/drives": {
         "exec": "$HOME/.config/hypr/scripts/automount.py bar",
         "return-type": "json",
-        "interval": 30,
+        "interval": 3600,
         "signal": 19,
         "format": "{}",
-        "on-click": "sh -c 'nautilus \"$(~/.config/hypr/scripts/automount.py list | head -1 | cut -f2)\"'",
-        "on-click-right": "$HOME/.config/hypr/scripts/automount.py eject all"
+        "on-click": "$HOME/.config/hypr/scripts/automount.py click left",
+        "on-click-right": "$HOME/.config/hypr/scripts/automount.py click right"
+    },
+
+    // Printing (hypr/scripts/printing.py, printing.service toasts each job):
+    // a printer and the number of jobs, shown only while jobs are queued;
+    // yellow when one is held, red when one is stopped or its printer needs
+    // a hand. Click: the queue panel; right-click: printer settings. Pushed:
+    // printing.service signals 22 on every change (interval: a safety net
+    // for a daemon that is down). No tooltip: the queue panel has it all.
+    "custom/printing": {
+        "tooltip": false,
+        "exec": "$HOME/.config/hypr/scripts/printing.py bar",
+        "return-type": "json",
+        "interval": 3600,
+        "signal": 22,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle printing",
+        "on-click-right": "$HOME/.config/hypr/scripts/printing.py settings"
     },
 
     // The phone over KDE Connect (hypr/scripts/phone.py): its battery while
-    // it is reachable. Click: ring it; right-click: send it the clipboard.
+    // it is reachable. Pushed: phone-handoff.service (phone.py watch) signals
+    // 20 when a phone comes or goes and when its battery reports; `bar` is
+    // one D-Bus call to kdeconnectd (it was `kdeconnect-cli -l`, 2 s of
+    // network discovery every minute). Click: Settings > Devices; middle-
+    // click: ring it (not the left click -- a phone ringing in a meeting
+    // should take a deliberate press); right-click: send it the clipboard.
     "custom/phone": {
         "exec": "$HOME/.config/hypr/scripts/phone.py bar",
         "return-type": "json",
-        "interval": 60,
+        "interval": 600,
         "signal": 20,
         "format": "{}",
-        "on-click": "$HOME/.config/hypr/scripts/phone.py ring",
+        "on-click": "$HOME/.config/hypr/scripts/settings.py devices",
+        "on-click-middle": "$HOME/.config/hypr/scripts/phone.py ring",
         "on-click-right": "$HOME/.config/hypr/scripts/phone.py clip"
     },
 
@@ -543,11 +592,10 @@
     // because style.css now names #custom-network alongside #network everywhere
     // it used to name #network alone.
     //
-    // No "interval": the script loops and prints a JSON line every 3 s, the
-    // pattern the note at the top of this file describes. It also HAS to loop --
-    // throughput is a delta between two readings of /proc/net/dev, so it must
-    // hold the previous sample, which a one-shot module re-invoked by waybar
-    // could not do.
+    // No "interval": the script is a watcher, the pattern the note at the top
+    // of this file describes -- it sits on `ip monitor` and prints a line only
+    // when the pill's text changes (network.py's docstring). Throughput is
+    // the panel's business now, not the pill's.
     "custom/network": {
         "exec": "$HOME/.config/waybar/scripts/network.py watch",
         "return-type": "json",
@@ -610,6 +658,48 @@
         "on-click": "$HOME/.config/waybar/scripts/panel.py toggle power"
     },
 
+    // ---- The menu-bar layout (a theme's bar.* keys) ---------------------
+    // Both print an empty text -- and waybar hides an empty custom module --
+    // unless the theme asks for them through waybar/generated/bar.conf
+    // (theme.py writes it from bar.clock / bar.logo; clock.py reads it). So
+    // every theme but orchard has the bar it always had. Signal 10 is
+    // custom/day's: theme.py sends it when bar.conf changes, so a theme
+    // switch shows or hides them at once.
+    //
+    // The mark at the top left (orchard: Font Awesome's leaf -- an original
+    // glyph, never a vendor's logo). Left: the power menu, as the menu-bar
+    // mark's menu would be. Right: the launcher.
+    "custom/logo": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/clock.py logo",
+        "return-type": "json",
+        "interval": "once",
+        "signal": 10,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle power",
+        "on-click-right": "$HOME/.config/hypr/scripts/launcher.py"
+    },
+
+    // The date and time as one reading at the far right, after the power
+    // pill: "Tue 27 Oct  21:21" (bar.clock=menubar; then custom/day and
+    // custom/clock in the centre go blank, and the island's notch there
+    // keeps the weather and the waiting things). Minutes only, and no poll
+    // of its own: clock.py's watcher (custom/clock, running either way)
+    // sends signal 10 on each new minute while this layout is on -- it used
+    // to fork a python every 5 s, under every theme, to print "" in most of
+    // them. Left: the calendar; right: the clock card (UTC, epoch, world
+    // clocks), as the centre ones.
+    "custom/menuclock": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/clock.py menubar",
+        "return-type": "json",
+        "interval": "once",
+        "signal": 10,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle calendar",
+        "on-click-right": "$HOME/.config/waybar/scripts/panel.py toggle clock"
+    },
+
     // ---- Toolbox section ------------------------------------------------
     // Game mode (fullscreen state), night light, Keep awake, shortcuts and
     // the tray live in a small card that drops down under this sliders pill:
@@ -625,6 +715,64 @@
         "signal": 12,
         "format": "{}",
         "on-click": "$HOME/.config/waybar/scripts/toolbox.sh toggle"
+    },
+
+    // ---- Pills that only show up when something needs a look ----------
+
+    // Reboot needed (scripts/reboot_needed.py): nothing normally; a circular
+    // arrow when a newer kernel is installed than the one running, or
+    // needs-restarting -r (dnf-utils) says core libraries or services were
+    // updated since boot. Its answer is cached 30 min, the same as this
+    // interval; signal 28 (bar_signals.py "reboot") redraws it at once.
+    // The tooltip says why. Click: the reboot card (why, the command, and
+    // a two-click "Reboot now" -- nothing reboots by itself).
+    "custom/reboot": {
+        "exec": "$HOME/.config/waybar/scripts/reboot_needed.py",
+        "return-type": "json",
+        "interval": 1800,
+        "signal": 28,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle reboot"
+    },
+
+    // Keep awake (scripts/awake_pill.py): a mug -- and its end time for a
+    // timed one -- only while Keep awake is on (the toolbox row, Settings >
+    // Power), so the screens staying on is never a mystery with the toolbox
+    // folded away. A watcher that stats one runtime file, no forks while
+    // off. Click: turn it off.
+    "custom/keepawake": {
+        "exec": "$HOME/.config/waybar/scripts/awake_pill.py watch",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/awake_pill.py off"
+    },
+
+    // Memory pressure (scripts/memory_pill.py): hidden while memory is
+    // calm; .warn / .crit (memory.py's levels: /proc/pressure/memory some /
+    // full avg10 and MemAvailable) with the stall share or what is left.
+    // A watcher that reads /proc every 10 s, no forks. The tooltip lists the
+    // top five processes by RSS. Click: the CPU panel (its MEMORY section).
+    "custom/mempressure": {
+        "exec": "$HOME/.config/waybar/scripts/memory_pill.py watch",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle cpu"
+    },
+
+    // Bluetooth (scripts/bluetooth.py): BlueZ over D-Bus, woken by its
+    // signals, no polling. Hidden with no adapter, or with the adapter off
+    // and nothing paired; a dim glyph while off, the glyph while on, and the
+    // number connected plus the lowest battery that reports one. Click: the
+    // Bluetooth panel (power, connect / disconnect, forget, pair new).
+    "custom/bluetooth": {
+        "tooltip": false,
+        "exec": "$HOME/.config/waybar/scripts/bluetooth.py watch",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle bluetooth"
     }
 }
 ]

@@ -107,6 +107,7 @@ import sys
 import time
 
 HOME = os.path.expanduser("~")
+NOTIFY = os.path.expanduser("~/.config/hypr/scripts/notify")  # notify-send with the theme's mascot (mascot_notify.py)
 LMS = os.path.join(HOME, ".lmstudio", "bin", "lms")
 LMS_MODELS = os.path.join(HOME, ".lmstudio", "models")
 CACHE = os.path.join(HOME, ".cache", "llm-models.json")
@@ -492,7 +493,7 @@ def quick_choice(model=None):
     """(Model, why) for a ?? with no model typed: `model` (default: the
     "quick" setting) as it is when it is a Claude one, or a local one that
     fits next to what is on the card now; else haiku, `why` saying so.
-    Blocking (nvidia-smi and /proc, ~50 ms): call it in a thread. The
+    Blocking (the card's memory and /proc, ~50 ms): call it in a thread. The
     reasoning: the module docstring."""
     model = model or chosen("quick")
     if model is None or not model.local:
@@ -720,7 +721,7 @@ def model_for_repo(repo, models=None):
 
 def _notify(summary, body, replace=None, value=None, sticky=False, icon=DL_ICON):
     """notify-send, `replace` the id of the one to update; the id back."""
-    argv = ["notify-send", "-a", "LM Studio", "-i", icon, "-p"]
+    argv = [NOTIFY, "-a", "LM Studio", "-i", icon, "-p"]
     if replace:
         argv += ["-r", str(replace)]
     if value is not None:

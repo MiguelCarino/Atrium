@@ -28,7 +28,7 @@ Nothing here installs anything or needs root. The one source of each fact:
   pending    the cache waybar/scripts/updates.sh writes on every check
              ($XDG_RUNTIME_DIR/waybar-updates.tsv, the same one the updates
              panel reads) -- so this never runs a second `dnf check-update`.
-             "Check" signals the pill (SIGRTMIN+8) to run one; with no bar
+             "Check" signals the pill (bar_signals.py "updates") to run one; with no bar
              running it runs updates.sh itself. Security marks come from
              `dnf --cacheonly advisory list --security --updates`: only the
              metadata that check already downloaded, no network.
@@ -36,7 +36,9 @@ Nothing here installs anything or needs root. The one source of each fact:
              panel starts it: btrfs snapshot (or snapper's own pre/post pair),
              dnf upgrade, build + check the NVIDIA module for the newest
              kernel, flatpak, firmware listing. It records how that went in
-             $XDG_STATE_HOME/hypr/last-upgrade.tsv, read back here.
+             $XDG_STATE_HOME/hypr/last-upgrade.tsv, read back here, and
+             when it finishes pokes the updates and reboot pills itself
+             (bar_signals.py "updates", "reboot").
   reboot     `needs-restarting -r` (exit 1 = a core library, the kernel or
              a service updated since boot), and the newest installed
              kernel-core against `uname -r`.
@@ -75,7 +77,6 @@ CACHE = os.environ.get("SOFTWARE_UPDATES_CACHE") or os.path.join(os.environ.get(
 RECORD = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
                       "hypr", "last-upgrade.tsv")
 PRE_UPGRADE_DIR = "/.snapshots-pre-upgrade"       # safe-upgrade.sh's SNAPDIR
-SIGNAL = 8                                        # custom/updates
 TERMINAL = ["kitty", "--class", "software-updates", "--title", "Software updates"]
 
 # The choices offered for the pill's own check, as waybar "interval" values.
@@ -430,9 +431,21 @@ def firmware():
 
 
 # -- actions --------------------------------------------------------------------------
+def poke_pill():
+    """Signal custom/updates (bar_signals.py "updates"); the number of bars
+    that got it, 0 when none runs."""
+    try:
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import bar_signals
+        return bar_signals.poke("updates")
+    except Exception:       # noqa: BLE001 - no bar: nothing to redraw
+        return 0
+
+
 def check():
     """Ask the pill to check (it rewrites the cache); no bar -> run its script."""
-    if run("pkill", f"-RTMIN+{SIGNAL}", "-x", "waybar")[0] != 0:
+    if not poke_pill():
         subprocess.Popen([UPDATES_SH], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          start_new_session=True)
 

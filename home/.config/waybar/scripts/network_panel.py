@@ -18,6 +18,10 @@ Turning the wired connection off does exactly that — this machine goes offline
 until you turn it back on. No confirmation, because the switch is right there
 to undo it.
 
+VPN and WireGuard profiles are a section of their own under the rest
+(VPN_TYPES, network.py's list: the same ones that put a shield on the pill),
+with the same on / off switch -- hidden while there are none saved.
+
 Rows are keyed on the connection UUID, never the name: names here include
 emoji and brackets, and nothing stops two profiles sharing one.
 
@@ -79,6 +83,14 @@ ICON_OTHER = "\uf0c1"
 TYPE_ICONS = {"802-11-wireless": ICON_WIFI, "802-3-ethernet": ICON_ETHERNET,
               "vpn": ICON_VPN, "wireguard": ICON_VPN}
 HIDDEN_TYPES = {"loopback", "bridge", "tun"}
+VPN_TYPES = set(netinfo.VPN_TYPES)
+
+
+def split_vpns(conns):
+    """(the other connections, the VPN / WireGuard ones), each in the order
+    given: the VPN section lists its own below the rest."""
+    return ([c for c in conns if c["type"] not in VPN_TYPES],
+            [c for c in conns if c["type"] in VPN_TYPES])
 
 
 def nmcli(*args, timeout=5):
@@ -351,6 +363,20 @@ class Network(panelui.Panel):
         left.pack_start(self.list, False, False, 0)
         self.rows = {}                       # uuid -> SwitchRow
 
+        # VPN: hidden until a VPN / WireGuard profile is saved.
+        self.vpn_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.vpn_box.set_no_show_all(True)
+        vpn_head = Gtk.Label(label="VPN")
+        vpn_head.get_style_context().add_class("kb-heading")
+        vpn_head.set_xalign(0)
+        vpn_head.set_margin_top(6)
+        vpn_head.show()
+        self.vpn_box.pack_start(vpn_head, False, False, 0)
+        self.vpn_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.vpn_list.show()
+        self.vpn_box.pack_start(self.vpn_list, False, False, 0)
+        left.pack_start(self.vpn_box, False, False, 0)
+
         apps_head = Gtk.Label(label="APPS ONLINE")
         apps_head.get_style_context().add_class("kb-heading")
         apps_head.set_xalign(0)
@@ -392,21 +418,24 @@ class Network(panelui.Panel):
         self.radio.set("Wi-Fi", "Radio on" if wifi_on else "Radio off", wifi_on)
 
         seen = set()
-        for index, conn in enumerate(conns):
-            seen.add(conn["uuid"])
-            row = self.rows.get(conn["uuid"])
-            if row is None:
-                row = SwitchRow(TYPE_ICONS.get(conn["type"], ICON_OTHER),
-                                lambda wanted, c=conn: self.toggle_conn(c, wanted))
-                self.rows[conn["uuid"]] = row
-                self.list.pack_start(row.widget, False, False, 0)
-                row.widget.show_all()
-            self.list.reorder_child(row.widget, index)
-            row.set(conn["name"], self.describe(conn), conn["active"],
-                    sensitive=self.wifi_on or conn["type"] != "802-11-wireless")
+        others, vpns = split_vpns(conns)
+        for box, group in ((self.list, others), (self.vpn_list, vpns)):
+            for index, conn in enumerate(group):
+                seen.add(conn["uuid"])
+                row = self.rows.get(conn["uuid"])
+                if row is None:
+                    row = SwitchRow(TYPE_ICONS.get(conn["type"], ICON_OTHER),
+                                    lambda wanted, c=conn: self.toggle_conn(c, wanted))
+                    self.rows[conn["uuid"]] = row
+                    box.pack_start(row.widget, False, False, 0)
+                    row.widget.show_all()
+                box.reorder_child(row.widget, index)
+                row.set(conn["name"], self.describe(conn), conn["active"],
+                        sensitive=self.wifi_on or conn["type"] != "802-11-wireless")
         for uuid in list(self.rows):
             if uuid not in seen:
                 self.rows.pop(uuid).widget.destroy()
+        self.vpn_box.set_visible(bool(vpns))
 
     def describe(self, conn):
         if conn["state"] == "activating":

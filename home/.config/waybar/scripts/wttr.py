@@ -14,7 +14,12 @@ the forecast panel (weather_panel.py, the pill's left-click) reads -- so
 opening the panel costs no second request.
 
 wttr.in resets connections fairly often; a failed fetch serves the last good
-pill marked stale rather than blanking the module for half an hour.
+pill marked stale rather than blanking the module. It also books a retry
+(retry_after: 1, 2, then every 5 min, RETRY_S) as a transient systemd timer
+that redraws the pill (bar_signals.py "weather") -- the module's own
+interval is 30 min, so a fetch that failed at boot, before the network was
+up, used to leave the pill stale for that long. The failure count lives in
+$XDG_RUNTIME_DIR (FAILS) and is cleared by the next good fetch.
 
 The place and the units are preferences in ~/.config/hypr/region.conf
 (hypr/scripts/region.py; Settings > Date, time & region): weather= anything
@@ -78,6 +83,9 @@ def val(entry, key, units=None):
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 CACHE = os.path.join(RUNTIME, "waybar-weather.json")       # last pill output
 RAW = os.path.join(RUNTIME, "waybar-weather-raw.json")     # full wttr.in answer
+FAILS = os.path.join(RUNTIME, "waybar-weather.fails")      # failed fetches in a row
+RETRY_S = (60, 120, 300)        # after the 1st, 2nd, 3rd+ failure in a row
+RETRY_UNIT = "waybar-weather-retry"
 REUSE_S = 20 * 60       # RAW younger than this is reused, not re-fetched
 
 # WWO weather codes -> kind. wttr.in also emits a few codes outside the WWO
@@ -182,6 +190,49 @@ def serve_cached(reason):
     print(json.dumps(cached))
 
 
+def retry_after(failures):
+    """Seconds until the next try after this many failures in a row."""
+    return RETRY_S[min(max(failures, 1), len(RETRY_S)) - 1]
+
+
+def failures(change=None):
+    """The failed-fetch count; change="+1" counts one more, "reset" clears it."""
+    try:
+        with open(FAILS) as handle:
+            count = int(handle.read().strip() or 0)
+    except (OSError, ValueError):
+        count = 0
+    if change == "+1":
+        count += 1
+    elif change == "reset":
+        count = 0
+    if change:
+        try:
+            if count:
+                with open(FAILS, "w") as handle:
+                    handle.write(str(count))
+            elif os.path.exists(FAILS):
+                os.remove(FAILS)
+        except OSError:
+            pass
+    return count
+
+
+def book_retry(delay):
+    """One redraw of the pill in `delay` s (systemd-run --on-active: a
+    transient timer, gone after it fires; a newer booking replaces it).
+    The redraw runs this script again, which fetches."""
+    hypr = os.path.expanduser("~/.config/hypr/scripts/bar_signals.py")
+    try:
+        subprocess.run(["systemctl", "--user", "stop", f"{RETRY_UNIT}.timer"],
+                       capture_output=True, timeout=5)
+        subprocess.run(["systemd-run", "--user", "--quiet", "--collect", f"--unit={RETRY_UNIT}",
+                        f"--on-active={delay}", sys.executable, hypr, "poke", "weather"],
+                       capture_output=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
 def fetch():
     """wttr.in's answer for LOCATION, stamped with it (see the docstring)."""
     import requests             # only the network path needs it
@@ -231,7 +282,10 @@ def main():
         data = pill(weather)
     except Exception as exc:            # network down, odd JSON, rate-limited
         serve_cached(str(exc))
+        book_retry(retry_after(failures("+1")))
         return
+    if failures():
+        failures("reset")
     for path, payload in ((CACHE, data), (RAW, weather)):
         try:
             with open(path, "w") as handle:
