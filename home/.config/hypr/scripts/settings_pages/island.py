@@ -3,7 +3,8 @@ opens when something happens (island.py; its docstring has the rest). A tab
 of Bar & toolbox.
 
     ISLAND     on / off (island.service), its design (solid notch, floating
-               island, glass, theme, outline), whether the bar's centre
+               island, glass, theme, outline), black or the theme's colour
+               for the notch and the floating island, whether the bar's centre
                capsules take the same look, which screen it is on,
                whether the pill stays in the bar while something goes on
     SHOWS      what it shows: music playing, timers ending, a screen
@@ -15,8 +16,8 @@ of Bar & toolbox.
     Details    the state file, the service, the journal
 
 Nothing is kept here: every control runs `island.py set KEY on|off` or
-`island.py set monitor|style VALUE` (`set enabled` also enables and starts, or
-stops and disables, island.service), and the page redraws from
+`island.py set monitor|style|notch_color VALUE` (`set enabled` also enables
+and starts, or stops and disables, island.service), and the page redraws from
 `island.py status --json`.
 """
 import os
@@ -28,6 +29,7 @@ PAGE = {"id": "island", "title": "Island", "icon": "\uf111", "group": "Look", "o
         "parent": "bar", "tab": "Island",
         "keywords": ["dynamic island", "now playing", "media", "mpris", "pill", "timers countdown",
                      "screen recording", "railguard", "isla dinamica", "notch", "island design", "island style",
+                     "notch colour", "notch color", "island colour",
                      "notifications in the island"]}
 
 ISLAND = os.path.join(HYPR, "island.py")  # noqa: F405  (HYPR: common)
@@ -46,6 +48,8 @@ SOURCES = [("media", "\uf001", "Music and video",
             "only with the one above off: mako shows them, the island a line too")]
 STYLES = [("notch", "Notch"), ("island", "Floating island"), ("glass", "Glass"),
           ("theme", "Theme"), ("outline", "Outline")]
+COLORS = [("black", "Black"), ("theme", "Theme colour")]
+SOLID = ("notch", "island")            # the designs a colour applies to
 FIXED_SCREENS = [("", "Main screen"), ("focused", "Focused screen")]
 
 
@@ -130,6 +134,14 @@ class Page:
         w.pack_start(dp.label("Design", "ctl-sub"), False, False, 0)  # noqa: F405
         self.style = Chips(lambda k: self.change(ISLAND, "set", "style", k))  # noqa: F405
         w.pack_start(self.style.widget, False, False, 0)
+        # Notch and floating island only: the others have their own fill.
+        self.color_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.color_box.pack_start(dp.label("Colour", "ctl-sub"), False, False, 0)  # noqa: F405
+        self.color = Chips(lambda k: self.change(ISLAND, "set", "notch_color", k))  # noqa: F405
+        self.color_box.pack_start(self.color.widget, False, False, 0)
+        self.color_box.pack_start(dp.label("Theme colour: the theme's accent, deep enough for "  # noqa: F405
+                                           "the white text", "ctl-sub"), False, False, 0)
+        w.pack_start(self.color_box, False, False, 0)
         grid, _sub = self.switch_row("match_bar", "\uf2d0", "Bar centre matches",
                                      "the clock and its neighbours take the island's look, "
                                      "so it opens out of them")
@@ -201,8 +213,10 @@ class Page:
             self.switches["notify"].set_sensitive(not conf.get("notifications"))
             self.screen.set(screen_choices(st), conf.get("monitor") or "")
             self.style.set(STYLES, conf.get("style") or "notch")
+            self.color.set(COLORS, conf.get("notch_color") or "black")
         finally:
             self.updating = False
+        self.color_box.set_sensitive((conf.get("style") or "notch") in SOLID)
         self.now.set_text(now_text(st))
         stopped = bool(conf.get("enabled")) and st.get("service") != "active"
         self.not_running.set_visible(stopped)

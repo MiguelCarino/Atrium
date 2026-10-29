@@ -36,6 +36,10 @@ SETTINGS ($XDG_STATE_HOME/hypr/island.json; Settings > Bar & toolbox > Island):
                 capsule floating just under the edge), "glass" (dark and
                 frosted), "theme" (the desktop theme's panel card) or
                 "outline" (dark, with the theme's lit edge)
+    notch_color with the notch and island designs: "black" (the default) or
+                "theme" -- the desktop theme's accent (generated/accent.css,
+                so a wallpaper-following accent too), darkened as far as it
+                takes for the island's light text to read on it
     match_bar   the bar's centre capsules (date, clock, weather, updates ...)
                 take the island's design and width, so the island opens out
                 of them, macOS-like (true); written as
@@ -154,9 +158,11 @@ STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser(
 SETTINGS_FILE = os.path.join(STATE_DIR, "island.json")
 DEFAULTS = {"enabled": False, "monitor": "", "media": True, "timers": True, "record": True,
             "railguard": True, "notifications": True, "notify": False, "ongoing": False,
-            "style": "notch", "match_bar": True}
+            "style": "notch", "notch_color": "black", "match_bar": True}
 STYLES = ("notch", "island", "glass", "theme", "outline")
 DARK_STYLES = ("notch", "island", "glass", "outline")   # light text, whatever the theme
+NOTCH_COLORS = ("black", "theme")
+SOLID_STYLES = ("notch", "island")   # the ones notch_color fills
 BOOL_KEYS = tuple(k for k, v in DEFAULTS.items() if isinstance(v, bool))
 MONITOR_NAME = re.compile(r"^[A-Za-z0-9-]{1,32}$")
 TRUE_WORDS = ("on", "true", "1", "yes")
@@ -171,6 +177,8 @@ RING_DIR = os.path.join(RUNTIME, "hypr-timers")
 TIMERS_FILE = "timers.json"
 GEN_DIR = os.path.expanduser("~/.config/waybar/generated")
 THEME_FILES = ("theme-panel.css", "accent.css")
+ACCENT_CSS = os.path.join(GEN_DIR, "accent.css")
+BLACK = "#000000"
 BAR_CSS = os.path.join(GEN_DIR, "island-bar.css")
 BAR_CENTRE = ("#custom-day", "#custom-clock", "#custom-weather", "#custom-updates",
               "#custom-repos", "#custom-notifications")
@@ -282,6 +290,9 @@ def read_settings():
         elif k == "style":
             if isinstance(v, str) and v.strip() in STYLES:
                 cur[k] = v.strip()
+        elif k == "notch_color":
+            if isinstance(v, str) and v.strip() in NOTCH_COLORS:
+                cur[k] = v.strip()
         elif isinstance(v, str):
             cur[k] = v.strip()[:32]
     return cur
@@ -296,7 +307,76 @@ def write_settings(d):
     os.replace(tmp, SETTINGS_FILE)
 
 
-def bar_css(cfg, slot=False):
+# -- the notch's colour (notch_color) ---------------------------------------------------------
+ACCENT_LINE = re.compile(r"@define-color\s+cyan\s+(#[0-9a-fA-F]{6})\s*;")
+TEXT_HI = (0xf4, 0xf4, 0xf6)  # the island's text (ISLAND_CSS, bar_css) ...
+TEXT_LO = (0xa1, 0xa1, 0xaa)  # ... and its second line
+MIN_HI, MIN_LO = 4.5, 3.0     # contrast each needs on the fill (WCAG AA, and AA-large)
+
+
+def accent_hex(text):
+    """The accent in an accent.css (theme.py / theme-from-wallpaper.py write
+    `@define-color cyan #rrggbb;`; the last one wins, as in GTK), or None."""
+    found = ACCENT_LINE.findall(text or "")
+    return found[-1].lower() if found else None
+
+
+def theme_accent(path=None):
+    try:
+        with open(path or ACCENT_CSS) as fh:
+            return accent_hex(fh.read())
+    except OSError:
+        return None
+
+
+def rgb(hexcolor):
+    h = hexcolor.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def luminance(c):
+    def lin(v):
+        v /= 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    r, g, b = (lin(v) for v in c)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast(a, b):
+    la, lb = sorted((luminance(a), luminance(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def readable(hexcolor):
+    """The colour, darkened toward black in 4% steps until the island's light
+    text reads on it (MIN_HI / MIN_LO): a light accent (moe's pink, orchard's
+    blue) keeps its hue and goes deep enough for white text."""
+    c = rgb(hexcolor)
+    for _ in range(26):
+        if contrast(c, TEXT_HI) >= MIN_HI and contrast(c, TEXT_LO) >= MIN_LO:
+            break
+        c = tuple(int(v * 0.96) for v in c)
+    return "#%02x%02x%02x" % c
+
+
+def notch_fill(cfg, accent=None):
+    """The fill of the solid designs: black, or with notch_color "theme" the
+    accent made readable. Black when there is no accent to read."""
+    if cfg.get("notch_color") != "theme" or cfg.get("style") not in SOLID_STYLES or not accent:
+        return BLACK
+    return readable(accent)
+
+
+def fill_css(cfg, accent=None):
+    """The island's own fill, on top of ISLAND_CSS: nothing for black."""
+    fill = notch_fill(cfg, accent)
+    if fill == BLACK:
+        return ""
+    return ("\n#panel.island.island-dark.island-style-%s {\n    background-color: %s;\n}\n"
+            % (cfg.get("style"), fill))
+
+
+def bar_css(cfg, slot=False, accent=None):
     """The stylesheet for the bar's centre group: the island's design and
     width, or only a comment (off, match_bar off, the "theme" design -- the
     capsules are the theme's already). The capsules' state fills (updates
@@ -307,6 +387,9 @@ def bar_css(cfg, slot=False):
     look = BAR_LOOKS.get(cfg.get("style"))
     if not (cfg.get("enabled") and cfg.get("match_bar") and look):
         return head
+    fill = notch_fill(cfg, accent)
+    look = [f"background-color: {fill};" if line == f"background-color: {BLACK};" else line
+            for line in look]
     pills = ",\n".join(BAR_CENTRE)
     hovers = ",\n".join(f"{p}:hover" for p in BAR_CENTRE)
     body = "\n    ".join(look)
@@ -444,15 +527,17 @@ def parse_ppm(data):
     return (w, h, pixels) if len(pixels) >= w * h * 3 else None
 
 
-def notch_half(row, width, dark=NOTCH_DARK):
+def notch_half(row, width, dark=NOTCH_DARK, fill=(0, 0, 0)):
     """Half the width of the dark run through the middle of one RGB pixel
     row (the bar's top row: the notch, flat on top, and no text there).
+    "Dark" is the notch's fill: black, or notch_color's colour (every channel
+    within `dark` of it).
     waybar centres the group, so the smaller side is the true half -- a dark
     wallpaper beside one end cannot widen it. None when the middle is not
     dark (the notch is not there)."""
     def is_dark(x):
         i = 3 * x
-        return max(row[i], row[i + 1], row[i + 2]) <= dark
+        return max(abs(row[i + k] - fill[k]) for k in range(3)) <= dark
     mid = width // 2
     if width < 3 or not is_dark(mid):
         return None
@@ -470,7 +555,7 @@ def write_bar_css(cfg, slot=False):
     write). Never under ISLAND_DRY: the tests use bar_css()."""
     if dry_env():
         return False
-    text = bar_css(cfg, slot)
+    text = bar_css(cfg, slot, theme_accent())
     try:
         with open(BAR_CSS) as fh:
             if fh.read() == text:
@@ -531,6 +616,11 @@ def set_key(key, value):
         v = str(value).strip().lower()
         if v not in STYLES:
             raise SystemExit(f"island.py: style is one of {', '.join(STYLES)}")
+        cur[key] = v
+    elif key == "notch_color":
+        v = str(value).strip().lower()
+        if v not in NOTCH_COLORS:
+            raise SystemExit(f"island.py: notch_color is one of {', '.join(NOTCH_COLORS)}")
         cur[key] = v
     else:
         v = str(value).strip()
@@ -1288,7 +1378,7 @@ def daemon():
     def load_css():
         panelui.load_css()
         try:
-            island_css.load_from_data(ISLAND_CSS.encode())
+            island_css.load_from_data((ISLAND_CSS + fill_css(read_settings(), theme_accent())).encode())
         except GLib.Error as exc:
             print(f"island: ISLAND_CSS: {exc}", file=sys.stderr, flush=True)
 
@@ -1876,7 +1966,7 @@ def daemon():
             if not got:
                 return
             width, _h, pixels = got
-            half = notch_half(pixels, width)
+            half = notch_half(pixels, width, fill=rgb(notch_fill(self.cfg, theme_accent())))
             if half is None or half < 120 or half > width // 2 - 8:
                 return
             if capsule:
@@ -2667,6 +2757,9 @@ def daemon():
 
         def restyle(self):
             load_css()
+            # notch_color "theme": the bar's notch takes the new accent too
+            if write_bar_css(self.cfg, self.slot):
+                self.debounce("remeasure", 450, self.measure_notch)
             self.pixbufs.clear()      # the mascot is the theme's
             if self.get_visible():
                 self.render()
@@ -2678,6 +2771,8 @@ def daemon():
                 Gtk.main_quit()
                 return
             old, self.cfg = self.cfg, new
+            if (new["style"], new["notch_color"]) != (old["style"], old["notch_color"]):
+                load_css()
             if write_bar_css(new, self.slot):
                 self.debounce("remeasure", 450, self.measure_notch)
             if not new["railguard"]:

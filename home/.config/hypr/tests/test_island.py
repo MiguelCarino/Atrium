@@ -67,7 +67,7 @@ class Settings(unittest.TestCase):
         self.assertEqual(isl.DEFAULTS, {"enabled": False, "monitor": "", "media": True, "timers": True,
                                         "record": True, "railguard": True, "notifications": True,
                                         "notify": False, "ongoing": False,
-                                        "style": "notch", "match_bar": True})
+                                        "style": "notch", "notch_color": "black", "match_bar": True})
         self.assertEqual(isl.read_settings(), isl.DEFAULTS)
 
     def test_broken_file_is_the_defaults(self):
@@ -533,6 +533,50 @@ class Styles(unittest.TestCase):
     def test_bar_css_is_never_written_in_tests(self):
         self.assertFalse(isl.write_bar_css(dict(isl.DEFAULTS, enabled=True)))
 
+    def test_notch_color_is_checked(self):
+        self.assertEqual(isl.read_settings()["notch_color"], "black")
+        self.assertEqual(isl.set_key("notch_color", " Theme ")["notch_color"], "theme")
+        with self.assertRaises(SystemExit):
+            isl.set_key("notch_color", "pink")
+        self.assertEqual(isl.read_settings()["notch_color"], "theme")
+        with open(isl.SETTINGS_FILE, "w") as fh:
+            json.dump({"notch_color": "pink"}, fh)
+        self.assertEqual(isl.read_settings()["notch_color"], "black")
+
+    def test_accent_from_accent_css(self):
+        text = "/* x */\n@define-color cyan #8C245F;\n@define-color cyan  #11aa22 ;\n"
+        self.assertEqual(isl.accent_hex(text), "#11aa22")          # the last one, as GTK
+        self.assertIsNone(isl.accent_hex("@define-color cyan alpha(#fff, 0.5);"))
+        self.assertIsNone(isl.theme_accent("/nonexistent/accent.css"))
+
+    def test_the_theme_colour_is_made_readable(self):
+        for accent in ("#f78fb3", "#007aff", "#ffffff", "#00f0ff", "#8c245f", "#000000"):
+            fill = isl.rgb(isl.readable(accent))
+            self.assertGreaterEqual(isl.contrast(fill, isl.TEXT_HI), isl.MIN_HI, accent)
+            self.assertGreaterEqual(isl.contrast(fill, isl.TEXT_LO), isl.MIN_LO, accent)
+        self.assertEqual(isl.readable("#1a0a12"), "#1a0a12")       # dark already: as it is
+        r, g, b = isl.rgb(isl.readable("#f78fb3"))
+        self.assertTrue(r > b > g)                                  # still pink, only deeper
+
+    def test_notch_fill(self):
+        cfg = dict(isl.DEFAULTS, enabled=True, notch_color="theme")
+        self.assertEqual(isl.notch_fill(dict(cfg, notch_color="black"), "#f78fb3"), "#000000")
+        self.assertEqual(isl.notch_fill(cfg, None), "#000000")      # no accent to read
+        self.assertEqual(isl.notch_fill(dict(cfg, style="glass"), "#f78fb3"), "#000000")
+        fill = isl.notch_fill(cfg, "#f78fb3")
+        self.assertNotEqual(fill, "#000000")
+        self.assertEqual(isl.notch_fill(dict(cfg, style="island"), "#f78fb3"), fill)
+        # the island and the bar's notch get the same fill
+        self.assertIn(f"background-color: {fill};", isl.bar_css(cfg, accent="#f78fb3"))
+        self.assertNotIn("#000000;", isl.bar_css(cfg, accent="#f78fb3").split("}")[0])
+        self.assertIn(fill, isl.fill_css(cfg, "#f78fb3"))
+        self.assertIn("island-style-notch", isl.fill_css(cfg, "#f78fb3"))
+        self.assertEqual(isl.fill_css(dict(cfg, notch_color="black"), "#f78fb3"), "")
+        # glass keeps its own fill and its black top line
+        glass = isl.bar_css(dict(cfg, style="glass"), accent="#f78fb3")
+        self.assertIn("border-top: 1px solid #000000;", glass)
+        self.assertNotIn(fill, glass)
+
     def test_the_css_has_every_design(self):
         self.assertTrue(set(isl.DARK_STYLES) <= set(isl.STYLES))
         for style in isl.STYLES:
@@ -581,6 +625,12 @@ class NotchWidth(unittest.TestCase):
         px = [black] * 60 + [wall] * 40                              # dark all the way left
         px[50] = (5, 5, 5)
         self.assertEqual(isl.notch_half(self.row(px), 100), 10)
+
+    def test_a_coloured_notch(self):
+        wall, fill = (120, 140, 200), (90, 20, 50)
+        px = [wall] * 40 + [fill] * 20 + [wall] * 40
+        self.assertEqual(isl.notch_half(self.row(px), 100, fill=fill), 10)
+        self.assertIsNone(isl.notch_half(self.row(px), 100))         # not black
 
     def test_no_notch(self):
         self.assertIsNone(isl.notch_half(self.row([(200, 200, 200)] * 50), 50))
