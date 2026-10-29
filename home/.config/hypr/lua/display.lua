@@ -596,8 +596,8 @@ local function apply_accent(hex, t)
     if not g then return end
     local c = "rgb(" .. hex:sub(2) .. ")"
     local any = false
-    for i in (t["hypr.accent_stops"] or ""):gmatch("%d+") do
-        i = tonumber(i)
+    for stop in (t["hypr.accent_stops"] or ""):gmatch("%d+") do
+        local i = tonumber(stop)   -- a new local: Lua 5.5 loop variables are const
         if g.colors[i] then g.colors[i] = c; any = true end
     end
     if any then hl.config({ general = { col = { active_border = g } } }) end

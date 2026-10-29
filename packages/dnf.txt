@@ -12,6 +12,7 @@ hyprsunset
 xdg-desktop-portal-hyprland
 xdg-desktop-portal-gtk
 uwsm
+hyprland-uwsm       # the "Hyprland (uwsm-managed)" login-screen entry (only a weak dep of hyprland)
 greetd              # the login screen, enabled only where there is none
 tuigreet            #   (install.sh step 5, system/greetd)
 
@@ -80,6 +81,12 @@ luajit
 python3-cryptography
 python3-cups
 
+# The secret service the scripts keep keys in (secret-tool): KDE Plasma uses
+# KWallet instead, and it goes when Plasma is removed (install.sh step 5)
+gnome-keyring
+gnome-keyring-pam
+libsecret
+
 # Tools the scripts call
 jq
 rsync
@@ -92,13 +99,39 @@ qt5ct
 qt6ct
 firefox
 nvtop               # the GPU panel's "nvtop" button; NVIDIA, AMD and Intel alike
+# Icon sets. make-icon-theme.py builds the themes' own sets (Win95, Neon,
+# Phosphor, Moe, Lofi, Luna, Orbit, Seasons-*) from Papirus -- light and
+# dark (about 110 MB installed); aero uses Oxygen's icons as they are.
+# The other sets some themes name (Chicago95, candy-icons, Sweet-Rainbow,
+# WhiteSur, the catppuccin and WhiteSur pointers) are not packaged in Fedora
+# or rpmfusion: optional, the themes use Adwaita's until they are downloaded
+# (`theme.py check <theme>` says from where).
+papirus-icon-theme
+papirus-icon-theme-dark
+oxygen-icon-theme
+
 # The graphics card's own driver / VA-API packages are not here: install.sh
 # picks them by the cards it finds (akmod-nvidia only on NVIDIA).
 
-# Building the Hyprland plugins (hyprview, hypr-cube)
+# Building the Hyprland plugins (hyprview, hypr-cube). The builds download
+# and unpack Hyprland's own -devel packages themselves; the ones below are
+# what those headers' pkg-config files require from the system (a fresh
+# Workstation has none of them), and cpio unpacks the rpms.
 cmake
 meson
+make
 gcc-c++
+cpio
+pixman-devel
+libdrm-devel
+libglvnd-devel
+mesa-libgbm-devel
+cairo-devel
+pango-devel
+libxkbcommon-devel
+libxcb-devel
+wayland-devel
+systemd-devel
 
 # System side (setup-root.sh): snapshots and the phone link
 snapper

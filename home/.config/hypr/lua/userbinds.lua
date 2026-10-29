@@ -112,8 +112,8 @@ local function read_file()
     local o = { off = {}, moves = {}, adds = {} }
     local f = io.open(M.file, "r")
     if not f then return o end
-    for line in f:lines() do
-        line = line:gsub("\r$", "")
+    for raw in f:lines() do
+        local line = raw:gsub("\r$", "")   -- a new local: Lua 5.5 loop variables are const
         if line:match("%S") and not line:match("^%s*#") then
             local fld = split_tabs(line)
             local kind, a = fld[1], canon(fld[2])

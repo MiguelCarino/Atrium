@@ -76,8 +76,15 @@ Tracing (trace()) works at 4x (2x at 256): a light blur, a median-cut down to
 5 colours (3 at 16/24, so small icons keep only their big shapes), a mode
 filter so specks join their region, borders between regions dilated to
 about 1 px at 16 .. 5 px at 256, then Lanczos down -- smooth, even lines.
-Papirus (PapirusDevelopmentTeam, GPL-3) is in ~/.local/share/icons/Papirus
-and Papirus-Dark; the two earlier filters (Sobel edges on Adwaita) made
+Papirus (PapirusDevelopmentTeam, GPL-3): Papirus and Papirus-Dark, the
+user's copy in ~/.local/share/icons first, else the system's in
+/usr/share/icons (Fedora: papirus-icon-theme, papirus-icon-theme-dark --
+Atrium's packages/dnf.txt installs both); papirus_dir() finds it. Without
+any, nothing is built. The designed bases (Chicago95, candy-icons,
+Sweet-Rainbow) are not packaged and are optional: without them win95 and
+cyberpunk trace every app instead of only the ones the base lacks, and
+the missing name in Inherits= is skipped (Adwaita draws the rest);
+`theme.py check` names what is missing. The two earlier filters (Sobel edges on Adwaita) made
 tangles of texture and were replaced, not kept.
 
 Run again after installing an app (its icon is not in the filtered set until
@@ -503,7 +510,19 @@ def plan(variant):
     return jobs
 
 
-PAPIRUS = os.path.join(ICONS, "Papirus")
+def papirus_dir(home=HOME, data_dirs=None):
+    """Papirus's folder: the user's copy (~/.local/share/icons/Papirus, as
+    on a machine set up by hand) before the system's (XDG_DATA_DIRS, so
+    /usr/share/icons/Papirus from papirus-icon-theme) -- the order GTK
+    itself looks in. None when there is neither."""
+    if data_dirs is None:
+        data_dirs = (os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share").split(":")
+    roots = [os.path.join(home, ".local", "share", "icons")] + [os.path.join(d, "icons") for d in data_dirs if d]
+    return next((os.path.join(r, "Papirus") for r in roots
+                 if os.path.isfile(os.path.join(r, "Papirus", "index.theme"))), None)
+
+
+PAPIRUS = papirus_dir()
 
 
 def folder_links(v, out):
@@ -564,6 +583,7 @@ def build(variant, quiet=False):
             os.makedirs(folder, exist_ok=True)
             im.save(os.path.join(folder, name + ".png"), optimize=True)
             made.add((size, context))
+    os.makedirs(out, exist_ok=True)     # nothing drawn (no source at all) still makes a valid, empty set
     write_index(out, v, made)
     open(os.path.join(out, MARKER), "w").close()
     subprocess.run(["gtk-update-icon-cache", "-f", "-q", out], check=False)
@@ -632,6 +652,9 @@ def main():
     elif args.sheet:
         sheet(args.sheet, args.output)
     elif args.all or args.variant:
+        if not PAPIRUS:
+            sys.exit("no Papirus icon theme (~/.local/share/icons/Papirus or /usr/share/icons/Papirus):"
+                     " sudo dnf install papirus-icon-theme papirus-icon-theme-dark")
         for variant in (sorted(VARIANTS) if args.all else [args.variant]):
             build(variant)
     else:

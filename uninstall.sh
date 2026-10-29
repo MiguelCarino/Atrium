@@ -27,6 +27,8 @@
 # Not touched: the packages (dnf history undo, or remove them by name), the
 # root-side pieces (system/*: `sudo rm` the files each install.sh lists),
 # your own files the desktop never shipped, and the backups themselves.
+# Nor a desktop install.sh removed (step 5): `dnf history` lists that
+# transaction (`sudo dnf history undo <id>`), or install its group again.
 # Log out of Hyprland first: the bar and the services read these files.
 set -uo pipefail
 

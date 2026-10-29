@@ -46,16 +46,44 @@ fi
 # The patch is optional: without it (Atrium ships without it until upstream
 # has a licence) this builds plain upstream. lua/cube.lua only asks for the
 # patch's settings and keys when $OUT.patched says the build has them.
+#
+# Hyprland 0.57 reworked the plugin API (every draw takes a render context, the
+# render pass and render data moved into it, workspace ids became a variant,
+# CMonitor::activeWorkspaceID() is gone). Upstream has no 0.57 port yet, so
+# scripts/hypr-cube-hl057.patch ports upstream + hypr-cube.patch; it goes on
+# top only when the installed Hyprland is 0.57 or newer, and a 0.56 build is
+# still exactly upstream + hypr-cube.patch. It needs hypr-cube.patch under it:
+# plain upstream has no 0.57 build here.
 PATCH=$HOME/.config/hypr/scripts/hypr-cube.patch
+PORT=$HOME/.config/hypr/scripts/hypr-cube-hl057.patch
+hlver=$(rpm -q --qf '%{version}' hyprland 2>/dev/null) || hlver=999  # not an rpm: the newest headers get fetched
+hl057=0
+[[ $(printf '%s\n' 0.57.0 "$hlver" | sort -V | head -1) == 0.57.0 ]] && hl057=1
+
+applied() { git -C "$SRC" apply --check -R "$1" 2>/dev/null; }
+patchfail() {
+    echo "hypr-cube: scripts/${1##*/} no longer applies to upstream $(git -C "$SRC" log -1 --format=%h); fix it or build with --keep" >&2
+    exit 1
+}
 patched=0
 if [[ -f $PATCH ]]; then
-    if ! git -C "$SRC" apply --check -R "$PATCH" 2>/dev/null; then
-        git -C "$SRC" apply "$PATCH" || {
-            echo "hypr-cube: scripts/hypr-cube.patch no longer applies to upstream $(git -C "$SRC" log -1 --format=%h); fix it or build with --keep" >&2
-            exit 1
-        }
+    if [[ -f $PORT ]] && applied "$PORT"; then
+        ((hl057)) || git -C "$SRC" apply -R "$PORT"
+    else
+        applied "$PATCH" || git -C "$SRC" apply "$PATCH" || patchfail "$PATCH"
+        if ((hl057)) && [[ -f $PORT ]]; then
+            # Files the port adds are untracked, so the "checkout -- ." above
+            # leaves them behind and they would block a fresh apply.
+            git -C "$SRC" apply --summary "$PORT" | awk '$1 == "create" {print $4}' |
+                while read -r f; do rm -f "${SRC:?}/$f"; done
+            git -C "$SRC" apply "$PORT" || patchfail "$PORT"
+        fi
     fi
     patched=1
+fi
+if ((hl057)) && ! { [[ -f $PATCH && -f $PORT ]] && applied "$PORT"; }; then
+    # Not fatal: a later upstream may have its own port.
+    echo "hypr-cube: building plain upstream against Hyprland $hlver; as of upstream 0f33587 that needs scripts/hypr-cube-hl057.patch (on top of scripts/hypr-cube.patch)" >&2
 fi
 
 # Headers: the -devel packages matching the installed runtime versions,
@@ -92,5 +120,6 @@ make -C "$SRC" all 2>&1 | grep -E 'error' || true
 mkdir -p "${OUT%/*}"
 cp "$SRC/hypr-cube.so" "$OUT.new"
 mv -f "$OUT.new" "$OUT"
+rm -f "$OUT.failed"   # plugins-check.sh: built, so try it again at login
 if (( patched )); then touch "$OUT.patched"; else rm -f "$OUT.patched"; fi
 echo "hypr-cube: built $(git -C "$SRC" log -1 --format=%h) against Hyprland $(rpm -q --qf '%{version}' hyprland) -> $OUT"

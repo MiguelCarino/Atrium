@@ -13,7 +13,12 @@
 # at login could leave the patch not applying and nothing built; do that by
 # hand (hypr-cube-build.sh / hyprview-build.sh with no argument).
 #
-# A failed build just notifies; it is tried again at the next login.
+# A failed build notifies once per Hyprland version: it leaves
+# <name>.so.failed holding that version, and later logins on the same
+# Hyprland skip the plugin quietly (plain upstream hypr-cube has no build for
+# a new Hyprland until upstream ports it -- one notification, not one per
+# login). A Hyprland update tries again; so does running the build script by
+# hand, which a success clears.
 #   journalctl --user -t hypr-plugins     the build output
 set -uo pipefail
 
@@ -28,6 +33,7 @@ plugins=(
 )
 
 loaded=$(hyprctl plugin list 2>/dev/null)
+hlver=$(rpm -q --qf '%{version}-%{release}' hyprland 2>/dev/null)
 rebuilt=()
 failed=()
 for p in "${plugins[@]}"; do
@@ -35,11 +41,16 @@ for p in "${plugins[@]}"; do
     if [[ -f $lib/$so ]] && grep -q "^Plugin $name by" <<<"$loaded"; then
         continue
     fi
+    if [[ -n $hlver && $(cat "$lib/$so.failed" 2>/dev/null) == "$hlver" ]]; then
+        continue    # failed on this very Hyprland already; notified then
+    fi
     "$notify" -a Hyprland "Rebuilding $name" "It did not load into Hyprland $(rpm -q --qf '%{version}' hyprland); about a minute."
     if "$dir/$script" --keep 2>&1 | systemd-cat -t hypr-plugins; [[ ${PIPESTATUS[0]} -eq 0 ]]; then
         rebuilt+=("$name")
+        rm -f "$lib/$so.failed"
     else
         failed+=("$name")
+        [[ -n $hlver ]] && mkdir -p "$lib" && printf '%s\n' "$hlver" > "$lib/$so.failed"
     fi
 done
 
@@ -49,5 +60,5 @@ if ((${#rebuilt[@]})); then
 fi
 if ((${#failed[@]})); then
     "$notify" -a Hyprland -u critical "Plugin rebuild failed" \
-        "${failed[*]} -- journalctl --user -t hypr-plugins"
+        "${failed[*]} -- journalctl --user -t hypr-plugins (tried again after a Hyprland update)"
 fi

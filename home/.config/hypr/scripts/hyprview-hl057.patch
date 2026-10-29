@@ -1,0 +1,842 @@
+diff --git a/src/HyprViewPassElement.cpp b/src/HyprViewPassElement.cpp
+index 5c399a6..d44357c 100644
+--- a/src/HyprViewPassElement.cpp
++++ b/src/HyprViewPassElement.cpp
+@@ -7,7 +7,7 @@ CHyprViewPassElement::CHyprViewPassElement(CHyprView *instance_)
+   ;
+ }
+ 
+-std::vector<UP<IPassElement>> CHyprViewPassElement::draw() {
++std::vector<UP<IPassElement>> CHyprViewPassElement::draw(Render::CRenderContext &ctx) {
+ 
+   // Check if the instance still exists in the global map before rendering
+   // This prevents crashes when the instance has been deleted
+@@ -25,22 +25,22 @@ std::vector<UP<IPassElement>> CHyprViewPassElement::draw() {
+   } else if (!instance) {
+ 
+   } else {
+-    instance->fullRender();
++    instance->fullRender(ctx);
+   }
+ 
+   return {};
+ }
+ 
+-bool CHyprViewPassElement::needsLiveBlur() { return false; }
++bool CHyprViewPassElement::needsLiveBlur(Render::CRenderContext &) { return false; }
+ 
+-bool CHyprViewPassElement::needsPrecomputeBlur() { return false; }
++bool CHyprViewPassElement::needsPrecomputeBlur(Render::CRenderContext &) { return false; }
+ 
+-std::optional<CBox> CHyprViewPassElement::boundingBox() {
++std::optional<CBox> CHyprViewPassElement::boundingBox(Render::CRenderContext &) {
+   // Return nullopt for unbounded rendering
+   return std::nullopt;
+ }
+ 
+-CRegion CHyprViewPassElement::opaqueRegion() {
++CRegion CHyprViewPassElement::opaqueRegion(Render::CRenderContext &) {
+   // Return the full monitor region to block windows underneath
+   // The overview layer needs to be opaque to mask the real windows
+   if (!instance || !instance->pMonitor.lock())
+diff --git a/src/HyprViewPassElement.hpp b/src/HyprViewPassElement.hpp
+index 9dc6b8d..6648fcf 100644
+--- a/src/HyprViewPassElement.hpp
++++ b/src/HyprViewPassElement.hpp
+@@ -8,11 +8,11 @@ public:
+   CHyprViewPassElement(CHyprView *instance_);
+   virtual ~CHyprViewPassElement() = default;
+ 
+-  virtual std::vector<UP<IPassElement>> draw();
+-  virtual bool needsLiveBlur();
+-  virtual bool needsPrecomputeBlur();
+-  virtual std::optional<CBox> boundingBox();
+-  virtual CRegion opaqueRegion();
++  virtual std::vector<UP<IPassElement>> draw(Render::CRenderContext &ctx) override;
++  virtual bool needsLiveBlur(Render::CRenderContext &ctx) override;
++  virtual bool needsPrecomputeBlur(Render::CRenderContext &ctx) override;
++  virtual std::optional<CBox> boundingBox(Render::CRenderContext &ctx) override;
++  virtual CRegion opaqueRegion(Render::CRenderContext &ctx) override;
+ 
+   virtual const char *passName() { return "CHyprViewPassElement"; }
+ 
+diff --git a/src/compat054.hpp b/src/compat054.hpp
+index 6b0e959..be5172e 100644
+--- a/src/compat054.hpp
++++ b/src/compat054.hpp
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+-// Hyprland 0.54 renamed Debug::log to Log::logger->log.
++// Hyprland 0.54 renamed Debug::log to Log::logger->log; 0.57 gave it a
++// location argument (normally filled in by the LOG() macro).
+ 
+ #include <hyprland/src/debug/log/Logger.hpp>
+ 
+@@ -12,10 +13,10 @@ namespace Debug {
+     template <typename... Args>
+     inline void log(Hyprutils::CLI::eLogLevel level, std::format_string<Args...> fmt, Args&&... args) {
+         if (Log::logger)
+-            Log::logger->log(level, fmt, std::forward<Args>(args)...);
++            Log::logger->log(level, "hyprview", fmt, std::forward<Args>(args)...);
+     }
+     inline void log(Hyprutils::CLI::eLogLevel level, const std::string_view& str) {
+         if (Log::logger)
+-            Log::logger->log(level, str);
++            Log::logger->log(level, "hyprview", str);
+     }
+ }
+diff --git a/src/compat056.hpp b/src/compat056.hpp
+index f841500..5977e54 100644
+--- a/src/compat056.hpp
++++ b/src/compat056.hpp
+@@ -39,6 +39,8 @@ using CTexture = Render::ITexture;
+ #define g_pCursorManager    Pointer::Cursor::mgr()
+ 
+ #include <hyprland/src/config/shared/actions/ConfigActions.hpp>
++#include <hyprland/src/desktop/view/window/Window.hpp>
++#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
+ 
+ // 0.56 made renderWindow()/renderWorkspace() protected on IHyprRenderer.
+ // A using-declaration in a derived type re-exports them publicly, which lets us
+@@ -51,12 +53,18 @@ namespace hyprview_compat {
+         using Render::IHyprRenderer::renderWorkspace;
+     };
+ 
+-    inline void renderWindow(PHLWINDOW window, PHLMONITOR monitor, const Time::steady_tp& now, bool decorate, Render::eRenderPassMode mode, bool ignorePosition = false,
+-                             bool standalone = false) {
+-        (g_pHyprRenderer.get()->*(&CRendererAccess::renderWindow))(window, monitor, now, decorate, mode, ignorePosition, standalone);
++    // 0.57: both take the render context, renderWindow also the window's
++    // presentation (workspace offset, alpha), and renderWorkspace is overloaded.
++    inline void renderWindow(Render::CRenderContext& ctx, PHLWINDOW window, PHLMONITOR monitor, const Time::steady_tp& now, bool decorate, Render::eRenderPassMode mode,
++                             bool ignorePosition = false, bool standalone = false) {
++        (g_pHyprRenderer.get()->*(&CRendererAccess::renderWindow))(ctx, window, monitor, window->presentation().renderPresentation(), now, decorate, mode, ignorePosition,
++                                                                   standalone);
+     }
+ 
+-    inline void renderWorkspace(PHLMONITOR monitor, PHLWORKSPACE workspace, const Time::steady_tp& now, const CBox& geometry) {
+-        (g_pHyprRenderer.get()->*(&CRendererAccess::renderWorkspace))(monitor, workspace, now, geometry);
++    using RenderWorkspaceFn = void (Render::IHyprRenderer::*)(Render::CRenderContext&, PHLMONITOR, PHLWORKSPACE, const Time::steady_tp&, const CBox&);
++    inline void renderWorkspace(Render::CRenderContext& ctx, PHLMONITOR monitor, PHLWORKSPACE workspace, const Time::steady_tp& now, const CBox& geometry) {
++        (g_pHyprRenderer.get()->*static_cast<RenderWorkspaceFn>(&CRendererAccess::renderWorkspace))(ctx, monitor, workspace, now, geometry);
+     }
+ }
++
++#include "compat057.hpp"
+diff --git a/src/compat057.hpp b/src/compat057.hpp
+new file mode 100644
+index 0000000..387b393
+--- /dev/null
++++ b/src/compat057.hpp
+@@ -0,0 +1,48 @@
++#pragma once
++
++// Hyprland 0.57 (applied by scripts/hyprview-hl057.patch, only when building
++// against 0.57 headers):
++//   - desktop/view/Window.hpp moved to desktop/view/window/Window.hpp; a
++//     window's title and class live in metadata()
++//   - CWorkspace became Workspace::CHLWorkspace: the id is a variant
++//     (numbered or special) behind id()/numberedID(), m_isSpecialWorkspace is
++//     type(), and inert() is gone (the state tracker only lists live ones)
++//   - managers/KeybindManager.hpp is gone; modifier strings are parsed by
++//     Keybinds::modMaskFromString (keybinds/Resolver.hpp)
++//   - every draw takes a Render::CRenderContext (renderer->context() during a
++//     fake render, the pass element's argument while drawing)
++
++#include <hyprland/src/desktop/view/window/Window.hpp>
++#include <hyprland/src/workspace/HLWorkspace.hpp>
++#include <hyprland/src/keybinds/Resolver.hpp>
++#include <hyprland/src/render/Context.hpp>
++
++#include <limits>
++
++namespace hyprview_compat {
++    inline bool isSpecial(const PHLWORKSPACE& ws) {
++        return ws && ws->type() == Workspace::eWorkspaceType::SPECIAL;
++    }
++
++    // Numbered workspaces in id order; named and special ones after them.
++    inline int64_t sortKey(const PHLWORKSPACE& ws) {
++        if (!ws)
++            return std::numeric_limits<int64_t>::max();
++        if (const auto id = ws->numberedID())
++            return *id;
++        return std::numeric_limits<int64_t>::max() - 1;
++    }
++
++    // What the tiles show: the number, or the name for a named/special one.
++    inline std::string label(const PHLWORKSPACE& ws) {
++        if (!ws)
++            return "?";
++        if (const auto id = ws->numberedID())
++            return std::to_string(*id);
++        return ws->addressableName();
++    }
++
++    inline const std::string& title(const PHLWINDOW& w) {
++        return w->metadata().title();
++    }
++}
+diff --git a/src/hyprview.cpp b/src/hyprview.cpp
+index 76a2828..2ec6007 100644
+--- a/src/hyprview.cpp
++++ b/src/hyprview.cpp
+@@ -19,7 +19,6 @@ using Desktop::View::CWindow;
+ #include <hyprland/src/config/ConfigValue.hpp>
+ #include "compat054.hpp"
+ #include <hyprland/src/helpers/time/Time.hpp>
+-#include <hyprland/src/managers/KeybindManager.hpp>
+ #include <hyprland/src/animation/AnimationManager.hpp>
+ #include <hyprland/src/managers/input/InputManager.hpp>
+ #include <hyprland/src/render/Renderer.hpp>
+@@ -38,6 +37,17 @@ template <UpdateMatrixFn FN> struct SUpdateMatrixAccess {
+ };
+ template struct SUpdateMatrixAccess<&Monitor::CMonitor::updateMatrix>;
+ 
++// Hyprland 0.57 made CWindow::m_hidden private. setHidden() is no substitute
++// for captureBackground()'s temporary toggle: it emits the hide event, drops
++// focus and suspends the client. Same explicit-instantiation access as above.
++using HiddenMember = bool Desktop::View::CWindow::*;
++HiddenMember windowHiddenMember();
++template <HiddenMember M> struct SHiddenAccess {
++  friend HiddenMember windowHiddenMember() { return M; }
++};
++template struct SHiddenAccess<&Desktop::View::CWindow::m_hidden>;
++static bool &hiddenFlag(const PHLWINDOW &w) { return (*w).*windowHiddenMember(); }
++
+ // Offscreen captures (window tiles, the background) are drawn back onto the
+ // monitor as ordinary textures, and drawing a texture already applies the
+ // monitor's rotation. Capturing with the rotation on as well turns the content
+@@ -105,14 +115,14 @@ CHyprView::~CHyprView() {
+           window->m_workspace != image.originalWorkspace) {
+         Debug::log(LOG,
+                    "[hyprview] ~CHyprView(): Restoring window '{}' from workspace {} to {}",
+-                   window->m_title, window->m_workspace->m_id,
+-                   image.originalWorkspace->m_id);
++                   hyprview_compat::title(window), hyprview_compat::label(window->m_workspace),
++                   hyprview_compat::label(image.originalWorkspace));
+         window->moveToWorkspace(image.originalWorkspace);
+       }
+     }
+     for (const auto &image : images) {
+       auto window = image.pWindow.lock();
+-      if (window && window->m_isMapped && image.originalFullscreen.internal != Fullscreen::FSMODE_NONE)
++      if (window && window->mapped() && image.originalFullscreen.internal != Fullscreen::FSMODE_NONE)
+         Fullscreen::controller()->setFullscreenMode(window, image.originalFullscreen.internal,
+                                                     image.originalFullscreen.client);
+     }
+@@ -134,8 +144,6 @@ CHyprView::~CHyprView() {
+ void CHyprView::setupWindowImages(std::vector<PHLWINDOW> &windowsToRender) {
+   g_pHyprOpenGL->makeEGLCurrent();
+ 
+-  g_pHyprRenderer->m_bBlockSurfaceFeedback = true;
+-
+   // Save original workspaces BEFORE moving
+   std::unordered_map<PHLWINDOW, PHLWORKSPACE> originalWorkspaces;
+   std::unordered_map<PHLWINDOW, Fullscreen::SFullscreenMode> originalFullscreen;
+@@ -155,8 +163,8 @@ void CHyprView::setupWindowImages(std::vector<PHLWINDOW> &windowsToRender) {
+   for (auto &window : windowsToRender) {
+     if (window->m_workspace != pMonitor->m_activeWorkspace) {
+       Debug::log(LOG, "[hyprview] Moving window '{}' from workspace {} to {}",
+-                 window->m_title, window->m_workspace->m_id,
+-                 pMonitor->m_activeWorkspace->m_id);
++                 hyprview_compat::title(window), hyprview_compat::label(window->m_workspace),
++                 hyprview_compat::label(pMonitor->m_activeWorkspace));
+       window->moveToWorkspace(pMonitor->m_activeWorkspace);
+     }
+   }
+@@ -188,15 +196,18 @@ void CHyprView::setupWindowImages(std::vector<PHLWINDOW> &windowsToRender) {
+     window->positionAnimation()->setValue(pMonitor->m_position);
+ 
+     SUnrotatedCapture unrotated(pMonitor.lock());
+-    g_pHyprRenderer->beginFullFakeRender(pMonitor.lock(), fakeDamage, image.fb);
++    if (g_pHyprRenderer->beginFullFakeRender(pMonitor.lock(), fakeDamage, image.fb)) {
++      auto &ctx = g_pHyprRenderer->context();
++      ctx.m_blockSurfaceFeedback = true;
+ 
+-    if (window && window->m_isMapped) {
+-      hyprview_compat::renderWindow(window, pMonitor.lock(), Time::steadyNow(),
+-                                    false, RENDER_PASS_MAIN, false, false);
+-    }
++      if (window && window->mapped()) {
++        hyprview_compat::renderWindow(ctx, window, pMonitor.lock(), Time::steadyNow(),
++                                      false, RENDER_PASS_MAIN, false, false);
++      }
+ 
+-    g_pHyprRenderer->m_renderData.blockScreenShader = true;
+-    g_pHyprRenderer->endRender();
++      ctx.m_data.blockScreenShader = true;
++      g_pHyprRenderer->endRender();
++    }
+ 
+     // Restore original position
+     window->positionAnimation()->setValue(REALPOS);
+@@ -268,7 +279,7 @@ void CHyprView::captureBackground() {
+                      MONITOR_SIZE.x, MONITOR_SIZE.y};
+ 
+   for (auto &w : Desktop::windowState()->windows()) {
+-    if (!w->m_isMapped || w->isHidden())
++    if (!w->mapped() || w->isHidden())
+       continue;
+ 
+     // Check if window geometry intersects with this monitor
+@@ -279,25 +290,27 @@ void CHyprView::captureBackground() {
+     // Check if window overlaps with this monitor using overlaps() method
+     if (windowBox.overlaps(monitorBox)) {
+       hiddenWindows.push_back(w);
+-      originalHiddenStates.push_back(w->m_hidden);
+-      w->m_hidden = true;
++      originalHiddenStates.push_back(hiddenFlag(w));
++      hiddenFlag(w) = true;
+     }
+   }
+ 
+   // Capture the background with hidden windows
+   CRegion fullRegion{0, 0, (int)MONITOR_SIZE.x, (int)MONITOR_SIZE.y};
+   SUnrotatedCapture unrotated(monitor);
+-  g_pHyprRenderer->beginFullFakeRender(monitor, fullRegion, bgFramebuffer);
+-  // Render the workspace with hidden windows (showing just the
+-  // wallpaper/background)
+-  hyprview_compat::renderWorkspace(
+-      monitor, activeWorkspace, std::chrono::steady_clock::now(),
+-      CBox{0, 0, (int)MONITOR_SIZE.x, (int)MONITOR_SIZE.y});
+-  g_pHyprRenderer->endRender();
++  if (g_pHyprRenderer->beginFullFakeRender(monitor, fullRegion, bgFramebuffer)) {
++    // Render the workspace with hidden windows (showing just the
++    // wallpaper/background)
++    hyprview_compat::renderWorkspace(
++        g_pHyprRenderer->context(), monitor, activeWorkspace,
++        std::chrono::steady_clock::now(),
++        CBox{0, 0, (int)MONITOR_SIZE.x, (int)MONITOR_SIZE.y});
++    g_pHyprRenderer->endRender();
++  }
+ 
+   // Restore all windows to original hidden state
+   for (size_t i = 0; i < hiddenWindows.size(); ++i) {
+-    hiddenWindows[i]->m_hidden = originalHiddenStates[i];
++    hiddenFlag(hiddenWindows[i]) = originalHiddenStates[i];
+   }
+ 
+   bgCaptured = true;
+@@ -369,7 +382,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+   Debug::log(LOG,
+              "[hyprview] CHyprView(): Collecting windows for monitor '{}', "
+              "workspace ID {}, mode={}",
+-             pMonitor->m_description, activeWorkspace->m_id,
++             pMonitor->m_description, hyprview_compat::label(activeWorkspace),
+              (int)m_collectionMode);
+ 
+   // Lambda to check if window should be included based on collection mode
+@@ -389,12 +402,12 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+ 
+     case EWindowCollectionMode::ALL_WORKSPACES:
+       // All workspaces on monitor, excluding special
+-      return !windowWorkspace->m_isSpecialWorkspace;
++      return !hyprview_compat::isSpecial(windowWorkspace);
+ 
+     case EWindowCollectionMode::WITH_SPECIAL:
+       // Current workspace + special workspace
+       return windowWorkspace == activeWorkspace ||
+-             windowWorkspace->m_isSpecialWorkspace;
++             hyprview_compat::isSpecial(windowWorkspace);
+ 
+     case EWindowCollectionMode::ALL_WITH_SPECIAL:
+       // All workspaces on monitor including special
+@@ -404,7 +417,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+   };
+ 
+   for (auto &w : Desktop::windowState()->windows()) {
+-    if (!w->m_isMapped || w->isHidden())
++    if (!w->mapped() || w->isHidden())
+       continue;
+ 
+     if (!shouldIncludeWindow(w))
+@@ -428,7 +441,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+ 
+         // Priority 2: Within same workspace group, sort by workspace ID
+         if (wsA != wsB)
+-          return wsA->m_id < wsB->m_id;
++          return hyprview_compat::sortKey(wsA) < hyprview_compat::sortKey(wsB);
+ 
+         // Priority 3: Within same workspace, sort by X then Y (changed from Y
+         // then X)
+@@ -504,8 +517,6 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+   // Now call common setup to handle window rendering
+   setupWindowImages(windowsToRender);
+ 
+-  g_pHyprRenderer->m_bBlockSurfaceFeedback = false;
+-
+   g_pHyprRenderer->setCursorFromName("left_ptr", true);
+ 
+   lastMousePosLocal =
+@@ -571,7 +582,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+ 
+       if (tileIndex >= 0 && tileIndex < (int)images.size()) {
+         auto window = images[tileIndex].pWindow.lock();
+-        if (window && window->m_isMapped) {
++        if (window && window->mapped()) {
+           // Focus the window first
+           Desktop::focusState()->fullWindowFocus(window, Desktop::FOCUS_REASON_KEYBIND);
+ 
+@@ -607,7 +618,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+     if (tileIndex < 0 || tileIndex >= (int)images.size())
+       return;
+     auto selectedWindow = images[tileIndex].pWindow.lock();
+-    if (!selectedWindow || !selectedWindow->m_isMapped)
++    if (!selectedWindow || !selectedWindow->mapped())
+       return;
+ 
+     currentHoveredIndex = tileIndex;
+@@ -649,7 +660,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+ 
+       if (tileIndex >= 0 && tileIndex < (int)images.size()) {
+         auto window = images[tileIndex].pWindow.lock();
+-        if (window && window->m_isMapped) {
++        if (window && window->mapped()) {
+           // Make sure this window is focused so scroll events go to it
+           Desktop::focusState()->fullWindowFocus(window, Desktop::FOCUS_REASON_KEYBIND);
+           // Don't cancel - let scroll event pass through to the focused window
+@@ -712,7 +723,7 @@ void CHyprView::selectHoveredWindow() {
+   // Verify the selected window is valid
+   if (closeOnID >= 0 && closeOnID < (int)images.size()) {
+     auto selectedWindow = images[closeOnID].pWindow.lock();
+-    if (!selectedWindow || !selectedWindow->m_isMapped) {
++    if (!selectedWindow || !selectedWindow->mapped()) {
+       Debug::log(WARN,
+                  "[hyprview] selectHoveredWindow(): Selected window at index "
+                  "{} is invalid",
+@@ -765,16 +776,17 @@ void CHyprView::redrawID(int id, bool forcelowres) {
+   window->positionAnimation()->setValue(pMonitor->m_position);
+ 
+   SUnrotatedCapture unrotated(pMonitor.lock());
+-  g_pHyprRenderer->beginFullFakeRender(pMonitor.lock(), fakeDamage, image.fb);
++  if (g_pHyprRenderer->beginFullFakeRender(pMonitor.lock(), fakeDamage, image.fb)) {
++    auto &ctx = g_pHyprRenderer->context();
++    if (window->mapped()) {
++      hyprview_compat::renderWindow(ctx, window, pMonitor.lock(), Time::steadyNow(),
++                                    false, RENDER_PASS_MAIN, false, false);
++    }
+ 
+-  if (window->m_isMapped) {
+-    hyprview_compat::renderWindow(window, pMonitor.lock(), Time::steadyNow(),
+-                                  false, RENDER_PASS_MAIN, false, false);
++    ctx.m_data.blockScreenShader = true;
++    g_pHyprRenderer->endRender();
+   }
+ 
+-  g_pHyprRenderer->m_renderData.blockScreenShader = true;
+-  g_pHyprRenderer->endRender();
+-
+   window->positionAnimation()->setValue(REALPOS);
+ 
+   blockOverviewRendering = false;
+@@ -837,8 +849,8 @@ void CHyprView::close() {
+       Debug::log(
+           LOG,
+           "[hyprview] close(): Restoring window '{}' from workspace {} to {}",
+-          window->m_title, window->m_workspace->m_id,
+-          image.originalWorkspace->m_id);
++          hyprview_compat::title(window), hyprview_compat::label(window->m_workspace),
++          hyprview_compat::label(image.originalWorkspace));
+       window->moveToWorkspace(image.originalWorkspace);
+     }
+   }
+@@ -846,7 +858,7 @@ void CHyprView::close() {
+   // Restore fullscreen only after all windows are back on their workspaces.
+   for (const auto &image : images) {
+     auto window = image.pWindow.lock();
+-    if (window && window->m_isMapped && image.originalFullscreen.internal != Fullscreen::FSMODE_NONE)
++    if (window && window->mapped() && image.originalFullscreen.internal != Fullscreen::FSMODE_NONE)
+       Fullscreen::controller()->setFullscreenMode(window, image.originalFullscreen.internal,
+                                                   image.originalFullscreen.client);
+   }
+@@ -895,11 +907,11 @@ void CHyprView::slideIn(int direction) {
+   *pos = Vector2D{0, 0};
+ }
+ 
+-void CHyprView::render() {
+-  g_pHyprRenderer->m_renderPass.add(makeUnique<CHyprViewPassElement>(this));
++void CHyprView::render(Render::CRenderContext &ctx) {
++  Render::IHyprRenderer::addPassElement(ctx, makeUnique<CHyprViewPassElement>(this));
+ }
+ 
+-void CHyprView::fullRender() {
++void CHyprView::fullRender(Render::CRenderContext &ctx) {
+   // Get the current scale value for smooth scale animation
+   const float currentScale = scale->value();
+   const float currentAlpha = 1.0f; // Keep alpha fixed, removing all fade animations
+@@ -911,12 +923,12 @@ void CHyprView::fullRender() {
+     CBox monitorBox = {0, 0, fullMonitorSize.x, fullMonitorSize.y};
+     CRegion damage{0, 0, INT16_MAX, INT16_MAX};
+     g_pHyprOpenGL->renderTexture(
+-        bgFramebuffer->getTexture(), monitorBox,
++        ctx, bgFramebuffer->getTexture(), monitorBox,
+         {.damage = &damage, .a = 1.0, .round = 0});
+ 
+     // Add a dim overlay that fades in with the overview
+     g_pHyprOpenGL->renderRect(
+-        monitorBox, CHyprColor(0.0, 0.0, 0.0, BG_DIM * currentAlpha), {});
++        ctx, monitorBox, CHyprColor(0.0, 0.0, 0.0, BG_DIM * currentAlpha), {});
+   }
+ 
+   // If no windows, show centered message
+@@ -944,12 +956,12 @@ void CHyprView::fullRender() {
+       CHyprOpenGLImpl::SRectRenderData bgData;
+       bgData.round = 12;
+       g_pHyprOpenGL->renderRect(
+-          bgBox, CHyprColor(0.0, 0.0, 0.0, 0.5 * currentAlpha), bgData);
++          ctx, bgBox, CHyprColor(0.0, 0.0, 0.0, 0.5 * currentAlpha), bgData);
+ 
+       // Render the text
+       CRegion damage{0, 0, INT16_MAX, INT16_MAX};
+       g_pHyprOpenGL->renderTexture(
+-          textTexture, textBox,
++          ctx, textTexture, textBox,
+           {.damage = &damage, .a = currentAlpha, .round = 0});
+     }
+ 
+@@ -967,11 +979,11 @@ void CHyprView::fullRender() {
+   zOrderMap.reserve(Desktop::windowState()->windows().size());
+   size_t zOrder = 0;
+   for (auto &window : Desktop::windowState()->windows()) {
+-    if (window->m_workspace == PLASTWORKSPACE && !window->m_isFloating)
++    if (window->m_workspace == PLASTWORKSPACE && !window->isFloating())
+       zOrderMap.try_emplace(window.get(), zOrder++);
+   }
+   for (auto &window : Desktop::windowState()->windows()) {
+-    if (window->m_workspace == PLASTWORKSPACE && window->m_isFloating)
++    if (window->m_workspace == PLASTWORKSPACE && window->isFloating())
+       zOrderMap.try_emplace(window.get(), zOrder++);
+   }
+ 
+@@ -1048,11 +1060,11 @@ void CHyprView::fullRender() {
+ 
+     CHyprOpenGLImpl::SRectRenderData data;
+     data.round = BORDER_RADIUS;
+-    g_pHyprOpenGL->renderRect(borderBox, fadedBorderColor, data);
++    g_pHyprOpenGL->renderRect(ctx, borderBox, fadedBorderColor, data);
+ 
+     CRegion damage{0, 0, INT16_MAX, INT16_MAX};
+     g_pHyprOpenGL->renderTexture(
+-        images[i].fb->getTexture(), windowBox,
++        ctx, images[i].fb->getTexture(), windowBox,
+         {.damage = &damage, .a = currentAlpha, .round = BORDER_RADIUS});
+ 
+     // Render workspace number indicator (if enabled and window names are disabled)
+@@ -1060,22 +1072,23 @@ void CHyprView::fullRender() {
+     if (WORKSPACE_INDICATOR_ENABLED && !WINDOW_NAME_ENABLED) {
+       auto window = images[i].pWindow.lock();
+       if (window && images[i].originalWorkspace) {
+-        renderWorkspaceIndicator(i, borderBox, damage, ISACTIVE);
++        renderWorkspaceIndicator(ctx, i, borderBox, damage, ISACTIVE);
+       }
+     }
+ 
+     // Render window name (if enabled)
+     if (WINDOW_NAME_ENABLED) {
+-      renderWindowName(images[i], borderBox);
++      renderWindowName(ctx, images[i], borderBox);
+     }
+   }
+ }
+ 
+-void CHyprView::renderWorkspaceIndicator(size_t i, const CBox &borderBox,
++void CHyprView::renderWorkspaceIndicator(Render::CRenderContext &ctx, size_t i,
++                                         const CBox &borderBox,
+                                          const CRegion &damage,
+                                          const bool ISACTIVE) {
+-  int workspaceID = images[i].originalWorkspace->m_id;
+-  std::string workspaceText = "wsid:" + std::to_string(workspaceID);
++  std::string workspaceText =
++      "wsid:" + hyprview_compat::label(images[i].originalWorkspace);
+   // Use border color based on whether window is active
+   const auto &INDICATOR_COLOR =
+       ISACTIVE ? ACTIVE_BORDER_COLOR : INACTIVE_BORDER_COLOR;
+@@ -1117,16 +1130,17 @@ void CHyprView::renderWorkspaceIndicator(size_t i, const CBox &borderBox,
+     CHyprOpenGLImpl::SRectRenderData bgData;
+     bgData.round = 8;
+     g_pHyprOpenGL->renderRect(
+-        textBgBox, CHyprColor(0.0, 0.0, 0.0, WORKSPACE_INDICATOR_BG_OPACITY),
++        ctx, textBgBox, CHyprColor(0.0, 0.0, 0.0, WORKSPACE_INDICATOR_BG_OPACITY),
+         bgData);
+ 
+     // Render the text on top
+     g_pHyprOpenGL->renderTexture(
+-        textTexture, textBox, {.damage = &damage, .a = 1.0, .round = 0});
++        ctx, textTexture, textBox, {.damage = &damage, .a = 1.0, .round = 0});
+   }
+ }
+ 
+-void CHyprView::renderWindowName(const SWindowImage &image,
++void CHyprView::renderWindowName(Render::CRenderContext &ctx,
++                                 const SWindowImage &image,
+                                  const CBox &borderBox) {
+   auto window = image.pWindow.lock();
+   if (!window)
+@@ -1134,7 +1148,7 @@ void CHyprView::renderWindowName(const SWindowImage &image,
+ 
+   // Build separate strings for workspace ID and window info
+   std::string workspaceText;
+-  std::string windowText = window->m_initialClass + " • " + window->m_title;
++  std::string windowText = window->metadata().initialAppID() + " • " + window->metadata().title();
+ 
+   // Determine workspace text color based on whether window is active
+   const auto PLASTWINDOW = Desktop::focusState()->window();
+@@ -1143,7 +1157,7 @@ void CHyprView::renderWindowName(const SWindowImage &image,
+ 
+   // Include workspace ID if workspace indicator is enabled
+   if (WORKSPACE_INDICATOR_ENABLED && image.originalWorkspace) {
+-    workspaceText = "[" + std::to_string(image.originalWorkspace->m_id) + "] ";
++    workspaceText = "[" + hyprview_compat::label(image.originalWorkspace) + "] ";
+   }
+ 
+   // Render workspace text to get its width
+@@ -1255,7 +1269,7 @@ void CHyprView::renderWindowName(const SWindowImage &image,
+     CHyprOpenGLImpl::SRectRenderData bgData;
+     bgData.round = 4;
+     g_pHyprOpenGL->renderRect(
+-        textBgBox, CHyprColor(0.0, 0.0, 0.0, WINDOW_NAME_BG_OPACITY), bgData);
++        ctx, textBgBox, CHyprColor(0.0, 0.0, 0.0, WINDOW_NAME_BG_OPACITY), bgData);
+ 
+     CRegion fakeDamage{0, 0, INT16_MAX, INT16_MAX};
+ 
+@@ -1263,13 +1277,13 @@ void CHyprView::renderWindowName(const SWindowImage &image,
+     if (workspaceTexture) {
+       CBox workspaceBox = {startX, textY, workspaceWidth, textHeight};
+       g_pHyprOpenGL->renderTexture(
+-          workspaceTexture, workspaceBox, {.damage = &fakeDamage, .a = 1.0, .round = 0});
++          ctx, workspaceTexture, workspaceBox, {.damage = &fakeDamage, .a = 1.0, .round = 0});
+     }
+ 
+     // Render window text after workspace text
+     CBox windowBox = {startX + workspaceWidth, textY, windowWidth, textHeight};
+     g_pHyprOpenGL->renderTexture(
+-        windowTexture, windowBox, {.damage = &fakeDamage, .a = 1.0, .round = 0});
++        ctx, windowTexture, windowBox, {.damage = &fakeDamage, .a = 1.0, .round = 0});
+   }
+ }
+ 
+@@ -1351,10 +1365,10 @@ void CHyprView::updateHoverState(int newIndex) {
+   // for a task switcher/window picker, regardless of global follow_mouse setting
+   if (newIndex >= 0 && newIndex < (int)images.size()) {
+     auto window = images[newIndex].pWindow.lock();
+-    if (window && window->m_isMapped) {
++    if (window && window->mapped()) {
+       Debug::log(LOG,
+                  "[hyprview] updateHoverState: Focusing window {} at index {}",
+-                 window->m_title, newIndex);
++                 hyprview_compat::title(window), newIndex);
+ 
+       // Focus the window and ensure it becomes the compositor's last focused window
+       Desktop::focusState()->fullWindowFocus(window, Desktop::FOCUS_REASON_KEYBIND);
+diff --git a/src/hyprview.hpp b/src/hyprview.hpp
+index d75ba83..9ac9cdc 100644
+--- a/src/hyprview.hpp
++++ b/src/hyprview.hpp
+@@ -43,7 +43,7 @@ public:
+             const std::string &placement = "grid", bool explicitOn = false);
+   ~CHyprView();
+ 
+-  void render();
++  void render(Render::CRenderContext &ctx);
+   void damage();
+   void onDamageReported();
+   void onPreRender();
+@@ -85,8 +85,9 @@ private:
+   void redrawID(int id, bool forcelowres = false);
+   void redrawAll(bool forcelowres = false);
+   void onWorkspaceChange();
+-  void fullRender();
+-  void renderWorkspaceIndicator(size_t i, const CBox &borderBox,
++  void fullRender(Render::CRenderContext &ctx);
++  void renderWorkspaceIndicator(Render::CRenderContext &ctx, size_t i,
++                                const CBox &borderBox,
+                                 const CRegion &damage, const bool ISACTIVE);
+   void captureBackground();
+   void setupWindowImages(std::vector<PHLWINDOW> &windowsToRender);
+@@ -126,7 +127,8 @@ private:
+     PHLWORKSPACE originalWorkspace; // Store original workspace for restoration
+   };
+ 
+-  void renderWindowName(const SWindowImage &image, const CBox &borderBox);
++  void renderWindowName(Render::CRenderContext &ctx, const SWindowImage &image,
++                        const CBox &borderBox);
+ 
+   Vector2D lastMousePosLocal = Vector2D{};
+ 
+diff --git a/src/main.cpp b/src/main.cpp
+index cefa861..a660aee 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -16,7 +16,7 @@ using Event::SCallbackInfo;
+ #include <hyprland/src/config/ConfigManager.hpp>
+ #include "compat056.hpp"
+ #include <hyprland/src/desktop/DesktopTypes.hpp>
+-#include <hyprland/src/desktop/view/Window.hpp>
++#include <hyprland/src/desktop/view/window/Window.hpp>
+ #include <hyprland/src/managers/input/trackpad/GestureTypes.hpp>
+ #include <hyprland/src/managers/input/trackpad/TrackpadGestures.hpp>
+ #include <hyprland/src/render/Renderer.hpp>
+@@ -32,7 +32,7 @@ using namespace Hyprutils::String;
+ inline CFunctionHook *g_pRenderWorkspaceHook = nullptr;
+ inline CFunctionHook *g_pAddDamageHookA = nullptr;
+ inline CFunctionHook *g_pAddDamageHookB = nullptr;
+-typedef void (*origRenderWorkspace)(void *, PHLMONITOR, PHLWORKSPACE,
++typedef void (*origRenderWorkspace)(void *, Render::CRenderContext &, PHLMONITOR, PHLWORKSPACE,
+                                     const Time::steady_tp &, const CBox &);
+ typedef void (*origAddDamageA)(void *, const CBox &);
+ typedef void (*origAddDamageB)(void *, const pixman_region32_t *);
+@@ -44,7 +44,7 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() { return HYPRLAND_API_VERSION; }
+ 
+ static bool renderingOverview = false;
+ 
+-static void hkRenderWorkspace(void *thisptr, PHLMONITOR pMonitor,
++static void hkRenderWorkspace(void *thisptr, Render::CRenderContext &ctx, PHLMONITOR pMonitor,
+                               PHLWORKSPACE pWorkspace, const Time::steady_tp &now,
+                               const CBox &geometry) {
+   // Check if this monitor has an active overview
+@@ -56,12 +56,12 @@ static void hkRenderWorkspace(void *thisptr, PHLMONITOR pMonitor,
+       (hasOverview && it->second->blockOverviewRendering)) {
+     // Normal rendering when overview is not active on this monitor
+     ((origRenderWorkspace)(g_pRenderWorkspaceHook->m_original))(
+-        thisptr, pMonitor, pWorkspace, now, geometry);
++        thisptr, ctx, pMonitor, pWorkspace, now, geometry);
+   } else {
+     // When overview is active on this monitor, skip the normal workspace
+     // rendering This prevents real windows from showing underneath the overview
+     // The overview will render its own pass element which handles the display
+-    it->second->render();
++    it->second->render(ctx);
+   }
+ }
+ 
+@@ -333,10 +333,10 @@ static SDispatchResult onHyprviewDispatcher(std::string arg) {
+       case EWindowCollectionMode::CURRENT_ONLY:
+         return windowWorkspace == activeWorkspace;
+       case EWindowCollectionMode::ALL_WORKSPACES:
+-        return !windowWorkspace->m_isSpecialWorkspace;
++        return !hyprview_compat::isSpecial(windowWorkspace);
+       case EWindowCollectionMode::WITH_SPECIAL:
+         return windowWorkspace == activeWorkspace ||
+-               windowWorkspace->m_isSpecialWorkspace;
++               hyprview_compat::isSpecial(windowWorkspace);
+       case EWindowCollectionMode::ALL_WITH_SPECIAL:
+         return true;
+       }
+@@ -345,7 +345,7 @@ static SDispatchResult onHyprviewDispatcher(std::string arg) {
+ 
+     std::vector<PHLWINDOW> windowsToRender;
+     for (auto &w : Desktop::windowState()->windows()) {
+-      if (!w->m_isMapped || w->isHidden())
++      if (!w->mapped() || w->isHidden())
+         continue;
+       if (!shouldIncludeWindow(w))
+         continue;
+@@ -361,9 +361,9 @@ static SDispatchResult onHyprviewDispatcher(std::string arg) {
+       auto &w = windowsToRender[i];
+       windowInfos.push_back(
+           {i, w->sizeAnimation()->value().x, w->sizeAnimation()->value().y});
+-      out << "  [" << i << "] \"" << w->m_title << "\" - "
++      out << "  [" << i << "] \"" << hyprview_compat::title(w) << "\" - "
+           << w->sizeAnimation()->value().x << "x" << w->sizeAnimation()->value().y
+-          << " (WS: " << w->m_workspace->m_id << ")\n";
++          << " (WS: " << hyprview_compat::label(w->m_workspace) << ")\n";
+     }
+ 
+     // Get margin from config
+@@ -400,7 +400,7 @@ static SDispatchResult onHyprviewDispatcher(std::string arg) {
+     for (size_t i = 0; i < placementResult.tiles.size(); ++i) {
+       const auto &tile = placementResult.tiles[i];
+       auto &w = windowsToRender[i];
+-      out << "  [" << i << "] \"" << w->m_title << "\"\n"
++      out << "  [" << i << "] \"" << hyprview_compat::title(w) << "\"\n"
+           << "      Position: (" << tile.x << ", " << tile.y << ")\n"
+           << "      Size: " << tile.width << "x" << tile.height << "\n";
+     }
+@@ -433,7 +433,7 @@ static SDispatchResult onHyprviewDispatcher(std::string arg) {
+       }
+     }
+ 
+-    g_pHyprRenderer->m_renderPass.removeAllOfType("CHyprViewPassElement");
++    g_pHyprRenderer->context().m_pass.removeAllOfType("CHyprViewPassElement");
+ 
+     // Clean up closed instances
+     for (auto it = g_pHyprViewInstances.begin();
+@@ -538,7 +538,7 @@ static SDispatchResult onHyprviewDispatcher(std::string arg) {
+         }
+       }
+ 
+-      g_pHyprRenderer->m_renderPass.removeAllOfType("CHyprViewPassElement");
++      g_pHyprRenderer->context().m_pass.removeAllOfType("CHyprViewPassElement");
+ 
+       for (auto it = g_pHyprViewInstances.begin();
+            it != g_pHyprViewInstances.end();) {
+@@ -611,11 +611,11 @@ void hyprviewStepWorkspace(PHLMONITOR monitor, int direction) {
+     std::vector<PHLWORKSPACE> workspaces;
+     for (const auto &ref : State::workspaceState()->workspaces()) {
+       auto ws = ref.lock();
+-      if (ws && !ws->inert() && !ws->m_isSpecialWorkspace &&
++      if (ws && !hyprview_compat::isSpecial(ws) && ws->numberedID() &&
+           ws->m_monitor.lock() == mon)
+         workspaces.push_back(ws);
+     }
+-    std::ranges::sort(workspaces, {}, [](const PHLWORKSPACE &ws) { return ws->m_id; });
++    std::ranges::sort(workspaces, {}, [](const PHLWORKSPACE &ws) { return hyprview_compat::sortKey(ws); });
+     auto cur = std::ranges::find(workspaces, mon->m_activeWorkspace);
+     if (cur == workspaces.end())
+       return;
+@@ -629,7 +629,7 @@ void hyprviewStepWorkspace(PHLMONITOR monitor, int direction) {
+ 
+     // Same teardown as the 'off' dispatcher, minus the closing animation: the
+     // destructor puts every window back on its own workspace.
+-    g_pHyprRenderer->m_renderPass.removeAllOfType("CHyprViewPassElement");
++    g_pHyprRenderer->context().m_pass.removeAllOfType("CHyprViewPassElement");
+     g_pHyprViewInstances.erase(it);
+ 
+     const auto previous = mon->m_activeWorkspace;
+@@ -692,13 +692,13 @@ static Hyprlang::CParseResult hyprviewGestureKeyword(const char *LHS,
+   }
+ 
+   int startDataIdx = 2;
+-  uint32_t modMask = 0;
++  Input::ModifierMask modMask = Input::HL_MODIFIER_NONE;
+   float deltaScale = 1.F;
+ 
+   while (true) {
+ 
+     if (data[startDataIdx].starts_with("mod:")) {
+-      modMask = g_pKeybindManager->stringToModMask(
++      modMask = Keybinds::modMaskFromString(
+           std::string{data[startDataIdx].substr(4)});
+       startDataIdx++;
+       continue;
+@@ -753,7 +753,10 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
+     throw std::runtime_error("[hyprview] Version mismatch");
+   }
+ 
+-  auto FNS = HyprlandAPI::findFunctionsByName(PHANDLE, "renderWorkspace");
++  // 0.57 overloads renderWorkspace (monitor + geometry, and workspace + scene
++  // mode); the monitor one is what draws a monitor's workspace each frame.
++  auto FNS = HyprlandAPI::findFunctionsByName(
++      PHANDLE, "_ZN6Render13IHyprRenderer15renderWorkspaceERNS_14CRenderContextEN9Hyprutils6Memory14CSharedPointerIN7Monitor8CMonitorEEE");
+   if (FNS.empty()) {
+     failNotif("no fns for hook renderWorkspace");
+     throw std::runtime_error("[hyprview] No fns for hook renderWorkspace");
+@@ -807,7 +810,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
+              it != g_pHyprViewInstances.end();) {
+           if (it->second && it->second->readyForCleanup) {
+ 
+-            g_pHyprRenderer->m_renderPass.removeAllOfType(
++            g_pHyprRenderer->context().m_pass.removeAllOfType(
+                 "CHyprViewPassElement");
+             it = g_pHyprViewInstances.erase(it);
+           } else {
+@@ -946,7 +949,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
+ }
+ 
+ APICALL EXPORT void PLUGIN_EXIT() {
+-  g_pHyprRenderer->m_renderPass.removeAllOfType("CHyprViewPassElement");
++  g_pHyprRenderer->context().m_pass.removeAllOfType("CHyprViewPassElement");
+   g_unloading = true;
+   g_pHyprViewInstances.clear();
+   Config::mgr()->reload();

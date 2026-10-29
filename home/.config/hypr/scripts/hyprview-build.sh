@@ -43,12 +43,36 @@ fi
 #     "next" / "prev" dispatcher args do the same from a key
 # If upstream changes the same lines the patch stops applying; the build then
 # stops here rather than shipping a plugin without them.
+#
+# Hyprland 0.57 reworked the plugin API (every draw takes a render context,
+# workspace ids became a variant, window title/class moved into metadata(),
+# the keybind manager and a few headers moved). Upstream has no 0.57 port yet,
+# so scripts/hyprview-hl057.patch ports upstream + hyprview.patch; it goes on
+# top only when the installed Hyprland is 0.57 or newer, and a 0.56 build is
+# still exactly upstream + hyprview.patch. A checkout that carries the port
+# when building for 0.56 gets it taken back out.
 PATCH=$HOME/.config/hypr/scripts/hyprview.patch
-if ! git -C "$SRC" apply --check -R "$PATCH" 2>/dev/null; then
-    git -C "$SRC" apply "$PATCH" || {
-        echo "hyprview: scripts/hyprview.patch no longer applies to upstream $(git -C "$SRC" log -1 --format=%h); fix it or build with --keep" >&2
-        exit 1
-    }
+PORT=$HOME/.config/hypr/scripts/hyprview-hl057.patch
+hlver=$(rpm -q --qf '%{version}' hyprland 2>/dev/null) || hlver=999  # not an rpm: the newest headers get fetched
+hl057=0
+[[ $(printf '%s\n' 0.57.0 "$hlver" | sort -V | head -1) == 0.57.0 ]] && hl057=1
+
+applied() { git -C "$SRC" apply --check -R "$1" 2>/dev/null; }
+patchfail() {
+    echo "hyprview: scripts/${1##*/} no longer applies to upstream $(git -C "$SRC" log -1 --format=%h); fix it or build with --keep" >&2
+    exit 1
+}
+if applied "$PORT"; then
+    ((hl057)) || git -C "$SRC" apply -R "$PORT"
+else
+    applied "$PATCH" || git -C "$SRC" apply "$PATCH" || patchfail "$PATCH"
+    if ((hl057)); then
+        # Files the port adds are untracked, so the "checkout -- ." above
+        # leaves them behind and they would block a fresh apply.
+        git -C "$SRC" apply --summary "$PORT" | awk '$1 == "create" {print $4}' |
+            while read -r f; do rm -f "${SRC:?}/$f"; done
+        git -C "$SRC" apply "$PORT" || patchfail "$PORT"
+    fi
 fi
 
 # "-devel package to fetch" -> "installed runtime package whose version it must match".
@@ -89,5 +113,6 @@ make -C "$SRC/src" all -j"$(nproc)" 2>&1 | grep -E 'error' || true
 mkdir -p "${OUT%/*}"
 cp "$SRC/build/hyprview.so" "$OUT.new"
 mv -f "$OUT.new" "$OUT"
+rm -f "$OUT.failed"   # plugins-check.sh: built, so try it again at login
 echo "hyprview: built $(git -C "$SRC" log -1 --format=%h) against Hyprland $(rpm -q --qf '%{version}' hyprland) -> $OUT"
 echo "Log out and back in (or reload Hyprland) to load it."

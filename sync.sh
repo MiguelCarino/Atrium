@@ -60,6 +60,7 @@ PERSONAL=(
     # Not ours to publish: a patch to hypr-cube, which has no licence yet
     # (all rights reserved). The build works without it (plain upstream).
     '--exclude=/scripts/hypr-cube.patch'
+    '--exclude=/scripts/hypr-cube-hl057.patch'   # the same: its Hyprland 0.57 port, on top of it
 )
 
 # Generated or rebuildable (install.sh renders them).

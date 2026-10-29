@@ -2511,6 +2511,44 @@ def check_layout_keys(conf):
     return problems
 
 
+# The icon and cursor sets the themes name. make-icon-theme.py builds the
+# first group from Papirus (packaged: papirus-icon-theme, -dark); the
+# second is packaged too; the third is NOT packaged in Fedora (44, 45) or
+# rpmfusion and is optional -- downloaded by hand from upstream, the theme
+# falls back to Adwaita's (icons and pointer) until then. `check` names
+# what is missing; nothing fails without it.
+BUILT_ICON_SETS = ("Win95", "Phosphor", "Neon", "Moe", "Lofi", "Luna", "Orbit",
+                   "Seasons-Spring", "Seasons-Summer", "Seasons-Autumn", "Seasons-Winter")
+PACKAGED_SETS = {"oxygen": "oxygen-icon-theme", "Papirus": "papirus-icon-theme",
+                 "Papirus-Dark": "papirus-icon-theme-dark", "breeze": "breeze-icon-theme",
+                 "breeze_cursors": "breeze-cursor-theme"}
+UNPACKAGED_SETS = {
+    "Chicago95": "https://github.com/grassmunk/Chicago95",
+    "candy-icons": "https://github.com/EliverLara/candy-icons",
+    "Sweet-Rainbow": "https://github.com/EliverLara/Sweet-folders",
+    "WhiteSur": "https://github.com/vinceliuice/WhiteSur-icon-theme",
+    "WhiteSur-light": "https://github.com/vinceliuice/WhiteSur-icon-theme",
+    "WhiteSur-dark": "https://github.com/vinceliuice/WhiteSur-icon-theme",
+    "WhiteSur-cursors": "https://github.com/vinceliuice/WhiteSur-cursors",
+}
+# A built set's designed bases (its Inherits= before the fallbacks).
+BUILT_ON = {"Win95": ("Chicago95",), "Neon": ("Sweet-Rainbow", "candy-icons")}
+
+
+def missing_set_hint(name):
+    """How to get icon / cursor set `name`, as a " (...)" suffix, or ""."""
+    if name in BUILT_ICON_SETS:
+        return " (make-icon-theme.py --all builds it; it needs papirus-icon-theme)"
+    if name in PACKAGED_SETS:
+        return f" (sudo dnf install {PACKAGED_SETS[name]})"
+    url = UNPACKAGED_SETS.get(name)
+    if not url and (name or "").startswith("catppuccin-") and name.endswith("-cursors"):
+        url = "https://github.com/catppuccin/cursors"
+    if url:
+        return f" (optional, not packaged: download it into ~/.local/share/icons/{name} from {url})"
+    return ""
+
+
 def check_conf(name, conf, own):
     """Problems of one resolved conf of theme `name` (`own`: the keys its
     files set): keys and colours, the terminal font, icons, wallpapers,
@@ -2526,7 +2564,8 @@ def check_conf(name, conf, own):
             problems.append(f"{key}={conf[key]!r} is not #rrggbb")
     cur = conf.get("cursor_theme", "Adwaita")
     if not (icon_theme_dir(cur) and os.path.isdir(os.path.join(icon_theme_dir(cur), "cursors"))):
-        problems.append(f"cursor_theme={cur!r}: no such cursor theme (Adwaita until there is)")
+        problems.append(f"cursor_theme={cur!r}: no such cursor theme (Adwaita until there is)"
+                        + missing_set_hint(cur))
     if conf.get("lang", "en") not in ("en", "ja"):
         problems.append(f"lang={conf.get('lang')!r}: en or ja")
     if conf.get("anim") not in PRESETS:
@@ -2566,14 +2605,13 @@ def check_conf(name, conf, own):
             problems.append(f"term.font={face[0]!r} has no Bold face: COSMIC Terminal will not use it")
     icons = conf.get("icon_theme")
     if not icon_theme_dir(icons):
-        built = ("Win95", "Phosphor", "Neon", "Moe", "Lofi", "Luna", "Orbit",
-                 "Seasons-Spring", "Seasons-Summer", "Seasons-Autumn", "Seasons-Winter")
-        hint = (" (make-icon-theme.py --all builds it)" if icons in built
-                else " (sudo dnf install oxygen-icon-theme)" if icons == "oxygen"
-                else " (Chicago95: see ~/.local/share/icons/Chicago95/README)" if icons == "Chicago95" else "")
-        problems.append(f"icon_theme={icons!r}: no such icon theme, Adwaita until there is{hint}")
-    elif icons == "Win95" and not icon_theme_dir("Chicago95"):
-        problems.append("icon_theme=Win95 inherits Chicago95, which is not installed")
+        problems.append(f"icon_theme={icons!r}: no such icon theme, Adwaita until there is"
+                        + missing_set_hint(icons))
+    else:
+        for base in BUILT_ON.get(icons, ()):
+            if not icon_theme_dir(base):
+                problems.append(f"icon_theme={icons} inherits {base}, which is not installed: its apps are"
+                                f" traced instead and the rest is Adwaita's{missing_set_hint(base)}")
     for key in ("accent_follow", "hypr.blur", "hypr.shadow", "crt_suggest"):
         if conf.get(key, "no") not in ("yes", "no"):
             problems.append(f"{key}={conf.get(key)!r}: yes or no")

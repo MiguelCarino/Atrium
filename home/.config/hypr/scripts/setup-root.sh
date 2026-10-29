@@ -16,6 +16,7 @@
 #                safe-upgrade.sh's own pre-upgrade-* snapshots used to live in
 #                /.snapshots, which snapper needs for itself: they are moved,
 #                untouched, to /.snapshots-pre-upgrade.
+#                Skipped when / is not btrfs.
 #   2. KDE Connect  kdeconnectd (the phone link, phone.py) and its firewall
 #                ports (firewalld's "kdeconnect" service, 1714-1764 tcp+udp).
 set -euo pipefail
@@ -33,6 +34,23 @@ say() { printf '\n\e[1m== %s ==\e[0m\n' "$1"; }
 
 say "packages"
 dnf install -y snapper libdnf5-plugin-actions kdeconnectd
+
+say "KDE Connect: firewall"
+if command -v firewall-cmd >/dev/null && firewall-cmd --state >/dev/null 2>&1; then
+    firewall-cmd --permanent --add-service=kdeconnect >/dev/null
+    firewall-cmd --reload >/dev/null
+    echo "  kdeconnect ports open"
+fi
+
+say "snapper: is / btrfs?"
+# snapper snapshots btrfs subvolumes only: on ext4 / xfs (or in a container)
+# there is nothing to snapshot, and the rest of this script is snapper.
+if [[ $(findmnt -no FSTYPE / 2>/dev/null) != btrfs ]]; then
+    echo "  / is $(findmnt -no FSTYPE / 2>/dev/null || echo unknown), not btrfs: no snapshots"
+    echo
+    echo "Done. Now open KDE Connect on the phone (same Wi-Fi) and pair with this computer."
+    exit 0
+fi
 
 say "snapper: config for /"
 if ! snapper -c root list >/dev/null 2>&1; then
@@ -72,13 +90,6 @@ post_transaction::::/usr/bin/sh -c [\ -n\ "${tmp.snapper_pre_number}"\ ]\ &&\ sn
 EOF
 grep -q '^enabled *= *1' /etc/dnf/libdnf5-plugins/actions.conf 2>/dev/null ||
     printf '[main]\nname = actions\nenabled = 1\n' > /etc/dnf/libdnf5-plugins/actions.conf
-
-say "KDE Connect: firewall"
-if command -v firewall-cmd >/dev/null && firewall-cmd --state >/dev/null 2>&1; then
-    firewall-cmd --permanent --add-service=kdeconnect >/dev/null
-    firewall-cmd --reload >/dev/null
-    echo "  kdeconnect ports open"
-fi
 
 say "first snapshot"
 snapper -c root create -d "setup-root.sh" -c number

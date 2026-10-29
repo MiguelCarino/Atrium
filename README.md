@@ -8,13 +8,21 @@ smart features (an assistant, voice typing, spoken replies, background tasks,
 a nightly health checkup and more). Nothing leaves the machine unless you
 turn on a feature that says it does.
 
-Made for Fedora 44 or newer (Hyprland 0.56, Lua config).
+Made for Fedora 44 or newer (Hyprland 0.56+, Lua config): 44, 45 and rawhide, on
+Workstation (GNOME), KDE Plasma, COSMIC or a minimal install. The atomic editions
+(Silverblue, Kinoite, COSMIC Atomic) are not supported: `install.sh` installs with dnf.
+It then offers to remove the desktop that was there (GNOME, KDE Plasma, COSMIC, Xfce...)
+for a Hyprland-only machine: default no (`--replace-desktop` makes it yes). Atrium's
+packages and the system's essentials are marked user-installed first, the removal is
+previewed and refused if it would take any of them, and greetd + tuigreet replace the
+old login screen; from a running session it is done at the next reboot. Kept, the
+other desktop's login screen (GDM, SDDM, cosmic-greeter) lists "Hyprland (uwsm-managed)".
 
 ## Requirements
 
 | | Needed | Notes |
 |---|---|---|
-| System | Fedora 44 or newer, a user that may use `sudo` | rpmfusion (free + nonfree) is enabled by `install.sh` |
+| System | Fedora 44 or newer (not an atomic edition), a user that may use `sudo` | rpmfusion (free + nonfree) is enabled by `install.sh`, and Fedora's `ffmpeg-free` swapped for its `ffmpeg`; Hyprland comes from the copr `lionheartp/Hyprland` |
 | Disk | about 6 GB | packages ~3 GB, the themes' wallpapers and sounds ~1 GB, the build tools; the optional smart extras 2-5 GB more; local models 2-20 GB each |
 | RAM | 8 GB; 16 GB or more for local AI models | |
 | Graphics | any card Hyprland runs on: NVIDIA, AMD or Intel | `install.sh` installs only what your card needs: the NVIDIA driver (`akmod-nvidia`) on NVIDIA, VA-API video encoding on AMD and Intel |
@@ -40,6 +48,13 @@ git clone https://github.com/MiguelCarino/Atrium ~/Atrium
 ~/Atrium/install.sh            # asks before each optional step
 ~/Atrium/install.sh --dry-run  # only print the steps
 ```
+
+Removing the old desktop is opt-in. `install.sh` asks, and the default
+answer is no, so `install.sh --yes` alone keeps GNOME / KDE Plasma / COSMIC
+next to Hyprland. Add `--replace-desktop` to make the default yes (with
+`--yes`, it is removed after the preview), or `--keep-desktop` to never be
+asked. [SimpleSetup](https://setup.carino.systems)'s "carino-hyprland" choice
+passes `--replace-desktop` and asks before it runs.
 
 It installs the packages, copies the desktop into `~/.config` (anything of
 yours it would replace is copied to `~/.local/share/atrium/backup-<date>/`
