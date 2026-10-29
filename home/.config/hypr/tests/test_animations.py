@@ -153,9 +153,10 @@ emit({ anims = anims, curves = curves, leaves = M.leaves, lrules = lrules, wrule
                 self.assertEqual(style, "popin 100%", a["leaf"])
         on = {r["name"]: r["_on"] for r in got["lrules"]}
         self.assertTrue(on["anim-layers-still"])
-        for name in ("anim-panels", "anim-launcher", "anim-notifications"):
+        for name in ("anim-panels", "anim-launcher", "anim-notifications", "anim-dock", "anim-dock-preview"):
             self.assertFalse(on[name], name)
         self.assertTrue(on["anim-bar-xray"])           # cost, not motion: always
+        self.assertTrue(on["anim-dock-edge"])
         enabled = [r for r in got["wrules"] if r["_on"]]
         self.assertEqual([(r["workspace"], r["animation"]) for r in enabled], [("m[HDMI-A-1]", "fade")])
 
@@ -167,6 +168,12 @@ emit({ anims = anims, curves = curves, leaves = M.leaves, lrules = lrules, wrule
         self.assertTrue(rules["anim-bar-xray"]["xray"])
         self.assertEqual(rules["anim-bar-xray"]["match"]["namespace"], "^(waybar-main)$")
         self.assertTrue(rules["anim-panel-dismiss"]["no_anim"])
+        # the dock slides in from its edge, its previews pop in, its hot edge never animates
+        self.assertEqual(rules["anim-dock"]["animation"], "slide")
+        self.assertEqual(rules["anim-dock"]["match"]["namespace"], "^(waybar-dock|waybar-taskbar)$")
+        self.assertTrue(rules["anim-dock"]["_on"])
+        self.assertEqual(rules["anim-dock-preview"]["animation"], "popin 94%")
+        self.assertTrue(rules["anim-dock-edge"]["no_anim"])
         # the still rule is declared last, so it wins any tie
         self.assertEqual(got["lrules"][-1]["name"], "anim-layers-still")
 
@@ -186,7 +193,7 @@ f = io.open(os.getenv('XDG_STATE_HOME') .. '/hypr/display.conf', 'w') f:write('a
 M.apply()
 emit({ n = #lrules, w = wrules })
 """, state="anim=smooth\n", monitors=PORTRAIT)
-        self.assertEqual(got["n"], 6)                                   # created once each
+        self.assertEqual(got["n"], 9)                                   # created once each
         self.assertEqual(len(got["w"]), 2)                              # smooth's and calm's
         self.assertEqual([r["animation"] for r in got["w"] if r["_on"]], ["slidefadevert 20%"])
 

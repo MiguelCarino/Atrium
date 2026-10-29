@@ -1,0 +1,23 @@
+# Dock and taskbar: ~/.config/hypr/scripts/dock.py (its docstring has the rest).
+# Off as shipped: Settings > Bar & toolbox > Dock & taskbar (dock.py set
+# on|off) enables or disables it. The top bar stays as it is; the taskbar's
+# tray is a second StatusNotifierHost beside waybar-toolbox's, never the
+# watcher.
+[Unit]
+Description=Dock and taskbar (pinned and running apps, tray, clock)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/dock.py daemon
+Restart=on-failure
+RestartSec=3
+# dock.py pings from its main loop (sd_notify WATCHDOG=1, every 10 s); a
+# hung one is restarted.
+WatchdogSec=20
+NotifyAccess=main
+MemoryHigh=150M
+
+[Install]
+WantedBy=graphical-session.target

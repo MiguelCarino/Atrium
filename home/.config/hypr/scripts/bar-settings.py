@@ -44,7 +44,8 @@ written. The file before each write is kept as
 $XDG_STATE_HOME/hypr/waybar-<config|config-toolbox>.prev.
 
 One pill cannot be hidden here: custom/toolbox, the only way to open the
-toolbox. (Its rows can all go: Settings, Display, Shortcuts and Night light
+toolbox from the bar. (It hides by itself while the dock or the taskbar runs,
+hypr/scripts/dock.py: their own toolbox button opens the card then.) (Its rows can all go: Settings, Display, Shortcuts and Night light
 have keys of their own.) The bar and the toolbox always go on the same screen,
 since the toolbox card drops down under the bar's sliders pill; after a
 screen change toolbox_fit.py sizes the card for the new screen's width.
@@ -91,7 +92,8 @@ MODULES = {
     "custom/day": ("", "Date", "click: the calendar"),
     "custom/clock": ("", "Time", "click: local, UTC, epoch"),
     "custom/weather": ("", "Weather", "click: the forecast"),
-    "custom/updates": ("", "Software updates", "how many are waiting; click: the updates panel"),
+    "custom/updates": ("", "Software updates",
+                       "how many are waiting, and a restart when one is due; click: the updates panel"),
     "custom/repos": ("", "Git repositories", "coloured by uncommitted or unpushed work in your projects folder"),
     "custom/notifications": ("", "Notifications", "the bell; struck through in Do Not Disturb"),
     "custom/doctor": ("", "Desktop health", "only there while a service or check has failed"),
@@ -112,8 +114,10 @@ MODULES = {
     "custom/disk": ("", "Disk space", "warns when any disk is getting full"),
     "custom/network": ("", "Network", "connection and speed; click: the network panel"),
     "pulseaudio": ("", "Volume", "output and mic levels; click: the audio panel"),
-    "custom/toolbox": ("", "Toolbox button", "opens the toolbox card below"),
-    "custom/power": ("", "Power menu", "lock, suspend, log out... (SUPER+Escape works without it)"),
+    "custom/toolbox": ("", "Toolbox button",
+                       "opens the toolbox card below (the dock or taskbar has it instead while on)"),
+    "custom/power": ("", "Power menu", "lock, suspend, log out... (SUPER+Escape works without it;"
+                     " hidden by a theme whose logo opens it)"),
     # The toolbox card's rows.
     "custom/settings": ("", "Settings", "this window (SUPER+I works without it)"),
     "custom/fsstate": ("", "Game mode", "split fullscreen: the app or the window thinks it is fullscreen"),

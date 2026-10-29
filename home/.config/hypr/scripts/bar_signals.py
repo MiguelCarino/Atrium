@@ -42,9 +42,14 @@ import sys
 # name -> (number, bar, modules that carry it, who sends it). Several names
 # may share a number only when they are the same modules (aliases).
 SIGNALS = {
+    # updates also carries the restart badge (updates.sh asks reboot_needed.py
+    # on every run), so whatever learns a restart is or is not due any more
+    # pokes it: reboot_panel.py's Check again (the updates card's RESTART
+    # section) and safe-upgrade.sh. The old reboot pill's 28 is free again.
     "updates":       (8,  "main",    ("custom/updates",),
-                      "updates.sh / updates_panel.py / safe-upgrade.sh / software-updates.py / theme.py"),
-    "day":           (10, "main",    ("custom/day", "custom/logo", "custom/menuclock"),
+                      "updates.sh / updates_panel.py / reboot_panel.py (Check again) / safe-upgrade.sh"
+                      " / software-updates.py / theme.py"),
+    "day":           (10, "main",    ("custom/day", "custom/logo", "custom/menuclock", "custom/power"),
                       "theme.py (bar.conf), region.py, clock.py (date change)"),
     "nightlight":    (11, "toolbox", ("custom/nightlight",), "nightlight.sh (on a real change)"),
     "toolbox":       (12, "main",    ("custom/toolbox",), "toolbox.sh (open / close)"),
@@ -62,11 +67,9 @@ SIGNALS = {
     "printing":      (22, "main",    ("custom/printing",), "printing.py watch"),
     "context":       (24, "main",    ("custom/context",), "contexts.py"),
     "tasks":         (27, "main",    ("custom/tasks",), "tasks.py"),
-    "reboot":        (28, "main",    ("custom/reboot",),
-                      "reboot_panel.py (Check again); safe-upgrade.sh could after an upgrade"),
 }
 # Aliases: the same number under the name a reader looks for.
-SIGNALS["logo"] = SIGNALS["menuclock"] = SIGNALS["day"]
+SIGNALS["logo"] = SIGNALS["menuclock"] = SIGNALS["power"] = SIGNALS["day"]
 
 LOWEST, HIGHEST = 1, 30
 TOOLBOX_CONFIG = "config-toolbox"

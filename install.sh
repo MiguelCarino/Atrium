@@ -169,7 +169,7 @@ elif [[ " ${vendors[*]} " != *" nvidia "* && " ${vendors[*]} " != *" amd "* ]]; 
 fi
 
 step "3/8  your config"
-mapfile -t paths < <(cd "$REPO/home" && ls -d .config/* .local/share/fonts 2>/dev/null)
+mapfile -t paths < <(cd "$REPO/home" && ls -d .config/* .local/share/fonts .local/share/nautilus-python/extensions/* 2>/dev/null)
 backed=0
 for p in "${paths[@]}"; do
     [[ -e $HOME/$p ]] || continue

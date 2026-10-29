@@ -293,8 +293,14 @@ end
 --   notifications  mako sits in the top-right corner: it slides in from the
 --                  right edge and back out
 --   the island     keeps rules.lua's slide from the top edge
+--   the dock       scripts/dock.py's dock and taskbar slide in from the edge
+--                  they sit on and back out (an auto-hiding dock stepping
+--                  away and coming back); its window previews pop in from
+--                  94%, like a panel under its pill
 --   panel-dismiss  the invisible click-catcher under a panel: never animated
---                  (fading a transparent sheet is GPU time for nothing)
+--                  (fading a transparent sheet is GPU time for nothing);
+--                  nor is the hidden dock's hot edge (dock-edge), a 3px
+--                  strip nobody sees
 --
 -- In a STILL preset (calm) every one of them, the island included, fades
 -- in place instead -- reduce motion means nothing slides or pops.
@@ -320,6 +326,12 @@ local LAYER_RULES = {
       match = { namespace = "^(wofi|launcher)$" }, animation = "popin 92%" },
     { name = "anim-notifications",  motion = true,
       match = { namespace = "^(notifications)$" }, animation = "slide right" },
+    { name = "anim-dock",           motion = true,
+      match = { namespace = "^(waybar-dock|waybar-taskbar)$" }, animation = "slide" },
+    { name = "anim-dock-preview",   motion = true,
+      match = { namespace = "^(waybar-dock-preview)$" }, animation = "popin 94%" },
+    { name = "anim-dock-edge",      always = true,
+      match = { namespace = "^(dock-edge)$" }, no_anim = true },
     { name = "anim-layers-still",   motion = false,
       match = { namespace = "^(waybar-.*|wofi|launcher|notifications)$" }, animation = "fade" },
 }

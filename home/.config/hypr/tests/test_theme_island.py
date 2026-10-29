@@ -206,14 +206,14 @@ class Lint(unittest.TestCase):
     def test_new_keys_are_known(self):
         for key in ("island.enabled", "island.style", "island.match_bar", "bar.clock", "bar.logo",
                     "bar.workspaces", "gtk_button_layout", "hypr.rounding_power", "hypr.shadow_offset",
-                    "hypr.shadow_color_inactive"):
+                    "hypr.shadow_color_inactive", "dock.start", "dock.magnify"):
             self.assertIn(key, theme.KNOWN, key)
 
     def test_cyberpunk_documents_every_new_key(self):
         own = theme.read_kv(os.path.join(theme.THEMES_DIR, "cyberpunk", "theme.conf")) or {}
         for key in ("island.enabled", "island.style", "island.match_bar", "bar.clock", "bar.logo",
                     "bar.workspaces", "gtk_button_layout", "hypr.rounding_power", "hypr.shadow_offset",
-                    "hypr.shadow_color_inactive"):
+                    "hypr.shadow_color_inactive", "dock.start", "dock.magnify"):
             self.assertIn(key, own, key)
         self.assertEqual(own["gtk_button_layout"], theme.DEFAULTS["gtk_button_layout"])
 
@@ -227,6 +227,24 @@ class Bar(unittest.TestCase):
         plain = theme.bar_text({"id": "cyberpunk"})
         self.assertIn("clock=\n", plain)
         self.assertIn("logo=\n", plain)
+        self.assertIn("magnify=\n", plain)
+        self.assertIn("magnify=yes\n", theme.bar_text({"id": "orchard", "dock.magnify": "yes"}))
+
+    def test_dock_keys(self):
+        """dock.start and dock.magnify: what dock.py reads from bar.conf, and
+        which themes set them (the orchard pair magnify, the dark one by
+        inheriting it)."""
+        for good in ("", "yes", "no"):
+            self.assertEqual(theme.check_layout_keys({"dock.magnify": good}), [], good)
+        bad = theme.check_layout_keys({"dock.magnify": "always"})
+        self.assertEqual(len(bad), 1)
+        self.assertIn("dock.magnify", bad[0])
+        self.assertTrue(theme.check_layout_keys({"dock.start": "a much too long word"}))
+        for name, magnify in (("orchard", "yes"), ("orchard-dark", "yes"), ("cyberpunk", ""), ("win95", "")):
+            conf = theme.load(name, user=False, season="")
+            self.assertEqual(conf.get("dock.magnify", ""), magnify, name)
+            self.assertEqual(theme.check_layout_keys(conf), [], name)
+        self.assertEqual(theme.load("win95", user=False, season="")["dock.start"], "Start")
 
     def test_write_generated_writes_bar_conf(self):
         written = {}

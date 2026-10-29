@@ -3,6 +3,10 @@
 // the shortcuts button and the tray. It starts hidden and drops down under the
 // sliders pill on the main bar (custom/toolbox in ./config) when that pill is
 // clicked; clicking it again folds it away. scripts/toolbox.sh does the toggle.
+// While the dock or the taskbar runs (hypr/scripts/dock.py) that pill is
+// hidden and their own toolbox button opens it instead: then it is a bottom
+// bar, the card coming up next to that button (scripts/toolbox_fit.py has
+// where exactly, for a bottom, left or right dock).
 //
 // Why a waybar and not a panel.py card like the others: the tray. A tray needs
 // a StatusNotifierWatcher that is up for the whole session -- apps register
@@ -24,12 +28,16 @@
 // the card. That only moves once the tray row outgrows the other rows, but it
 // lives in generated/ and is rewritten by scripts/toolbox_fit.py each time the
 // section opens: any transparent box left beside the card would swallow clicks
-// meant to close it.
+// meant to close it. The same goes for a bottom bar (at the dock), anchored
+// bottom + left + right.
+//
+// No "position" here on purpose: it comes from that generated include too
+// ("top" or "bottom", toolbox_fit.py), and waybar takes from an include only
+// the keys this file lacks. Without the include waybar's default is "top".
 [
 {
     "name": "waybar-toolbox",
     "layer": "overlay",
-    "position": "top",
     "exclusive": false,
     "start_hidden": true,
     "include": ["~/.config/waybar/generated/toolbox-margin.jsonc"],

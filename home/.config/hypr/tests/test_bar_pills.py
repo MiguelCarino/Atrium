@@ -6,8 +6,10 @@ no D-Bus or nmcli is reached, nothing is rebooted.
   memory_pill.py      memory-pressure pill: levels, top processes, text
   bluetooth.py        BlueZ objects -> summary -> pill; "Pair new..." pick
   bluetooth_panel.py  a device row's subtitle, D-Bus error text
-  reboot_needed.py    kernel versions, needs-restarting's answer, the pill
-  reboot_panel.py     the card's lines
+  reboot_needed.py    kernel versions, needs-restarting's answer, the
+                      reasons updates.sh reads
+  reboot_panel.py     the card's lines; updates.sh's restart badge (stubbed
+                      dnf / flatpak / reboot check); no custom/reboot left
   awake_pill.py       when to ask idle-settings.py, the pill
   network.py          VPNs in the pill; network_panel.py's VPN section
   notifications.py    the bell's tooltip (no click hints), the DND flag
@@ -248,11 +250,10 @@ class RebootNeededTest(unittest.TestCase):
         self.assertFalse(rb.fresh({"at": 1000}, 3000, 1800))
         self.assertFalse(rb.fresh({}, 1000))
 
-    def test_pill(self):
-        self.assertEqual(rb.pill([])["text"], "")
-        out = rb.pill(["Kernel x is installed."])
-        self.assertEqual(out["class"], "needed")
-        self.assertIn("Kernel x", out["tooltip"])
+    def test_reasons_text(self):
+        self.assertEqual(rb.reasons_text([]), "")
+        self.assertEqual(rb.reasons_text(["Kernel x is installed.", "", "a\nb"]),
+                         "Kernel x is installed.\na b")
 
     def test_installed_kernels_need_a_vmlinuz(self):
         with tempfile.TemporaryDirectory() as root:
@@ -271,6 +272,72 @@ class RebootNeededTest(unittest.TestCase):
         waiting = rbp.explain({"reasons": [], "checker": False, "checked_at": None})
         self.assertNotIn("not installed", " ".join(waiting))
         self.assertEqual(rbp.REBOOT, ["systemctl", "reboot"])
+
+    def test_the_badge_signal_is_the_updates_pill(self):
+        bs = helpers.import_script("bar_signals.py")
+        self.assertNotIn("reboot", bs.SIGNALS)
+        self.assertEqual(bs.SIGNALS[rbp.BADGE_SIGNAL][2], ("custom/updates",))
+
+    def test_updates_card_embeds_the_section(self):
+        with open(os.path.join(WAYBAR_SCRIPTS, "updates_panel.py")) as handle:
+            text = handle.read()
+        self.assertIn("import reboot_panel", text)
+        self.assertIn('reboot_panel.RestartSection("RESTART", self.quit)', text)
+        self.assertTrue(hasattr(rbp, "RestartSection"))
+        # The section's first draw reads the cache; needs-restarting only in a thread.
+        with open(os.path.join(WAYBAR_SCRIPTS, "reboot_panel.py")) as handle:
+            panel_text = handle.read()
+        self.assertIn("reboot_needed.status(run=False)", panel_text)
+        self.assertIn("threading.Thread(target=work", panel_text)
+
+    def test_no_reboot_pill(self):
+        with open(os.path.join(WAYBAR, "config")) as handle:
+            config = handle.read()
+        self.assertNotIn('"custom/reboot"', config)
+        with open(os.path.join(WAYBAR, "style.css")) as handle:
+            self.assertNotIn("#custom-reboot", handle.read())
+
+
+class UpdatesBadgeTest(unittest.TestCase):
+    """updates.sh with dnf, flatpak and the reboot check stubbed on PATH:
+    the restart badge shows in every state, and only when one is due."""
+
+    def run_updates(self, dnf_rc, dnf_out, reasons):
+        import json
+        import stat
+        import subprocess
+        with tempfile.TemporaryDirectory(dir=helpers.SCRATCH) as tmp:
+            stubs = {"dnf": f"printf '%s' '{dnf_out}'\nexit {dnf_rc}\n", "flatpak": "exit 0\n",
+                     "rb": "".join(f"echo '{r}'\n" for r in reasons)}
+            for name, body in stubs.items():
+                path = os.path.join(tmp, name)
+                with open(path, "w") as handle:
+                    handle.write("#!/bin/sh\n" + body)
+                os.chmod(path, stat.S_IRWXU)
+            env = dict(os.environ, PATH=tmp + os.pathsep + os.environ["PATH"], XDG_RUNTIME_DIR=tmp,
+                       UPDATES_REBOOT_CHECK=os.path.join(tmp, "rb"))
+            out = subprocess.run(["bash", os.path.join(WAYBAR_SCRIPTS, "updates.sh")], env=env,
+                                 capture_output=True, text=True, timeout=30).stdout
+        return json.loads(out)
+
+    def test_up_to_date_and_due(self):
+        out = self.run_updates(0, "", ["Kernel 7.3 is installed; 7.2 is running."])
+        self.assertEqual(out["class"], ["updated", "reboot"])
+        self.assertTrue(out["text"].endswith("\uf2f9"))
+        self.assertIn("Restart needed", out["tooltip"])
+        self.assertIn("Kernel 7.3", out["tooltip"])
+
+    def test_pending_and_due_escapes(self):
+        out = self.run_updates(100, "foo.x86_64 1.2-3 updates\n", ["Updated since boot: a & <b>."])
+        self.assertEqual(out["class"], ["pending", "reboot"])
+        self.assertIn(" 1 \uf2f9", out["text"])
+        self.assertIn("a &amp; &lt;b&gt;.", out["tooltip"])
+
+    def test_no_restart_no_badge(self):
+        out = self.run_updates(0, "", [])
+        self.assertEqual(out["class"], ["updated"])
+        self.assertNotIn("\uf2f9", out["text"])
+        self.assertNotIn("Restart", out["tooltip"])
 
 
 class AwakePillTest(unittest.TestCase):

@@ -21,8 +21,16 @@ loaded (nvidia_driver; any other GPU needs no such check and is told so),
 that is the update that can leave it without a module, and the reason Upgrade runs
 safe-upgrade.sh (btrfs snapshot, dnf, build + check the NVIDIA module for the
 new kernel, flatpak, firmware listing) in a terminal rather than a bare dnf.
-When it finishes, safe-upgrade.sh itself redraws the updates and reboot pills
-(bar_signals.py "updates", "reboot"): this card has closed by then.
+When it finishes, safe-upgrade.sh itself asks needs-restarting afresh and
+redraws the updates pill (bar_signals.py "updates"), restart badge and all:
+this card has closed by then.
+
+RESTART, at the bottom: what the bar's old reboot pill opened, now that a
+restart being due is a badge on this card's own pill (updates.sh) --
+reboot_panel.py's RestartSection, the very widget: why (reboot_needed.py's
+reasons, from its 30-minute cache; needs-restarting is only run in a thread,
+by Check again or when it was never asked), Check again, and the two-click
+"Reboot now" (panelui.Armed).
 
 The list scrolls; the card is panelui.CARD_HEIGHT tall, the same as the
 notification panel next to it on the bar.
@@ -43,6 +51,7 @@ from gi.repository import GLib, Gtk, Pango  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import panelui  # noqa: E402
+import reboot_panel  # noqa: E402  (RestartSection: the RESTART section)
 import themecolors  # noqa: E402
 
 CACHE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "waybar-updates.tsv")
@@ -147,6 +156,10 @@ class Updates(panelui.Panel):
                                       + "flatpak update, firmware list")
         self.upgrade.connect("clicked", lambda _b: self.run_upgrade())
         self.card.pack_start(self.upgrade, False, False, 0)
+
+        self.restart = reboot_panel.RestartSection("RESTART", self.quit)
+        self.restart.set_margin_top(10)
+        self.card.pack_start(self.restart, False, False, 0)
         self.draw()
 
     def on_ready(self):

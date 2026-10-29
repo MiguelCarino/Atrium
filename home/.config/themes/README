@@ -216,8 +216,9 @@ The choice is theme=<name> in ~/.local/state/hypr/display.conf and survives
                  luminance 0.43-0.52): the leaf mark at the far left (Font
                  Awesome's leaf, U+F06C -- never the Apple logo), the
                  workspaces as small dots, the focused app's name in bold;
-                 monochrome status glyphs, the Control-Centre glyph, power
-                 and "Tue 27 Oct  21:21" at the far right (new theme keys
+                 monochrome status glyphs, the Control-Centre glyph and
+                 "Tue 27 Oct  21:21" at the far right -- no power pill:
+                 the leaf's click is the power menu (new theme keys
                  bar.logo=, bar.workspaces=dots, bar.clock=menubar, written
                  by theme.py to waybar/generated/bar.conf); nothing is a
                  pill, a state is coloured TEXT (the REC dot is the one

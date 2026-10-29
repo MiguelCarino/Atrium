@@ -1,7 +1,8 @@
 """Loose ends wired up: the window switcher follows switcher.conf, wol.py
 reads `ip -j neigh` and the MACs peers.py notes at pairing, an upgrade
-redraws the reboot pill, the on-screen keyboard has its key, the launcher's
-Bluetooth command, and the Timers page's one work-hours row.
+redraws the updates pill (its restart badge), the on-screen keyboard has
+its key, the launcher's Bluetooth command, and the Timers page's one
+work-hours row.
 
 Hermetic: nothing is run against the screens, the network or systemd;
 peers.json and wol.json are scratch files."""
@@ -157,10 +158,14 @@ class Wiring(unittest.TestCase):
         with open(os.path.join(*path)) as handle:
             return handle.read()
 
-    def test_upgrade_pokes_the_reboot_pill_after_the_record(self):
+    def test_upgrade_pokes_the_updates_pill_after_the_record(self):
+        # One poke, after the fresh needs-restarting answer: the count and the
+        # restart badge (there is no reboot pill any more) in one redraw.
         text = self.read(os.path.expanduser("~/.config/waybar/scripts/safe-upgrade.sh"))
-        self.assertIn("bar_signals.py\" poke reboot", text)
-        self.assertGreater(text.index("poke reboot"), text.index('mv -f "$record.tmp" "$record"'))
+        self.assertNotIn("poke reboot", text)
+        self.assertEqual(text.count("bar_signals.py\" poke updates"), 1)
+        self.assertGreater(text.index("poke updates"), text.index('mv -f "$record.tmp" "$record"'))
+        self.assertGreater(text.index("poke updates"), text.index("reboot_needed.py\" refresh"))
 
     def test_osk_key(self):
         text = self.read(HYPR, "lua", "binds.lua")

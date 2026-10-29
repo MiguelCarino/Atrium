@@ -1,0 +1,301 @@
+/* ===========================================================================
+   WINDOWS 95 -- the dock and the taskbar (~/.config/hypr/scripts/dock.py,
+   its base stylesheet dock.css). Copied to waybar/generated/theme-dock.css
+   by ~/.config/hypr/scripts/theme.py and imported LAST.
+
+   The same rules as this theme's waybar.css (its header has the
+   measurements): the dimmed #acacac face, bevels as four inset box-shadows
+   over a zero-width border, square corners, black text. The taskbar is the
+   Windows 95 taskbar: a raised grey strip with its light top edge, raised
+   buttons that go PRESSED (the bevel turned inside out, the face a shade
+   lighter) for the focused window and while held, a sunken well that holds
+   the tray, the toolbox button and the clock as one, and a bold "Start"
+   (theme.conf dock.start) on a raised button -- the word, no logo. The
+   floating dock is the same grey slab with the window frame's bevel, its
+   apps raised keys, the focused one pressed.
+
+   Nothing eases: a 1995 button is up or down. (The dock's own press and
+   launch hop are dock.py's; this theme's anim=calm and reduce motion turn
+   those off with everything else.)
+   =========================================================================== */
+
+@define-color w-face     #acacac;
+@define-color w-hover    #b6b6b6;
+@define-color w-hi       #e4e4e4;
+@define-color w-light    #c4c4c4;
+@define-color w-shadow   #727272;
+@define-color w-dark     #000000;
+@define-color w-navy     #000080;
+@define-color w-ink      #000000;
+@define-color w-paper    #ffffff;
+@define-color w-grey-text #333333;
+@define-color dock-shadow alpha(#000000, 0.30);
+
+* {
+    font-size: 12.5px;
+    font-weight: normal;
+}
+
+/* every button: no easing, square */
+button.dock-item,
+button.dock-start,
+button.dock-tray-item,
+button.dock-toolbox,
+button.dock-clock,
+button.dock-card,
+button.dock-card-close,
+.dock-label,
+.dock-dot {
+    transition: none;
+    border-radius: 0px;
+}
+
+/* --- the strip and the slab ---------------------------------------------------- */
+#dock.dock-layout-taskbar {
+    min-height: 34px;
+    padding: 2px 2px 0 2px;
+    border: none;
+    border-radius: 0px;
+    background-color: @w-face;
+    background-image: none;
+    box-shadow: inset 0 2px @w-light,
+                inset 0 1px @w-hi;
+}
+
+#dock.dock-layout-dock,
+#dock-preview {
+    border: none;
+    border-radius: 0px;
+    background-color: @w-face;
+    background-image: none;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+#dock.dock-layout-dock {
+    padding: 6px 8px;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark,
+                4px 4px 0 -1px @dock-shadow;
+}
+
+/* --- raised buttons ---------------------------------------------------------- */
+#dock.dock-layout-taskbar button.dock-item,
+button.dock-start {
+    margin: 2px 2px 2px 0px;
+    padding: 0px 6px;
+    min-height: 26px;
+    border: none;
+    background-color: @w-face;
+    background-image: none;
+    color: @w-ink;
+    box-shadow: inset 2px 2px @w-light,
+                inset -2px -2px @w-shadow,
+                inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+#dock.dock-layout-taskbar button.dock-item {
+    min-width: 150px;
+}
+
+#dock.dock-layout-taskbar button.dock-item:not(.running) .dock-label {
+    color: @w-grey-text;
+}
+
+#dock.dock-layout-taskbar button.dock-item:hover,
+button.dock-start:hover {
+    background-color: @w-hover;
+}
+
+/* the focused window, a held button: pressed in, the dither of Windows 95 as
+   a lighter face, the label a pixel down and right */
+#dock.dock-layout-taskbar button.dock-item.focused,
+#dock.dock-layout-taskbar button.dock-item:active,
+button.dock-start:active {
+    background-color: @w-light;
+    box-shadow: inset 2px 2px @w-shadow,
+                inset -2px -2px @w-light,
+                inset 1px 1px @w-dark,
+                inset -1px -1px @w-hi;
+}
+
+#dock.dock-layout-taskbar button.dock-item.focused,
+#dock.dock-layout-taskbar button.dock-item:active,
+button.dock-start:active {
+    padding: 1px 5px 0px 7px;
+}
+
+#dock.dock-layout-taskbar button.dock-item.focused .dock-label {
+    font-weight: bold;
+}
+
+#dock.dock-layout-taskbar button.dock-item.urgent {
+    background-color: @w-navy;
+}
+
+#dock.dock-layout-taskbar button.dock-item.urgent .dock-label {
+    color: @w-paper;
+}
+
+@keyframes dock-urgent {
+    0%   { background-color: @w-navy; }
+    49%  { background-color: @w-navy; }
+    50%  { background-color: @w-face; }
+    100% { background-color: @w-face; }
+}
+
+.dock-label,
+button.dock-item:not(.focused) .dock-label,
+button.dock-item:hover .dock-label {
+    margin-left: 4px;
+    color: @w-ink;
+}
+
+.dock-count {
+    background-color: @w-shadow;
+    color: @w-paper;
+    border-radius: 0px;
+}
+
+button.dock-start {
+    margin-right: 4px;
+    padding: 0px 6px 0px 4px;
+}
+
+.dock-start-glyph {
+    color: @w-ink;
+    font-size: 1em;
+}
+
+.dock-start-text {
+    margin-left: 4px;
+    font-weight: bold;
+    color: @w-ink;
+}
+
+/* --- the well: the tray, the toolbox button and the clock, one sunken box ----- */
+.dock-tray,
+#dock.dock-layout-taskbar button.dock-toolbox,
+button.dock-clock {
+    margin: 2px 0px;
+    border: none;
+    border-radius: 0px;
+    background-color: @w-face;
+    background-image: none;
+    color: @w-ink;
+}
+
+.dock-tray {
+    margin-left: 4px;
+    padding: 0px 2px 0px 4px;
+    box-shadow: inset 1px 1px @w-shadow,
+                inset 0 -1px @w-hi;
+}
+
+#dock.dock-layout-taskbar button.dock-toolbox {
+    padding: 0px 4px;
+    box-shadow: inset 0 1px @w-shadow,
+                inset 0 -1px @w-hi;
+}
+
+button.dock-clock {
+    margin-right: 2px;
+    padding: 0px 8px 0px 6px;
+    box-shadow: inset 0 1px @w-shadow,
+                inset -1px -1px @w-hi;
+}
+
+button.dock-tray-item,
+button.dock-tray-item:hover,
+#dock.dock-layout-taskbar button.dock-toolbox:hover,
+button.dock-clock:hover {
+    background-color: transparent;
+}
+
+.dock-toolbox-glyph,
+.dock-time {
+    color: @w-ink;
+}
+
+.dock-date {
+    color: @w-grey-text;
+}
+
+/* --- the dock: raised keys, the focused one pressed --------------------------- */
+#dock.dock-layout-dock button.dock-item,
+#dock.dock-layout-dock button.dock-toolbox {
+    margin: 0px 1px;
+    border: none;
+    border-radius: 0px;
+    background-color: @w-face;
+    box-shadow: inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark,
+                inset -2px -2px @w-shadow;
+}
+
+#dock.dock-layout-dock button.dock-item:hover,
+#dock.dock-layout-dock button.dock-toolbox:hover {
+    background-color: @w-hover;
+}
+
+#dock.dock-layout-dock button.dock-item.focused,
+#dock.dock-layout-dock button.dock-item:active {
+    background-color: @w-light;
+    box-shadow: inset 1px 1px @w-dark,
+                inset 2px 2px @w-shadow,
+                inset -1px -1px @w-hi;
+}
+
+#dock.dock-layout-dock button.dock-item.urgent {
+    background-color: @w-navy;
+}
+
+.dock-dot {
+    background-color: @w-ink;
+}
+
+button.dock-item.focused .dock-dot.lit {
+    background-color: @w-navy;
+}
+
+.dock-sep {
+    background-color: @w-shadow;
+    box-shadow: 1px 0 @w-hi;
+}
+
+/* --- the previews -------------------------------------------------------------- */
+button.dock-card {
+    color: @w-ink;
+}
+
+button.dock-card:hover,
+button.dock-card.focused {
+    background-color: @w-navy;
+    border-color: transparent;
+}
+
+button.dock-card:hover .dock-card-title,
+button.dock-card.focused .dock-card-title {
+    color: @w-paper;
+}
+
+.dock-thumb {
+    border-radius: 0px;
+}
+
+button.dock-card-close {
+    background-color: @w-face;
+    color: @w-ink;
+    box-shadow: inset 1px 1px @w-hi,
+                inset -1px -1px @w-dark;
+}
+
+button.dock-card-close:hover {
+    background-color: @w-hover;
+    color: @w-ink;
+}

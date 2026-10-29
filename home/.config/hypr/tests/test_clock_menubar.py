@@ -1,7 +1,8 @@
 """waybar/scripts/clock.py's menu-bar layout (a theme's bar.clock=menubar,
 read from waybar/generated/bar.conf): the one reading at the far right
 ("Tue 27 Oct  21:21"), its 12-hour and Japanese forms, the centre's day and
-clock going blank under it, and custom/logo's glyph. Hermetic: bar.conf is
+clock going blank under it, custom/logo's glyph, and custom/power hiding
+when that logo (its click is the power menu) is there. Hermetic: bar.conf is
 a scratch file per test, the language is passed in or patched, and the
 region preferences are given -- nothing reads the live generated folder."""
 import io
@@ -89,6 +90,29 @@ class Layout(unittest.TestCase):
         self.assertEqual(self.emit("clock")["text"], "")
         logo = self.emit("logo")
         self.assertEqual((logo["text"], logo["class"]), ("", "logo"))
+
+    def test_power_pill_hides_under_a_logo(self):
+        # No bar.conf, or no logo: the power button, as always.
+        self.assertEqual(self.emit("power")["text"], "\uf011")
+        self.write("clock=\nlogo=\n")
+        self.assertEqual(self.emit("power")["text"], "\uf011")
+        # A logo opens the power menu already (orchard's leaf): one, not two.
+        self.write("clock=menubar\nlogo=\uf06c\n")
+        power = self.emit("power")
+        self.assertEqual((power["text"], power["class"]), ("", "elsewhere"))
+        self.write("clock=menubar\nlogo=\n")
+        self.assertEqual(self.emit("power")["text"], "\uf011")
+
+    def test_power_pill_is_wired_to_bar_conf(self):
+        with open(os.path.expanduser("~/.config/waybar/config")) as handle:
+            text = handle.read()
+        block = text[text.index('"custom/power": {'):]
+        block = block[:block.index("}")]
+        self.assertIn('"exec": "$HOME/.config/waybar/scripts/clock.py power"', block)
+        self.assertIn('"interval": "once"', block)
+        self.assertIn('"signal": 10', block)
+        self.assertIn('"on-click": "$HOME/.config/waybar/scripts/panel.py toggle power"',
+                      text[text.index('"custom/logo": {'):])
 
     def test_back_to_the_centre(self):
         self.write("clock=menubar\nlogo=\n")

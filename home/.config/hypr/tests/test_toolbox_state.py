@@ -2,8 +2,10 @@
 Hyprland (the card is open while its layer surface is on top or overlay;
 waybar hides a bar by sending it to the bottom layer), and
 toolbox_dismiss.py folds it away when you move to another workspace, window
-or fullscreen. Hermetic: hyprctl is a stub on PATH; no card is opened."""
+or fullscreen; and toolbox.sh status hides the sliders pill while the dock
+has the toolbox button. Hermetic: hyprctl is a stub on PATH; no card is opened."""
 import importlib.util
+import json
 import os
 import socket
 import stat
@@ -53,6 +55,40 @@ class Shown(unittest.TestCase):
     def test_no_toolbox_or_no_answer(self):
         self.assertFalse(self.shown('{"DP-1": {"levels": {"3": []}}}'))
         self.assertFalse(self.shown(""))
+
+
+class Status(unittest.TestCase):
+    """toolbox.sh status, the sliders pill's text: empty (waybar hides the
+    pill) while the dock runs with its own toolbox button -- its record in
+    $XDG_RUNTIME_DIR with a live pid -- and the pill otherwise."""
+
+    def status(self, record=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            if record is not None:
+                with open(os.path.join(tmp, "dock-toolbox.json"), "w") as fh:
+                    fh.write(record)
+            env = dict(os.environ, XDG_RUNTIME_DIR=tmp)
+            out = subprocess.run(["bash", TOOLBOX, "status"], env=env, capture_output=True, text=True)
+            return json.loads(out.stdout)
+
+    def test_no_dock_shows_the_pill(self):
+        got = self.status()
+        self.assertNotEqual(got["text"], "")
+        self.assertEqual(got["class"], "closed")
+
+    def test_running_dock_hides_it(self):
+        got = self.status(json.dumps({"pid": os.getpid(), "output": "DP-1", "position": "bottom"}))
+        self.assertEqual((got["text"], got["class"]), ("", "docked"))
+
+    def test_a_crashed_docks_file_does_not(self):
+        self.assertNotEqual(self.status('{"pid": 999999999, "output": "DP-1"}')["text"], "")
+        self.assertNotEqual(self.status("garbage")["text"], "")
+
+    def test_refit_is_a_command(self):
+        with open(TOOLBOX) as fh:
+            text = fh.read()
+        self.assertIn("    refit)", text)
+        self.assertIn("systemctl --user try-restart waybar-toolbox.service", text)
 
 
 class Elsewhere(unittest.TestCase):

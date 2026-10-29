@@ -1,0 +1,228 @@
+/* ===========================================================================
+   ORBIT -- the dock and the taskbar (~/.config/hypr/scripts/dock.py, its
+   base stylesheet dock.css). Copied to waybar/generated/theme-dock.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST.
+
+   A flight-control console, like the bar's telemetry strip (this theme's
+   waybar.css has the measured contrast): the dock is one OPAQUE slate
+   plate, square-ish (radius 4), a 1px steel hairline round it and a lighter
+   rule along its bottom, and two faint inset rules inside, top and bottom,
+   like an instrument panel's bezel. Every app is a console KEY: at rest just its icon on the
+   plate, hovered the key steps up to the raised slate with its hairline
+   lit, and whatever is on -- the focused app -- carries the teal 2px
+   underline (an inset box-shadow, so nothing moves), as on the bar. No
+   gloss, no glow, no text shadow. The start key reads LAUNCH in Barlow
+   Semi Condensed with spaced capitals (theme.conf dock.start), the clock is
+   the mission clock in JetBrains Mono.
+   =========================================================================== */
+
+/* --- the theme's own names, again: stylesheets do not inherit (theme.py
+   check reads this file without the theme's panel.css) -- the values orbit's
+   panel.css gives them. Change them there and here together. */
+@define-color o-base    #070b14;
+@define-color o-dim     #8a9bb4;
+@define-color o-ice     #a9c4ec;
+@define-color o-ink     #04121a;
+@define-color o-raised  #16223a;   /* a key at rest, tracks */
+@define-color o-readout #e8edf5;
+@define-color o-rule    #2a3a57;
+@define-color o-rule-hi #3d5478;
+@define-color o-text    #dbe4f0;
+
+@define-color dock-shadow alpha(#000000, 0.60);
+@define-color dock-hover  @o-raised;
+
+/* --- the plate ------------------------------------------------------------- */
+#dock.dock-layout-dock,
+#dock.dock-layout-taskbar,
+#dock-preview {
+    background-color: @surface;
+    background-image: none;
+    border: 1px solid @o-rule;
+    border-bottom-color: @o-rule-hi;
+}
+
+#dock.dock-layout-dock {
+    border-radius: 4px;
+    box-shadow: inset 0 1px alpha(@o-rule-hi, 0.35),
+                inset 0 -3px alpha(@o-base, 0.60),
+                0 10px 20px -6px @dock-shadow;
+}
+
+#dock.dock-layout-taskbar {
+    border-width: 1px 0 0 0;
+    border-top-color: @o-rule-hi;
+    box-shadow: inset 0 1px alpha(@o-rule-hi, 0.25),
+                0 -2px 10px -2px @dock-shadow;
+}
+
+/* --- the keys ---------------------------------------------------------------- */
+button.dock-item,
+#dock.dock-layout-dock button.dock-toolbox,
+button.dock-start,
+button.dock-tray-item,
+#dock.dock-layout-taskbar button.dock-toolbox,
+button.dock-clock,
+button.dock-card,
+button.dock-card-close {
+    border-radius: 3px;
+}
+
+button.dock-item:hover,
+#dock.dock-layout-dock button.dock-toolbox:hover,
+button.dock-start:hover,
+button.dock-tray-item:hover,
+#dock.dock-layout-taskbar button.dock-toolbox:hover,
+button.dock-clock:hover,
+button.dock-card:hover {
+    background-color: @dock-hover;
+    border-color: @o-rule-hi;
+}
+
+button.dock-item:active,
+button.dock-start:active {
+    background-color: @o-base;
+    border-color: @o-rule-hi;
+}
+
+button.dock-item.focused {
+    background-color: @o-raised;
+    border-color: @o-rule;
+    box-shadow: inset 0 -2px @cyan;
+}
+
+button.dock-item.urgent {
+    background-color: mix(@surface, @yellow, 0.18);
+    border-color: @yellow;
+    box-shadow: inset 0 -2px @yellow;
+}
+
+@keyframes dock-urgent {
+    0%   { background-color: mix(@surface, @yellow, 0.10); }
+    50%  { background-color: mix(@surface, @yellow, 0.30); }
+    100% { background-color: mix(@surface, @yellow, 0.10); }
+}
+
+/* the dots: short telemetry ticks */
+.dock-dot {
+    min-height: 3px;
+    border-radius: 0px;
+    background-color: @o-dim;
+}
+
+.dock-dot.lit {
+    min-width: 6px;
+}
+
+button.dock-item.focused .dock-dot.lit {
+    background-color: @cyan;
+}
+
+button.dock-item.focused .dock-dot.lit.first {
+    min-width: 12px;
+}
+
+.dock-sep {
+    background-color: @o-rule;
+}
+
+button.dock-toolbox:hover .dock-toolbox-glyph {
+    color: @cyan;
+}
+
+/* --- the taskbar ------------------------------------------------------------- */
+#dock.dock-layout-taskbar button.dock-item {
+    border-width: 1px;
+    border-style: solid;
+    border-color: transparent;
+    border-radius: 3px;
+}
+
+#dock.dock-layout-taskbar button.dock-item.running {
+    border-color: @o-rule;
+    background-color: alpha(@o-raised, 0.55);
+}
+
+#dock.dock-layout-taskbar button.dock-item.focused {
+    border-color: @o-rule-hi;
+    background-color: @o-raised;
+    box-shadow: inset 0 -2px @cyan;
+}
+
+#dock.dock-layout-taskbar button.dock-item.urgent {
+    border-color: @yellow;
+}
+
+.dock-label {
+    color: @o-text;
+}
+
+button.dock-item:not(.focused) .dock-label {
+    color: @o-dim;
+}
+
+button.dock-item:hover .dock-label {
+    color: @o-text;
+}
+
+.dock-count {
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    border-radius: 2px;
+    color: @o-ink;
+    background-color: @o-ice;
+}
+
+/* the start key: LAUNCH, engraved */
+button.dock-start {
+    padding: 0 12px;
+    border: 1px solid @o-rule;
+    border-bottom-color: @o-rule-hi;
+    background-color: @o-raised;
+}
+
+button.dock-start:hover {
+    box-shadow: inset 0 -2px @cyan;
+}
+
+.dock-start-glyph {
+    color: @cyan;
+}
+
+.dock-start-text {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: @o-text;
+}
+
+.dock-tray {
+    padding: 0 4px;
+    border-left: 1px solid @o-rule;
+    border-right: 1px solid @o-rule;
+}
+
+.dock-time {
+    font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
+    color: @o-readout;
+}
+
+.dock-date {
+    font-family: "Barlow Semi Condensed", "Barlow", sans-serif;
+    letter-spacing: 1px;
+    color: @o-dim;
+}
+
+/* --- the previews ------------------------------------------------------------ */
+#dock-preview {
+    border-radius: 4px;
+}
+
+button.dock-card.focused {
+    background-color: @o-raised;
+    border-color: @o-rule-hi;
+    box-shadow: inset 0 -2px @cyan;
+}
+
+.dock-thumb {
+    border-radius: 2px;
+}

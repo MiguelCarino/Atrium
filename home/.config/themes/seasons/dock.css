@@ -1,0 +1,194 @@
+/* ===========================================================================
+   SEASONS -- the dock and the taskbar (~/.config/hypr/scripts/dock.py, its
+   base stylesheet dock.css). Copied to waybar/generated/theme-dock.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST.
+
+   A field notebook through the year, like the bar's plates (this theme's
+   waybar.css has the measured contrast, over all four seasons): the dock
+   is one calm, rounded (radius 14) plate of OPAQUE dark with a 1px
+   hairline round it and a soft shadow, the apps flat on it. Hovered, a
+   faint accent tint comes into the plate and its hairline lightens -- a
+   change of light; whatever is on (the focused app) carries the 2px accent
+   UNDERLINE, an inset box-shadow, as on the bar. The accent is the
+   season's (@cyan: spring blossom, summer lagoon, autumn copper, winter
+   frost), and so is every other colour here.
+
+   NO COLOUR IS WRITTEN HERE (tests/test_theme_seasons_surfaces.py checks
+   it): only the season's s-* names (season/<s>/palette.css, put before
+   this file by theme.py), @cyan, the base names panel.css redefines from
+   them, and mix()es of those -- so the same rules are right all year, and
+   a season change is a palette change. Sizes never change with it.
+   =========================================================================== */
+
+@define-color dock-shadow alpha(@s-floor, 0.80);
+@define-color dock-hover  mix(@s-surface, @cyan, 0.10);
+
+/* --- the plate --------------------------------------------------------------- */
+#dock.dock-layout-dock,
+#dock.dock-layout-taskbar,
+#dock-preview {
+    background-color: @s-surface;
+    background-image: none;
+    border: 1px solid @s-rule;
+}
+
+#dock.dock-layout-dock {
+    border-radius: 14px;
+    box-shadow: 0 10px 22px -6px @dock-shadow,
+                0 2px 4px -1px @dock-shadow;
+}
+
+#dock.dock-layout-taskbar {
+    border-width: 1px 0 0 0;
+    box-shadow: 0 -2px 10px -3px @dock-shadow;
+}
+
+/* --- the buttons ----------------------------------------------------------------- */
+button.dock-item,
+#dock.dock-layout-dock button.dock-toolbox,
+button.dock-start,
+button.dock-tray-item,
+#dock.dock-layout-taskbar button.dock-toolbox,
+button.dock-clock,
+button.dock-card {
+    border-radius: 10px;
+}
+
+button.dock-item:hover,
+#dock.dock-layout-dock button.dock-toolbox:hover,
+button.dock-start:hover,
+button.dock-tray-item:hover,
+#dock.dock-layout-taskbar button.dock-toolbox:hover,
+button.dock-clock:hover,
+button.dock-card:hover {
+    background-color: @dock-hover;
+    border-color: @s-rule-hi;
+}
+
+button.dock-item:active,
+button.dock-start:active {
+    background-color: @s-floor;
+    border-color: @s-rule-hi;
+}
+
+button.dock-item.focused {
+    background-color: @s-raised;
+    border-color: @s-rule;
+    box-shadow: inset 0 -2px @cyan;
+}
+
+button.dock-item.urgent {
+    background-color: mix(@s-surface, @s-warn, 0.16);
+    border-color: @s-warn;
+    box-shadow: inset 0 -2px @s-warn;
+}
+
+@keyframes dock-urgent {
+    0%   { background-color: mix(@s-surface, @s-warn, 0.08); }
+    50%  { background-color: mix(@s-surface, @s-warn, 0.28); }
+    100% { background-color: mix(@s-surface, @s-warn, 0.08); }
+}
+
+/* the dots: small round marks, the season's accent for the focused app */
+.dock-dot {
+    background-color: @s-dim;
+}
+
+button.dock-item.focused .dock-dot.lit {
+    background-color: @cyan;
+}
+
+.dock-sep {
+    background-color: @s-rule;
+}
+
+.dock-toolbox-glyph {
+    color: @s-dim;
+}
+
+button.dock-toolbox:hover .dock-toolbox-glyph {
+    color: @cyan;
+}
+
+/* --- the taskbar ------------------------------------------------------------------ */
+#dock.dock-layout-taskbar button.dock-item {
+    border-width: 1px;
+    border-style: solid;
+    border-color: transparent;
+    border-radius: 10px;
+}
+
+#dock.dock-layout-taskbar button.dock-item.running {
+    border-color: @s-rule;
+}
+
+#dock.dock-layout-taskbar button.dock-item.focused {
+    border-color: @s-rule-hi;
+    background-color: @s-raised;
+    box-shadow: inset 0 -2px @cyan;
+}
+
+#dock.dock-layout-taskbar button.dock-item.urgent {
+    border-color: @s-warn;
+}
+
+.dock-label {
+    color: @s-text;
+}
+
+button.dock-item:not(.focused) .dock-label {
+    color: @s-dim;
+}
+
+button.dock-item:hover .dock-label {
+    color: @s-text;
+}
+
+.dock-count {
+    color: @s-ink;
+    background-color: @cyan;
+}
+
+button.dock-start {
+    border: 1px solid @s-rule;
+    background-color: @s-raised;
+}
+
+.dock-start-glyph {
+    color: @cyan;
+}
+
+.dock-start-text {
+    color: @s-text;
+}
+
+.dock-time {
+    font-feature-settings: "tnum, lnum";
+    color: @s-readout;
+}
+
+/* the date as an almanac's running head: small capitals */
+.dock-date {
+    font-feature-settings: "smcp, c2sc, tnum, lnum";
+    color: @s-dim;
+}
+
+/* --- the previews ------------------------------------------------------------------- */
+#dock-preview {
+    border-radius: 12px;
+}
+
+button.dock-card.focused {
+    border-color: @s-rule-hi;
+    background-color: @s-raised;
+    box-shadow: inset 0 -2px @cyan;
+}
+
+.dock-thumb {
+    border-radius: 6px;
+}
+
+button.dock-card-close:hover {
+    color: @s-readout;
+    background-color: @s-crit;
+}

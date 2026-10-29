@@ -1,7 +1,8 @@
 # Atrium
 
 A complete desktop on [Hyprland](https://hyprland.org) for Fedora: the bar,
-the panels, notifications, a launcher, a Settings app for every part of it,
+the panels, notifications, a launcher, a dock or a Windows-style taskbar (off
+until you turn it on in Settings), a Settings app for every part of it,
 desktop themes that restyle everything at once, and a set of local, private
 smart features (an assistant, voice typing, spoken replies, background tasks,
 a nightly health checkup and more). Nothing leaves the machine unless you
@@ -76,6 +77,7 @@ memory (any vendor) next to what is already on it.
 | `home/.config/waybar/` | the bar, its pills and panels |
 | `home/.config/themes/` | desktop themes (`scripts/theme.py`) |
 | `home/.config/{mako,wofi,uwsm,autostart,systemd/user,qt5ct,qt6ct}` | notifications, launcher, session, services, Qt colours |
+| `home/.local/share/nautilus-python/extensions/` | Files (Nautilus): Open in Terminal, Open in Text Editor, Set as Wallpaper, Ask the Local Model, Copy Path / URI, and a Git column with emblems; the logic is `scripts/nautilus_actions.py`. Loads when Nautilus starts (`nautilus -q` closes it) |
 | `packages/` | Fedora packages, repositories, the services install.sh enables |
 | `system/` | the root-side pieces (cpu-power, railguard's SysRq keys, the greetd login screen) |
 | `install.sh`, `uninstall.sh` | set it up; put back what it replaced |

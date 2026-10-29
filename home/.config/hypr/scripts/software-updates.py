@@ -37,8 +37,8 @@ Nothing here installs anything or needs root. The one source of each fact:
              dnf upgrade, build + check the NVIDIA module for the newest
              kernel, flatpak, firmware listing. It records how that went in
              $XDG_STATE_HOME/hypr/last-upgrade.tsv, read back here, and
-             when it finishes pokes the updates and reboot pills itself
-             (bar_signals.py "updates", "reboot").
+             when it finishes pokes the updates pill itself -- its count
+             and its restart badge (bar_signals.py "updates").
   reboot     `needs-restarting -r` (exit 1 = a core library, the kernel or
              a service updated since boot), and the newest installed
              kernel-core against `uname -r`.

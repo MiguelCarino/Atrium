@@ -1,0 +1,274 @@
+/* ===========================================================================
+   LUNA -- the dock and the taskbar (~/.config/hypr/scripts/dock.py, its
+   base stylesheet dock.css). Copied to waybar/generated/theme-dock.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST.
+
+   The XP-style taskbar this theme's waybar.css draws at the top, along the
+   bottom: the blue strip with its gloss (a light top line, a darker band
+   under it, the deep blue below), the green "start" button rounded on its
+   right end with its own gloss and the word in bold italic (theme.conf
+   dock.start: the word, no logo), the task buttons in a lighter blue with
+   a soft top highlight, PRESSED darker and inset for the focused window,
+   the hot-track orange rim only under the pointer, and the tray and clock
+   in a sunken lighter-blue well with a dark left edge. White text on the
+   blue, with the faint dark shadow XP put under it. The floating dock is
+   the same blue, rounded, its tiles the task buttons' blue.
+   =========================================================================== */
+
+@define-color l-strip      #1d4cb0;
+@define-color l-strip-hi   #3d74e0;
+@define-color l-strip-mid  #2456c4;
+@define-color l-strip-lo   #163d94;
+@define-color l-strip-line #5a8cf0;
+@define-color l-strip-dark #0e2a6a;
+@define-color l-task       #3c81f3;
+@define-color l-task-lo    #2560d8;
+@define-color l-task-hov   #5394ff;
+@define-color l-task-hot   #6aa6ff;
+@define-color l-pressed    #1e4fb8;
+@define-color l-pressed-lo #173f96;
+@define-color l-tray       #0f8ee3;
+@define-color l-tray-lo    #0b6dc0;
+@define-color l-tray-edge  #0a4a8a;
+@define-color l-tray-hi    #4fb2f2;
+@define-color l-start      #3c9a35;
+@define-color l-start-hi   #5cbf4e;
+@define-color l-start-lo   #2b7a27;
+@define-color l-start-hot  #6fd05e;
+@define-color l-start-rim  #1d5a1d;
+@define-color l-glow       #f0a030;
+@define-color l-urgent     #d8902a;
+@define-color l-urgent-hi  #f0b050;
+@define-color l-urgent-lo  #b8721a;
+@define-color l-rim        #143a8c;
+@define-color l-lit        #b4daff;
+@define-color l-white      #ffffff;
+@define-color l-black      #000000;
+@define-color dock-shadow  alpha(#001028, 0.55);
+
+* {
+    font-size: 13px;
+    font-weight: normal;
+}
+
+/* --- the strip and the dock's card ---------------------------------------- */
+#dock.dock-layout-taskbar {
+    min-height: 36px;
+    padding: 0px;
+    border: none;
+    background-color: @l-strip;
+    background-image: linear-gradient(to bottom, @l-strip-hi 0px, @l-strip-mid 3px,
+                                      @l-strip 50%, @l-strip-lo 100%);
+    box-shadow: inset 0 1px @l-strip-line,
+                inset 0 -1px @l-strip-dark,
+                0 -2px 6px -2px @dock-shadow;
+}
+
+#dock.dock-layout-dock {
+    border: 1px solid @l-rim;
+    border-radius: 14px;
+    background-color: @l-strip;
+    background-image: linear-gradient(to bottom, @l-strip-hi 0px, @l-strip-mid 4px,
+                                      @l-strip 50%, @l-strip-lo 100%);
+    box-shadow: inset 0 1px @l-strip-line,
+                0 8px 16px -4px @dock-shadow;
+}
+
+/* --- the start button ------------------------------------------------------- */
+button.dock-start {
+    margin: 0px 10px 0px 0px;
+    padding: 0px 18px 0px 10px;
+    min-height: 36px;
+    border: 1px solid @l-start-rim;
+    border-left-width: 0px;
+    border-radius: 0px 16px 16px 0px;
+    background-color: @l-start;
+    background-image: linear-gradient(to bottom, @l-start-hi 0%, @l-start 45%, @l-start-lo 100%);
+    box-shadow: inset 0 1px alpha(@l-white, 0.35),
+                inset -1px 0 alpha(@l-white, 0.12),
+                2px 0 3px -1px alpha(@l-black, 0.35);
+    color: @l-white;
+}
+
+button.dock-start:hover {
+    background-image: linear-gradient(to bottom, @l-start-hot 0%, @l-start-hi 45%, @l-start 100%);
+}
+
+button.dock-start:active {
+    background-image: linear-gradient(to bottom, @l-start-lo 0%, @l-start 60%, @l-start-hi 100%);
+    box-shadow: inset 0 2px 3px alpha(@l-black, 0.40);
+}
+
+.dock-start-glyph,
+.dock-start-text {
+    color: @l-white;
+    text-shadow: 1px 1px 1px alpha(@l-black, 0.55);
+}
+
+.dock-start-text {
+    margin-left: 6px;
+    font-weight: bold;
+    font-style: italic;
+    font-size: 16px;
+}
+
+/* --- the task buttons -------------------------------------------------------- */
+#dock.dock-layout-taskbar button.dock-item {
+    margin: 4px 2px;
+    padding: 0px 8px;
+    min-width: 150px;
+    min-height: 26px;
+    border: 1px solid @l-rim;
+    border-radius: 3px;
+    background-color: @l-task;
+    background-image: linear-gradient(to bottom, @l-task-hov 0%, @l-task 20%, @l-task-lo 100%);
+    box-shadow: inset 0 1px alpha(@l-white, 0.30),
+                inset 1px 0 alpha(@l-white, 0.10);
+    color: @l-white;
+}
+
+#dock.dock-layout-taskbar button.dock-item:not(.running) {
+    background-color: alpha(@l-task, 0.45);
+    background-image: none;
+    box-shadow: none;
+}
+
+#dock.dock-layout-taskbar button.dock-item:hover {
+    background-image: linear-gradient(to bottom, @l-task-hot 0%, @l-task-hov 20%, @l-task 100%);
+    border-color: @l-glow;
+}
+
+#dock.dock-layout-taskbar button.dock-item:active,
+#dock.dock-layout-taskbar button.dock-item.focused {
+    background-color: @l-pressed;
+    background-image: linear-gradient(to bottom, @l-pressed-lo 0%, @l-pressed 30%, @l-pressed 100%);
+    box-shadow: inset 1px 1px 2px alpha(@l-black, 0.45);
+}
+
+#dock.dock-layout-taskbar button.dock-item.urgent {
+    background-color: @l-urgent;
+    background-image: linear-gradient(to bottom, @l-urgent-hi 0%, @l-urgent 30%, @l-urgent-lo 100%);
+}
+
+@keyframes dock-urgent {
+    0%   { border-color: @l-rim; }
+    50%  { border-color: @l-glow; }
+    100% { border-color: @l-rim; }
+}
+
+.dock-label,
+button.dock-item:not(.focused) .dock-label {
+    color: @l-white;
+    text-shadow: 1px 1px alpha(@l-black, 0.35);
+}
+
+#dock.dock-layout-taskbar button.dock-item.focused .dock-label {
+    font-weight: bold;
+}
+
+.dock-count {
+    color: @l-white;
+    background-color: alpha(@l-black, 0.30);
+}
+
+/* --- the tray well ------------------------------------------------------------- */
+.dock-tray,
+button.dock-clock,
+#dock.dock-layout-taskbar button.dock-toolbox {
+    margin: 0px;
+    border-radius: 0px;
+    background-color: @l-tray;
+    background-image: linear-gradient(to bottom, @l-tray-hi 0px, @l-tray 3px, @l-tray 60%, @l-tray-lo 100%);
+    color: @l-white;
+}
+
+.dock-tray {
+    padding: 0px 2px 0px 8px;
+    box-shadow: inset 1px 0 @l-tray-edge,
+                inset 2px 0 alpha(@l-white, 0.18);
+}
+
+button.dock-clock {
+    padding: 0px 12px 0px 8px;
+}
+
+button.dock-tray-item,
+button.dock-clock:hover,
+#dock.dock-layout-taskbar button.dock-toolbox:hover {
+    color: @l-white;
+}
+
+button.dock-tray-item:hover {
+    background-color: alpha(@l-white, 0.14);
+}
+
+.dock-toolbox-glyph,
+.dock-time {
+    color: @l-white;
+    text-shadow: 1px 1px alpha(@l-black, 0.35);
+}
+
+.dock-date {
+    color: @l-lit;
+}
+
+/* --- the dock ------------------------------------------------------------------- */
+#dock.dock-layout-dock button.dock-item,
+#dock.dock-layout-dock button.dock-toolbox {
+    border-radius: 6px;
+    color: @l-white;
+}
+
+#dock.dock-layout-dock button.dock-item:hover,
+#dock.dock-layout-dock button.dock-toolbox:hover {
+    background-color: alpha(@l-task-hov, 0.55);
+    border-color: @l-glow;
+}
+
+#dock.dock-layout-dock button.dock-item.focused {
+    background-color: @l-pressed;
+    border-color: @l-rim;
+    box-shadow: inset 1px 1px 2px alpha(@l-black, 0.45);
+}
+
+#dock.dock-layout-dock button.dock-item.urgent {
+    background-color: alpha(@l-urgent, 0.70);
+}
+
+.dock-dot {
+    background-color: @l-lit;
+}
+
+button.dock-item.focused .dock-dot.lit {
+    background-color: @l-glow;
+}
+
+.dock-sep {
+    background-color: alpha(@l-white, 0.25);
+    box-shadow: 1px 0 alpha(@l-black, 0.20);
+}
+
+#dock.dock-layout-dock .dock-toolbox-glyph {
+    color: @l-white;
+}
+
+/* --- the previews: the blue of a menu ---------------------------------------- */
+#dock-preview {
+    border: 1px solid @l-rim;
+    border-radius: 8px;
+    background-color: @l-strip;
+    background-image: linear-gradient(to bottom, @l-strip-hi 0px, @l-strip-mid 3px,
+                                      @l-strip 50%, @l-strip-lo 100%);
+    box-shadow: inset 0 1px @l-strip-line;
+}
+
+button.dock-card,
+.dock-card-title {
+    color: @l-white;
+}
+
+button.dock-card:hover,
+button.dock-card.focused {
+    background-color: @l-pressed;
+    border-color: @l-glow;
+}

@@ -1,11 +1,28 @@
 #!/usr/bin/env bash
 # Show / hide the toolbox section: the second waybar (config-toolbox,
 # waybar-toolbox.service) holding game mode, night light, keep awake, shortcuts and
-# the tray, which drops down under the sliders pill on the main bar.
+# the tray, which drops down under the sliders pill on the main bar -- or,
+# while the dock or the taskbar runs, comes up next to their toolbox button.
 #
-#   toolbox.sh toggle    the sliders pill's on-click
+#   toolbox.sh toggle    the sliders pill's on-click, and the dock's button
 #   toolbox.sh hide      fold it away if it is open (panel.py, the shortcuts row)
-#   toolbox.sh status    JSON for the sliders pill: class "open" lights it
+#   toolbox.sh status    JSON for the sliders pill: class "open" lights it;
+#                        empty (waybar hides the pill) while the dock runs
+#   toolbox.sh refit     fold it away and place it again for where its button
+#                        is now, restarting the hidden toolbox if that moved
+#                        it (dock.py: switched on or off, a new layout, edge
+#                        or autohide -- never on a click)
+#
+# THE PILL AND THE DOCK. hypr/scripts/dock.py has a toolbox button of its own
+# (the taskbar's beside the tray, the dock's after a line at its end), so
+# while it runs the top bar's sliders pill is one button too many and goes:
+# `status` prints an empty text. "While it runs" is DOCK_BUTTON below, the
+# file dock.py writes with where that button is (toolbox_fit.py places the
+# card from it) and removes when it stops: there, and its pid alive (a crash
+# leaves the file behind). Not dock.json's "enabled": a dock switched on that
+# failed to start would leave no button anywhere. dock.py pokes the pill
+# (signal 12) when the button comes and goes, and `dock.py set on|off` does.
+# Builtins only -- status runs on every redraw of the pill.
 #
 # waybar only has a toggle (SIGUSR1), no show or hide. Whether the card is
 # open is asked of Hyprland each time (shown, below): waybar hides a bar by
@@ -32,6 +49,16 @@ signals() {
 }
 
 DISMISS_PID=${XDG_RUNTIME_DIR:-/tmp}/waybar-toolbox-dismiss.pid
+DOCK_BUTTON=${XDG_RUNTIME_DIR:-/run/user/$UID}/dock-toolbox.json
+
+# True while dock.py runs and has its toolbox button (see the top).
+docked() {
+    local text=''
+    [[ -r $DOCK_BUTTON ]] || return 1
+    read -r -d '' text < "$DOCK_BUTTON"
+    [[ $text =~ \"pid\":\ *([0-9]+) ]] || return 1
+    [[ -e /proc/${BASH_REMATCH[1]} ]]
+}
 
 # The click-outside catcher (toolbox_dismiss.py) lives exactly as long as the
 # section is open. The cmdline check is because pids get recycled.
@@ -136,14 +163,25 @@ case ${1:-} in
                 systemctl --user kill -s "RTMIN+$HANDLE_SIGNAL" --kill-whom=main waybar.service
             fi
         fi ;;
+    refit)
+        signals
+        shown && flip       # a restart starts it hidden: fold it first, the proper way
+        if python3 "$(dirname "$0")/toolbox_fit.py"; then
+            # try-restart: a toolbox not running yet reads the new include
+            # when it starts anyway.
+            systemctl --user try-restart waybar-toolbox.service 9>&-
+        fi
+        systemctl --user kill -s "RTMIN+$HANDLE_SIGNAL" --kill-whom=main waybar.service ;;
     status)
         # No tooltip: custom/toolbox has "tooltip": false (the card is what
         # the click opens).
-        if [[ -e $FLAG ]]; then
+        if docked; then
+            printf '{"text": "", "class": "docked"}\n'
+        elif [[ -e $FLAG ]]; then
             printf '{"text": "", "class": "open"}\n'
         else
             printf '{"text": "", "class": "closed"}\n'
         fi ;;
-    *) echo "usage: toolbox.sh toggle|hide|status" >&2; exit 2 ;;
+    *) echo "usage: toolbox.sh toggle|hide|status|refit" >&2; exit 2 ;;
 esac
 exit 0

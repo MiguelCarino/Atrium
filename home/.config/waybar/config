@@ -47,7 +47,6 @@
         "custom/notifications"
     ],
     "modules-right": [
-        "custom/reboot",
         "custom/doctor",
         "custom/tasks",
         "custom/context",
@@ -205,6 +204,16 @@
         // snapshot of /, dnf, then builds and checks the NVIDIA module for the
         // newest kernel and says whether a reboot is safe, then flatpak and a
         // firmware listing). It re-signals this pill.
+        //
+        // A restart being due is part of this pill too (there is no reboot
+        // pill any more): a circular arrow after the count, class "reboot"
+        // and the reasons in the tooltip -- a newer kernel installed than
+        // the one running, or core libraries / services updated since boot
+        // (scripts/reboot_needed.py, whose needs-restarting answer is cached
+        // 30 min; updates.sh asks it on every run, so the badge follows each
+        // check and each signal 8). The card's RESTART section says why and
+        // has Check again and a two-click "Reboot now" -- nothing reboots by
+        // itself. bar_signals.py "updates" is what redraws the badge too.
         "on-click": "$HOME/.config/waybar/scripts/panel.py toggle updates",
         "on-click-right": "$HOME/.config/hypr/scripts/bar_signals.py poke updates"
     },
@@ -648,17 +657,29 @@
     // the far right, where every desktop has always kept it -- and as far from
     // the busy pills as it can get. Log out / reboot / power off take a second
     // click inside the panel, so a stray click here only ever opens a menu.
-    // Static glyph from exec: waybar hides a custom module whose exec prints nothing.
+    //
+    // ONE POWER MENU ON THE BAR: a theme whose bar.logo is set (orchard and
+    // orchard-dark: the leaf, custom/logo at the top left) opens the power
+    // panel from that mark already, so there this pill prints an empty text
+    // and waybar hides it (clock.py power reads bar.conf's logo=). Every
+    // other theme keeps it. The taskbar's start button is no such place --
+    // it opens the launcher, which has Lock but no power menu -- so the pill
+    // stays with the taskbar on. No poll: interval once, and signal 10 (the
+    // menu-bar layout's, bar_signals.py "day") re-runs it when theme.py
+    // rewrites bar.conf -- a theme switch shows or hides it at once.
     "custom/power": {
         "tooltip": false,
-        "exec": "echo '{\"text\": \"\uf011\", \"tooltip\": \"Power menu  (Super+Esc)\"}'",
+        "exec": "$HOME/.config/waybar/scripts/clock.py power",
         "return-type": "json",
         "interval": "once",
+        "signal": 10,
         "format": "{}",
         "on-click": "$HOME/.config/waybar/scripts/panel.py toggle power"
     },
 
     // ---- The menu-bar layout (a theme's bar.* keys) ---------------------
+    // (custom/power above follows bar.logo the other way round: hidden when
+    // the logo is there.)
     // Both print an empty text -- and waybar hides an empty custom module --
     // unless the theme asks for them through waybar/generated/bar.conf
     // (theme.py writes it from bar.clock / bar.logo; clock.py reads it). So
@@ -707,6 +728,14 @@
     // (config-toolbox, waybar-toolbox.service), not part of this bar, so
     // opening it moves nothing here. scripts/toolbox.sh sends SIGRTMIN+12 on
     // every open/close so the pill re-reads its state (class open lights it).
+    //
+    // While the dock or the taskbar runs (hypr/scripts/dock.py) this pill
+    // prints an empty text, so waybar hides it: they carry a toolbox button
+    // of their own (the same glyph), and the card comes up from the bottom
+    // next to that one instead (toolbox_fit.py). dock.py writes where its
+    // button is to $XDG_RUNTIME_DIR/dock-toolbox.json and removes it when it
+    // stops; toolbox.sh status checks that file, and dock.py sends signal 12
+    // when its button comes and goes (and `dock.py set on|off` does).
     "custom/toolbox": {
         "tooltip": false,
         "exec": "$HOME/.config/waybar/scripts/toolbox.sh status",
@@ -718,22 +747,6 @@
     },
 
     // ---- Pills that only show up when something needs a look ----------
-
-    // Reboot needed (scripts/reboot_needed.py): nothing normally; a circular
-    // arrow when a newer kernel is installed than the one running, or
-    // needs-restarting -r (dnf-utils) says core libraries or services were
-    // updated since boot. Its answer is cached 30 min, the same as this
-    // interval; signal 28 (bar_signals.py "reboot") redraws it at once.
-    // The tooltip says why. Click: the reboot card (why, the command, and
-    // a two-click "Reboot now" -- nothing reboots by itself).
-    "custom/reboot": {
-        "exec": "$HOME/.config/waybar/scripts/reboot_needed.py",
-        "return-type": "json",
-        "interval": 1800,
-        "signal": 28,
-        "format": "{}",
-        "on-click": "$HOME/.config/waybar/scripts/panel.py toggle reboot"
-    },
 
     // Keep awake (scripts/awake_pill.py): a mug -- and its end time for a
     // timed one -- only while Keep awake is on (the toolbox row, Settings >

@@ -66,6 +66,9 @@ Where a theme lives
         panel.css     the popup panels         -> waybar/generated/theme-panel.css
         launcher.css  launcher, quick note, clipboard
                                                -> waybar/generated/theme-launcher.css
+        dock.css      the dock / taskbar (dock.py; it watches the copy
+                      and restyles itself)
+                                               -> waybar/generated/theme-dock.css
         llm-chat.css  the LLM chat window (llm-chat.py; it watches
                       the copy and restyles itself, and switches to the
                       theme's mascot, mascots.py)
@@ -101,7 +104,7 @@ base files, and waybar draws NOTHING styled if an import target is missing.
 
 Each generated stylesheet is imported LAST by its base file (style.css,
 style-toolbox.css, panel.css, launcher.css, llm-chat.css,
-wofi/style.css), after
+wofi/style.css, scripts/dock.css), after
 generated/accent.css. GTK3 resolves a named colour by its last definition
 anywhere in the provider, so a theme recolours by redefining the PALETTE
 names at the top of each base file; every other property it changes with a
@@ -318,11 +321,25 @@ theme.conf KEYS (cyberpunk's file lists every one with its value)
                                nothing (waybar hides them). "" = the centre
                                clock as always
     bar.logo=                  a glyph for custom/logo, the bar's first item
-                               (orchard: Font Awesome's leaf). "" = hidden
+                               (orchard: Font Awesome's leaf). "" = hidden.
+                               Its click is the power menu, so with a logo
+                               the power pill (custom/power, clock.py power)
+                               hides: one power menu on the bar. The
+                               taskbar's start button does not count (it
+                               opens the launcher, which has no power menu)
     bar.workspaces=            dots: the workspaces as ● (active) and ○ dots
                                (theme-modules.json). "" = their numbers
                                (bar.clock and bar.logo are written to
                                waybar/generated/bar.conf, which clock.py reads)
+    dock.start=                a word beside the taskbar's start button glyph
+                               (dock.py, the "taskbar" layout; win95 and luna:
+                               "Start"). "" = the glyph alone. Written to
+                               bar.conf as start=, where dock.py reads it
+    dock.magnify=              yes: the dock's icons grow under the pointer,
+                               macOS-like (dock.py's magnify setting at
+                               "theme", its default; orchard and
+                               orchard-dark). "" or no = they do not. Written
+                               to bar.conf as magnify=
     color.<name>=#rrggbb       colours DRAWN by code rather than CSS -- Pango
                                markup in bar scripts, cairo graphs in panels:
                                written to waybar/generated/colors.conf, read
@@ -410,6 +427,8 @@ ISLAND_SNAPSHOT = os.path.join(os.path.dirname(STATE), "island.before-theme.json
 BAR_CONF_NAME = "bar.conf"
 BAR_CLOCKS = ("", "menubar")
 BAR_WORKSPACES = ("", "dots")
+DOCK_START_MAX = 12                        # dock.start=: one short word
+DOCK_MAGNIFY = ("", "yes", "no")           # dock.magnify=
 
 # The values cyberpunk/theme.conf holds, so that a deleted or half-written
 # theme folder can never leave a key unanswered (the slideshow, for one, asks
@@ -424,7 +443,8 @@ DEFAULTS = {
     "icon_theme": "Adwaita", "gtk_button_layout": "appmenu:close",
     "crt_suggest": "no", "lang": "en", "cursor_theme": "Adwaita",
     "island.enabled": "", "island.style": "", "island.match_bar": "",
-    "bar.clock": "", "bar.logo": "", "bar.workspaces": "",
+    "bar.clock": "", "bar.logo": "", "bar.workspaces": "", "dock.start": "",
+    "dock.magnify": "",
     "term.font": BASE_MONO, "term.font_size": "14", "glass": "12", "term.bright_bold": "no",
     "cosmic.background": "#0d1018", "cosmic.foreground": "#c8d3e6", "cosmic.accent": "#00f0ff",
     "cosmic.radius": "1",
@@ -443,6 +463,7 @@ TARGETS = {
     "launcher.css": (os.path.join(GEN, "theme-launcher.css"), "css", [os.path.join(HYPR, "launcher.css")]),
     "llm-chat.css": (os.path.join(GEN, "theme-llm-chat.css"), "css",
                      [os.path.join(HYPR, "llm-chat.css")]),
+    "dock.css": (os.path.join(GEN, "theme-dock.css"), "css", [os.path.join(HYPR, "dock.css")]),
     "wofi.css": (os.path.join(GEN, "theme-wofi.css"), "css",
                  [os.path.join(HOME, ".config", "wofi", "style.css")]),
     "mako": (os.path.join(HOME, ".config", "mako", "generated", "theme"), "mako", []),
@@ -1134,10 +1155,14 @@ def bar_conf():
 def bar_text(conf):
     """waybar/generated/bar.conf: the bar-layout keys clock.py reads
     (bar_style()): clock=menubar moves the date and time to the far right,
-    logo= is custom/logo's glyph. Empty values = the usual bar."""
+    logo= is custom/logo's glyph; start= is the word on dock.py's start
+    button (dock.start), magnify= whether its dock magnifies (dock.magnify).
+    Empty values = the usual bar."""
     return (f"# {MARK} from theme '{conf['id']}' -- do not edit.\n"
             f"clock={conf.get('bar.clock', '')}\n"
-            f"logo={conf.get('bar.logo', '')}\n")
+            f"logo={conf.get('bar.logo', '')}\n"
+            f"start={conf.get('dock.start', '')}\n"
+            f"magnify={conf.get('dock.magnify', '')}\n")
 
 
 def write_if_changed(path, text):
@@ -1647,9 +1672,10 @@ def apply(conf, quiet=False):
         except OSError as exc:
             print(f"theme.py: bar restart: {exc}", file=sys.stderr)
     if "lang" in changed or "bar" in changed:
-        # custom/day redraws in the new language; custom/logo and
-        # custom/menuclock (the same "day" signal) re-read bar.conf -- and
-        # custom/day blanks or comes back with bar.clock. custom/clock's
+        # custom/day redraws in the new language; custom/logo,
+        # custom/menuclock and custom/power (the same "day" signal) re-read
+        # bar.conf -- custom/day blanks or comes back with bar.clock, the
+        # power pill with an empty bar.logo. custom/clock's
         # watcher reads bar.conf by itself every tick.
         bar_signals.poke("day")
     if "colors" in changed:
@@ -2477,6 +2503,11 @@ def check_layout_keys(conf):
         problems.append(f"bar.workspaces={conf.get('bar.workspaces')!r}: dots or empty")
     if len(conf.get("bar.logo", "")) > 4:
         problems.append(f"bar.logo={conf.get('bar.logo')!r}: a glyph or two, not text")
+    start = conf.get("dock.start", "")
+    if len(start) > DOCK_START_MAX or "\n" in start:
+        problems.append(f"dock.start={start!r}: one short word (at most {DOCK_START_MAX} characters)")
+    if conf.get("dock.magnify", "") not in DOCK_MAGNIFY:
+        problems.append(f"dock.magnify={conf.get('dock.magnify')!r}: yes, no or empty")
     return problems
 
 

@@ -16,6 +16,9 @@
                       "Tue 27 Oct  21:21" (a theme with bar.clock=menubar)
     clock.py logo     one-shot JSON for custom/logo: the theme's glyph
                       (bar.logo=), the bar's first item
+    clock.py power    one-shot JSON for custom/power: the power button --
+                      empty (so hidden) when the theme has a bar.logo=,
+                      whose click already opens the same power menu
 
 Local time is the default and what you get back after a full cycle; UTC is for
 reading logs and talking to people elsewhere; epoch is for pasting into things
@@ -271,11 +274,30 @@ def menubar_text(moment, conf=None, language=None):
     return f"{weekday} {moment.day} {month}  {when}"
 
 
+POWER_GLYPH = "\uf011"      # Font Awesome: power-off
+
+
+def power_pill(style):
+    """custom/power's JSON. The power menu is on the bar once: a theme with
+    a logo (bar.logo=, custom/logo at the top left -- orchard's leaf, and
+    orchard-dark's, which inherits it) opens it from that mark, as a menu
+    bar's mark would, so the power pill prints nothing and waybar hides it.
+    Every other theme keeps the pill at the far right. The taskbar's start
+    button does not count as "elsewhere": it opens the launcher, which has
+    Lock but no power menu, log out, reboot or power off."""
+    if style.get("logo"):
+        return {"text": "", "class": "elsewhere"}
+    return {"text": POWER_GLYPH, "tooltip": "Power menu  (Super+Esc)", "class": "power"}
+
+
 def emit(kind):
     time.tzset()        # follow a time zone change (see the docstring)
     style = bar_style()
     if kind == "logo":
         print(json.dumps({"text": style.get("logo", ""), "class": "logo"}), flush=True)
+        return
+    if kind == "power":
+        print(json.dumps(power_pill(style)), flush=True)
         return
     if kind == "menubar":
         # Always local: the menu bar is the wall clock; UTC and epoch stay
@@ -402,8 +424,9 @@ def poke():
 
 
 def redraw_day():
-    """custom/day, custom/logo and custom/menuclock re-run (bar_signals
-    "day", signal 10). A direct kill of the waybar, no pkill fork."""
+    """custom/day, custom/logo, custom/menuclock and custom/power re-run
+    (bar_signals "day", signal 10). A direct kill of the waybar, no pkill
+    fork."""
     try:
         import bar_signals
         bar_signals.poke("day")
@@ -422,7 +445,7 @@ def main():
     try:
         if action == "cycle":
             cycle()
-        elif action in ("day", "menubar", "logo"):
+        elif action in ("day", "menubar", "logo", "power"):
             emit(action)
         else:
             watch()

@@ -935,6 +935,19 @@ window#waybar.empty #window {
     color: @text-dim;
 }
 
+/* A restart is due (updates.sh adds class "reboot" and a circular arrow
+   after the count, in any state): a yellow floor, the colour the old reboot
+   pill had, and never dimmed -- up to date but waiting for a restart is
+   still something to do. */
+#custom-updates.reboot {
+    border-bottom-color: @yellow;
+}
+
+#custom-updates.updated.reboot,
+#custom-updates.error.reboot {
+    color: @text;
+}
+
 #custom-updates.many {
     background-color: @warn;
     color: @warn-fg;
@@ -1121,12 +1134,12 @@ window#waybar.empty #window {
 }
 
 /* ---------------------------------------------------------------------------
-   Reboot needed (custom/reboot), Keep awake (custom/keepawake), memory
-   pressure (custom/mempressure), Bluetooth (custom/bluetooth): the same
-   small pill. The first three only exist while they have something to say;
-   Bluetooth stays while an adapter is on or has devices paired.
+   Keep awake (custom/keepawake), memory pressure (custom/mempressure),
+   Bluetooth (custom/bluetooth): the same small pill. The first two only
+   exist while they have something to say; Bluetooth stays while an adapter
+   is on or has devices paired. (A restart being due is no pill of its own
+   any more: it is the updates pill's badge, #custom-updates.reboot.)
    --------------------------------------------------------------------------- */
-#custom-reboot,
 #custom-keepawake,
 #custom-mempressure,
 #custom-bluetooth {
@@ -1138,15 +1151,11 @@ window#waybar.empty #window {
     background-color: @surface;
     border: 1px solid alpha(@cyan, 0.35);
 }
-#custom-reboot:hover,
 #custom-keepawake:hover,
 #custom-mempressure:hover,
 #custom-bluetooth:hover {
     background-color: @surface-hover;
     border-color: @edge-lit;
-}
-#custom-reboot.needed {
-    color: @yellow;
 }
 #custom-keepawake.on {
     color: @cyan;

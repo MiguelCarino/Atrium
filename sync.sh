@@ -35,6 +35,7 @@ PATHS=(
     .config/kdeglobals
     .config/cliphist/
     .local/share/fonts/         # the themes' fonts
+    .local/share/nautilus-python/extensions/atrium_files.py   # Files: right-click items, Git column (only ours: other extensions there stay yours)
     .config/fontconfig/conf.d/60-w95fa-pixels.conf
     .config/fontconfig/conf.d/60-inter-family.conf
 )
@@ -77,12 +78,13 @@ EXCLUDES=(
     '--exclude=*.bak'
 )
 
-# The user units enabled on this install, minus the personal ones: what
-# install.sh turns on for a new user.
+# The user units enabled on this install, minus the personal ones and the
+# ones that ship OFF however the maintainer runs them (dock: the dock or
+# taskbar is chosen in Settings): what install.sh turns on for a new user.
 write_units() {
     local wants=$HOME/.config/systemd/user
     find "$wants" -mindepth 2 -maxdepth 2 -path '*.wants/*' -printf '%f\n' |
-        grep -vE '^(dotfiles-backup|carino-traffic)\.' | sort -u > "$REPO/packages/units.txt.new"
+        grep -vE '^(dotfiles-backup|carino-traffic|dock)\.' | sort -u > "$REPO/packages/units.txt.new"
     {
         echo "# User units install.sh enables (sync.sh writes this from the maintainer's"
         echo "# install). Features that ship OFF are not here; Settings turns them on."

@@ -1,0 +1,228 @@
+/* ===========================================================================
+   ORCHARD -- the dock and the taskbar (~/.config/hypr/scripts/dock.py, its
+   base stylesheet dock.css). Copied to waybar/generated/theme-dock.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST. orchard-dark/dock.css
+   is the same file with the dark material: change both together.
+
+   The look: a recent macOS dock, drawn from scratch (no Apple asset, no
+   Apple glyph). The dock is a frosted SHELF -- a light, translucent sheet
+   over Hyprland's blur (the waybar-glass layer rule), 20px round, a
+   bright 1px line just inside its edge and a faint dark hairline outside,
+   a soft wide shadow under it -- and the icons stand on it with nothing
+   round them: no tile, no hover wash. They MAGNIFY under the pointer
+   instead (theme.conf dock.magnify=yes; dock.py draws it), a held icon
+   darkens and shrinks a little, a launching one bounces, and a running app
+   has one tiny dark dot under it -- one, however many windows (the dock's
+   other two dots stay hidden here). The line between the pinned and the
+   other apps is a thin grey stroke.
+
+   The taskbar layout is the menu bar's material along the bottom: the same
+   light strip as the bar at the top, flat items with the menu bar's 6px
+   grey wash under the pointer, the focused window's title in bold; the
+   start button is the glyph alone (no word).
+   =========================================================================== */
+
+/* --- the theme's own names, again: stylesheets do not inherit (theme.py
+   check reads this file without the theme's panel.css) -- the values orchard's
+   panel.css gives them. Change them there and here together. */
+@define-color accent-fill #0062cc;
+@define-color oc-button   alpha(#ffffff, 0.45);   /* push-button face: #d6d6da on the card */
+@define-color sep         alpha(#000000, 0.10);
+
+@define-color oc-shelf       alpha(#f6f6f8, 0.46);   /* the frosted sheet */
+@define-color oc-shelf-line  alpha(#ffffff, 0.55);   /* its bright inner edge */
+@define-color oc-shelf-edge  alpha(#000000, 0.10);   /* its hairline outside */
+@define-color oc-strip       alpha(#c7c7cd, 0.88);   /* the menu bar's strip (waybar.css) */
+@define-color oc-wash        alpha(#000000, 0.08);   /* the menu bar's hover wash */
+@define-color oc-wash-down   alpha(#000000, 0.14);
+@define-color oc-dot         alpha(#1d1d1f, 0.78);   /* the running dot */
+@define-color oc-card        alpha(#ececef, 0.92);   /* the previews' card */
+@define-color dock-shadow    alpha(#000000, 0.26);
+@define-color dock-hover     @oc-wash;
+
+/* --- the shelf ---------------------------------------------------------------- */
+#dock.dock-layout-dock {
+    padding: 4px 6px;
+    border-radius: 20px;
+    border: 1px solid @oc-shelf-edge;
+    background-color: @oc-shelf;
+    background-image: none;
+    box-shadow: inset 0 0 0 1px @oc-shelf-line,
+                0 12px 28px -6px @dock-shadow,
+                0 2px 6px -2px @dock-shadow;
+}
+
+/* the icons stand on it bare: no tile, no wash, no border, any state */
+#dock.dock-layout-dock button.dock-item,
+#dock.dock-layout-dock button.dock-item:hover,
+#dock.dock-layout-dock button.dock-item:active,
+#dock.dock-layout-dock button.dock-item.focused,
+#dock.dock-layout-dock button.dock-item.urgent,
+#dock.dock-layout-dock button.dock-toolbox,
+#dock.dock-layout-dock button.dock-toolbox:hover {
+    border-color: transparent;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+
+/* held: the icon darkens (dock.py shrinks it a little too) */
+#dock.dock-layout-dock button.dock-item:active .dock-icon {
+    -gtk-icon-effect: dim;
+}
+
+/* urgent: no wash -- the dot turns the accent and pulses */
+#dock.dock-layout-dock button.dock-item.urgent {
+    animation: none;
+}
+
+#dock.dock-layout-dock button.dock-item.urgent .dock-dot.first {
+    min-width: 4px;
+    opacity: 1;
+    background-color: @cyan;
+    animation: oc-urgent-dot 1.1s ease-in-out 6;
+}
+
+@keyframes oc-urgent-dot {
+    0%   { opacity: 1; }
+    50%  { opacity: 0.25; }
+    100% { opacity: 1; }
+}
+
+/* one tiny dot per running app */
+#dock.dock-layout-dock .dock-dot {
+    min-height: 4px;
+    background-color: @oc-dot;
+}
+
+#dock.dock-layout-dock .dock-dot.lit:not(.first) {
+    min-width: 0px;
+    margin: 0px;
+    opacity: 0;
+}
+
+#dock.dock-layout-dock button.dock-item.focused .dock-dot.lit {
+    background-color: @oc-dot;
+}
+
+#dock.dock-layout-dock button.dock-item.focused .dock-dot.lit.first {
+    min-width: 4px;
+}
+
+.dock-sep {
+    background-color: @sep;
+}
+
+#dock.dock-layout-dock .dock-sep {
+    margin: 14px 6px;
+}
+
+.dock-toolbox-glyph {
+    color: @text-dim;
+}
+
+button.dock-toolbox:hover .dock-toolbox-glyph {
+    color: @text;
+}
+
+/* --- the taskbar: the menu bar's material -------------------------------------- */
+#dock.dock-layout-taskbar {
+    background-color: @oc-strip;
+    background-image: none;
+    border-top: 1px solid @oc-shelf-edge;
+    box-shadow: inset 0 1px @oc-shelf-line,
+                0 -2px 10px -4px @dock-shadow;
+}
+
+#dock.dock-layout-taskbar button.dock-item {
+    border-width: 0px;
+    border-radius: 6px;
+}
+
+#dock.dock-layout-taskbar button.dock-item.running {
+    border-bottom-color: transparent;
+}
+
+#dock.dock-layout-taskbar button.dock-item:hover,
+button.dock-start:hover,
+button.dock-tray-item:hover,
+#dock.dock-layout-taskbar button.dock-toolbox:hover,
+button.dock-clock:hover {
+    background-color: @oc-wash;
+}
+
+#dock.dock-layout-taskbar button.dock-item:active,
+button.dock-start:active,
+button.dock-tray-item:active,
+#dock.dock-layout-taskbar button.dock-toolbox:active,
+button.dock-clock:active {
+    background-color: @oc-wash-down;
+}
+
+#dock.dock-layout-taskbar button.dock-item.focused {
+    background-color: @oc-button;
+    box-shadow: 0 1px 2px @oc-shelf-edge;
+}
+
+#dock.dock-layout-taskbar button.dock-item.urgent {
+    background-color: alpha(@cyan, 0.16);
+}
+
+.dock-label {
+    color: @text;
+}
+
+button.dock-item:not(.focused) .dock-label {
+    color: @text-dim;
+}
+
+button.dock-item.focused .dock-label {
+    font-weight: 600;
+}
+
+.dock-count {
+    color: @ink;
+    background-color: @accent-fill;
+}
+
+.dock-start-glyph {
+    color: @text;
+}
+
+.dock-time,
+.dock-date {
+    color: @text;
+}
+
+.dock-date {
+    color: @text-dim;
+}
+
+/* --- the previews: a small frosted card --------------------------------------- */
+#dock-preview {
+    border-radius: 14px;
+    border: 1px solid @oc-shelf-edge;
+    background-color: @oc-card;
+    box-shadow: inset 0 0 0 1px @oc-shelf-line;
+}
+
+button.dock-card {
+    border-radius: 9px;
+}
+
+button.dock-card:hover {
+    background-color: @oc-wash;
+}
+
+button.dock-card.focused {
+    border-color: transparent;
+    background-color: @accent;
+}
+
+.dock-card-title {
+    color: @text;
+}
+
+.dock-thumb {
+    border-radius: 6px;
+}

@@ -1,0 +1,188 @@
+/* ===========================================================================
+   CYBERPUNK (NEON) -- the dock and the taskbar (~/.config/hypr/scripts/
+   dock.py, its base stylesheet dock.css). Copied to waybar/generated/
+   theme-dock.css by ~/.config/hypr/scripts/theme.py and imported LAST.
+
+   The bar's neon, on the dock: a near-black pane with a hairline neon
+   edge, brighter along the bottom like a strip light under a shelf, a soft
+   cyan glow bleeding into the air round it, and the bar's chamfer -- two
+   tight corners, two wide ones, on a diagonal. Cyan is "here" (the pointer,
+   the running dots), magenta is "this one" (the focused app: a magenta
+   floor line and glow), yellow is urgent. Glows are box-shadows with no
+   offset, as on the bar; text glows instead of casting a shadow.
+
+   Colours are the palette's (@cyan is the wallpaper accent, @magenta the
+   second neon): nothing here pins a hue.
+   =========================================================================== */
+
+@define-color dock-shadow alpha(#000000, 0.60);
+@define-color dock-hover  alpha(@cyan, 0.10);
+
+/* --- the dock ------------------------------------------------------------- */
+#dock.dock-layout-dock {
+    border-radius: 4px 20px 4px 20px;
+    background-color: @surface;
+    background-image: linear-gradient(to bottom,
+                        alpha(@cyan, 0.00) 0%,
+                        alpha(@cyan, 0.00) 55%,
+                        alpha(@cyan, 0.09) 100%);
+    border: 1px solid @edge;
+    border-bottom-color: @edge-lit;
+    box-shadow: 0 0 14px alpha(@cyan, 0.22),
+                0 10px 18px -6px @dock-shadow;
+}
+
+button.dock-item,
+#dock.dock-layout-dock button.dock-toolbox {
+    border-radius: 3px 12px 3px 12px;
+}
+
+button.dock-item:hover,
+#dock.dock-layout-dock button.dock-toolbox:hover {
+    background-color: alpha(@cyan, 0.10);
+    border-color: alpha(@cyan, 0.50);
+    box-shadow: 0 0 10px alpha(@cyan, 0.30);
+}
+
+button.dock-item:active {
+    background-color: alpha(@cyan, 0.22);
+    box-shadow: 0 0 4px alpha(@cyan, 0.40);
+}
+
+button.dock-item.focused {
+    background-color: alpha(@magenta, 0.14);
+    background-image: linear-gradient(to bottom,
+                        alpha(@magenta, 0.00) 50%,
+                        alpha(@magenta, 0.22) 100%);
+    border-color: alpha(@magenta, 0.55);
+    border-bottom-color: @magenta;
+    box-shadow: 0 0 12px alpha(@magenta, 0.35);
+}
+
+button.dock-item.urgent {
+    border-color: @yellow;
+    background-color: alpha(@yellow, 0.14);
+    box-shadow: 0 0 12px alpha(@yellow, 0.40);
+}
+
+@keyframes dock-urgent {
+    0%   { background-color: alpha(@yellow, 0.10); box-shadow: 0 0 6px alpha(@yellow, 0.25); }
+    50%  { background-color: alpha(@yellow, 0.32); box-shadow: 0 0 16px alpha(@yellow, 0.60); }
+    100% { background-color: alpha(@yellow, 0.10); box-shadow: 0 0 6px alpha(@yellow, 0.25); }
+}
+
+.dock-dot {
+    border-radius: 0px;
+    background-color: @cyan;
+}
+
+.dock-dot.lit {
+    box-shadow: 0 0 4px alpha(@cyan, 0.90);
+}
+
+button.dock-item.focused .dock-dot.lit {
+    background-color: @magenta;
+    box-shadow: 0 0 5px alpha(@magenta, 0.95);
+}
+
+.dock-sep {
+    background-color: alpha(@cyan, 0.35);
+}
+
+.dock-toolbox-glyph {
+    color: @text;
+}
+
+button.dock-toolbox:hover .dock-toolbox-glyph {
+    color: @cyan;
+    text-shadow: 0 0 6px alpha(@cyan, 0.80);
+}
+
+/* --- the taskbar: the bar's strip turned over, its glow rising ------------ */
+#dock.dock-layout-taskbar {
+    background-color: @surface;
+    background-image: linear-gradient(to bottom,
+                        alpha(@cyan, 0.08) 0%,
+                        alpha(@cyan, 0.00) 40%);
+    border-top: 1px solid @edge-lit;
+    box-shadow: 0 -2px 12px -2px alpha(@cyan, 0.35);
+}
+
+#dock.dock-layout-taskbar button.dock-item {
+    border-radius: 2px 8px 2px 8px;
+    border-width: 1px 1px 2px 1px;
+    border-color: transparent;
+}
+
+#dock.dock-layout-taskbar button.dock-item.running {
+    border-bottom-color: alpha(@cyan, 0.45);
+}
+
+#dock.dock-layout-taskbar button.dock-item:hover {
+    border-color: alpha(@cyan, 0.45);
+    border-bottom-color: @cyan;
+}
+
+#dock.dock-layout-taskbar button.dock-item.focused {
+    border-color: alpha(@magenta, 0.45);
+    border-bottom-color: @magenta;
+}
+
+#dock.dock-layout-taskbar button.dock-item.urgent {
+    border-bottom-color: @yellow;
+}
+
+button.dock-item.focused .dock-label {
+    color: @text-bright;
+    text-shadow: 0 0 6px alpha(@magenta, 0.70);
+}
+
+button.dock-start {
+    border-radius: 2px 10px 2px 10px;
+    border: 1px solid @edge;
+    border-bottom-color: @edge-lit;
+    background-color: alpha(@cyan, 0.06);
+}
+
+button.dock-start:hover {
+    background-color: alpha(@cyan, 0.16);
+    border-color: @edge-lit;
+    box-shadow: 0 0 10px alpha(@cyan, 0.35);
+}
+
+.dock-start-glyph {
+    color: @cyan;
+    text-shadow: 0 0 6px alpha(@cyan, 0.85);
+}
+
+.dock-start-text {
+    color: @text-bright;
+    letter-spacing: 1px;
+}
+
+button.dock-tray-item,
+#dock.dock-layout-taskbar button.dock-toolbox,
+button.dock-clock {
+    border-radius: 2px 8px 2px 8px;
+}
+
+.dock-time {
+    color: @text-bright;
+    text-shadow: 0 0 6px alpha(@cyan, 0.70);
+}
+
+/* --- the previews ------------------------------------------------------------ */
+#dock-preview {
+    border-radius: 4px 16px 4px 16px;
+    border-color: @edge;
+    border-bottom-color: @edge-lit;
+}
+
+button.dock-card {
+    border-radius: 2px 10px 2px 10px;
+}
+
+button.dock-card.focused {
+    border-color: alpha(@magenta, 0.55);
+    background-color: alpha(@magenta, 0.14);
+}

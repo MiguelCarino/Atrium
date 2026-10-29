@@ -23,6 +23,9 @@ kitty
 cosmic-term
 cosmic-files
 nautilus
+nautilus-python      # Files' right-click items and Git column (scripts/nautilus_actions.py)
+kde-connect-nautilus #   and "Send to <phone>" in the same menu
+# file-roller is not needed: Nautilus compresses and extracts by itself
 libnotify
 yad
 zenity

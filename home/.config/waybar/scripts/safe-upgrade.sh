@@ -25,9 +25,10 @@
 #   4. flatpak    flatpak update -y (user + system).
 #   5. firmware   fwupdmgr get-updates: listed only, never flashed from here.
 #
-# Then it pokes the updates pill (bar_signals.py "updates") so the count is right at once,
-# and, once the record below is written, the reboot pill ("reboot", after a fresh
-# needs-restarting), and records how it went for Settings > Software updates
+# Then, once the record below is written, it asks needs-restarting afresh and
+# pokes the updates pill (bar_signals.py "updates"): one redraw for the count
+# and the restart badge together (updates.sh shows both), and records how it
+# went for Settings > Software updates
 # (hypr/scripts/software-updates.py reads it) in
 # $XDG_STATE_HOME/hypr/last-upgrade.tsv -- tab-separated "key<TAB>value" lines:
 #     finished <epoch>   dnf <dnf's exit status>
@@ -98,8 +99,6 @@ flatpak update -y 2>&1 | tail -n 15 | sed 's/^/  /'
 step "5/5  firmware (list only)"
 fwupdmgr get-updates --no-unreported-check 2>/dev/null | sed 's/^/  /' || echo "  none, or fwupd unavailable"
 
-"$HOME/.config/hypr/scripts/bar_signals.py" poke updates 2>/dev/null
-
 if ((!safe)); then reboot=unsafe
 elif [[ $kernel_after != "$(uname -r)" ]]; then reboot=safe
 else reboot=not-needed
@@ -117,11 +116,14 @@ mkdir -p "${record%/*}" && {
     printf 'reboot\t%s\n' "$reboot"
 } > "$record.tmp" && mv -f "$record.tmp" "$record"
 
-# The reboot pill: needs-restarting asked afresh (its 30-min cache predates
-# this upgrade; it takes seconds, so detached, outliving this terminal),
-# then bar_signals.py "reboot" redraws it.
+# The updates pill: needs-restarting asked afresh first (its 30-min cache
+# predates this upgrade; it takes seconds, so detached, outliving this
+# terminal), then bar_signals.py "updates" redraws the pill -- its new count
+# and its restart badge in one updates.sh run. It used to be poked right
+# after the upgrade as well, before the fresh answer: two dnf check-updates
+# for one upgrade, and a badge from before it in between.
 setsid -f sh -c '"$HOME/.config/waybar/scripts/reboot_needed.py" refresh >/dev/null 2>&1
-                 "$HOME/.config/hypr/scripts/bar_signals.py" poke reboot >/dev/null 2>&1' \
+                 "$HOME/.config/hypr/scripts/bar_signals.py" poke updates >/dev/null 2>&1' \
     </dev/null >/dev/null 2>&1
 
 echo

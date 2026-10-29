@@ -1,0 +1,422 @@
+/* dock.py -- the dock and the taskbar (one engine, two layouts), and the
+   window previews that open over them.
+
+   No palette of its own: the popup panels' stylesheet comes first
+   (waybar/panel.css, imported below), so @surface, @edge, @text, @cyan
+   (the accent) and the rest are the desktop theme's own -- every theme
+   recolours the dock and gives it its font without a line here. The
+   rules below only shape it. Two names are the dock's own (PALETTE, next):
+   a theme redefines them like any other.
+
+   THEMES: same contract as ~/.config/waybar/style.css (its header explains
+   it). The theme's dock.css (~/.config/themes/<name>/dock.css: every theme
+   has one) is copied into ~/.config/waybar/generated/theme-dock.css by
+   ~/.config/hypr/scripts/theme.py and imported LAST: it repeats selectors
+   for everything it changes, and may redefine a palette name for the dock
+   alone. No rule below writes a colour literal. dock.py watches the copy
+   and restyles itself, so a theme switch shows at once.
+
+   MOTION (dock.py's EFFECTS): what moves here is the stylesheet's own --
+   transitions on hover, focus and the dots, the urgent pulse, the launch
+   breath -- GTK's frame clock, only while it runs, and off with reduce
+   motion (GTK's gtk-enable-animations). panel.css says `* { transition:
+   none }`, so every transition below is written out. The dock's sizes
+   (hover, press, magnification, the launch hop) are dock.py's, drawn on
+   top of these rules: nothing here changes a size to animate it, except
+   the dots' own few pixels.
+
+   SPACING, an 8px grid: the dock's button is 56 wide (4 + a 48 icon + 4)
+   and 64 tall (6 + 48 + 2 + the 4px dots + 4), the card 4px round it and 8
+   at its ends; the taskbar is 40 tall, its buttons 32 (4px above and
+   below), 8px inside them. */
+
+@import url("../../waybar/panel.css");
+
+/* --- PALETTE: the dock's own names ----------------------------------------- */
+@define-color dock-shadow  alpha(#000000, 0.38);   /* the card's drop shadow */
+@define-color dock-hover   alpha(@text, 0.10);     /* a hovered button's wash */
+
+/* The toplevels stay transparent: the card is the box inside. */
+#dock-window,
+#dock-preview-window,
+#dock-edge-window {
+    background: transparent;
+}
+
+/* --- the strip ---------------------------------------------------------------
+   dock: a floating card, round, with a soft shadow under it (dock.py leaves
+   room round the card for it); taskbar: the full width of the screen. */
+#dock {
+    color: @text;
+}
+
+#dock.dock-layout-dock {
+    background-color: @surface;
+    border: 1px solid @edge;
+    border-radius: 18px;
+    padding: 4px 8px;
+    box-shadow: 0 6px 16px -2px @dock-shadow,
+                0 1px 3px @dock-shadow;
+}
+
+#dock.dock-pos-left,
+#dock.dock-pos-right {
+    padding: 8px 4px;
+}
+
+#dock.dock-layout-taskbar {
+    background-color: @surface;
+    border-top: 1px solid @edge;
+    padding: 0 4px;
+    min-height: 40px;
+    box-shadow: 0 -2px 8px -2px @dock-shadow;
+}
+
+/* --- an app: its icon, the running dots, the title on the taskbar ---------- */
+button.dock-item {
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 6px 4px 4px 4px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: @text;
+    transition: background-color 160ms ease-out, border-color 160ms ease-out,
+                box-shadow 160ms ease-out, color 160ms ease-out;
+}
+
+#dock.dock-pos-left button.dock-item {
+    padding: 4px 4px 4px 6px;
+}
+
+#dock.dock-pos-right button.dock-item {
+    padding: 4px 6px 4px 4px;
+}
+
+button.dock-item:hover {
+    background-color: @dock-hover;
+}
+
+/* held: a shade darker (the dock also shrinks it a little, dock.py) */
+button.dock-item:active {
+    background-color: alpha(@text, 0.18);
+    transition-duration: 60ms;
+}
+
+button.dock-item.focused {
+    background-color: @accent;
+    border-color: @edge;
+}
+
+/* wants you: a warm wash that pulses a few times, then stays */
+button.dock-item.urgent {
+    border-color: @yellow;
+    background-color: alpha(@yellow, 0.18);
+    animation: dock-urgent 1.4s ease-in-out 5;
+}
+
+@keyframes dock-urgent {
+    0%   { background-color: alpha(@yellow, 0.18); }
+    50%  { background-color: alpha(@yellow, 0.42); }
+    100% { background-color: alpha(@yellow, 0.18); }
+}
+
+/* launched, no window yet: a slow breath -- on the taskbar; the dock hops
+   instead (dock.py's launch bounce marks it .bouncing). Reduce motion: the
+   breath stops and the icon stays dimmed, so it still says "starting". */
+button.dock-item.launching .dock-icon {
+    opacity: 0.6;
+    animation: dock-launch 1.1s ease-in-out infinite;
+}
+
+button.dock-item.launching.bouncing .dock-icon {
+    opacity: 1;
+    animation: none;
+}
+
+@keyframes dock-launch {
+    0%   { opacity: 1; }
+    50%  { opacity: 0.45; }
+    100% { opacity: 1; }
+}
+
+/* the running dots: three always there, the ones that count .lit -- a dot
+   that comes or goes eases in and out; the focused app's first dot grows
+   into a short bar in the accent */
+.dock-dots {
+    min-height: 4px;
+    min-width: 4px;
+}
+
+.dock-dot {
+    min-width: 0;
+    min-height: 4px;
+    margin: 0;
+    border-radius: 999px;
+    background-color: @text-dim;
+    opacity: 0;
+    transition: min-width 220ms ease-out, min-height 220ms ease-out, margin 220ms ease-out,
+                opacity 220ms ease-out, background-color 220ms ease-out;
+}
+
+.dock-dot.lit {
+    min-width: 4px;
+    margin: 0 1px;
+    opacity: 1;
+}
+
+#dock.dock-pos-left .dock-dot,
+#dock.dock-pos-right .dock-dot {
+    min-width: 4px;
+    min-height: 0;
+}
+
+#dock.dock-pos-left .dock-dot.lit,
+#dock.dock-pos-right .dock-dot.lit {
+    min-height: 4px;
+    margin: 1px 0;
+}
+
+button.dock-item.focused .dock-dot.lit {
+    background-color: @cyan;
+}
+
+button.dock-item.focused .dock-dot.lit.first {
+    min-width: 10px;
+}
+
+#dock.dock-pos-left button.dock-item.focused .dock-dot.lit.first,
+#dock.dock-pos-right button.dock-item.focused .dock-dot.lit.first {
+    min-width: 4px;
+    min-height: 10px;
+}
+
+/* the line between the pinned apps and the others that run */
+.dock-sep {
+    min-width: 1px;
+    min-height: 1px;
+    margin: 12px 6px;
+    background-color: @edge;
+}
+
+#dock.dock-pos-left .dock-sep,
+#dock.dock-pos-right .dock-sep {
+    margin: 6px 12px;
+}
+
+/* the taskbar's buttons: icon and title, a line under the running ones */
+#dock.dock-layout-taskbar button.dock-item {
+    margin: 4px 2px;
+    padding: 0 8px;
+    min-height: 30px;
+    border-radius: 6px;
+    border-width: 0 0 2px 0;
+    border-style: solid;
+    border-color: transparent;
+}
+
+#dock.dock-layout-taskbar button.dock-item.running {
+    border-bottom-color: @text-dimmer;
+}
+
+#dock.dock-layout-taskbar button.dock-item.focused {
+    border-bottom-color: @cyan;
+}
+
+#dock.dock-layout-taskbar button.dock-item.urgent {
+    border-bottom-color: @yellow;
+}
+
+.dock-label {
+    margin-left: 8px;
+    color: @text;
+    transition: color 160ms ease-out;
+}
+
+button.dock-item:not(.focused) .dock-label {
+    color: @text-dim;
+}
+
+button.dock-item:hover .dock-label {
+    color: @text;
+}
+
+.dock-count {
+    margin-left: 8px;
+    padding: 0 5px;
+    border-radius: 999px;
+    font-size: 0.8em;
+    color: @text;
+    background-color: alpha(@text, 0.14);
+}
+
+/* --- the start button, the tray, the clock (taskbar) ------------------------ */
+button.dock-start,
+button.dock-tray-item,
+#dock.dock-layout-taskbar button.dock-toolbox,
+button.dock-clock {
+    min-width: 0;
+    min-height: 0;
+    margin: 4px 2px;
+    padding: 0 8px;
+    border: none;
+    border-radius: 6px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: @text;
+    transition: background-color 160ms ease-out, box-shadow 160ms ease-out, color 160ms ease-out;
+}
+
+button.dock-start:hover,
+button.dock-tray-item:hover,
+#dock.dock-layout-taskbar button.dock-toolbox:hover,
+button.dock-clock:hover {
+    background-color: @dock-hover;
+}
+
+button.dock-start:active,
+button.dock-tray-item:active,
+#dock.dock-layout-taskbar button.dock-toolbox:active,
+button.dock-clock:active {
+    background-color: alpha(@text, 0.18);
+    transition-duration: 60ms;
+}
+
+.dock-start-glyph {
+    font-size: 1.15em;
+    color: @cyan;
+}
+
+.dock-start-text {
+    margin-left: 8px;
+    font-weight: bold;
+}
+
+button.dock-tray-item {
+    padding: 0 4px;
+}
+
+button.dock-tray-item.attention {
+    background-color: alpha(@yellow, 0.18);
+}
+
+.dock-tray {
+    margin: 0 4px;
+}
+
+.dock-time {
+    font-size: 0.95em;
+}
+
+.dock-date {
+    font-size: 0.8em;
+    color: @text-dim;
+}
+
+/* --- the toolbox button (dock.py's THE TOOLBOX) ------------------------------
+   The top bar's sliders glyph, opening the same toolbox card; on the dock as
+   big as an app's button (dock.py sizes the glyph from icon_size), on the
+   taskbar one of the small buttons above. */
+.dock-toolbox-glyph {
+    font-family: "Font Awesome 6 Free Solid", "Font Awesome 6 Free", sans-serif;
+    color: @text;
+    transition: color 160ms ease-out;
+}
+
+#dock.dock-layout-dock button.dock-toolbox {
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 6px 4px 10px 4px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    transition: background-color 160ms ease-out;
+}
+
+#dock.dock-pos-left button.dock-toolbox,
+#dock.dock-pos-right button.dock-toolbox {
+    padding: 4px 10px 4px 6px;
+}
+
+#dock.dock-layout-dock button.dock-toolbox:hover {
+    background-color: @dock-hover;
+}
+
+#dock.dock-layout-taskbar .dock-toolbox-glyph {
+    font-size: 1.1em;
+}
+
+button.dock-toolbox:hover .dock-toolbox-glyph {
+    color: @cyan;
+}
+
+/* --- the window previews (hovering a running app) ---------------------------
+   Hyprland pops the card in (lua/display.lua's anim-dock-preview rule). */
+#dock-preview {
+    padding: 8px;
+    border: 1px solid @edge-lit;
+    border-radius: 12px;
+    background-color: @surface;
+}
+
+button.dock-card {
+    min-width: 0;
+    min-height: 0;
+    margin: 2px;
+    padding: 6px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: @text;
+    transition: background-color 160ms ease-out, border-color 160ms ease-out;
+}
+
+button.dock-card:hover {
+    background-color: @dock-hover;
+}
+
+button.dock-card.focused {
+    border-color: @edge;
+    background-color: @accent;
+}
+
+.dock-card-title {
+    color: @text;
+}
+
+.dock-thumb {
+    margin-top: 6px;
+    border-radius: 6px;
+}
+
+button.dock-card-close {
+    min-width: 0;
+    min-height: 0;
+    margin-left: 6px;
+    padding: 0 5px;
+    border: none;
+    border-radius: 999px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    color: @text-dim;
+    transition: background-color 160ms ease-out, color 160ms ease-out;
+}
+
+button.dock-card-close:hover {
+    color: @text-bright;
+    background-color: @red;
+}
+
+/* The desktop theme's dock.css, copied by theme.py. LAST, so the theme has
+   the final word. */
+@import url("../../waybar/generated/theme-dock.css");

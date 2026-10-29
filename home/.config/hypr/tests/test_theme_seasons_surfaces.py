@@ -52,6 +52,7 @@ class SharedFiles(unittest.TestCase):
         """Every colour in the shared files is a name (@s-*, @cyan, var(--s-*)):
         a hex there would be one season's, wrong in the other three."""
         for name, style in (("launcher.css", "css"), ("wofi.css", "css"), ("llm-chat.css", "css"),
+                            ("dock.css", "css"),
                             ("gtk4.css", "css"), ("mako", "conf"), ("kitty.conf", "conf"),
                             ("mpv.conf", "conf"), ("prompt.sh", "conf")):
             with self.subTest(name):

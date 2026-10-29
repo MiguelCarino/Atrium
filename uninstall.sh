@@ -69,10 +69,11 @@ ask() {  # ask "question" y|n -> 0 for yes; --yes takes the default
 }
 list() { grep -v '^\s*#' "$1" | sed 's/#.*//; s/\s*$//' | grep -v '^$'; }
 
-# The paths a backup holds: what install.sh copied, i.e. .config/<x> and
-# .local/share/fonts (the same `ls -d` install.sh runs on the repo).
+# The paths a backup holds: what install.sh copied, i.e. .config/<x>,
+# .local/share/fonts and the Files extensions (the same `ls -d` install.sh
+# runs on the repo).
 held() {   # held <backup dir>
-    (cd "$1" 2>/dev/null && ls -d .config/* .local/share/fonts 2>/dev/null)
+    (cd "$1" 2>/dev/null && ls -d .config/* .local/share/fonts .local/share/nautilus-python/extensions/* 2>/dev/null)
 }
 
 # put_aside <path under $HOME>: move the current one to $AWAY (keeping its place)
@@ -144,7 +145,7 @@ else
 fi
 
 step "3/3  new files"
-mapfile -t shipped < <(cd "$REPO/home" 2>/dev/null && ls -d .config/* .local/share/fonts 2>/dev/null)
+mapfile -t shipped < <(cd "$REPO/home" 2>/dev/null && ls -d .config/* .local/share/fonts .local/share/nautilus-python/extensions/* 2>/dev/null)
 fresh=()
 for p in "${shipped[@]}"; do
     [[ -z ${from[$p]:-} && -e $HOME/$p ]] && fresh+=("$p")

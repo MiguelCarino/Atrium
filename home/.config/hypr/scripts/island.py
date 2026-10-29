@@ -388,6 +388,16 @@ window#waybar.waybar-main .modules-center {{
 #custom-notifications.dnd {{
     color: #71717a;
 }}
+
+/* A restart is due (updates.sh's class "reboot"): never dimmed, in the
+   amber of the other "something to do" states -- the theme's own colour
+   could be a dark one, made for a light bar. */
+#custom-updates.reboot,
+#custom-updates.updated.reboot,
+#custom-updates.error.reboot {{
+    border-color: transparent;
+    color: #f5c451;
+}}
 """)
 
 

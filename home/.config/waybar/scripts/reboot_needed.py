@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Reboot-needed marker (custom/reboot): nothing normally; a small
-circular-arrow pill when this machine is running something older than what
-is installed, so the next restart is due.
+"""Is a restart due? -- the updates pill's restart badge: nothing normally;
+a circular arrow beside the updates count (custom/updates, updates.sh) when
+this machine is running something older than what is installed, so the next
+restart is due. It used to be a pill of its own (custom/reboot); a restart
+is what an upgrade leaves behind, so it went where the upgrade is.
 
-    reboot_needed.py            one JSON line for waybar (custom/reboot)
-    reboot_needed.py status     the reasons, as JSON (what the panel reads)
+    reboot_needed.py            the reasons, one sentence a line; nothing
+    reboot_needed.py reasons    when no restart is due (what updates.sh reads)
+    reboot_needed.py status     the reasons, as JSON (what the card reads)
     reboot_needed.py refresh    ask needs-restarting again now, ignoring
                                 the cache
 
@@ -18,13 +21,15 @@ Two reasons, the cheap one first:
             libraries or services were updated since boot -- glibc,
             systemd, linux-firmware and the like. It loads dnf, so it takes
             seconds; its answer is kept in $XDG_RUNTIME_DIR for
-            NEEDS_TTL (30 min) and the pill re-runs every 30 min too.
-            Without the tool the reason is simply not checked (the status
-            says so).
+            NEEDS_TTL (30 min); updates.sh asks on each of its checks (hourly,
+            and whenever bar_signals.py "updates" redraws it), so a stale
+            answer is re-asked there, in the pill's background exec, never
+            in a card. Without the tool the reason is simply not checked
+            (the status says so).
 
-Click: the reboot card (reboot_panel.py): why, the command, and a "Reboot
-now" that takes two clicks (panelui.Armed). Nothing here ever reboots by
-itself.
+Click on the updates pill: the updates card (updates_panel.py), whose
+RESTART section is reboot_panel.py's: why, Check again, and a "Reboot now"
+that takes two clicks (panelui.Armed). Nothing here ever reboots by itself.
 """
 
 import json
@@ -39,7 +44,6 @@ MODULES = "/lib/modules"
 CACHE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "reboot-needed.json")
 NEEDS_TTL = 1800            # s an answer from needs-restarting is trusted
 NEEDS_TIMEOUT = 90          # s; it loads the whole dnf stack
-ICON = ""             # Font Awesome: rotate-right (arrows in a circle)
 
 
 # -- pure ---------------------------------------------------------------------
@@ -89,12 +93,10 @@ def fresh(saved, now, ttl=NEEDS_TTL):
     return bool(saved) and isinstance(saved.get("at"), (int, float)) and 0 <= now - saved["at"] < ttl
 
 
-def pill(reasons):
-    """The module's JSON: hidden with no reason; the tooltip lists them."""
-    if not reasons:
-        return {"text": "", "class": "ok"}
-    return {"text": ICON, "class": "needed",
-            "tooltip": "Reboot needed\n" + "\n".join(f"· {r}" for r in reasons)}
+def reasons_text(reasons):
+    """`reasons` mode's output: one sentence a line, "" with none -- so
+    updates.sh only has to ask whether it printed anything."""
+    return "\n".join(r.replace("\n", " ") for r in reasons if r)
 
 
 # -- the machine --------------------------------------------------------------
@@ -158,13 +160,15 @@ def status(force=False, run=True):
 
 
 def main():
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "bar"
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "reasons"
     if cmd == "status":
         print(json.dumps(status()))
     elif cmd == "refresh":
         print(json.dumps(status(force=True)))
     else:
-        print(json.dumps(pill(status()["reasons"])))
+        text = reasons_text(status()["reasons"])
+        if text:
+            print(text)
 
 
 if __name__ == "__main__":

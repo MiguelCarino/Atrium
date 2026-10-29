@@ -22,6 +22,17 @@
 # Classes: updated (0 pending), pending (1-49), many (50+), error (dnf failed
 # or timed out, another check held the lock for over 180 s, or the script was
 # run as root). Waybar's "signal": 8 re-runs it.
+#
+# The restart badge: a circular arrow (U+F2F9, rotate-right) after the count,
+# a second class "reboot" ("class" is then a list: ["pending", "reboot"])
+# and the reasons at the end of the tooltip, whenever reboot_needed.py says
+# a restart is due -- a newer kernel installed than the one running, or core
+# libraries / services updated since boot. In every state, "updated" and
+# "error" too: the box always shows, so the badge always has a place. This
+# replaced the bar's own reboot pill (custom/reboot); the card this pill
+# opens has its RESTART section. reboot_needed.py answers from its 30-minute
+# needs-restarting cache and asks again (seconds: it loads dnf) only when
+# that is stale -- here, in the background, never in the card.
 
 icon='\uf49e'          # box-open
 # theme_color <key> <fallback> <var>: a colour from the desktop theme
@@ -41,8 +52,29 @@ theme_color() {
 theme_color pending '#ff2a6d' pending_col
 icon_pending="<span color='${pending_col}'>${icon}</span>"   # @magenta, or the theme's color.pending
 
+# escape VAR: a tooltip as Pango markup inside a JSON string, in place.
+escape() {
+    local -n _ref=$1
+    _ref=${_ref//&/"&amp;"}   # quoted: bash 5.2 patsub_replacement makes a bare & mean "the match"
+    _ref=${_ref//</"&lt;"}
+    _ref=${_ref//>/"&gt;"}
+    _ref=${_ref//\\/\\\\}
+    _ref=${_ref//\"/\\\"}
+    _ref=${_ref//$'\n'/\\n}
+}
+
+# Set once the lock is held (below); empty = no restart due, or not asked.
+reboot_tip=''
+reboot_glyph='\uf2f9'   # rotate-right
+
 emit() {   # emit TEXT TOOLTIP CLASS   (tooltip must already be JSON-escaped)
-    printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "$1" "$2" "$3"
+    local text=$1 tip=$2 class="\"$3\""
+    if [[ -n $reboot_tip ]]; then
+        text+=" $reboot_glyph"
+        tip+=$reboot_tip
+        class+=',"reboot"'
+    fi
+    printf '{"text":"%s","tooltip":"%s","class":[%s]}\n' "$text" "$tip" "$class"
 }
 
 # Never check as root: dnf would write root-owned files into the system cache
@@ -60,6 +92,16 @@ fi
 lock="${XDG_RUNTIME_DIR:-/tmp}/waybar-updates.lock"
 exec 9>"$lock"
 flock -w 180 9 || { emit "$icon" "Update check already running" error; exit 0; }
+
+# Is a restart due? One line per reason, nothing when not (reboot_needed.py
+# reasons; UPDATES_REBOOT_CHECK points elsewhere for the tests). Bounded and
+# polite like dnf below; a failure just means no badge this time.
+reboot_check=${UPDATES_REBOOT_CHECK:-$HOME/.config/waybar/scripts/reboot_needed.py}
+reasons=$(timeout 120 nice -n 19 ionice -c 3 "$reboot_check" reasons 2>/dev/null)
+if [[ -n $reasons ]]; then
+    reboot_tip=$'\n\n'"Restart needed"$'\n'"$(printf '%s\n' "$reasons" | sed 's/^/  · /')"
+    escape reboot_tip
+fi
 
 # Bounded and polite: a metadata refresh on a slow mirror must not hang the
 # module forever (timeout -> exit 124), and it should not compete with games
@@ -131,12 +173,7 @@ fi
 count=$((count + fcount))
 
 # Tooltips are Pango markup too: escape &, < and > before the JSON escaping.
-tooltip=${tooltip//&/"&amp;"}   # quoted: bash 5.2 patsub_replacement makes a bare & mean "the match"
-tooltip=${tooltip//</"&lt;"}
-tooltip=${tooltip//>/"&gt;"}
-tooltip=${tooltip//\\/\\\\}
-tooltip=${tooltip//\"/\\\"}
-tooltip=${tooltip//$'\n'/\\n}
+escape tooltip
 
 class=pending
 ((count >= 50)) && class=many
