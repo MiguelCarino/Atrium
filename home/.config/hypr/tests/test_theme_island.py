@@ -84,24 +84,24 @@ class Handoff(Scratch):
         self.assertEqual(self.snapshot()["saved"], {"enabled": True, "style": "theme", "match_bar": True})
 
     def test_leaving_restores_and_drops_the_snapshot(self):
-        fake = FakeIsland(enabled=False, style="glass", match_bar=False)
+        fake = FakeIsland(enabled=False, style="island", match_bar=False)
         theme.island_handoff(ORCHARD, run=fake)
         fake.sets.clear()
         calls = theme.island_handoff(PLAIN, run=fake)
         # off goes first when it is the way back
         self.assertEqual(calls[0], ("enabled", "off"))
-        self.assertEqual(sorted(calls), sorted([("enabled", "off"), ("style", "glass"), ("match_bar", "off")]))
+        self.assertEqual(sorted(calls), sorted([("enabled", "off"), ("style", "island"), ("match_bar", "off")]))
         self.assertEqual((fake.settings["enabled"], fake.settings["style"], fake.settings["match_bar"]),
-                         (False, "glass", False))
+                         (False, "island", False))
         self.assertFalse(os.path.exists(self.snap))
 
     def test_a_key_you_changed_meanwhile_stays_yours(self):
         fake = FakeIsland()
         theme.island_handoff(ORCHARD, run=fake)
-        fake.settings["style"] = "outline"  # picked in Settings while on orchard
+        fake.settings["style"] = "island"  # picked in Settings while on orchard
         calls = theme.island_handoff(PLAIN, run=fake)
         self.assertNotIn("style", [k for k, _ in calls])
-        self.assertEqual(fake.settings["style"], "outline")
+        self.assertEqual(fake.settings["style"], "island")
         self.assertFalse(os.path.exists(self.snap))
 
     def test_orchard_to_orchard_dark_keeps_the_first_snapshot(self):
@@ -120,9 +120,9 @@ class Handoff(Scratch):
         fake = FakeIsland(enabled=False)
         theme.island_handoff(ORCHARD, run=fake)
         fake.sets.clear()
-        theme.island_handoff({"id": "half", "island.style": "glass"}, run=fake)
+        theme.island_handoff({"id": "half", "island.style": "island"}, run=fake)
         self.assertIn(("enabled", "off"), fake.sets)
-        self.assertIn(("style", "glass"), fake.sets)
+        self.assertIn(("style", "island"), fake.sets)
         snap = self.snapshot()
         self.assertEqual(set(snap["saved"]), {"style"})
         self.assertEqual(snap["saved"]["style"], "theme")

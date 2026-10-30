@@ -418,7 +418,7 @@ BUTTON_LAYOUT = re.compile(r"^[a-z,:]*$")
 # keeps the two equal). The keys in the order `set` sends them: enabled LAST,
 # so a service that starts reads the final look.
 ISLAND = os.path.join(HYPR, "island.py")
-ISLAND_STYLES = ("notch", "island", "glass", "theme", "outline")
+ISLAND_STYLES = ("notch", "island", "theme")
 ISLAND_KEYS = ("style", "match_bar", "enabled")
 ISLAND_SNAPSHOT = os.path.join(os.path.dirname(STATE), "island.before-theme.json")
 # The bar's layout keys -> waybar/generated/bar.conf (clock.py reads it).

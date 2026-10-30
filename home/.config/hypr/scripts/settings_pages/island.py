@@ -2,9 +2,10 @@
 opens when something happens (island.py; its docstring has the rest). A tab
 of Bar & toolbox.
 
-    ISLAND     on / off (island.service), its design (solid notch, floating
-               island, glass, theme, outline), black or the theme's colour
-               for the notch and the floating island, whether the bar's centre
+    ISLAND     on / off (island.service), its design (notch, floating
+               island, theme), black, the theme's colour or glass for the
+               notch and the floating island, an outline on any design,
+               whether the bar's centre
                capsules take the same look, which screen it is on,
                whether the pill stays in the bar while something goes on
     SHOWS      what it shows: music playing, timers ending, a screen
@@ -29,7 +30,7 @@ PAGE = {"id": "island", "title": "Island", "icon": "\uf111", "group": "Look", "o
         "parent": "bar", "tab": "Island",
         "keywords": ["dynamic island", "now playing", "media", "mpris", "pill", "timers countdown",
                      "screen recording", "railguard", "isla dinamica", "notch", "island design", "island style",
-                     "notch colour", "notch color", "island colour",
+                     "notch colour", "notch color", "island colour", "glass", "outline", "island border",
                      "notifications in the island"]}
 
 ISLAND = os.path.join(HYPR, "island.py")  # noqa: F405  (HYPR: common)
@@ -46,9 +47,8 @@ SOURCES = [("media", "\uf001", "Music and video",
             "Do Not Disturb still holds them back, the bell keeps the history"),
            ("notify", "\uf075", "Desktop notifications, a short line",
             "only with the one above off: mako shows them, the island a line too")]
-STYLES = [("notch", "Notch"), ("island", "Floating island"), ("glass", "Glass"),
-          ("theme", "Theme"), ("outline", "Outline")]
-COLORS = [("black", "Black"), ("theme", "Theme colour")]
+STYLES = [("notch", "Notch"), ("island", "Floating island"), ("theme", "Theme")]
+COLORS = [("black", "Black"), ("theme", "Theme colour"), ("glass", "Glass")]
 SOLID = ("notch", "island")            # the designs a colour applies to
 FIXED_SCREENS = [("", "Main screen"), ("focused", "Focused screen")]
 
@@ -134,14 +134,18 @@ class Page:
         w.pack_start(dp.label("Design", "ctl-sub"), False, False, 0)  # noqa: F405
         self.style = Chips(lambda k: self.change(ISLAND, "set", "style", k))  # noqa: F405
         w.pack_start(self.style.widget, False, False, 0)
-        # Notch and floating island only: the others have their own fill.
+        # Notch and floating island only: the theme's card has its own fill.
         self.color_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.color_box.pack_start(dp.label("Colour", "ctl-sub"), False, False, 0)  # noqa: F405
         self.color = Chips(lambda k: self.change(ISLAND, "set", "notch_color", k))  # noqa: F405
         self.color_box.pack_start(self.color.widget, False, False, 0)
         self.color_box.pack_start(dp.label("Theme colour: the theme's accent, deep enough for "  # noqa: F405
-                                           "the white text", "ctl-sub"), False, False, 0)
+                                           "the white text. Glass: dark and see-through", "ctl-sub"),
+                                  False, False, 0)
         w.pack_start(self.color_box, False, False, 0)
+        grid, _sub = self.switch_row("outline", "\uf096", "Outline",
+                                     "a thin edge in the theme's colour, on any design")
+        w.pack_start(grid, False, False, 0)
         grid, _sub = self.switch_row("match_bar", "\uf2d0", "Bar centre matches",
                                      "the clock and its neighbours take the island's look, "
                                      "so it opens out of them")

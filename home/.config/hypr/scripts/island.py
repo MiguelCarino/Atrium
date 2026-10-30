@@ -31,15 +31,17 @@ SETTINGS ($XDG_STATE_HOME/hypr/island.json; Settings > Bar & toolbox > Island):
                 instead of a mako popup (true; NOTIFICATIONS below)
     notify      only with notifications off: a short line for each one
                 sent through scripts/notify (false); mako shows them all
-    style       how it looks: "notch" (solid black, square on top where it
-                meets the screen edge; the default), "island" (a black
-                capsule floating just under the edge), "glass" (dark and
-                frosted), "theme" (the desktop theme's panel card) or
-                "outline" (dark, with the theme's lit edge)
-    notch_color with the notch and island designs: "black" (the default) or
+    style       its shape: "notch" (square on top where it meets the screen
+                edge; the default), "island" (a capsule floating just under
+                the edge) or "theme" (the desktop theme's panel card). The
+                old "glass" and "outline" designs read as a notch with that
+                colour / outline
+    notch_color the notch's and the island's fill: "black" (the default),
                 "theme" -- the desktop theme's accent (generated/accent.css,
                 so a wallpaper-following accent too), darkened as far as it
-                takes for the island's light text to read on it
+                takes for the island's light text to read on it -- or
+                "glass" (dark and see-through, with a faint frosted edge)
+    outline     a 1 px edge in the theme's lit colour, on any design (false)
     match_bar   the bar's centre capsules (date, clock, weather, updates ...)
                 take the island's design and width, so the island opens out
                 of them, macOS-like (true); written as
@@ -158,11 +160,11 @@ STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser(
 SETTINGS_FILE = os.path.join(STATE_DIR, "island.json")
 DEFAULTS = {"enabled": False, "monitor": "", "media": True, "timers": True, "record": True,
             "railguard": True, "notifications": True, "notify": False, "ongoing": False,
-            "style": "notch", "notch_color": "black", "match_bar": True}
-STYLES = ("notch", "island", "glass", "theme", "outline")
-DARK_STYLES = ("notch", "island", "glass", "outline")   # light text, whatever the theme
-NOTCH_COLORS = ("black", "theme")
-SOLID_STYLES = ("notch", "island")   # the ones notch_color fills
+            "style": "notch", "notch_color": "black", "outline": False, "match_bar": True}
+STYLES = ("notch", "island", "theme")
+SHAPES = ("notch", "island")   # ours: notch_color fills them, light text, the bar takes them
+OLD_STYLES = {"glass": {"notch_color": "glass"}, "outline": {"outline": True}}   # now a notch with
+NOTCH_COLORS = ("black", "theme", "glass")
 BOOL_KEYS = tuple(k for k, v in DEFAULTS.items() if isinstance(v, bool))
 MONITOR_NAME = re.compile(r"^[A-Za-z0-9-]{1,32}$")
 TRUE_WORDS = ("on", "true", "1", "yes")
@@ -179,20 +181,12 @@ GEN_DIR = os.path.expanduser("~/.config/waybar/generated")
 THEME_FILES = ("theme-panel.css", "accent.css")
 ACCENT_CSS = os.path.join(GEN_DIR, "accent.css")
 BLACK = "#000000"
+GLASS = "alpha(#0b0b10, 0.62)"
+FROST = "alpha(#ffffff, 0.14)"   # glass's own faint edge
+LIT_EDGE = "@edge-lit"           # outline: the theme's lit edge (panel.css)
 BAR_CSS = os.path.join(GEN_DIR, "island-bar.css")
 BAR_CENTRE = ("#custom-day", "#custom-clock", "#custom-weather", "#custom-updates",
               "#custom-repos", "#custom-notifications")
-# The centre group's shape for each design: the island's own (ISLAND_CSS).
-BAR_LOOKS = {
-    "notch": ["background-color: #000000;", "border-radius: 0 0 16px 16px;"],
-    "island": ["background-color: #000000;", "border-radius: 999px;", "margin: 4px 0 4px 0;"],
-    # glass and outline get a 1 px pure-black top line: the edge where they
-    # meet the screen, and the row the daemon measures the notch on.
-    "glass": ["background-color: alpha(#0b0b10, 0.62);", "border: 1px solid alpha(#ffffff, 0.14);",
-              "border-top: 1px solid #000000;", "border-radius: 0 0 16px 16px;"],
-    "outline": ["background-color: alpha(#08080c, 0.92);", "border: 1px solid @edge-lit;",
-                "border-top: 1px solid #000000;", "border-radius: 0 0 16px 16px;"],
-}
 GAME_ENV = (b"SteamAppId=", b"STEAM_COMPAT_APP_ID=", b"LUTRIS_GAME_UUID=", b"HEROIC_APP_NAME=")
 STEAM_CLASS = re.compile(r"steam_app_\d+$")
 SKIP_PLAYERS = ("playerctld",)
@@ -276,6 +270,7 @@ def read_settings():
             data = json.load(fh)
     except (OSError, ValueError):
         data = {}
+    old = None
     for k, v in (data if isinstance(data, dict) else {}).items():
         if k not in DEFAULTS:
             continue
@@ -290,11 +285,16 @@ def read_settings():
         elif k == "style":
             if isinstance(v, str) and v.strip() in STYLES:
                 cur[k] = v.strip()
+            elif isinstance(v, str) and v.strip() in OLD_STYLES:
+                old = v.strip()
         elif k == "notch_color":
             if isinstance(v, str) and v.strip() in NOTCH_COLORS:
                 cur[k] = v.strip()
         elif isinstance(v, str):
             cur[k] = v.strip()[:32]
+    if old:                     # an island.json from before: what it meant
+        cur["style"] = "notch"
+        cur.update(OLD_STYLES[old])
     return cur
 
 
@@ -360,20 +360,75 @@ def readable(hexcolor):
 
 
 def notch_fill(cfg, accent=None):
-    """The fill of the solid designs: black, or with notch_color "theme" the
-    accent made readable. Black when there is no accent to read."""
-    if cfg.get("notch_color") != "theme" or cfg.get("style") not in SOLID_STYLES or not accent:
+    """The fill of the notch and island designs: black, glass, or with
+    notch_color "theme" the accent made readable (black when there is no
+    accent to read)."""
+    color = cfg.get("notch_color")
+    if cfg.get("style") not in SHAPES or color == "black":
         return BLACK
-    return readable(accent)
+    if color == "glass":
+        return GLASS
+    return readable(accent) if color == "theme" and accent else BLACK
+
+
+def edge(cfg):
+    """The 1 px edge round the design: the theme's lit one (outline), glass's
+    frost, or None."""
+    if cfg.get("outline"):
+        return LIT_EDGE
+    if cfg.get("style") in SHAPES and cfg.get("notch_color") == "glass":
+        return FROST
+    return None
 
 
 def fill_css(cfg, accent=None):
-    """The island's own fill, on top of ISLAND_CSS: nothing for black."""
+    """The island's fill and edge, on top of ISLAND_CSS (which has the
+    shapes): the notch and the theme's card hang from the screen edge, so
+    no edge on top."""
+    style = cfg.get("style")
+    lines = []
+    if style in SHAPES:
+        lines.append(f"background-color: {notch_fill(cfg, accent)};")
+    line = edge(cfg)
+    lines.append(f"border: 1px solid {line};" if line else "border-color: transparent;")
+    if style != "island":
+        lines.append("border-top-width: 0;")
+    return ("\n#panel.island.island-style-%s {\n    %s\n}\n" % (style, "\n    ".join(lines)))
+
+
+def bar_look(cfg, accent=None):
+    """The bar's centre group as the design: the same fill and edge as the
+    island (fill_css). Its measured row (measure_spec) must be one known
+    colour: the notch's top edge is the fill, or black under glass; the
+    glass capsule gets a black inner line under its top edge."""
     fill = notch_fill(cfg, accent)
-    if fill == BLACK:
-        return ""
-    return ("\n#panel.island.island-dark.island-style-%s {\n    background-color: %s;\n}\n"
-            % (cfg.get("style"), fill))
+    line = edge(cfg)
+    if cfg.get("style") == "island":
+        out = [f"background-color: {fill};", "border-radius: 999px;", "margin: 4px 0 4px 0;"]
+        if line:
+            out.append(f"border: 1px solid {line};")
+        if fill == GLASS:
+            out.append(f"box-shadow: inset 0 1px 0 0 {BLACK};")
+        return out
+    out = [f"background-color: {fill};", "border-radius: 0 0 16px 16px;"]
+    if line:
+        top = BLACK if fill == GLASS else fill
+        out += [f"border: 1px solid {line};", f"border-top: 1px solid {top};"]
+    return out
+
+
+def measure_spec(cfg, accent=None):
+    """Where measure_notch reads the notch's width (bar_look): (the row
+    under the screen's top edge, the colour of the run through the middle,
+    px the run is short of the full width at each end -- the capsule's round
+    ends above the row)."""
+    fill = notch_fill(cfg, accent)
+    if cfg.get("style") == "island":
+        # the ends: measured on screen against the notch's width
+        if fill == GLASS:           # always edged: its black inner line is the row under it
+            return 5, BLACK, 13
+        return (6, fill, 9) if edge(cfg) else (5, fill, 10)
+    return 0, (BLACK if fill == GLASS else fill), 0
 
 
 def bar_css(cfg, slot=False, accent=None):
@@ -384,12 +439,9 @@ def bar_css(cfg, slot=False, accent=None):
     group keeps its natural width; `slot` (the media is tucked in it) adds
     the free end where the daemon draws the mini thumbnail."""
     head = "/* GENERATED by ~/.config/hypr/scripts/island.py (match_bar) -- do not edit. */\n"
-    look = BAR_LOOKS.get(cfg.get("style"))
-    if not (cfg.get("enabled") and cfg.get("match_bar") and look):
+    if not (cfg.get("enabled") and cfg.get("match_bar") and cfg.get("style") in SHAPES):
         return head
-    fill = notch_fill(cfg, accent)
-    look = [f"background-color: {fill};" if line == f"background-color: {BLACK};" else line
-            for line in look]
+    look = bar_look(cfg, accent)
     pills = ",\n".join(BAR_CENTRE)
     hovers = ",\n".join(f"{p}:hover" for p in BAR_CENTRE)
     body = "\n    ".join(look)
@@ -486,6 +538,7 @@ window#waybar.waybar-main .modules-center {{
 
 MINI_SLOT = 52                # the free end of the notch for the media's thumbnail (px)
 NOTCH_DARK = 6                # the notch's top row is pure black: every channel at most this
+NOTCH_NEAR = 16               # a coloured fill comes back a few steps off (the screen's colour management)
 ISLAND_FALLBACK_W = 560       # before (or without) a measurement
 
 
@@ -527,27 +580,34 @@ def parse_ppm(data):
     return (w, h, pixels) if len(pixels) >= w * h * 3 else None
 
 
-def notch_half(row, width, dark=NOTCH_DARK, fill=(0, 0, 0)):
+def notch_half(row, width, dark=NOTCH_DARK, fill=(0, 0, 0), gap=0):
     """Half the width of the dark run through the middle of one RGB pixel
     row (the bar's top row: the notch, flat on top, and no text there).
     "Dark" is the notch's fill: black, or notch_color's colour (every channel
     within `dark` of it).
     waybar centres the group, so the smaller side is the true half -- a dark
     wallpaper beside one end cannot widen it. None when the middle is not
-    dark (the notch is not there)."""
+    dark (the notch is not there). The run goes on over at most `gap`
+    other pixels when the fill comes back after them: the media's
+    thumbnail, on the floating island's row at its right end."""
     def is_dark(x):
         i = 3 * x
         return max(abs(row[i + k] - fill[k]) for k in range(3)) <= dark
     mid = width // 2
     if width < 3 or not is_dark(mid):
         return None
-    left = mid
-    while left > 0 and is_dark(left - 1):
-        left -= 1
-    right = mid
-    while right < width - 1 and is_dark(right + 1):
-        right += 1
-    return min(mid - left, right - mid) + 1
+    def end(step):
+        x = mid
+        while True:
+            for k in range(1, gap + 2):
+                if not 0 <= x + k * step < width:
+                    return x
+                if is_dark(x + k * step):
+                    x += k * step
+                    break
+            else:
+                return x
+    return min(mid - end(-1), end(1) - mid) + 1
 
 
 def write_bar_css(cfg, slot=False):
@@ -614,6 +674,9 @@ def set_key(key, value):
             raise SystemExit(f"island.py: {key} is on or off")
     elif key == "style":
         v = str(value).strip().lower()
+        if v in OLD_STYLES:         # the old designs: a notch with their colour / outline
+            cur.update(OLD_STYLES[v])
+            v = "notch"
         if v not in STYLES:
             raise SystemExit(f"island.py: style is one of {', '.join(STYLES)}")
         cur[key] = v
@@ -915,7 +978,7 @@ def next_deadline(acts):
 def tucked(cfg):
     """The media lives in the notch as a mini thumbnail (hover: the full
     island): the island is on and its look is on the bar's centre."""
-    return bool(cfg.get("enabled") and cfg.get("match_bar") and cfg.get("style") in BAR_LOOKS
+    return bool(cfg.get("enabled") and cfg.get("match_bar") and cfg.get("style") in SHAPES
                 and cfg.get("media"))
 
 
@@ -1231,16 +1294,6 @@ ISLAND_CSS = """
 }
 #panel.island.island-style-island.island-expanded {
     border-radius: 26px;
-}
-#panel.island.island-style-glass {
-    background-color: alpha(#0b0b10, 0.62);
-    border: 1px solid alpha(#ffffff, 0.14);
-    border-top-width: 0;
-}
-#panel.island.island-style-outline {
-    background-color: alpha(#08080c, 0.92);
-    border: 1px solid @edge-lit;
-    border-top-width: 0;
 }
 /* the media's mini thumbnail in the notch's right slot */
 .island-mini {
@@ -1819,7 +1872,7 @@ def daemon():
                 ctx.add_class("island-pop")
             style = self.cfg.get("style") or "notch"
             ctx.add_class(f"island-style-{style}")
-            if style in DARK_STYLES:
+            if style in SHAPES:
                 ctx.add_class("island-dark")
             ctx.add_class("island-expanded" if expanded else "island-compact")
 
@@ -1956,8 +2009,7 @@ def daemon():
                 mon = next(m for m in hypr_request("j/monitors") if m.get("name") == self.output)
                 scale = float(mon.get("scale") or 1)
                 lw = int(round(mon["width"] / scale))
-                capsule = self.cfg.get("style") == "island"
-                row = 5 if capsule else 0
+                row, colour, ends = measure_spec(self.cfg, theme_accent())
                 r = subprocess.run(["grim", "-g", f"{mon['x']},{mon['y'] + row} {lw}x1", "-t", "ppm", "-"],
                                    capture_output=True, timeout=3)
                 got = parse_ppm(r.stdout)
@@ -1966,11 +2018,11 @@ def daemon():
             if not got:
                 return
             width, _h, pixels = got
-            half = notch_half(pixels, width, fill=rgb(notch_fill(self.cfg, theme_accent())))
+            half = notch_half(pixels, width, dark=NOTCH_DARK if colour == BLACK else NOTCH_NEAR,
+                              fill=rgb(colour), gap=MINI_SLOT if row else 0)
             if half is None or half < 120 or half > width // 2 - 8:
                 return
-            if capsule:
-                half += 8         # the round ends, above the sampled row
+            half += ends          # the capsule's round ends, above the sampled row
             w = 2 * half
             if w != self.notch_w:
                 self.notch_w = w
@@ -2771,7 +2823,7 @@ def daemon():
                 Gtk.main_quit()
                 return
             old, self.cfg = self.cfg, new
-            if (new["style"], new["notch_color"]) != (old["style"], old["notch_color"]):
+            if any(new[k] != old[k] for k in ("style", "notch_color", "outline")):
                 load_css()
             if write_bar_css(new, self.slot):
                 self.debounce("remeasure", 450, self.measure_notch)

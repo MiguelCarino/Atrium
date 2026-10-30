@@ -67,7 +67,8 @@ class Settings(unittest.TestCase):
         self.assertEqual(isl.DEFAULTS, {"enabled": False, "monitor": "", "media": True, "timers": True,
                                         "record": True, "railguard": True, "notifications": True,
                                         "notify": False, "ongoing": False,
-                                        "style": "notch", "notch_color": "black", "match_bar": True})
+                                        "style": "notch", "notch_color": "black", "outline": False,
+                                        "match_bar": True})
         self.assertEqual(isl.read_settings(), isl.DEFAULTS)
 
     def test_broken_file_is_the_defaults(self):
@@ -508,10 +509,36 @@ class Styles(unittest.TestCase):
     def test_style_is_checked(self):
         for style in isl.STYLES:
             self.assertEqual(isl.set_key("style", style)["style"], style)
-        self.assertEqual(isl.set_key("style", " Glass ")["style"], "glass")
+        self.assertEqual(isl.set_key("style", " Island ")["style"], "island")
         with self.assertRaises(SystemExit):
             isl.set_key("style", "neon")
-        self.assertEqual(isl.read_settings()["style"], "glass")
+        self.assertEqual(isl.read_settings()["style"], "island")
+
+    def test_the_old_designs_are_a_notch_with_their_colour_or_outline(self):
+        got = isl.set_key("style", "glass")
+        self.assertEqual((got["style"], got["notch_color"]), ("notch", "glass"))
+        got = isl.set_key("style", "outline")
+        self.assertEqual((got["style"], got["outline"]), ("notch", True))
+        for old, want in (("glass", ("glass", False)), ("outline", ("black", True))):
+            with open(isl.SETTINGS_FILE, "w") as fh:
+                json.dump({"style": old, "notch_color": "black", "outline": False}, fh)
+            got = isl.read_settings()
+            self.assertEqual((got["style"], got["notch_color"], got["outline"]), ("notch",) + want, old)
+
+    def test_outline_on_any_design(self):
+        for style in isl.STYLES:
+            cfg = dict(isl.DEFAULTS, enabled=True, style=style, outline=True)
+            self.assertIn("border: 1px solid @edge-lit;", isl.fill_css(cfg), style)
+            self.assertNotIn("@edge-lit", isl.fill_css(dict(cfg, outline=False)), style)
+            if style in isl.SHAPES:
+                self.assertIn("border: 1px solid @edge-lit;", isl.bar_css(cfg), style)
+                self.assertNotIn("@edge-lit", isl.bar_css(dict(cfg, outline=False)), style)
+        # the notch hangs from the edge: no line on top, and the bar's top
+        # row (the one measured) stays the fill
+        notch = dict(isl.DEFAULTS, enabled=True, outline=True)
+        self.assertIn("border-top-width: 0;", isl.fill_css(notch))
+        self.assertIn("border-top: 1px solid #000000;", isl.bar_css(notch))
+        self.assertNotIn("border-top-width: 0;", isl.fill_css(dict(notch, style="island")))
 
     def test_a_bad_style_in_the_file_is_the_default(self):
         os.makedirs(isl.STATE_DIR, exist_ok=True)
@@ -535,6 +562,7 @@ class Styles(unittest.TestCase):
 
     def test_notch_color_is_checked(self):
         self.assertEqual(isl.read_settings()["notch_color"], "black")
+        self.assertEqual(isl.set_key("notch_color", "glass")["notch_color"], "glass")
         self.assertEqual(isl.set_key("notch_color", " Theme ")["notch_color"], "theme")
         with self.assertRaises(SystemExit):
             isl.set_key("notch_color", "pink")
@@ -562,7 +590,7 @@ class Styles(unittest.TestCase):
         cfg = dict(isl.DEFAULTS, enabled=True, notch_color="theme")
         self.assertEqual(isl.notch_fill(dict(cfg, notch_color="black"), "#f78fb3"), "#000000")
         self.assertEqual(isl.notch_fill(cfg, None), "#000000")      # no accent to read
-        self.assertEqual(isl.notch_fill(dict(cfg, style="glass"), "#f78fb3"), "#000000")
+        self.assertEqual(isl.notch_fill(dict(cfg, style="theme"), "#f78fb3"), "#000000")
         fill = isl.notch_fill(cfg, "#f78fb3")
         self.assertNotEqual(fill, "#000000")
         self.assertEqual(isl.notch_fill(dict(cfg, style="island"), "#f78fb3"), fill)
@@ -571,17 +599,37 @@ class Styles(unittest.TestCase):
         self.assertNotIn("#000000;", isl.bar_css(cfg, accent="#f78fb3").split("}")[0])
         self.assertIn(fill, isl.fill_css(cfg, "#f78fb3"))
         self.assertIn("island-style-notch", isl.fill_css(cfg, "#f78fb3"))
-        self.assertEqual(isl.fill_css(dict(cfg, notch_color="black"), "#f78fb3"), "")
-        # glass keeps its own fill and its black top line
-        glass = isl.bar_css(dict(cfg, style="glass"), accent="#f78fb3")
-        self.assertIn("border-top: 1px solid #000000;", glass)
-        self.assertNotIn(fill, glass)
+        self.assertIn("#000000", isl.fill_css(dict(cfg, notch_color="black"), "#f78fb3"))
+        self.assertNotIn("background", isl.fill_css(dict(cfg, style="theme"), "#f78fb3"))
 
-    def test_the_css_has_every_design(self):
-        self.assertTrue(set(isl.DARK_STYLES) <= set(isl.STYLES))
-        for style in isl.STYLES:
-            if style != "notch" and style != "theme":
-                self.assertIn(f"island-style-{style}", isl.ISLAND_CSS)
+    def test_glass(self):
+        cfg = dict(isl.DEFAULTS, enabled=True, notch_color="glass")
+        for style in isl.SHAPES:
+            c = dict(cfg, style=style)
+            self.assertEqual(isl.notch_fill(c), isl.GLASS)
+            self.assertIn(isl.GLASS, isl.fill_css(c))
+            self.assertIn(isl.FROST, isl.fill_css(c))            # its frosted edge
+            self.assertIn(isl.GLASS, isl.bar_css(c))
+            self.assertIn("@edge-lit", isl.fill_css(dict(c, outline=True)))   # outline wins
+        # the bar's measured row is black: the notch's top line, the
+        # capsule's inner line
+        self.assertIn("border-top: 1px solid #000000;", isl.bar_css(cfg))
+        self.assertIn("box-shadow: inset 0 1px 0 0 #000000;", isl.bar_css(dict(cfg, style="island")))
+
+    def test_the_measured_row(self):
+        cfg = dict(isl.DEFAULTS, enabled=True)
+        self.assertEqual(isl.measure_spec(cfg), (0, "#000000", 0))
+        self.assertEqual(isl.measure_spec(dict(cfg, outline=True)), (0, "#000000", 0))
+        self.assertEqual(isl.measure_spec(dict(cfg, notch_color="glass")), (0, "#000000", 0))
+        fill = isl.readable("#f78fb3")
+        self.assertEqual(isl.measure_spec(dict(cfg, notch_color="theme"), "#f78fb3"), (0, fill, 0))
+        island = dict(cfg, style="island")
+        self.assertEqual(isl.measure_spec(island), (5, "#000000", 10))
+        self.assertEqual(isl.measure_spec(dict(island, outline=True)), (6, "#000000", 9))
+        self.assertEqual(isl.measure_spec(dict(island, notch_color="glass")), (5, "#000000", 13))
+        # every colour the measuring looks for is one rgb() reads
+        for c in (cfg, dict(cfg, notch_color="glass"), dict(island, notch_color="glass")):
+            isl.rgb(isl.measure_spec(c)[1])
 
 
 class Tucked(unittest.TestCase):
@@ -631,6 +679,13 @@ class NotchWidth(unittest.TestCase):
         px = [wall] * 40 + [fill] * 20 + [wall] * 40
         self.assertEqual(isl.notch_half(self.row(px), 100, fill=fill), 10)
         self.assertIsNone(isl.notch_half(self.row(px), 100))         # not black
+
+    def test_the_thumbnail_on_the_row_is_bridged(self):
+        wall, black, thumb = (120, 140, 200), (0, 0, 0), (26, 26, 26)
+        px = [wall] * 20 + [black] * 45 + [thumb] * 10 + [black] * 5 + [wall] * 20   # 100 px
+        self.assertEqual(isl.notch_half(self.row(px), 100), 15)
+        self.assertEqual(isl.notch_half(self.row(px), 100, gap=12), 30)
+        self.assertEqual(isl.notch_half(self.row(px), 100, gap=40), 30)    # never past the wall
 
     def test_no_notch(self):
         self.assertIsNone(isl.notch_half(self.row([(200, 200, 200)] * 50), 50))

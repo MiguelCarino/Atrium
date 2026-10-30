@@ -69,7 +69,7 @@ class PageHelpers(unittest.TestCase):
 
     def test_switches_for_everything(self):
         p, _ran = self.build()
-        want = {"enabled", "ongoing", "match_bar"} | {key for key, *_ in self.page.SOURCES}
+        want = {"enabled", "ongoing", "match_bar", "outline"} | {key for key, *_ in self.page.SOURCES}
         self.assertEqual(set(p.switches), want)
         self.assertEqual({key for key, *_ in self.page.SOURCES},
                          {"media", "timers", "record", "railguard", "notifications", "notify"})
