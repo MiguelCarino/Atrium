@@ -16,12 +16,17 @@ pill, its sensors panel, llm-gpu.py and record.sh all come here).
     gpu.py table               [{pid, name, mib, sm}] on the main card: every
                                process with its memory and (NVIDIA) its share
                                of the card's compute, biggest first
-    gpu.py stream [SECONDS]    "load, temp, used, total, power, fan" (CSV,
-                               MiB / W / %; "N/A" for what the card does not
-                               say) every SECONDS (5) until killed -- the bar's
-                               GPU pill reads this (gpu_usage.sh watch). With
-                               no card (or one that gives no numbers, like
-                               nouveau) it prints "none" once and exits 3
+    gpu.py stream [SECONDS]    "load, temp, used, total, power, fan, which, maker"
+                               (CSV, MiB / W / %; "N/A" for what the card
+                               does not say) every SECONDS (5) until killed
+                               -- the bar's GPU pill reads this (gpu_usage.sh
+                               watch). The card the screens are on
+                               (display_card), or an offload card while
+                               something runs on it: which is "offload" then,
+                               else "display"; maker is nvidia | amd | intel |
+                               other (the pill's colour). With no card (or one that gives
+                               no numbers, like nouveau) it prints "none" once
+                               and exits 3
     gpu.py encoder [--json]    what record.sh records with: "gpu nvenc",
                                "gpu vaapi" or "cpu x264" (below)
 
@@ -71,6 +76,25 @@ Intel; gsr's own -encoder gpu picks between them); only h264_software ->
 "cpu x264". Without gsr, a working NVML says nvenc, a render node on an
 AMD/Intel card says vaapi, else cpu.
 
+HYBRID LAPTOPS AND SLEEPING CARDS: a laptop's NVIDIA card is often an
+offload card -- no connectors of its own (the screens are all on the
+integrated GPU), only used by what is started on it (switcherooctl launch,
+the launcher's "Run on <card>"). With runtime power management on
+(NVreg_DynamicPowerManagement=0x02, Atrium's system/nvidia-power) the
+driver powers it down while nothing holds it, and anything that opens it
+-- an NVML query included -- wakes it up. So:
+  * a card that is powered down (runtime_status "suspended") is never
+    asked: gpus() lists it with source "asleep", load 0, no other numbers,
+    and NVML is not even opened while every NVIDIA card sleeps;
+  * NVML is let go (nvmlShutdown) as soon as a card that may sleep is
+    idle -- no load, no process -- so a daemon that asks every few
+    seconds (railguard, the bar) does not keep it awake for ever.
+  * display_card() is the card that drives the screens (it has
+    connectors); offload_cards() the discrete ones that have none. The bar
+    follows the display card and switches to an offload card while
+    something runs on it (stream).
+primary() stays the first discrete card: the one a model loads onto.
+
 Importable: gpus(), primary(), vendor(), processes(card, compute_only),
 process_table(card), Sampler (stream's two-sample Intel load),
 encoder(), pick_encoder(info_text, vendor). The roots (/sys, /proc) and the
@@ -92,8 +116,16 @@ PCI_IDS = ("/usr/share/hwdata/pci.ids", "/usr/share/misc/pci.ids")
 NVML_LIB = "libnvidia-ml.so.1"
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
 ENCODER_CACHE = os.path.join(RUNTIME, "gpu-encoder.json")
+# Each NVML card's memory size by PCI address, kept across boots: a card that
+# is powered down cannot be asked, and the launcher's "fits GPU" or railguard
+# still need to know how much it has.
+VRAM_CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "gpu-vram.json")
+_VRAM = {}
 VENDORS = {"0x10de": "nvidia", "0x1002": "amd", "0x1022": "amd", "0x8086": "intel"}
 MIB = 2 ** 20
+# An NVIDIA card with no process and at most this much memory in use is idle:
+# the driver's own context is ~1 MiB.
+IDLE_MIB = 16
 
 
 # -- small readers ---------------------------------------------------------------------------
@@ -215,6 +247,14 @@ class Nvml:
             except (OSError, AttributeError):
                 self.state = False
         return self.state
+
+    def close(self):
+        """Let go of the driver (nvmlShutdown): an open NVML keeps the card
+        out of its powered-down state. The next call opens it again."""
+        if self.state:
+            self._call(("nvmlShutdown",))
+        self.state = None
+        self.last_seen = {}
 
     def _call(self, names, *args):
         for name in names:
@@ -427,12 +467,74 @@ def _discrete(c, numbers):
     return False
 
 
+def asleep(pci):
+    """The card is powered down by runtime power management (D3): asking it
+    anything would wake it up."""
+    return _read(os.path.join(SYS, "bus", "pci", "devices", pci, "power", "runtime_status")) == "suspended"
+
+
+def may_sleep(pci):
+    """The NVIDIA driver powers this card down when it is idle (runtime D3
+    on: NVreg_DynamicPowerManagement)."""
+    text = _read(os.path.join(PROC, "driver", "nvidia", "gpus", pci, "power")) or ""
+    m = re.search(r"Runtime D3 status:\s*(\S+)", text)
+    return bool(m) and m.group(1).lower().startswith("enabled")
+
+
+def _vram_sizes():
+    if not _VRAM:
+        try:
+            with open(VRAM_CACHE) as handle:
+                data = json.load(handle)
+            _VRAM.update({k: v for k, v in data.items() if isinstance(v, int)})
+        except (OSError, ValueError, AttributeError):
+            pass
+        _VRAM.setdefault("", 0)     # loaded (an empty cache too)
+    return _VRAM
+
+
+def _remember_vram(cards):
+    sizes = _vram_sizes()
+    new = {g["pci"]: g["vram_total"] for g in cards
+           if g.get("source") == "nvml" and g.get("vram_total") and sizes.get(g["pci"]) != g["vram_total"]}
+    if not new:
+        return
+    sizes.update(new)
+    try:
+        os.makedirs(os.path.dirname(VRAM_CACHE), exist_ok=True)
+        tmp = f"{VRAM_CACHE}.{os.getpid()}.tmp"
+        with open(tmp, "w") as handle:
+            json.dump({k: v for k, v in sizes.items() if k}, handle)
+        os.replace(tmp, VRAM_CACHE)
+    except OSError:
+        pass
+
+
+def _release_if_idle(nvml, cards):
+    """Close NVML when every NVIDIA card it sees may sleep and is idle."""
+    nv = [g for g in cards if g.get("source") == "nvml"]
+    if nv and all(may_sleep(g["pci"]) and not g["util"] and (g["vram_used"] or 0) <= IDLE_MIB
+                  for g in nv):
+        nvml.close()
+
+
 def gpus(nvml=None):
     """Every card, discrete first (see the docstring for the fields)."""
     nvml = nvml or NVML
     cards = sysfs_cards()
     out, nvml_pcis = [], set()
-    for i in range(nvml.count()):
+    # Every NVIDIA card powered down: NVML is not opened (it would wake them).
+    nv = [c for c in cards if c["vendor"] == "nvidia" and c["driver"] == "nvidia"]
+    sleeping = {c["pci"] for c in nv if asleep(c["pci"])}
+    if nv and len(sleeping) == len(nv):
+        nvml.close()
+        for c in nv:
+            out.append({"vendor": "nvidia", "name": _sysfs_name(c), "driver": c["driver"], "pci": c["pci"],
+                        "card": c["card"], "discrete": True, "index": None, "util": 0, "vram_used": 0,
+                        "vram_total": _vram_sizes().get(c["pci"]) or None, "temp": None, "power": None,
+                        "fan": None, "source": "asleep"})
+            nvml_pcis.add(c["pci"])
+    for i in range(0 if sleeping and len(sleeping) == len(nv) else nvml.count()):
         d = nvml.device(i)
         if not d:
             continue
@@ -453,7 +555,50 @@ def gpus(nvml=None):
                         card=c["card"], discrete=_discrete(c, numbers), index=None,
                         source="sysfs" if known else "none"))
     out.sort(key=lambda g: (not g["discrete"], g["vendor"] == "other", g["pci"]))
+    _remember_vram(out)
+    _release_if_idle(nvml, out)
     return out
+
+
+def has_outputs(card):
+    """The card has connectors (eDP-1, HDMI-A-1 ...): it can drive a screen."""
+    return bool(card.get("card")) and bool(glob.glob(card["card"] + "-*"))
+
+
+def display_card(cards=None, nvml=None):
+    """The card the screens are on: the first with a connected connector,
+    else the first with connectors, else primary()."""
+    cards = gpus(nvml) if cards is None else cards
+    lit = [g for g in cards if any(_read(os.path.join(c, "status")) == "connected"
+                                   for c in glob.glob((g.get("card") or "/nonexistent") + "-*"))]
+    return next(iter(lit), None) or next((g for g in cards if has_outputs(g)), None) \
+        or (cards[0] if cards else None)
+
+
+def offload_cards(cards=None, nvml=None):
+    """The discrete cards without connectors, on a machine where another
+    card has them: render-only cards that run what is started on them."""
+    cards = gpus(nvml) if cards is None else cards
+    if not any(has_outputs(g) for g in cards):
+        return []
+    return [g for g in cards if g["discrete"] and g.get("card") and not has_outputs(g)]
+
+
+def shown_card(cards=None, nvml=None):
+    """(card, which) the bar shows: an offload card while something runs on
+    it ("offload"), else the display card ("display")."""
+    cards = gpus(nvml) if cards is None else cards
+    busy = next((g for g in offload_cards(cards) if in_use(g, nvml)), None)
+    return (busy, "offload") if busy else (display_card(cards), "display")
+
+
+def in_use(card, nvml=None):
+    """Something runs on this card: awake, with a process or a load."""
+    if card.get("source") == "asleep":
+        return False
+    if card.get("util"):
+        return True
+    return bool(processes(card, nvml=nvml))
 
 
 def primary(nvml=None):
@@ -568,8 +713,13 @@ def processes(card=None, compute_only=False, nvml=None):
     card = card or primary(nvml)
     if not card:
         return {}
+    if card.get("source") == "asleep":
+        return {}
     if card.get("source") == "nvml":
-        return nvml.processes(card["index"], compute_only)
+        out = nvml.processes(card["index"], compute_only)
+        if not out and not compute_only:
+            _release_if_idle(nvml, [card])
+        return out
     if compute_only and card.get("vendor") != "amd":
         return {}
     out = {}
@@ -697,15 +847,16 @@ def encoder(fresh=False):
 
 
 # -- the commands ----------------------------------------------------------------------------
-def _csv(card, util):
+def _csv(card, util, which="display"):
     def v(x):
         return "N/A" if x is None else str(round(x))
-    return ", ".join(v(x) for x in (util, card["temp"], card["vram_used"], card["vram_total"],
-                                    card["power"], card["fan"]))
+    return ", ".join([v(x) for x in (util, card["temp"], card["vram_used"], card["vram_total"],
+                                     card["power"], card["fan"])] + [which, card.get("vendor") or "other"])
 
 
 def stream(seconds=5.0):
-    card = primary()
+    cards = gpus()
+    card = display_card(cards)
     # A card whose driver gives no numbers at all (nouveau, a VM's virtual
     # card) is as good as none for the pill: "GPU N/A" forever helps no one.
     # Intel can be all None here and still have a load (the Sampler).
@@ -717,10 +868,16 @@ def stream(seconds=5.0):
         sampler()               # the baseline: the first load is the busy time since
         time.sleep(1.0)
     while True:
-        card = next((g for g in gpus() if g["pci"] == card["pci"]), card)
-        util = card["util"] if card["util"] is not None else (sampler() if sampler else None)
+        cards = gpus()
+        card = next((g for g in cards if g["pci"] == card["pci"]), card)
+        busy, which = shown_card(cards)
+        if which == "offload":
+            line = _csv(busy, busy["util"], which)
+        else:
+            util = card["util"] if card["util"] is not None else (sampler() if sampler else None)
+            line = _csv(card, util)
         try:
-            print(_csv(card, util), flush=True)
+            print(line, flush=True)
         except BrokenPipeError:
             return 0
         time.sleep(seconds)

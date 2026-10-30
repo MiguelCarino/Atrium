@@ -17,8 +17,10 @@ no D-Bus or nmcli is reached, nothing is rebooted.
   doctor.py, workspace-tint.py, style.css, panel.py: the phase-1 followups
 """
 import importlib.util
+import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import time
@@ -58,6 +60,8 @@ disp = load("display_panel")
 tint = load("workspace-tint")
 panel = load("panel")
 doctor = helpers.import_script("doctor.py")
+theme = helpers.import_script("theme.py", "theme")
+barfit = load("barfit")
 
 
 class PanelUiTest(unittest.TestCase):
@@ -380,6 +384,99 @@ class NetworkVpnTest(unittest.TestCase):
         self.assertIn("+1", net.vpn_suffix(["a", "b"]))
         self.assertIn("…", net.vpn_suffix(["a-very-long-tunnel-name"]))
         self.assertEqual(net.vpn_suffix([]), "")
+
+    def test_icon_style(self):
+        """bar.network=icon (moe, or any bar on a narrow screen): the
+        interface's glyph alone, the SSID and signal on hover; offline,
+        "Available" with networks in range. The usual pill is unchanged and
+        has no tooltip."""
+        out = net.pill("wlp1s0", "10.0.0.2/24", "-60 dBm", True, style="icon", ssid="Café & <5G>")
+        self.assertEqual(out["text"], net.ICON_WIFI)
+        self.assertEqual(out["tooltip"], "Café &amp; &lt;5G&gt; · 80%")
+        self.assertEqual(out["class"], ["connected", "icon"])
+        self.assertTrue(net.is_connected(out))
+        vpn = net.pill("wlp1s0", "", "-60 dBm", True, ["wg"], style="icon", ssid="home")
+        self.assertEqual(vpn["tooltip"], "home · 80%")
+        self.assertEqual(vpn["class"], ["connected", "vpn", "icon"])
+        self.assertEqual(net.pill(None, "", style="icon", radio=True, available=True),
+                         {"text": net.ICON_WIFI, "class": ["disconnected", "icon"], "tooltip": "Available"})
+        self.assertEqual(net.pill(None, "", style="icon", radio=True)["tooltip"], "Disconnected")
+        self.assertEqual(net.pill(None, "", style="icon")["text"], net.ICON_GLOBE)   # no radio
+        plain = net.pill("wlp1s0", "", "-60 dBm", True)
+        self.assertEqual(plain["text"], f"Wi-Fi (80%) {net.ICON_WIFI}")
+        self.assertNotIn("tooltip", plain)
+        wired = net.pill("enp7s0", "10.0.0.2/24", style="icon")
+        self.assertEqual(wired["text"], net.ICON_ETHERNET)
+        self.assertEqual(wired["tooltip"], "enp7s0 · 10.0.0.2")
+        self.assertIn("10.0.0.2", net.pill("enp7s0", "10.0.0.2/24")["text"])
+
+    def test_bar_style(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".conf", delete=False) as fh:
+            fh.write("# GENERATED\nclock=\nnetwork=icon\n")
+        try:
+            self.assertEqual(net.bar_style(fh.name), "icon")
+            with open(fh.name, "w") as out:
+                out.write("network=sparkles\n")
+            self.assertEqual(net.bar_style(fh.name), "")
+        finally:
+            os.unlink(fh.name)
+        self.assertEqual(net.bar_style("/nonexistent/bar.conf"), "")
+        self.assertEqual(tuple(theme.BAR_NETWORK), net.STYLES)
+
+    def test_barfit_narrow(self):
+        mons = [{"name": "eDP-1", "width": 1920, "height": 1080, "scale": 1, "transform": 0},
+                {"name": "DP-1", "width": 3440, "height": 1440, "scale": 1, "transform": 0},
+                {"name": "DP-2", "width": 5120, "height": 2880, "scale": 2, "transform": 0},
+                {"name": "DP-3", "width": 3840, "height": 2160, "scale": 1, "transform": 1}]
+        self.assertTrue(barfit.narrow("eDP-1", mons))
+        self.assertFalse(barfit.narrow("DP-1", mons))
+        self.assertFalse(barfit.narrow("DP-2", mons))     # 2560 logical: room enough
+        self.assertTrue(barfit.narrow("DP-3", mons))      # rotated: 2160 wide
+        self.assertFalse(barfit.narrow("HDMI-A-9", mons))  # not there: the usual bar
+
+    def test_meters(self):
+        """barfit.vbars: 4 segments of 25%, any load lights the first."""
+        self.assertEqual([barfit.lit(v) for v in (0, 1, 25, 26, 50, 74, 75, 76, 100, 250, "x")],
+                         [0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 0])
+        m = barfit.vbars([60], "#123456")
+        rows = m[len(barfit.VB_OPEN):-len("</span>")].split("\n")
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(["fgalpha" in r for r in rows], [True, False, False, False])   # top unlit
+        self.assertIn("color='#123456'", rows[0])
+        self.assertEqual(len(barfit.vbars([10, 90]).split("\n")[0].split("</span> <span")), 2)
+        self.assertEqual(len(barfit.vbars([50], cap=True).split("\n")), 5)
+
+    def test_meters_shell_and_python_agree(self):
+        script = os.path.join(WAYBAR_SCRIPTS, "vbars.sh")
+        for vals in (["0", "100"], ["14", "60"], ["33"]):
+            out = subprocess.run(["bash", "-c", f'. "{script}"; vbars "#abcdef" t {" ".join(vals)}; '
+                                  'printf %s "$t"'], capture_output=True, text=True, timeout=10).stdout
+            self.assertEqual(out.replace("\\n", "\n"), barfit.vbars(vals, "#abcdef"), vals)
+
+    def test_battery_icons_are_barfits(self):
+        """waybar/config's battery format-icons are vbars(cap=True) for 25,
+        50, 75 and 100 -- regenerated by hand when the meters change."""
+        with open(os.path.join(WAYBAR, "config")) as fh:
+            text = fh.read()
+        block = text[text.index('"battery": {'):]
+        block = block[block.index('"format-icons": ['):block.index("],")]
+        icons = [json.loads(line.strip().rstrip(",")) for line in block.splitlines()[1:] if line.strip()]
+        self.assertEqual(icons, [barfit.vbars([v], cap=True) for v in (25, 50, 75, 100)])
+
+    def test_disk_meter(self):
+        disk = load("disk")
+        disks = [("nvme0n1", [{"mountpoints": ["/"], "fssize": "100", "fsused": "40"},
+                              {"mountpoints": ["/mnt/big"], "fssize": "100", "fsused": "97"}])]
+        saved = disk.read_disks
+        disk.read_disks = lambda: disks
+        try:
+            narrow = disk.pill(narrow=True)
+            wide = disk.pill()
+        finally:
+            disk.read_disks = saved
+        self.assertEqual(narrow["text"], barfit.vbars([40]))
+        self.assertEqual(narrow["class"], ["critical", "meters"])
+        self.assertTrue(wide["text"].startswith("40%"))
 
     def test_back_online_with_a_vpn_class(self):
         self.assertTrue(net.back_online({"class": "disconnected"}, {"class": ["connected", "vpn"]}))

@@ -44,6 +44,7 @@ import html
 import json
 import os
 import select
+import signal
 import socket
 import struct
 import subprocess
@@ -69,9 +70,51 @@ SIOCGIFNETMASK = 0x891B
 ICON_WIFI = "\uf1eb"
 ICON_GLOBE = "\uf0ac"
 ICON_LINK = "\uf0c1"
+ICON_ETHERNET = "\uf796"   # network-wired: a cable, the icon style's wired pill
 ICON_VPN = "\uf3ed"        # shield-halved: a VPN / WireGuard tunnel is up
 VPN_TYPES = ("vpn", "wireguard")
 VPN_NAME_MAX = 14           # the pill has max-length 50; a long name is cut
+
+# The theme's pill style: bar.network= in theme.conf, written by theme.py to
+# waybar/generated/bar.conf as network=. "icon" (moe) is the interface's
+# glyph alone -- Wi-Fi or a cable -- and the rest a hover away: the SSID and
+# the signal ("Home · 70%"), the interface and address on a cable,
+# "Available" while not connected but networks are in range, or
+# "Disconnected". Empty: "Wi-Fi (70%) \uf1eb", no tooltip. Read on every
+# build (one small file); theme.py sends SIGUSR1 when it changes.
+# A bar on a narrow screen (barfit.py, asked once by watch) is "icon" in
+# every theme: a laptop's bar has no room for "Wi-Fi (70%)".
+BAR_CONF = os.path.expanduser("~/.config/waybar/generated/bar.conf")
+STYLES = ("", "icon")
+NARROW = False
+
+
+def bar_style(path=None):
+    try:
+        with open(path or BAR_CONF) as fh:
+            for line in fh:
+                key, _, value = line.strip().partition("=")
+                if key == "network":
+                    return value if value in STYLES else ""
+    except OSError:
+        pass
+    return ""
+
+
+def wifi_iface():
+    """The first wireless interface, connected or not ("" with none)."""
+    try:
+        return next((n for n in sorted(os.listdir("/sys/class/net")) if is_wifi(n)), "")
+    except OSError:
+        return ""
+
+
+def networks_in_range():
+    """Does NetworkManager see any network with a name? Its last scan, not a
+    new one (--rescan no): NetworkManager scans on its own while a radio is
+    not connected. Cached like every other run()."""
+    out = run(["nmcli", "-t", "-f", "SSID", "device", "wifi", "list", "--rescan", "no"])
+    return any(line.strip() for line in out.splitlines())
 
 
 def run(cmd, timeout=2):
@@ -354,15 +397,32 @@ def vpn_suffix(vpns):
     return f" {ICON_VPN} {name}{more}"
 
 
-def pill(iface, v4, wifi_signal=None, wifi=False, vpns=()):
+def pill(iface, v4, wifi_signal=None, wifi=False, vpns=(), style="", ssid="",
+         radio=False, available=False):
     """The pill's JSON from what it shows: the same text the full build()
-    makes, without the tooltip (the module has it off). With a VPN up, its
-    shield and name follow, and the class list gains "vpn"."""
+    makes, without its tooltip. With a VPN up, its shield and name follow,
+    and the class list gains "vpn". style "icon": the interface's glyph
+    alone (class "icon": no width kept for a longer text), the SSID and signal (or the cable's address) as the tooltip;
+    offline with a Wi-Fi radio (radio), the Wi-Fi glyph, "Available" when
+    networks are in range."""
     if not iface:
+        if style == "icon" and radio:
+            return {"text": ICON_WIFI, "class": ["disconnected", "icon"],
+                    "tooltip": "Available" if available else "Disconnected"}
         return {"text": ICON_GLOBE, "class": "disconnected"}
-    out = _pill_text(iface, v4, wifi_signal, wifi)
+    if style == "icon" and wifi:
+        pct = signal_percent(wifi_signal)
+        tip = ssid or "Wi-Fi"
+        out = {"text": ICON_WIFI, "class": ["connected", "icon"],
+               "tooltip": html.escape(tip if pct is None else "%s · %d%%" % (tip, pct))}
+    elif style == "icon":
+        out = {"text": ICON_ETHERNET, "class": ["connected", "icon"],
+               "tooltip": html.escape("%s · %s" % (iface, v4.split("/")[0]) if v4 else "%s (no IP)" % iface)}
+    else:
+        out = _pill_text(iface, v4, wifi_signal, wifi)
     if vpns:
-        out = {"text": out["text"] + vpn_suffix(vpns), "class": ["connected", "vpn"]}
+        icon = ["icon"] if "icon" in (out["class"] if isinstance(out["class"], list) else [out["class"]]) else []
+        out = dict(out, text=out["text"] + vpn_suffix(vpns), **{"class": ["connected", "vpn"] + icon})
     return out
 
 
@@ -378,12 +438,16 @@ def _pill_text(iface, v4, wifi_signal, wifi):
 
 
 def current_pill():
+    style = bar_style() or ("icon" if NARROW else "")
     iface, _gw = default_iface()
     if not iface or not counters(iface):
-        return pill(None, "")
+        radio = style == "icon" and bool(wifi_iface())
+        return pill(None, "", style=style, radio=radio,
+                    available=radio and networks_in_range())
     wifi = is_wifi(iface)
-    signal = wifi_info(iface).get("signal") if wifi else None
-    return pill(iface, first_ipv4(iface), signal, wifi, active_vpns())
+    info = wifi_info(iface) if wifi else {}
+    return pill(iface, first_ipv4(iface), info.get("signal"), wifi, active_vpns(),
+                style=style, ssid=info.get("ssid", ""))
 
 
 def build(iface, gateway, prev, cur, elapsed):
@@ -549,9 +613,22 @@ def weather_retry():
 
 
 def watch():
+    global NARROW
+    try:
+        import barfit
+        NARROW = barfit.narrow()
+    except Exception:       # noqa: BLE001 - the usual pill
+        NARROW = False
     last_text = None
     last_payload = None
     mon = monitor()
+    # theme.py's SIGUSR1 (bar.network changed) ends the wait below at once:
+    # the signal writes a byte into `wake`, which the select watches too.
+    wake, wake_w = os.pipe()
+    os.set_blocking(wake, False)
+    os.set_blocking(wake_w, False)
+    signal.set_wakeup_fd(wake_w)
+    signal.signal(signal.SIGUSR1, lambda *_: None)
     while True:
         # A watcher has to outlive its own errors: an exception here used to
         # end the pill for the rest of the session. One bad sample becomes an
@@ -570,14 +647,24 @@ def watch():
             except BrokenPipeError:
                 return          # waybar went away; nothing left to talk to
             last_text = line
-        wifi = "Wi-Fi" in payload.get("text", "")
+        # Both styles carry the glyph; "icon" offline too, to follow the
+        # networks coming into range.
+        wifi = ICON_WIFI in payload.get("text", "")
         wait = WIFI_REFRESH if wifi else SAFETY_REFRESH
         if mon is None or mon.poll() is not None:
             time.sleep(POLL)
             mon = monitor() if mon is not None else None
             continue
         fd = mon.stdout.fileno()
-        if select.select([fd], [], [], wait)[0]:
+        ready = select.select([fd, wake], [], [], wait)[0]
+        if wake in ready:
+            while True:
+                try:
+                    if not os.read(wake, 64):
+                        break
+                except BlockingIOError:
+                    break
+        if fd in ready:
             if not os.read(fd, 65536):
                 mon = monitor()
                 continue

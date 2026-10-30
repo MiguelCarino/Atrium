@@ -285,13 +285,14 @@ def group_gpu_rows(rows, n=APP_ROWS):
 
 
 def gpu_apps(n=APP_ROWS):
-    """Every process on the main card (graphics AND compute) with its memory
-    and, on NVIDIA, its share of the compute since the last poll."""
+    """Every process on the card the pill shows (graphics AND compute) with
+    its memory and, on NVIDIA, its share of the compute since the last poll:
+    the screens' card, or an offload card while something runs on it."""
     mod = _gpu()
     if mod is None:
         return []
     try:
-        return group_gpu_rows(mod.process_table(), n)
+        return group_gpu_rows(mod.process_table(mod.shown_card()[0]), n)
     except Exception:  # noqa: BLE001
         return []
 

@@ -248,11 +248,7 @@
 #custom-cpu,
 #custom-gpu {
     color: @text;
-    min-width: 128px;
-}
-
-#custom-network {
-    min-width: 100px;
+    min-width: 72px;
 }
 
 #custom-cpu.critical,

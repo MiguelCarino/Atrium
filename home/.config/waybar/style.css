@@ -1209,3 +1209,19 @@ window#waybar.empty #window {
    of the theme. island.py writes it (a comment only when off), theme.py
    ensure creates it when missing: a missing import leaves waybar unstyled. */
 @import url("generated/island-bar.css");
+
+/* Meters: on a narrow screen (barfit.py) the CPU, GPU and disk pills are
+   vertical meters in 25% segments instead of numbers (vbars.sh, class
+   "meters"), and the battery always is; the network pill is its icon alone
+   (network.py, class "icon"). Last in the file, after the theme:
+   the width a theme gives those pills for their digits would only be empty
+   space around a meter. */
+#custom-cpu.meters,
+#custom-gpu.meters,
+#custom-disk.meters,
+#custom-network.icon,
+#battery {
+    min-width: 0;
+    padding-left: 9px;
+    padding-right: 9px;
+}

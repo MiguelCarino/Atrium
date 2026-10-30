@@ -331,6 +331,11 @@ theme.conf KEYS (cyberpunk's file lists every one with its value)
                                (theme-modules.json). "" = their numbers
                                (bar.clock and bar.logo are written to
                                waybar/generated/bar.conf, which clock.py reads)
+    bar.network=               icon: the network pill as the interface's
+                               glyph alone (Wi-Fi or a cable), the SSID and
+                               signal on hover ("Available" offline with
+                               networks in range; moe). "" = "Wi-Fi (70%) \uf1eb". Written to
+                               bar.conf as network=, which network.py reads
     dock.start=                a word beside the taskbar's start button glyph
                                (dock.py, the "taskbar" layout; win95 and luna:
                                "Start"). "" = the glyph alone. Written to
@@ -379,6 +384,7 @@ The theme's own value stays readable as theme:<key> in load()'s answer
 theme alone, without them (load(name, user=False)).
 """
 
+import colorsys
 import json
 import os
 import re
@@ -427,6 +433,10 @@ ISLAND_SNAPSHOT = os.path.join(os.path.dirname(STATE), "island.before-theme.json
 BAR_CONF_NAME = "bar.conf"
 BAR_CLOCKS = ("", "menubar")
 BAR_WORKSPACES = ("", "dots")
+BAR_NETWORK = ("", "icon")                 # network.py STYLES
+# network.py's watcher: it re-reads bar.conf on SIGUSR1. Only the python
+# process -- waybar starts it through `sh -c`, which SIGUSR1 would end.
+NETWORK_WATCH = r"^\S*python3?\S* \S*waybar/scripts/network\.py watch"
 DOCK_START_MAX = 12                        # dock.start=: one short word
 DOCK_MAGNIFY = ("", "yes", "no")           # dock.magnify=
 
@@ -443,7 +453,7 @@ DEFAULTS = {
     "icon_theme": "Adwaita", "gtk_button_layout": "appmenu:close",
     "crt_suggest": "no", "lang": "en", "cursor_theme": "Adwaita",
     "island.enabled": "", "island.style": "", "island.match_bar": "",
-    "bar.clock": "", "bar.logo": "", "bar.workspaces": "", "dock.start": "",
+    "bar.clock": "", "bar.logo": "", "bar.workspaces": "", "bar.network": "", "dock.start": "",
     "dock.magnify": "",
     "term.font": BASE_MONO, "term.font_size": "14", "glass": "12", "term.bright_bold": "no",
     "cosmic.background": "#0d1018", "cosmic.foreground": "#c8d3e6", "cosmic.accent": "#00f0ff",
@@ -1119,12 +1129,96 @@ def generated_text(target, conf):
     return head + body
 
 
+# The makers' colours for the CPU and GPU pills (cpu_usage.sh, gpu_usage.sh
+# pick by the chip's maker): NVIDIA green, AMD red, Intel blue -- their hue
+# and colourfulness; the lightness is the theme's (vendor_colors). color.amd=
+# (and nvidia, intel) in a theme.conf replaces a maker's colour;
+# color.gpu_amd= (cpu_amd ...) replaces one finished shade.
+VENDOR_HUES = {"amd": "#ed1c24", "nvidia": "#76b900", "intel": "#0071c5"}
+# Perceptual lightness (OKLab L) the GPU's shade may take: outside it a red
+# stops reading as red (near black, or pink near white).
+VENDOR_L = (0.42, 0.74)
+# The CPU's shade: this much further from the middle than the GPU's, with
+# this share of its colour -- two shades of one maker (an AMD laptop's CPU
+# and GPU), told apart, both readable.
+CPU_STEP, CPU_CHROMA, CPU_L = 0.10, 0.80, (0.30, 0.88)
+
+
+def _lin(c):
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def _gamma(c):
+    return 12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
+
+
+def oklab(hexcolour):
+    r, g, b = (_lin(c) for c in hex_rgb(hexcolour))
+    l_ = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1 / 3)
+    m_ = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b) ** (1 / 3)
+    s_ = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b) ** (1 / 3)
+    return (0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+            1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+            0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_)
+
+
+def _oklab_rgb(lab):
+    L, a, b = lab
+    l_, m_, s_ = (L + 0.3963377774 * a + 0.2158037573 * b, L - 0.1055613458 * a - 0.0638541728 * b,
+                  L - 0.0894841775 * a - 1.2914855480 * b)
+    l, m, s = l_ ** 3, m_ ** 3, s_ ** 3
+    return (4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+            -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+            -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
+
+
+def shade(hexcolour, light, chroma=1.0):
+    """The colour at OKLab lightness `light`, its hue kept, its colour scaled
+    by `chroma` and then cut back as far as it takes to fit in sRGB."""
+    _l, a, b = oklab(hexcolour)
+    lo, hi = 0.0, chroma
+    for _ in range(24):
+        if all(-1e-6 <= c <= 1 + 1e-6 for c in _oklab_rgb((light, a * hi, b * hi))):
+            lo = hi
+            break
+        mid = (lo + hi) / 2
+        if all(-1e-6 <= c <= 1 + 1e-6 for c in _oklab_rgb((light, a * mid, b * mid))):
+            lo = mid
+        else:
+            hi = mid
+    return rgb_hex([_gamma(max(0.0, min(1.0, c))) for c in _oklab_rgb((light, a * lo, b * lo))])
+
+
+def vendor_colors(conf):
+    """{gpu_amd: #..., cpu_amd: #..., ...} for colors.conf. The GPU's shade:
+    the maker's colour at the lightness of the theme's own color.gpu (which
+    the theme picked to read on its pills), kept within VENDOR_L. The CPU's:
+    CPU_STEP further from the middle -- lighter where the pills take light
+    text, darker where they take dark text -- and a little less colourful."""
+    base = conf.get("color.gpu") or DEFAULTS.get("color.gpu") or "#39ff14"
+    light = min(max(oklab(base)[0], VENDOR_L[0]), VENDOR_L[1])
+    step = CPU_STEP if light >= 0.6 else -CPU_STEP
+    cpu_light = min(max(light + step, CPU_L[0]), CPU_L[1])
+    out = {}
+    for maker, colour in VENDOR_HUES.items():
+        colour = conf.get(f"color.{maker}") or colour
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", colour):
+            continue
+        out[f"gpu_{maker}"] = shade(colour, light)
+        out[f"cpu_{maker}"] = shade(colour, cpu_light, CPU_CHROMA)
+    return out
+
+
 def colors_text(conf):
     lines = [f"# {MARK} from theme '{conf['id']}' -- do not edit.",
              "# Colours drawn by code (Pango markup, cairo): theme.conf color.* keys,",
-             "# read by waybar/scripts/themecolors.py and the bar's shell scripts."]
-    for key in sorted(k for k in conf if k.startswith("color.")):
-        lines.append(f"{key[6:]}={conf[key]}")
+             "# read by waybar/scripts/themecolors.py and the bar's shell scripts;",
+             "# cpu_<maker> / gpu_<maker> worked out by theme.py vendor_colors()."]
+    colours = {k[6:]: v for k, v in conf.items() if k.startswith("color.")}
+    for key, value in vendor_colors(conf).items():
+        colours.setdefault(key, value)
+    for key in sorted(colours):
+        lines.append(f"{key}={colours[key]}")
     return "\n".join(lines) + "\n"
 
 
@@ -1155,12 +1249,14 @@ def bar_conf():
 def bar_text(conf):
     """waybar/generated/bar.conf: the bar-layout keys clock.py reads
     (bar_style()): clock=menubar moves the date and time to the far right,
-    logo= is custom/logo's glyph; start= is the word on dock.py's start
-    button (dock.start), magnify= whether its dock magnifies (dock.magnify).
+    logo= is custom/logo's glyph; network= the network pill's style
+    (network.py); start= is the word on dock.py's start button
+    (dock.start), magnify= whether its dock magnifies (dock.magnify).
     Empty values = the usual bar."""
     return (f"# {MARK} from theme '{conf['id']}' -- do not edit.\n"
             f"clock={conf.get('bar.clock', '')}\n"
             f"logo={conf.get('bar.logo', '')}\n"
+            f"network={conf.get('bar.network', '')}\n"
             f"start={conf.get('dock.start', '')}\n"
             f"magnify={conf.get('dock.magnify', '')}\n")
 
@@ -1676,8 +1772,10 @@ def apply(conf, quiet=False):
         # custom/menuclock and custom/power (the same "day" signal) re-read
         # bar.conf -- custom/day blanks or comes back with bar.clock, the
         # power pill with an empty bar.logo. custom/clock's
-        # watcher reads bar.conf by itself every tick.
+        # watcher reads bar.conf by itself every tick. network.py's watcher
+        # waits up to minutes between reads: SIGUSR1 wakes it.
         bar_signals.poke("day")
+        run(["pkill", "-USR1", "-f", NETWORK_WATCH])
     if "colors" in changed:
         # updates.sh reads color.pending once per run and runs hourly, so the
         # pending box kept the old theme's colour for up to an hour: its
@@ -2501,6 +2599,8 @@ def check_layout_keys(conf):
         problems.append(f"bar.clock={conf.get('bar.clock')!r}: menubar or empty")
     if conf.get("bar.workspaces", "") not in BAR_WORKSPACES:
         problems.append(f"bar.workspaces={conf.get('bar.workspaces')!r}: dots or empty")
+    if conf.get("bar.network", "") not in BAR_NETWORK:
+        problems.append(f"bar.network={conf.get('bar.network')!r}: icon or empty")
     if len(conf.get("bar.logo", "")) > 4:
         problems.append(f"bar.logo={conf.get('bar.logo')!r}: a glyph or two, not text")
     start = conf.get("dock.start", "")

@@ -4562,6 +4562,64 @@ def results(apps, commands, text, usage, windows=(), files=(), webs=(), clips=()
     return ([item] if item else []) + answers + out
 
 
+# The card an app can be started on instead of the one the screens are on (a
+# hybrid laptop's NVIDIA): switcheroo-control's non-default discrete GPU, with
+# the environment that sends an app there. Asked once (over D-Bus, nothing
+# forked); the cards do not change without a reboot.
+_OFFLOAD = []
+NV_EGL = "/usr/share/glvnd/egl_vendor.d/10_nvidia.json"
+
+
+def offload_gpu():
+    """(label, {VAR: value}) for the offload card, or None (no second card,
+    no switcheroo-control)."""
+    if not _OFFLOAD:
+        _OFFLOAD.append(None)
+        try:
+            proxy = Gio.DBusProxy.new_for_bus_sync(
+                Gio.BusType.SYSTEM, Gio.DBusProxyFlags.DO_NOT_CONNECT_SIGNALS, None,
+                "net.hadess.SwitcherooControl", "/net/hadess/SwitcherooControl",
+                "net.hadess.SwitcherooControl", None)
+            found = proxy.get_cached_property("GPUs")
+            _OFFLOAD[0] = pick_offload(found.unpack() if found else [])
+        except GLib.Error:
+            pass
+    return _OFFLOAD[0]
+
+
+def pick_offload(gpus):
+    """switcheroo's GPUs -> (label, env) for the first discrete one that is
+    not the default, or None. "NVIDIA Corporation TU117M [GeForce MX450]"
+    reads "NVIDIA GeForce MX450"."""
+    card = next((g for g in gpus if g.get("Discrete") and not g.get("Default")), None)
+    if not card:
+        return None
+    raw = card.get("Environment") or []
+    env = dict(zip(raw[0::2], raw[1::2]))
+    if not env:
+        return None
+    # switcheroo's set covers GLX and Vulkan; a Wayland-native GL app goes
+    # through EGL, which needs the NVIDIA vendor named as well.
+    if env.get("__NV_PRIME_RENDER_OFFLOAD") == "1" and os.path.exists(NV_EGL):
+        env.setdefault("__EGL_VENDOR_LIBRARY_FILENAMES", NV_EGL)
+    name = card.get("Name") or "the other graphics card"
+    maker = name.split()[0] if name.split() else ""
+    m = re.search(r"\[([^\]]+)\]\s*$", name)
+    label = f"{maker} {m.group(1)}" if m and maker else name
+    return label, env
+
+
+def launch_on(app, env):
+    """Start the app with `env` added (the offload card's): through GIO's
+    launch context, which hands it to the app whether or not it is DBus-
+    activated."""
+    bump_usage(app.id)
+    ctx = Gdk.Display.get_default().get_app_launch_context()
+    for key, value in env.items():
+        ctx.setenv(key, value)
+    app.info.launch([], ctx)
+
+
 def launch(app):
     bump_usage(app.id)
     if UNDER_UWSM and app.id:
@@ -4792,6 +4850,10 @@ def item_actions(item, launcher):
         for act in (info.list_actions() if hasattr(info, "list_actions") else []):
             acts.append(Item(info.get_action_name(act), f"{name}'s own action", info.get_icon(),
                              lambda a=act: info.launch_action(a, ctx)))
+        offload = offload_gpu()
+        if offload:
+            acts.append(Item(f"Run on {offload[0]}", "the other graphics card: games, 3D, CUDA",
+                             "video-display", lambda e=offload[1]: launch_on(item, e)))
         if info.get_commandline():
             acts.append(Item("Copy its command", info.get_commandline(), "edit-copy",
                              lambda c=info.get_commandline(): copy(c)))

@@ -14,6 +14,10 @@ the fullest filesystem on any disk:
 The appended number is that worst filesystem's, so a yellow pill reading 28%
 is never a mystery; the panel (left click) says which one it is.
 
+On a narrow screen (barfit.py: a laptop's) the text is a meter instead, /
+in 25% segments, class "meters"; the warning and critical fills still say
+when some other filesystem is the full one.
+
 Kept free of gi: waybar runs this every minute, the panel imports it.
 """
 
@@ -76,7 +80,7 @@ def percent(fs):
     return 100 * int(used) / int(size)
 
 
-def pill():
+def pill(narrow=False):
     disks = read_disks()
     if disks is None:
         return {"text": f"? {GLYPH}", "class": "unavailable"}
@@ -98,6 +102,10 @@ def pill():
              "warning" if worst >= WARNING else "")
     if state:
         text += f"  {ALERT} {worst:.0f}%"
+    if narrow:
+        import barfit
+        return {"text": barfit.vbars([root or 0]), "class": [c for c in (state, "meters") if c],
+                "alt": worst_at, "percentage": round(worst)}
     # alt carries the culprit for anyone scripting against the bar; there is
     # no tooltip (it would cover the panel).
     return {"text": text, "class": state, "alt": worst_at,
@@ -105,7 +113,12 @@ def pill():
 
 
 def main():
-    print(json.dumps(pill()), flush=True)
+    try:
+        import barfit
+        narrow = barfit.narrow()
+    except Exception:       # noqa: BLE001 - the usual pill
+        narrow = False
+    print(json.dumps(pill(narrow)), flush=True)
 
 
 if __name__ == "__main__":

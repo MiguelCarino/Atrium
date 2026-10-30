@@ -46,6 +46,28 @@ STATE=${XDG_RUNTIME_DIR:-/tmp}/waybar-cpu.state
 prev_total=0 prev_busy=0
 TEMP_INPUT=
 
+# The CPU's maker (AuthenticAMD / GenuineIntel in /proc/cpuinfo), read once:
+# it picks the pill's colour -- AMD red, Intel blue, in the theme's CPU shade
+# (theme.py vendor_colors); another maker keeps the theme's CPU colour.
+CPU_VENDOR=
+while IFS=': ' read -r key value; do
+    if [[ $key == vendor_id* ]]; then
+        case $value in
+            *AuthenticAMD*) CPU_VENDOR=amd ;;
+            *GenuineIntel*) CPU_VENDOR=intel ;;
+        esac
+        break
+    fi
+done < /proc/cpuinfo
+
+# On a narrow screen (barfit.py) the pill is two meters instead of numbers
+# -- load and RAM, 25% a segment (vbars.sh) -- so the bar's right side leaves
+# the centre capsules centred; a hot CPU still turns the pill critical (red),
+# and the panel (left click) has the numbers. Asked once: a bar that moves to
+# another screen starts this script again.
+NARROW=
+. "$(dirname "$0")/vbars.sh"
+
 # History for the sensors panel (scripts/sensors_panel.py), watch mode only:
 # the last HIST_MAX samples, one "epoch usage temp mem%" line each, rewritten
 # in place every tick. It lives in XDG_RUNTIME_DIR (tmpfs), so this is a RAM
@@ -139,27 +161,35 @@ emit() {
 
     # printf -v rather than $(printf ...): a command substitution forks a
     # subshell, and this runs every few seconds for the life of the bar.
-    # Label in the pill's neon, numbers in plain white: the old 「…」 runs were
-    # all one colour on a tinted pill and hard to read at a glance. Fixed-width
-    # fields so the pill does not jitter as the numbers change.
+    # Fixed-width fields so the pill does not jitter as the numbers change.
     # Compact: load, temperature, RAM used (GiB). Graphs are in the panel.
     class=normal
     ((temp >= 80 || usage >= 90)) && class=critical
 
     pad2 "$usage" u; pad2 "$temp" t
     theme_color cpu '#ff2a6d' label_col
+    [[ -n $CPU_VENDOR ]] && theme_color "cpu_$CPU_VENDOR" "$label_col" label_col
     # Critical fills the whole pill with the theme's alarm colour, and a label
     # in the theme's CPU colour can vanish on it (navy on red in win95): the
     # theme may name a second colour for that state, color.cpu_hot.
     [[ $class == critical ]] && theme_color cpu_hot "$label_col" label_col
-    printf -v text "<span color='%s'>CPU</span>%s%s%%%s%s°%s%d.%dG" \
-        "$label_col" "$SEP" "$u" "$SEP" "$t" "$SEP" "$((mem_x10 / 10))" "$((mem_x10 % 10))"
+    # No "CPU" word: the whole pill is in the theme's CPU colour (the GPU's
+    # is another), which says which one it is in a third of the width.
+    if [[ $NARROW == yes ]]; then
+        vbars "$label_col" text "$usage" "$mem_pct"
+    else
+        printf -v text "<span color='%s'>%s%%%s%s°%s%d.%dG</span>" \
+            "$label_col" "$u" "$SEP" "$t" "$SEP" "$((mem_x10 / 10))" "$((mem_x10 % 10))"
+    fi
 
     # No tooltip: the bar has tooltips off for this pill (the sensors panel,
     # left click, shows the detail), and building one cost a ps fork a tick.
 
-    printf '{"text":"%s","class":"%s","percentage":%d}\n' \
-        "$text" "$class" "$usage"
+    # "meters": the pill drops the width a theme gives it for the numbers.
+    local class_json="\"$class\""
+    [[ $NARROW == yes ]] && class_json="[\"$class\",\"meters\"]"
+    printf '{"text":"%s","class":%s,"percentage":%d}\n' \
+        "$text" "$class_json" "$usage"
 
     # CPU package power, when something publishes it: the counter (RAPL) is
     # root-only, so a small root service would have to write a 5 s average
@@ -171,6 +201,7 @@ emit() {
 }
 
 if [[ $1 == watch ]]; then
+    NARROW=$("$(dirname "$0")/barfit.py" narrow 2>/dev/null)
     mkdir -p "${XDG_RUNTIME_DIR:-/tmp}/waybar-sensors"
     HIST_FILE=${XDG_RUNTIME_DIR:-/tmp}/waybar-sensors/cpu.hist
     # Pick up where the previous instance left off: a bar reload restarts this

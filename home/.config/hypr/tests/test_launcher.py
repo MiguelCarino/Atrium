@@ -154,5 +154,25 @@ class PausedTimerTitle(unittest.TestCase):
         self.assertEqual(titles[1], "gym  paused")
 
 
+
+class OffloadTest(unittest.TestCase):
+    """The Tab list's "Run on <card>": switcheroo-control's other card."""
+
+    LAPTOP = [{"Name": "NVIDIA Corporation TU117M [GeForce MX450]", "Default": False, "Discrete": True,
+               "Environment": ["__GLX_VENDOR_LIBRARY_NAME", "nvidia", "__NV_PRIME_RENDER_OFFLOAD", "1"]},
+              {"Name": "Advanced Micro Devices, Inc. [AMD/ATI] Lucienne", "Default": True,
+               "Discrete": False, "Environment": ["DRI_PRIME", "pci-0000_05_00_0"]}]
+
+    def test_pick(self):
+        label, env = L.pick_offload(self.LAPTOP)
+        self.assertEqual(label, "NVIDIA GeForce MX450")
+        self.assertEqual(env["__NV_PRIME_RENDER_OFFLOAD"], "1")
+        self.assertEqual(env["__GLX_VENDOR_LIBRARY_NAME"], "nvidia")
+
+    def test_none_without_a_second_card(self):
+        self.assertIsNone(L.pick_offload([]))
+        self.assertIsNone(L.pick_offload([dict(self.LAPTOP[0], Default=True)]))    # it drives the screens
+        self.assertIsNone(L.pick_offload([dict(self.LAPTOP[0], Environment=[])]))
+
 if __name__ == "__main__":
     unittest.main()

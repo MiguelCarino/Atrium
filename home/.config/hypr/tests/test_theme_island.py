@@ -206,14 +206,14 @@ class Lint(unittest.TestCase):
     def test_new_keys_are_known(self):
         for key in ("island.enabled", "island.style", "island.match_bar", "bar.clock", "bar.logo",
                     "bar.workspaces", "gtk_button_layout", "hypr.rounding_power", "hypr.shadow_offset",
-                    "hypr.shadow_color_inactive", "dock.start", "dock.magnify"):
+                    "hypr.shadow_color_inactive", "dock.start", "dock.magnify", "bar.network"):
             self.assertIn(key, theme.KNOWN, key)
 
     def test_cyberpunk_documents_every_new_key(self):
         own = theme.read_kv(os.path.join(theme.THEMES_DIR, "cyberpunk", "theme.conf")) or {}
         for key in ("island.enabled", "island.style", "island.match_bar", "bar.clock", "bar.logo",
                     "bar.workspaces", "gtk_button_layout", "hypr.rounding_power", "hypr.shadow_offset",
-                    "hypr.shadow_color_inactive", "dock.start", "dock.magnify"):
+                    "hypr.shadow_color_inactive", "dock.start", "dock.magnify", "bar.network"):
             self.assertIn(key, own, key)
         self.assertEqual(own["gtk_button_layout"], theme.DEFAULTS["gtk_button_layout"])
 
@@ -229,6 +229,43 @@ class Bar(unittest.TestCase):
         self.assertIn("logo=\n", plain)
         self.assertIn("magnify=\n", plain)
         self.assertIn("magnify=yes\n", theme.bar_text({"id": "orchard", "dock.magnify": "yes"}))
+
+    def test_vendor_colours(self):
+        """The CPU / GPU pills' makers' colours: one hue per maker, the
+        theme's lightness, a CPU shade apart from the GPU's."""
+        def hue(c):
+            _l, a, b = theme.oklab(c)
+            return __import__("math").atan2(b, a)
+        for t in ("cyberpunk", "win95", "orchard", "luna"):
+            conf = theme.load(t)
+            out = theme.vendor_colors(conf)
+            self.assertEqual(set(out), {f"{p}_{m}" for p in ("cpu", "gpu") for m in ("amd", "nvidia", "intel")})
+            for maker, base in theme.VENDOR_HUES.items():
+                self.assertNotEqual(out[f"cpu_{maker}"], out[f"gpu_{maker}"], (t, maker))
+                self.assertAlmostEqual(hue(out[f"gpu_{maker}"]), hue(base), delta=0.2)
+                lo, hi = theme.VENDOR_L
+                self.assertTrue(lo - 0.02 <= theme.oklab(out[f"gpu_{maker}"])[0] <= hi + 0.02, (t, maker))
+        dark_text = theme.vendor_colors(theme.load("win95"))
+        self.assertLess(theme.oklab(dark_text["cpu_amd"])[0], theme.oklab(dark_text["gpu_amd"])[0])
+        light_text = theme.vendor_colors(theme.load("cyberpunk"))
+        self.assertGreater(theme.oklab(light_text["cpu_amd"])[0], theme.oklab(light_text["gpu_amd"])[0])
+        text = theme.colors_text(dict(theme.load("cyberpunk"), **{"color.gpu_amd": "#123456"}))
+        self.assertIn("gpu_amd=#123456\n", text)                       # a theme's own shade wins
+        self.assertIn("cpu_intel=#", text)
+
+    def test_orchard_cpu_and_gpu_differ(self):
+        for t in ("orchard", "orchard-dark"):
+            conf = theme.load(t)
+            self.assertNotEqual(conf["color.cpu"], conf["color.gpu"], t)
+
+    def test_network_key(self):
+        """bar.network: written to bar.conf as network=, which network.py
+        reads; moe sets it, everything else leaves the usual pill."""
+        self.assertIn("network=icon\n", theme.bar_text({"id": "moe", "bar.network": "icon"}))
+        self.assertIn("network=\n", theme.bar_text({"id": "cyberpunk"}))
+        for good in ("", "icon"):
+            self.assertEqual(theme.check_layout_keys({"bar.network": good}), [], good)
+        self.assertEqual(len(theme.check_layout_keys({"bar.network": "text"})), 1)
 
     def test_dock_keys(self):
         """dock.start and dock.magnify: what dock.py reads from bar.conf, and

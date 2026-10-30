@@ -50,6 +50,10 @@ HIST_FILE=
 HIST_MAX=60             # 60 x 5s = the last five minutes
 hist=()
 
+# On a narrow screen: two meters, load and VRAM -- see cpu_usage.sh.
+NARROW=
+. "$(dirname "$0")/vbars.sh"
+
 record() {
     [[ -n $HIST_FILE ]] || return
     hist+=("$*")
@@ -81,7 +85,7 @@ emit() {
 
     # printf -v rather than $(printf ...): a command substitution forks a
     # subshell, and this runs every few seconds for the life of the bar.
-    # Same layout as the CPU pill: neon label, white fixed-width numbers.
+    # Same layout as the CPU pill: fixed-width numbers in the theme's colour.
     # Compact: load, temperature, VRAM used (GiB). Graphs are in the panel.
     # What the card does not report is left out (an iGPU: no VRAM field).
     class=normal
@@ -100,21 +104,41 @@ emit() {
 
     pad2 "$usage" u
     theme_color gpu '#39ff14' label_col
+    # The card's maker picks the colour: NVIDIA green, AMD red, Intel blue,
+    # in the theme's shade (theme.py vendor_colors); another maker, the
+    # theme's GPU colour.
+    [[ $vendor == @(nvidia|amd|intel) ]] && theme_color "gpu_$vendor" "$label_col" label_col
     # The filled critical pill may want another label colour (cpu_usage.sh).
     [[ $class == critical ]] && theme_color gpu_hot "$label_col" label_col
-    printf -v text "<span color='%s'>GPU</span>%s%s%%%s%s" \
-        "$label_col" "$SEP" "$u" "$t_txt" "$v_txt"
+    # No "GPU" word, the theme's GPU colour instead (cpu_usage.sh).
+    # An offload card (a laptop's NVIDIA, no screens of its own) shows only
+    # while something runs on it (gpu.py stream): a bolt says it is that one
+    # and not the card the screens are on. Meters leave no room for it: there
+    # the maker's colour tells (NVIDIA green against the screens' AMD red).
+    local bolt="" classes=("\"$class\"")
+    [[ $which == offload ]] && bolt=$'\uf0e7'"$SEP" && classes+=('"offload"')
+    if [[ $NARROW == yes ]]; then
+        vbars "$label_col" text "$usage" "$mem_pct"
+        classes+=('"meters"')
+    else
+        printf -v text "<span color='%s'>%s%s%%%s%s</span>" \
+            "$label_col" "$bolt" "$u" "$t_txt" "$v_txt"
+    fi
+    local class_json=${classes[0]} c
+    for c in "${classes[@]:1}"; do class_json+=",$c"; done
+    (( ${#classes[@]} > 1 )) && class_json="[$class_json]"
 
     # No tooltip: tooltips are off for this pill and the sensors panel shows
     # the detail (gpu.py table: every app's VRAM and share of the card).
 
-    printf '{"text":"%s","class":"%s","percentage":%d}\n' \
-        "$text" "$class" "$usage"
+    printf '{"text":"%s","class":%s,"percentage":%d}\n' \
+        "$text" "$class_json" "$usage"
 
     record "$EPOCHSECONDS $usage $temp_i $mem_pct $power_i"
 }
 
 if [[ $1 == watch ]]; then
+    NARROW=$("$(dirname "$0")/barfit.py" narrow 2>/dev/null)
     mkdir -p "${XDG_RUNTIME_DIR:-/tmp}/waybar-sensors"
     HIST_FILE=${XDG_RUNTIME_DIR:-/tmp}/waybar-sensors/gpu.hist
     # Pick up where the previous instance left off: a bar reload restarts this
@@ -138,7 +162,7 @@ if [[ $1 == watch ]]; then
 
         # Reading in the main shell, not down a pipeline: a pipeline would put
         # this loop in a subshell, where nothing it set would survive.
-        while IFS=', ' read -r usage temp mem_used mem_total power fan <&3; do
+        while IFS=', ' read -r usage temp mem_used mem_total power fan which vendor <&3; do
             if [[ $usage == none ]]; then
                 # No graphics card: hide the pill and idle (sleep in the
                 # background + wait, so the trap still ends us at once).
@@ -166,7 +190,7 @@ if [[ $1 == watch ]]; then
     done
 fi
 
-IFS=', ' read -r usage temp mem_used mem_total power fan < <(
+IFS=', ' read -r usage temp mem_used mem_total power fan which vendor < <(
     python3 "$GPU_PY" stream 0 2>/dev/null | head -n 1
 )
 

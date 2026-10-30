@@ -68,6 +68,7 @@
         "custom/cpu",
         "custom/gpu",
         "custom/disk",
+        "battery",
         "custom/bluetooth",
         "custom/network",
         "pulseaudio",
@@ -546,7 +547,6 @@
         "return-type": "json",
         "restart-interval": 5,
         "format": "{}",
-        "min-length": 4,
         // Left: CPU graphs + top processes, then MEMORY (RAM, swap, pressure,
         // the biggest apps with End buttons), under this pill. Right: htop.
         // No tooltip: it would sit on top of the panel it duplicates.
@@ -562,7 +562,6 @@
         "return-type": "json",
         "restart-interval": 5,
         "format": "{}",
-        "min-length": 4,
         // Left: GPU graphs + every app on the GPU (SM %, VRAM, End), under
         // this pill. Right: nvtop.
         "tooltip": false,
@@ -575,6 +574,26 @@
     // warning (85%) / critical (95%) on the fullest filesystem anywhere,
     // appending its percentage. Left: every disk, under this pill. No
     // tooltip: it would sit on top of the panel it duplicates.
+    // A laptop's battery: a meter in 25% segments under a faint terminal, so
+    // it reads as a battery (barfit.py vbars(..., cap=True) -- regenerate
+    // these four with it, one per segment lit: waybar picks one by the
+    // capacity: 0-24% the first, 75% and up the last). No colour of its own: the theme's text, the
+    // good / warn / critical colours of #battery.charging, .warning and
+    // .critical. Hidden on a machine without one. The time left on hover.
+    "battery": {
+        "interval": 30,
+        "states": {"warning": 25, "critical": 12},
+        "format": "{icon}",
+        "format-icons": [
+            "<span font_family='monospace' size='4000' line_height='0.75'><span size='1600' fgalpha='28%'>\u2582\u2582</span>\n<span fgalpha='28%'>\u2584\u2584</span>\n<span fgalpha='28%'>\u2584\u2584</span>\n<span fgalpha='28%'>\u2584\u2584</span>\n<span>\u2584\u2584</span></span>",
+            "<span font_family='monospace' size='4000' line_height='0.75'><span size='1600' fgalpha='28%'>\u2582\u2582</span>\n<span fgalpha='28%'>\u2584\u2584</span>\n<span fgalpha='28%'>\u2584\u2584</span>\n<span>\u2584\u2584</span>\n<span>\u2584\u2584</span></span>",
+            "<span font_family='monospace' size='4000' line_height='0.75'><span size='1600' fgalpha='28%'>\u2582\u2582</span>\n<span fgalpha='28%'>\u2584\u2584</span>\n<span>\u2584\u2584</span>\n<span>\u2584\u2584</span>\n<span>\u2584\u2584</span></span>",
+            "<span font_family='monospace' size='4000' line_height='0.75'><span size='1600' fgalpha='28%'>\u2582\u2582</span>\n<span>\u2584\u2584</span>\n<span>\u2584\u2584</span>\n<span>\u2584\u2584</span>\n<span>\u2584\u2584</span></span>"
+        ],
+        "tooltip-format": "{capacity}% · {timeTo}",
+        "tooltip-format-full": "{capacity}% · full"
+    },
+
     "custom/disk": {
         "exec": "$HOME/.config/waybar/scripts/disk.py",
         "return-type": "json",
@@ -617,7 +636,9 @@
         "on-click-right": "kitty -e nmtui",
         // The stats that used to be this pill's hover tooltip are at the top
         // of the network panel now; the tooltip covered the audio sliders.
-        "tooltip": false,
+        // On: a theme with bar.network=icon (moe) puts the SSID there, one
+        // short line; the usual pill sends no tooltip, so it has none.
+        "tooltip": true,
         "max-length": 50
     },
 

@@ -69,3 +69,26 @@ export XDG_SCREENSHOTS_DIR="$HOME/Pictures/Screenshots"
 # Japanese input (fcitx5) for XWayland clients; see lua/env.lua for why
 # GTK_IM_MODULE / QT_IM_MODULE are deliberately NOT set.
 export XMODIFIERS=@im=fcitx
+
+# A hybrid laptop: Hyprland only on the cards that have screens. A card with
+# no connectors at all (a laptop's NVIDIA "3D controller": every screen,
+# HDMI and USB-C port is on the integrated GPU) can never show anything, yet
+# Hyprland opened it, and so did every client that followed its device list
+# (hyprpaper, the polkit agent): its driver then kept it powered the whole
+# session. Apps still run on it when started there (switcherooctl launch, the
+# launcher's "Run on <card>"). Worked out at each login (card numbers are
+# per boot); a machine whose cards all have connectors is left alone, and an
+# AQ_DRM_DEVICES of your own wins. uwsm only: Hyprland picks its cards before
+# it reads lua/env.lua, so hl.env there would come too late.
+_hypr_drm=""
+_hypr_bare=0
+for _c in /sys/class/drm/card[0-9]*; do
+    case "${_c##*/}" in *-*) continue ;; esac
+    if [ -n "$(ls -d "$_c"-* 2>/dev/null)" ]; then
+        _hypr_drm="${_hypr_drm:+$_hypr_drm:}/dev/dri/${_c##*/}"
+    else
+        _hypr_bare=1
+    fi
+done
+[ "$_hypr_bare" = 1 ] && [ -n "$_hypr_drm" ] && [ -z "${AQ_DRM_DEVICES:-}" ] && export AQ_DRM_DEVICES="$_hypr_drm"
+unset _hypr_drm _hypr_bare _c

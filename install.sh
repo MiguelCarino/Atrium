@@ -307,7 +307,10 @@ for v in "${vendors[@]}"; do
         else
             warn "without it (nouveau): no hardware video encoding (recording uses the CPU),"
             warn "no GPU numbers in the bar, local AI models on the CPU only"
-        fi ;;
+        fi
+        # A hybrid laptop's offload card (no screens of its own): powered
+        # down while idle. The script checks for one and does nothing else.
+        run sudo "$REPO/system/nvidia-power/install.sh" ;;
     amd)
         # Fedora's mesa-va-drivers leaves H.264 / HEVC out; rpmfusion's
         # freeworld build has them, which the recorder (VAAPI) needs.

@@ -258,3 +258,19 @@
 * {
     font-feature-settings: "tnum, zero";
 }
+
+/* The status pills on the right a little tighter (10px, the base's 14):
+   in this wide face they ran past half of a 1920 px bar, and the centre
+   capsules -- and the island over them -- were pushed off the middle. */
+#custom-cpu,
+#custom-gpu,
+#custom-disk,
+#custom-network,
+#pulseaudio,
+#privacy,
+#custom-capture,
+#custom-toolbox,
+#custom-power {
+    padding-left: 10px;
+    padding-right: 10px;
+}

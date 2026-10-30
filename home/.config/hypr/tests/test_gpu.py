@@ -115,7 +115,7 @@ class Tree:
         with open(path, "w") as handle:
             handle.write(text)
 
-    def card(self, n, pci, vendor, device, driver, files=None):
+    def card(self, n, pci, vendor, device, driver, files=None, connectors=True):
         dev = os.path.join(self.sys, "devices", "pci0000:00", pci)
         os.makedirs(dev, exist_ok=True)
         self.write(os.path.join(dev, "vendor"), vendor + "\n")
@@ -126,7 +126,12 @@ class Tree:
         card = os.path.join(self.sys, "class", "drm", f"card{n}")
         os.makedirs(card)
         os.symlink(dev, os.path.join(card, "device"))
-        os.makedirs(os.path.join(self.sys, "class", "drm", f"card{n}-DP-1"))     # a connector: skipped
+        if connectors:
+            os.makedirs(os.path.join(self.sys, "class", "drm", f"card{n}-DP-1"))     # a connector: skipped
+        bus = os.path.join(self.sys, "bus", "pci", "devices")
+        os.makedirs(bus, exist_ok=True)
+        if not os.path.lexists(os.path.join(bus, pci)):
+            os.symlink(dev, os.path.join(bus, pci))
         for rel, text in (files or {}).items():
             self.write(os.path.join(dev, rel), text)
         return card
@@ -353,9 +358,89 @@ class EncoderTest(unittest.TestCase):
 class CsvTest(unittest.TestCase):
     def test_stream_line(self):
         card = {"temp": 61, "vram_used": 3072, "vram_total": 16384, "power": 187.4, "fan": None}
-        self.assertEqual(gpu._csv(card, 42), "42, 61, 3072, 16384, 187, N/A")
+        self.assertEqual(gpu._csv(card, 42), "42, 61, 3072, 16384, 187, N/A, display, other")
         self.assertEqual(gpu._csv(dict(card, temp=None, vram_used=None, vram_total=None), None),
-                         "N/A, N/A, N/A, N/A, 187, N/A")
+                         "N/A, N/A, N/A, N/A, 187, N/A, display, other")
+        self.assertTrue(gpu._csv(dict(card, vendor="nvidia"), 42, "offload").endswith(", offload, nvidia"))
+
+
+class HybridTest(Base):
+    """A laptop: the screens on an AMD APU, an NVIDIA offload card with no
+    connectors that may be powered down (runtime D3)."""
+
+    APU = {"gpu_busy_percent": "12\n", "mem_info_vram_used": str(400 * MIB),
+           "mem_info_vram_total": str(512 * MIB), "hwmon/hwmon1/temp1_input": "50000\n"}
+
+    def setUp(self):
+        super().setUp()
+        self.nv = self.tree.card(0, "0000:08:00.0", "0x10de", "0x1f9c", "nvidia", connectors=False)
+        self.amd = self.tree.card(1, "0000:05:00.0", "0x1002", "0x164c", "amdgpu", self.APU)
+        self.tree.write(os.path.join(self.tree.sys, "class", "drm", "card1-eDP-1", "status"), "connected\n")
+        self.fake = FakeNvml()
+        self.nvml = gpu.Nvml(lib=self.fake)
+        self.saved_cache, gpu.VRAM_CACHE = gpu.VRAM_CACHE, os.path.join(self.tree.root, "vram.json")
+        gpu._VRAM.clear()
+
+    def tearDown(self):
+        gpu.VRAM_CACHE = self.saved_cache
+        gpu._VRAM.clear()
+        super().tearDown()
+
+    def runtime(self, status):
+        self.tree.write(os.path.join(self.tree.sys, "devices", "pci0000:00", "0000:08:00.0", "power",
+                                     "runtime_status"), status + "\n")
+
+    def d3(self, on):
+        self.tree.write(os.path.join(self.tree.proc, "driver", "nvidia", "gpus", "0000:08:00.0", "power"),
+                        f"Runtime D3 status:          {'Enabled (fine-grained)' if on else 'Disabled by default'}\n")
+
+    def test_display_and_offload(self):
+        cards = gpu.gpus(self.nvml)
+        self.assertEqual(gpu.primary(self.nvml)["vendor"], "nvidia")      # models still go there
+        self.assertEqual(gpu.display_card(cards)["vendor"], "amd")
+        self.assertEqual([g["vendor"] for g in gpu.offload_cards(cards)], ["nvidia"])
+
+    def test_shown_card_follows_what_runs(self):
+        self.assertEqual(gpu.shown_card(nvml=self.nvml)[1], "offload")    # the fake has processes
+        self.fake.compute, self.fake.graphics = {}, {}
+        self.fake.nvmlDeviceGetUtilizationRates = lambda _h, util: (setattr(obj(util), "gpu", 0), 0)[1]
+        card, which = gpu.shown_card(nvml=self.nvml)
+        self.assertEqual((card["vendor"], which), ("amd", "display"))
+
+    def test_a_sleeping_card_is_not_asked(self):
+        gpu.gpus(self.nvml)                                  # awake once: its size is remembered
+        self.runtime("suspended")
+        calls = []
+        self.fake.nvmlDeviceGetCount_v2 = lambda count: calls.append(1) or 0
+        cards = gpu.gpus(self.nvml)
+        self.assertEqual(calls, [])
+        nv = next(g for g in cards if g["vendor"] == "nvidia")
+        self.assertEqual((nv["source"], nv["util"], nv["vram_used"]), ("asleep", 0, 0))
+        self.assertEqual(nv["vram_total"], 24 * 1024)
+        self.assertFalse(gpu.in_use(nv, self.nvml))
+        self.assertEqual(gpu.processes(nv, nvml=self.nvml), {})
+        self.assertEqual(gpu.shown_card(cards, self.nvml)[1], "display")
+
+    def test_nvml_let_go_when_idle_and_able_to_sleep(self):
+        idle = lambda _h, util: (setattr(obj(util), "gpu", 0), 0)[1]          # noqa: E731
+        self.fake.nvmlDeviceGetUtilizationRates = idle
+        self.fake.nvmlDeviceGetMemoryInfo = lambda _h, mem: (
+            setattr(obj(mem), "total", 2048 * MIB), setattr(obj(mem), "used", MIB), 0)[2]
+        shut = []
+        self.fake.nvmlShutdown = lambda: shut.append(1) or 0
+        gpu.gpus(self.nvml)
+        self.assertEqual(shut, [])                           # D3 off: it never sleeps, keep NVML
+        self.d3(True)
+        gpu.gpus(self.nvml)
+        self.assertEqual(shut, [1])
+        self.assertIsNone(self.nvml.state)
+
+    def test_may_sleep(self):
+        self.assertFalse(gpu.may_sleep("0000:08:00.0"))
+        self.d3(False)
+        self.assertFalse(gpu.may_sleep("0000:08:00.0"))
+        self.d3(True)
+        self.assertTrue(gpu.may_sleep("0000:08:00.0"))
 
 
 class LlmGpuCard(unittest.TestCase):
