@@ -4,14 +4,19 @@
     DOCK & TASKBAR  None, Dock or Taskbar: off (dock.service stopped), a
                     floating dock, or a Windows-style taskbar along the
                     bottom; one screen or every screen, the window previews
-                    on hover
+                    on hover; the top bar on or off (off: only while one of
+                    them is on -- dock.py, TOP BAR OFF); whether a theme's
+                    layout is followed (dock.py, THEME LAYOUT)
     DOCK            its edge (bottom, left, right), when it hides (never,
                     when a window covers it, always), the icon size,
                     magnification (as the theme says, on, off)
     TASKBAR         one button per app or per window, the titles, the tray,
-                    the clock, the weather, the network, the sound (each
-                    leaves the top bar while it is here); what the start
-                    button opens: the app launcher or a classic start menu
+                    the clock, the weather, the network, the sound, the
+                    workspaces, the notifications, the battery (each leaves
+                    the top bar while it is here); what the start button
+                    opens: the app launcher or a classic start menu
+                    (the privacy indicators' switch is above: the dock shows
+                    them too, with the top bar off)
     PINNED          the pinned apps in order: up, down, remove (pin more
                     from the dock itself: right-click a running app)
     Details         the state file, the service, the journal
@@ -32,7 +37,9 @@ PAGE = {"id": "dock", "title": "Dock & taskbar", "icon": "", "group": "Look",
         "keywords": ["dock", "taskbar", "task bar", "barra de tareas", "start button", "start menu",
                      "pinned apps", "pin app", "running apps", "autohide", "auto hide", "system tray",
                      "tray icons", "window previews", "thumbnails", "launcher bar", "magnification",
-                     "magnify icons"]}
+                     "magnify icons", "top bar", "hide top bar", "no top bar", "remove top bar",
+                     "without the bar", "disable top bar", "top bar off", "turn off top bar",
+                     "workspaces on the taskbar", "battery on the taskbar"]}
 
 DOCK = os.path.join(HYPR, "dock.py")  # noqa: F405  (HYPR: common)
 MODES = [("none", "None"), ("dock", "Dock"), ("taskbar", "Taskbar")]
@@ -54,7 +61,13 @@ TASKBAR = [("combine", "", "One button per app",
            ("network", "", "Network",
             "the connection; click: the network panel"),
            ("sound", "", "Sound",
-            "the volume; click: the audio panel, scroll: louder or quieter, right-click: mute")]
+            "the volume; click: the audio panel, scroll: louder or quieter, right-click: mute"),
+           ("workspaces", "\uf24d", "Workspaces",
+            "the one in front, after the start button; click: every window (Super+D)"),
+           ("notifications", "\uf0f3", "Notifications",
+            "the bell, right of the clock; click: the notifications, right-click: Do Not Disturb"),
+           ("battery", "\uf240", "Battery",
+            "the charge, while there is a battery")]
 START_MENUS = [("launcher", "App launcher"), ("classic", "Classic menu")]
 
 
@@ -96,7 +109,7 @@ def now_text(st):
         return "On but not running: systemctl --user status dock"
     what = "a taskbar" if conf.get("layout") == "taskbar" else "a dock"
     where = "on every screen" if conf.get("monitors") == "all" else "on the main screen"
-    return f"On: {what}, {where}"
+    return f"On: {what}, {where}" + ("; no top bar" if conf.get("top_bar") is False else "")
 
 
 def pinned_rows(st):
@@ -160,6 +173,21 @@ class Page:
         grid, _sub = self.switch_row("previews", "", "Window previews",
                                      "hover a running app for its windows, with pictures")
         w.pack_start(grid, False, False, 0)
+        self.top_bar, _sub = self.switch_row("top_bar", "\uf2d0", "Top bar",
+                                             "off: no bar at the top. The taskbar keeps what it shows; "
+                                             "the rest is in the toolbox, with a Microphone row (mute, "
+                                             "level). Back by itself if the dock or taskbar stops")
+        w.pack_start(self.top_bar, False, False, 0)
+        self.privacy, _sub = self.switch_row("privacy", "\uf3ed", "Privacy indicators",
+                                             "what records the screen or uses the microphone, the camera "
+                                             "or the location, only while something does: on the taskbar, "
+                                             "or on the dock with the top bar off")
+        w.pack_start(self.privacy, False, False, 0)
+        grid, _sub = self.switch_row("follow_theme", "\uf53f", "Follow the theme",
+                                     "a theme that says how it looks best sets the dock, the taskbar "
+                                     "and the top bar: Windows 95 and Luna the taskbar without a top "
+                                     "bar, Orchard the dock. Leaving it puts yours back")
+        w.pack_start(grid, False, False, 0)
 
         # -- dock ---------------------------------------------------------------------------------
         w.pack_start(sep(), False, False, 0)  # noqa: F405
@@ -195,8 +223,10 @@ class Page:
         self.task_box.pack_start(wrapped("The app launcher searches everything; the classic menu lists "
                                          "your apps by category. Both have the power menu (lock, sleep, "
                                          "restart, power off). What the taskbar shows leaves the top bar: "
-                                         "the clock, weather, network, sound and the power button move "
-                                         "down here, and the top bar restarts to match."), False, False, 0)
+                                         "the clock, weather, network, sound, workspaces, notifications, "
+                                         "battery, the privacy indicators and the power button move down "
+                                         "here, and the top bar restarts to match. With the dock or the "
+                                         "taskbar, the keyboard layout is in the toolbox."), False, False, 0)
         w.pack_start(self.task_box, False, False, 0)
 
         # -- pinned -------------------------------------------------------------------------------
@@ -300,6 +330,8 @@ class Page:
         finally:
             self.updating = False
         mode = mode_of(conf)
+        self.top_bar.set_sensitive(mode != "none")
+        self.privacy.set_sensitive(mode == "taskbar" or (mode == "dock" and conf.get("top_bar") is False))
         self.dock_box.set_sensitive(mode == "dock")
         self.task_box.set_sensitive(mode == "taskbar")
         clear(self.pinned)  # noqa: F405

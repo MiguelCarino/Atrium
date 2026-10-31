@@ -479,8 +479,14 @@ if systemctl --user show-environment >/dev/null 2>&1; then
 else
     note "no user session here: the services are enabled, and start at your next login"
 fi
+# waybar-toolbox.service was also WantedBy waybar.service until the top bar
+# could be switched off (dock.py TOP BAR OFF); reenable drops that old link.
 while read -r unit; do
-    run systemctl --user enable "$unit"
+    if [[ $unit == waybar-toolbox.service ]]; then
+        run systemctl --user reenable "$unit"
+    else
+        run systemctl --user enable "$unit"
+    fi
 done < <(list "$REPO/packages/units.txt")
 
 step "8/8  smart extras"

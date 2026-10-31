@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Settings: one window for the desktop's own settings (SUPER+I, the
-launcher's "Settings" and "Settings: <page>" items, the toolbox).
+launcher's "Settings" and "Settings: <page>" items, the toolbox). Started
+from the toolbox or the dock, it starts again as an app unit of its own,
+so restarting them (a theme switch does) never closes it (leave_service).
 
     settings.py                   open it on the last page used
     settings.py <page>            open it on that page (an id from --list)
@@ -464,6 +466,62 @@ def render_window(out, seconds=3.0, words=""):
     print(out)
 
 
+# Started by another program's service -- the toolbox's Settings tile is a
+# child of waybar-toolbox.service, the dock's menus of dock.service -- this
+# window would go whenever that service restarts: a theme switch, the bar's
+# and the dock's settings and the top bar switch all restart the bar and the
+# toolbox (bar-restart.sh). So it starts again as an app unit of its own,
+# the way the dock starts apps (uwsm app), and outlives them: a transient
+# service (-t service), which systemd starts -- not a scope, whose `uwsm app`
+# stays behind as the window's parent in the old service and takes it down
+# with it. Without uwsm, systemd-run --scope, which execs into the scope with
+# nothing left behind. RELAUNCHED in the environment stops a second move.
+RELAUNCHED = "ATRIUM_SETTINGS_SCOPED"
+
+
+def own_service(cgroup_text):
+    """The service unit /proc/self/cgroup puts this process in ("waybar-
+    toolbox.service"), or "" in a scope, an app's own unit or none."""
+    for line in (cgroup_text or "").splitlines():
+        if line.startswith("0::"):
+            leaf = line[3:].rstrip("/").rsplit("/", 1)[-1]
+            if leaf.endswith(".service") and not leaf.startswith("app-"):
+                return leaf
+    return ""
+
+
+def relaunch_argv(argv, cgroup_text, env, which):
+    """The command that starts this again as an app unit of its own, or None
+    when it already has one (or has been moved once, or cannot be)."""
+    if env.get(RELAUNCHED) or not own_service(cgroup_text):
+        return None
+    me = [sys.executable, os.path.abspath(argv[0])] + list(argv[1:])
+    if which("uwsm"):
+        return ["uwsm", "app", "-t", "service", "-a", "atrium-settings", "--"] + me
+    if which("systemd-run"):
+        return ["systemd-run", "--user", "--scope", "--quiet", "--collect", "--slice=app.slice", "--"] + me
+    return None
+
+
+def leave_service():
+    """Move out of another program's service (RELAUNCHED above): exec the
+    relaunch, which starts the window elsewhere and ends here. Nothing
+    happens on any doubt."""
+    import shutil
+    try:
+        with open("/proc/self/cgroup") as handle:
+            cgroup_text = handle.read()
+    except OSError:
+        return
+    argv = relaunch_argv(sys.argv, cgroup_text, os.environ, shutil.which)
+    if argv:
+        os.environ[RELAUNCHED] = "1"
+        try:
+            os.execvp(argv[0], argv)
+        except OSError:
+            pass                  # stay where it is: a window that may close beats none
+
+
 class App(Gtk.Application):
     def __init__(self):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
@@ -488,5 +546,6 @@ if __name__ == "__main__":
     if len(sys.argv) >= 3 and sys.argv[1] == "--render-window":
         render_window(sys.argv[2], float(sys.argv[3]) if len(sys.argv) > 3 else 3.0, " ".join(sys.argv[4:]))
         sys.exit(0)
+    leave_service()
     GLib.set_prgname(APP_ID)
     sys.exit(App().run(sys.argv))

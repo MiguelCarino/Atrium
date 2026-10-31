@@ -372,6 +372,65 @@ button.dock-status:hover .dock-status-text {
     color: @cyan;
 }
 
+/* The PILLS (dock.py): the bar's own colours for what they say -- its
+   dock-is-<class>. Recording REC red, a microphone in use magenta, the
+   camera red, the location yellow; Do Not Disturb dim; the battery yellow
+   when low, red when nearly out. */
+button.dock-is-recording,
+button.dock-camera.dock-is-active {
+    background-color: alpha(@red, 0.85);
+}
+
+button.dock-mic.dock-is-active {
+    background-color: alpha(@magenta, 0.75);
+}
+
+button.dock-location.dock-is-active {
+    background-color: alpha(@yellow, 0.85);
+}
+
+button.dock-is-recording .dock-status-text,
+button.dock-mic.dock-is-active .dock-status-text,
+button.dock-camera.dock-is-active .dock-status-text {
+    color: @text-bright;
+}
+
+button.dock-location.dock-is-active .dock-status-text {
+    color: @ink;
+}
+
+button.dock-is-replay .dock-status-text,
+button.dock-is-dnd .dock-status-text {
+    color: @text-dim;
+}
+
+button.dock-battery.dock-is-warning .dock-status-text {
+    color: @yellow;
+}
+
+button.dock-battery.dock-is-critical .dock-status-text {
+    color: @red;
+}
+
+/* The taskbar's workspace (dock.py workspace_buttons), after the start
+   button: the one in front, lit; a click opens the window overview. */
+button.dock-ws {
+    min-width: 0;
+    min-height: 0;
+    margin: 4px 2px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 6px;
+    background-color: @accent;
+    background-image: none;
+    box-shadow: none;
+    color: @text-bright;
+}
+
+button.dock-ws:hover {
+    background-color: @accent-lit;
+}
+
 /* The classic start menu (dock.py start_menu=classic): a GTK menu, so the
    theme's panel colours rather than the GTK theme's grey. */
 menu.dock-start-menu {

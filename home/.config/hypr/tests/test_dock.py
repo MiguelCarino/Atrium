@@ -703,16 +703,22 @@ class TopBarTakeover(unittest.TestCase):
         return dict(D.DEFAULTS, **dict({"enabled": True, "layout": "taskbar"}, **kw))
 
     def test_only_the_taskbar_takes_pills(self):
+        """The dock takes only the keyboard layout (to the toolbox card);
+        off, nothing at all."""
         self.assertEqual(D.bar_takeover(dict(D.DEFAULTS)), [])
-        self.assertEqual(D.bar_takeover(self.cfg(layout="dock")), [])
+        self.assertEqual(D.bar_takeover(self.cfg(layout="dock")), ["hyprland/language"])
         self.assertEqual(D.bar_takeover(self.cfg(enabled=False)), [])
 
     def test_each_setting_takes_its_pills_and_power_always_goes(self):
         self.assertEqual(D.bar_takeover(self.cfg()),
                          ["custom/day", "custom/clock", "custom/menuclock", "custom/weather",
-                          "custom/network", "pulseaudio", "custom/power"])
-        self.assertEqual(D.bar_takeover(self.cfg(clock=False, weather=False, network=False, sound=False)),
-                         ["custom/power"])
+                          "custom/network", "pulseaudio", "ext/workspaces", "custom/notifications",
+                          "battery", "custom/recording", "custom/mic", "custom/camera", "custom/location",
+                          "custom/power", "hyprland/language"])
+        self.assertEqual(D.bar_takeover(self.cfg(clock=False, weather=False, network=False, sound=False,
+                                                 workspaces=False, notifications=False, battery=False,
+                                                 privacy=False)),
+                         ["custom/power", "hyprland/language"])
         self.assertNotIn("pulseaudio", D.bar_takeover(self.cfg(sound=False)))
 
     def test_start_menu_setting(self):
@@ -735,6 +741,151 @@ class TopBarTakeover(unittest.TestCase):
             self.assertEqual(calls, [1])
             D.set_key("layout", "dock")             # every pill comes back
             self.assertEqual(calls, [1, 1])
+        finally:
+            D.dry_env, D.restart_bar = real_dry, real_restart
+            D.switch_unit, D.toolbox_refit, D.poke_toolbox_pill = real_switch, real_refit, real_poke
+
+    def test_the_dock_takes_the_privacy_pills_only_with_the_bar_off(self):
+        lang = list(D.CARD_PILLS)
+        self.assertEqual(D.bar_takeover(self.cfg(layout="dock", top_bar=False)), list(D.PRIVACY_PILLS) + lang)
+        self.assertEqual(D.bar_takeover(self.cfg(layout="dock", top_bar=False, privacy=False)), lang)
+        self.assertEqual(D.bar_takeover(self.cfg(layout="dock")), lang)
+
+    def test_status_wanted(self):
+        self.assertEqual(D.status_wanted(dict(D.DEFAULTS)), set())
+        self.assertEqual(D.status_wanted(self.cfg()),
+                         set(D.STATUS_KEYS) | set(D.PRIVACY_KEYS) | {"notifications", "battery"})
+        self.assertEqual(D.status_wanted(self.cfg(privacy=False, battery=False, sound=False)),
+                         {"network", "weather", "notifications"})
+        self.assertEqual(D.status_wanted(self.cfg(layout="dock")), set())
+        self.assertEqual(D.status_wanted(self.cfg(layout="dock", top_bar=False)), set(D.PRIVACY_KEYS))
+        # every pill has its clicks, its setting, and a source
+        for key in D.PILL_SETTING:
+            self.assertIn(key, D.PILL_CLICKS)
+            self.assertTrue(key in D.PILL_WATCH or key in ("notifications", "battery"), key)
+
+    def test_pill_state(self):
+        self.assertEqual(D.pill_state('{"text": "x", "tooltip": "t", "class": "active"}'), ("x", "t", "active"))
+        self.assertEqual(D.pill_state('{"text": "x"}'), ("x", "", ""))
+        self.assertEqual(D.pill_state('{"text": "x", "class": ["a", "b"]}'), ("x", "", ""))
+        self.assertIsNone(D.pill_state("nope"))
+
+    def test_battery_text(self):
+        self.assertEqual(D.battery_text(None, ""), ("", "", ""))
+        self.assertEqual(D.battery_text(100, "Full"), ("\uf240 100%", "Battery 100% · full", "full"))
+        self.assertEqual(D.battery_text(64, "Discharging"), ("\uf241 64%", "Battery 64% · on battery", ""))
+        self.assertEqual(D.battery_text(20, "Discharging")[2], "warning")
+        self.assertEqual(D.battery_text(10, "Discharging")[2], "critical")
+        self.assertEqual(D.battery_text(10, "Charging"),
+                         (f"{D.CHARGING_GLYPH} \uf244 10%", "Battery 10% · charging", "charging"))
+        self.assertEqual(D.battery_text(130, "Unknown")[0], "\uf240 100%")
+
+    def test_read_battery(self):
+        root = tempfile.mkdtemp(dir=helpers.SCRATCH)
+        self.assertEqual(D.read_battery(root), (None, ""))
+        os.makedirs(os.path.join(root, "AC"))
+        os.makedirs(os.path.join(root, "BAT0"))
+        with open(os.path.join(root, "BAT0", "capacity"), "w") as fh:
+            fh.write("57\n")
+        with open(os.path.join(root, "BAT0", "status"), "w") as fh:
+            fh.write("Discharging\n")
+        self.assertEqual(D.read_battery(root), (57, "Discharging"))
+        self.assertEqual(D.read_battery(os.path.join(root, "nope")), (None, ""))
+
+    def test_workspace_buttons(self):
+        """Only the workspace in front: the focused screen's, or one
+        screen's on its own bar; none for a special one or no screen."""
+        mons = [{"name": "eDP-1", "focused": True, "activeWorkspace": {"id": 1, "name": "1"}},
+                {"name": "DP-1", "focused": False, "activeWorkspace": {"id": 3, "name": "code"}}]
+        self.assertEqual(D.workspace_buttons(mons), [(1, "1")])
+        self.assertEqual(D.workspace_buttons(mons, "DP-1"), [(3, "code")])
+        self.assertEqual(D.workspace_buttons(mons, "HDMI-A-1"), [])
+        self.assertEqual(D.workspace_buttons(None), [])
+        special = [{"name": "eDP-1", "focused": True, "activeWorkspace": {"id": -98, "name": "special:x"}}]
+        self.assertEqual(D.workspace_buttons(special), [])
+        self.assertEqual(D.OVERVIEW_ARGV[:2], ["hyprctl", "eval"])
+        self.assertIn("hyprview.toggle", D.OVERVIEW_ARGV[2])
+
+    def test_theme_layout(self):
+        """THEME LAYOUT: only with follow_theme; your own three kept once and
+        put back by a theme with no say, or by switching it off."""
+        mine = self.cfg(layout="dock", top_bar=True, follow_theme=True)
+        win = {"layout": "taskbar", "top_bar": "off"}
+        none = {"layout": "", "top_bar": ""}
+        self.assertEqual(D.theme_layout(dict(mine, follow_theme=False), win), dict(mine, follow_theme=False))
+        got = D.theme_layout(mine, win)
+        self.assertEqual((got["layout"], got["top_bar"], got["enabled"]), ("taskbar", False, True))
+        self.assertEqual(got["theme_saved"], {"enabled": True, "layout": "dock", "top_bar": True})
+        # Another theme after it keeps the first saved ones.
+        again = D.theme_layout(got, {"layout": "dock", "top_bar": "on"})
+        self.assertEqual(again["theme_saved"], got["theme_saved"])
+        self.assertEqual(again["layout"], "dock")
+        back = D.theme_layout(got, none)
+        self.assertEqual((back["layout"], back["top_bar"], back["theme_saved"]), ("dock", True, None))
+        self.assertEqual(D.theme_layout(dict(got, follow_theme=False), win)["layout"], "dock")  # off: yours
+        # The dock off: a theme's layout turns it on; its top bar alone cannot go.
+        off = dict(mine, enabled=False)
+        self.assertTrue(D.theme_layout(off, win)["enabled"])
+        self.assertEqual(D.theme_layout(off, {"layout": "", "top_bar": "off"}), off)
+
+    def test_read_theme_layout_and_saved(self):
+        path = os.path.join(helpers.SCRATCH, "bar.conf")
+        with open(path, "w") as fh:
+            fh.write("# generated\nclock=\nlayout=Taskbar\ntop_bar=off\n")
+        self.assertEqual(D.read_theme_layout(path), {"layout": "taskbar", "top_bar": "off"})
+        self.assertEqual(D.read_theme_layout(path + ".none"), {"layout": "", "top_bar": ""})
+        self.assertIsNone(D.clean_saved({"enabled": "yes", "layout": "dock", "top_bar": True}))
+        self.assertIsNone(D.clean_saved({"enabled": True, "layout": "metro", "top_bar": True}))
+        self.assertEqual(D.clean_saved({"enabled": True, "layout": "dock", "top_bar": False, "x": 1}),
+                         {"enabled": True, "layout": "dock", "top_bar": False})
+        with self.assertRaises(SystemExit):
+            D.set_key("theme_saved", "x")
+
+    def test_your_own_change_drops_the_saved_layout(self):
+        real_dry, real_restart = D.dry_env, D.restart_bar
+        D.dry_env, D.restart_bar = (lambda: False), (lambda: None)
+        real_switch, real_refit, real_poke = D.switch_unit, D.toolbox_refit, D.poke_toolbox_pill
+        D.switch_unit = D.toolbox_refit = D.poke_toolbox_pill = lambda *a: None
+        try:
+            D.write_settings(self.cfg(layout="taskbar", top_bar=False, follow_theme=True,
+                                      theme_saved={"enabled": True, "layout": "dock", "top_bar": True}))
+            D.set_key("combine", "off")                         # not one of the three: kept
+            self.assertIsNotNone(D.read_settings()["theme_saved"])
+            D.set_key("layout", "dock")
+            self.assertIsNone(D.read_settings()["theme_saved"])
+        finally:
+            D.dry_env, D.restart_bar = real_dry, real_restart
+            D.switch_unit, D.toolbox_refit, D.poke_toolbox_pill = real_switch, real_refit, real_poke
+
+    def test_top_bar_off(self):
+        """TOP BAR OFF: bar_hidden needs the dock on; switching it off while
+        the dock is off is refused; a change restarts the bar, on either
+        layout, and so does switching the dock off with the bar gone."""
+        self.assertTrue(D.DEFAULTS["top_bar"])
+        self.assertFalse(D.bar_hidden(dict(D.DEFAULTS)))
+        self.assertTrue(D.bar_hidden(self.cfg(top_bar=False)))
+        self.assertTrue(D.bar_hidden(self.cfg(top_bar=False, layout="dock")))
+        self.assertFalse(D.bar_hidden(self.cfg(top_bar=False, enabled=False)))
+        calls = []
+        real_dry, real_restart = D.dry_env, D.restart_bar
+        D.dry_env, D.restart_bar = (lambda: False), (lambda: calls.append(1))
+        real_switch, real_refit, real_poke = D.switch_unit, D.toolbox_refit, D.poke_toolbox_pill
+        D.switch_unit = D.toolbox_refit = D.poke_toolbox_pill = lambda *a: None
+        try:
+            D.write_settings(self.cfg(enabled=False))
+            with self.assertRaises(SystemExit):
+                D.set_key("top_bar", "off")
+            self.assertTrue(D.read_settings()["top_bar"])     # nothing written
+            D.write_settings(self.cfg(layout="dock"))
+            D.set_key("top_bar", "off")
+            self.assertEqual(calls, [1])
+            D.set_key("enabled", "off")             # the bar is back
+            self.assertEqual(calls, [1, 1])
+            self.assertFalse(D.read_settings()["top_bar"])    # remembered for the next time
+            D.set_key("enabled", "on")              # and gone again
+            self.assertEqual(calls, [1, 1, 1])
+            D.set_key("top_bar", "on")
+            self.assertEqual(calls, [1, 1, 1, 1])
         finally:
             D.dry_env, D.restart_bar = real_dry, real_restart
             D.switch_unit, D.toolbox_refit, D.poke_toolbox_pill = real_switch, real_refit, real_poke
@@ -783,12 +934,29 @@ class Wiring(unittest.TestCase):
         for line in ("PartOf=graphical-session.target", "Restart=on-failure", "WatchdogSec=20",
                      "MemoryHigh=150M", "dock.py daemon", 'ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""'):
             self.assertIn(line, text)
+        # TOP BAR OFF: however the dock stops, the bar comes back.
+        self.assertIn("ExecStopPost=-/usr/bin/systemctl --user --no-block start waybar.service", text)
         # Ships OFF even when this install has it on: the repo's sync.sh keeps
         # dock.service out of the units a new install enables.
         sync = os.path.expanduser("~/Github/Atrium/sync.sh")
         if os.path.exists(sync):
             with open(sync) as handle:
                 self.assertRegex(handle.read(), r"grep -vE '\^\([^)]*\bdock\b[^)]*\)", "dock.service ships OFF")
+
+    def test_the_toolbox_runs_without_the_bar(self):
+        """With the top bar off the bar is skipped (its condition) and the
+        toolbox -- the session's tray watcher -- must stay up on its own."""
+        units = os.path.expanduser("~/.config/systemd/user")
+        with open(os.path.join(units, "waybar-toolbox.service")) as handle:
+            toolbox = handle.read()
+        self.assertRegex(toolbox, r"(?m)^PartOf=graphical-session\.target$")
+        self.assertRegex(toolbox, r"(?m)^WantedBy=graphical-session\.target$")
+        self.assertIn("ExecStart=%h/.config/waybar/scripts/toolbox-main.sh", toolbox)
+        with open(os.path.join(units, "waybar.service.d", "hyprland.conf")) as handle:
+            bar = handle.read()
+        self.assertIn("ExecCondition=%h/.config/waybar/scripts/bar-wanted.sh", bar)
+        self.assertRegex(bar, r"(?m)^After=dock\.service$")
+        self.assertIn("ExecStartPost=-%h/.config/waybar/scripts/toolbox-follow.sh", bar)
 
     def test_events_are_valid_hyprbus_names(self):
         import hyprbus

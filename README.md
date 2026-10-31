@@ -2,7 +2,8 @@
 
 A complete desktop on [Hyprland](https://hyprland.org) for Fedora: the bar,
 the panels, notifications, a launcher, a dock or a Windows-style taskbar (off
-until you turn it on in Settings), a Settings app for every part of it,
+until you turn it on in Settings; with either one on, the top bar can go too),
+a Settings app for every part of it,
 desktop themes that restyle everything at once, and a set of local, private
 smart features (an assistant, voice typing, spoken replies, background tasks,
 a nightly health checkup and more). Nothing leaves the machine unless you
@@ -74,6 +75,7 @@ First steps after logging in:
 | | |
 |---|---|
 | **SUPER+I** | Settings: every page, searchable |
+| `~/.config/hypr/scripts/dock.py set top_bar on` | the top bar back, if you switched it off (Settings > Bar & toolbox > Dock & taskbar); it also comes back by itself whenever the dock or taskbar stops |
 | **SUPER+CTRL+I** | Settings > Smart desktop: every smart feature, and what may use your camera, microphone, screen and clipboard |
 | **SUPER+F1** | every shortcut |
 | `~/.config/hypr/scripts/monitors-capture.py` | once your screens are arranged (Settings > Displays): remembers them for this machine |

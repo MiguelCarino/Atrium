@@ -109,6 +109,11 @@ nvtop               # the GPU panel's "nvtop" button; NVIDIA, AMD and Intel alik
 papirus-icon-theme
 papirus-icon-theme-dark
 oxygen-icon-theme
+# Fonts. IBM Plex Sans ships in home/.local/share/fonts; IBM Plex Mono, the
+# monospace face of the base stylesheets and of Matrix, Cyberpunk, Win95
+# and Aero, comes from Fedora. Without it a face list fell through to Font
+# Awesome, whose letters and icon-name ligatures drew the words.
+ibm-plex-mono-fonts
 
 # The graphics card's own driver / VA-API packages are not here: install.sh
 # picks them by the cards it finds (akmod-nvidia only on NVIDIA).

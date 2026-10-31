@@ -13,6 +13,9 @@
 #                        it (dock.py: switched on or off, a new layout, edge
 #                        or autohide -- never on a click)
 #
+# With the top bar off (dock.py TOP BAR OFF) there is no pill at all and the
+# card also holds the bar's pills (bar-settings.py toolbox-config-path).
+#
 # THE PILL AND THE DOCK. hypr/scripts/dock.py has a toolbox button of its own
 # (the taskbar's beside the tray, the dock's after a line at its end), so
 # while it runs the top bar's sliders pill is one button too many and goes:
@@ -139,7 +142,9 @@ flip() {
     fi
     # Re-run the handle's exec so its lit state follows. Only the main bar
     # has the handle; --kill-whom=main keeps the signal off module scripts.
-    systemctl --user kill -s "RTMIN+$HANDLE_SIGNAL" --kill-whom=main waybar.service
+    # Quiet: with the top bar off (dock.py TOP BAR OFF) there is no bar to
+    # tell, here and below.
+    systemctl --user kill -s "RTMIN+$HANDLE_SIGNAL" --kill-whom=main waybar.service 2>/dev/null
 }
 
 # The flag is only right if no two flips interleave: two at once both read the
@@ -160,7 +165,7 @@ case ${1:-} in
                 flip
             else        # already folded away: clear what says otherwise
                 rm -f "$FLAG"; dismiss_stop; signals
-                systemctl --user kill -s "RTMIN+$HANDLE_SIGNAL" --kill-whom=main waybar.service
+                systemctl --user kill -s "RTMIN+$HANDLE_SIGNAL" --kill-whom=main waybar.service 2>/dev/null
             fi
         fi ;;
     refit)
@@ -171,7 +176,7 @@ case ${1:-} in
             # when it starts anyway.
             systemctl --user try-restart waybar-toolbox.service 9>&-
         fi
-        systemctl --user kill -s "RTMIN+$HANDLE_SIGNAL" --kill-whom=main waybar.service ;;
+        systemctl --user kill -s "RTMIN+$HANDLE_SIGNAL" --kill-whom=main waybar.service 2>/dev/null ;;
     status)
         # No tooltip: custom/toolbox has "tooltip": false (the card is what
         # the click opens).

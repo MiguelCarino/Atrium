@@ -236,3 +236,37 @@ class VolumeAndRadio(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LeaveService(unittest.TestCase):
+    """settings.py leave_service: opened from the toolbox or the dock, the
+    window moves into an app scope of its own, so restarting them (a theme
+    switch) never closes it."""
+    @classmethod
+    def setUpClass(cls):
+        try:
+            cls.S = helpers.import_script("settings.py", "settings_app")
+        except Exception as exc:          # noqa: BLE001 - no GTK here
+            raise unittest.SkipTest(f"settings.py not importable: {exc}")
+
+    def test_own_service(self):
+        base = "0::/user.slice/user-1000.slice/user@1000.service/"
+        self.assertEqual(self.S.own_service(base + "app.slice/waybar-toolbox.service\n"), "waybar-toolbox.service")
+        self.assertEqual(self.S.own_service(base + "app.slice/dock.service"), "dock.service")
+        self.assertEqual(self.S.own_service(base + "app.slice/app-atrium\\x2dsettings-1.scope"), "")
+        self.assertEqual(self.S.own_service(base + "app.slice/app-foo@x.service"), "")
+        self.assertEqual(self.S.own_service(""), "")
+
+    def test_relaunch_argv(self):
+        tb = "0::/user.slice/user@1000.service/app.slice/waybar-toolbox.service"
+        both = lambda name: f"/usr/bin/{name}"          # noqa: E731
+        argv = self.S.relaunch_argv(["/x/settings.py", "dock"], tb, {}, both)
+        self.assertEqual(argv[:7], ["uwsm", "app", "-t", "service", "-a", "atrium-settings", "--"])
+        self.assertEqual(argv[-2:], ["/x/settings.py", "dock"])
+        only_systemd = lambda name: "/usr/bin/systemd-run" if name == "systemd-run" else None   # noqa: E731
+        self.assertEqual(self.S.relaunch_argv(["/x/settings.py"], tb, {}, only_systemd)[:3],
+                         ["systemd-run", "--user", "--scope"])
+        self.assertIsNone(self.S.relaunch_argv(["/x/settings.py"], tb, {self.S.RELAUNCHED: "1"}, both))
+        self.assertIsNone(self.S.relaunch_argv(["/x/settings.py"], tb, {}, lambda name: None))
+        scope = "0::/user.slice/user@1000.service/app.slice/app-x.scope"
+        self.assertIsNone(self.S.relaunch_argv(["/x/settings.py"], scope, {}, both))

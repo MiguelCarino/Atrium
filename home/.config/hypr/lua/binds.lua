@@ -910,7 +910,9 @@ hl.bind("SUPER+F1", hl.dsp.exec_cmd("~/.config/waybar/scripts/panel.py toggle ke
 
 -- Waybar signals. SIGUSR1 goes to the main bar's process only: a plain
 -- `pkill -SIGUSR1 waybar` would also flip the hidden toolbox section
--- (waybar-toolbox.service) open as the bar disappears.
+-- (waybar-toolbox.service) open as the bar disappears. A hide until the next
+-- bar restart; for no top bar at all, Settings > Dock & taskbar > Top bar
+-- (scripts/dock.py, TOP BAR OFF) -- then this has no bar to hide.
 hl.bind(mainMod .. "+B", hl.dsp.exec_cmd("~/.config/waybar/scripts/toolbox.sh hide; systemctl --user kill -s USR1 --kill-whom=main waybar.service"), { description = "Bar: Show / hide bar" })
 -- ALT+G restarts waybar as a new process instead of sending SIGUSR2. In
 -- waybar 0.15 a SIGUSR2 reload rebuilds the modules in place and stops their

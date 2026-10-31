@@ -24,7 +24,12 @@ time its card is refit -- must not be hit. pkill had no such check.
 
 The "bar" column: "main" is the top bar (config), "toolbox" the drop-down
 card (config-toolbox, waybar-toolbox.service); poke() signals only that
-waybar, so the other never re-runs scripts for nothing.
+waybar, so the other never re-runs scripts for nothing -- except that a
+"main" pill is also poked in the toolbox when the toolbox catches its signal:
+with the top bar off the card holds the bar's pills (bar-settings.py
+toolbox-config-path), and the numbers are unique, so catching one means
+having that pill. And a pill the taskbar shows (DOCK_POKED) gets the dock's
+SIGUSR2 as well (hypr/scripts/dock.py, PILLS), when the dock catches it.
 
 HYPR_BAR_SIGNALS_OFF=1 in the environment turns poke() into a no-op (it
 still returns 0): the tests set it, so a script under test that redraws a
@@ -72,6 +77,9 @@ SIGNALS = {
 SIGNALS["logo"] = SIGNALS["menuclock"] = SIGNALS["power"] = SIGNALS["day"]
 
 LOWEST, HIGHEST = 1, 30
+# The pills the dock / taskbar polls (dock.py PILLS): a poke sends it SIGUSR2.
+DOCK_POKED = frozenset({"notifications"})
+DOCK_PID = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "dock.pid")
 TOOLBOX_CONFIG = "config-toolbox"
 
 
@@ -132,7 +140,7 @@ def poke(*names, proc="/proc", kill=os.kill):
         number, bar = SIGNALS[name][:2]
         signum = signal.SIGRTMIN + number
         for pid, which in bars:
-            if which != bar:
+            if which != bar and not (bar == "main" and which == "toolbox"):
                 continue
             if not catches(_read(f"{proc}/{pid}/status").decode(errors="replace"), signum):
                 continue
@@ -141,7 +149,27 @@ def poke(*names, proc="/proc", kill=os.kill):
                 sent += 1
             except OSError:
                 pass
+    if DOCK_POKED.intersection(names):
+        sent += poke_dock(proc, kill)
     return sent
+
+
+def poke_dock(proc="/proc", kill=os.kill, pidfile=None):
+    """SIGUSR2 to the dock (its pid file), only once it catches it: like a
+    real-time signal, SIGUSR2's default action ends a process. 1 if sent."""
+    try:
+        pid = int(_read(pidfile or DOCK_PID).decode().strip())
+    except ValueError:
+        return 0
+    if b"dock.py" not in _read(f"{proc}/{pid}/cmdline"):
+        return 0                  # a stale file, and the pid someone else's now
+    if not catches(_read(f"{proc}/{pid}/status").decode(errors="replace"), signal.SIGUSR2):
+        return 0
+    try:
+        kill(pid, signal.SIGUSR2)
+        return 1
+    except OSError:
+        return 0
 
 
 def main(argv):

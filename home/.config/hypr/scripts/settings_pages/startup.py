@@ -232,8 +232,9 @@ def own_unit(cgroup_text=None):
     /proc/self/cgroup ("0::/user.slice/.../waybar-toolbox.service" ->
     "waybar-toolbox.service"), or "" for a scope / no unit. Opened from the
     toolbox, Settings is a child of waybar-toolbox.service, so restarting that
-    unit -- or waybar.service, which takes the toolbox along (PartOf=) --
-    closes this very window; the Restart button asks first then."""
+    unit closes this very window; the Restart button asks first then.
+    (waybar.service no longer takes the toolbox along: the toolbox runs
+    without the top bar too, scripts/dock.py TOP BAR OFF.)"""
     if cgroup_text is None:
         try:
             with open("/proc/self/cgroup") as handle:

@@ -47,6 +47,9 @@ SETTINGS ($XDG_STATE_HOME/hypr/island.json; Settings > Bar & toolbox > Island):
                 of them, macOS-like (true); written as
                 ~/.config/waybar/generated/island-bar.css, which style.css
                 imports last (an empty one when off, or for "theme")
+                With the top bar off (dock.py TOP BAR OFF) there is no centre
+                to match: the daemon runs as if match_bar were off
+                (effective), and the island keeps its own width.
     ongoing     keep the pill in the bar while music plays, a recording runs
                 or a timer is in its last minute (false: it covers the bar's
                 clock while it stays); off, it shows only when something
@@ -736,7 +739,7 @@ def status():
     popups = "" if modes is None else ("island" if MAKO_MODE in modes else "mako")
     return {"settings": read_settings(), "defaults": dict(DEFAULTS), "service": service,
             "enabled_unit": enabled_unit, "running": running, "monitors": monitor_names(),
-            "sock": SOCK, "popups": popups}
+            "sock": SOCK, "popups": popups, "top_bar_off": top_bar_off()}
 
 
 def print_status(st):
@@ -1398,8 +1401,24 @@ ISLAND_CSS = """
 """
 
 
+def top_bar_off():
+    """The dock or taskbar runs without the top bar (dock.py bar_hidden)."""
+    try:
+        import dock
+        return dock.bar_hidden(dock.read_settings())
+    except Exception:         # noqa: BLE001 - no dock: the bar is there
+        return False
+
+
+def effective(cfg, bar_off=None):
+    """The settings the daemon works with: match_bar off while the top bar
+    is (no centre to match, nothing to measure)."""
+    off = top_bar_off() if bar_off is None else bar_off
+    return dict(cfg, match_bar=False) if off and cfg.get("match_bar") else cfg
+
+
 def daemon():
-    cfg = read_settings()
+    cfg = effective(read_settings())
     if not cfg["enabled"]:
         print("island: switched off (island.py set on)", flush=True)
         return 0
@@ -2787,7 +2806,8 @@ def daemon():
         def on_state(self, names):
             if TIMERS_FILE in names:
                 self.debounce("timers", 50, self.refresh_timers)
-            if os.path.basename(SETTINGS_FILE) in names:
+            # dock.json too: the top bar switched off or on changes effective()
+            if os.path.basename(SETTINGS_FILE) in names or "dock.json" in names:
                 self.debounce("settings", SETTINGS_DEBOUNCE_MS, self.reload_settings)
 
         def on_rings(self, names):
@@ -2817,12 +2837,14 @@ def daemon():
                 self.render()
 
         def reload_settings(self):
-            new = read_settings()
+            new = effective(read_settings())
             if not new["enabled"]:
                 print("island: switched off", flush=True)
                 Gtk.main_quit()
                 return
             old, self.cfg = self.cfg, new
+            if old["match_bar"] and not new["match_bar"]:
+                self.notch_w = None   # no bar's centre to be as wide as: island_w's own width
             if any(new[k] != old[k] for k in ("style", "notch_color", "outline")):
                 load_css()
             if write_bar_css(new, self.slot):

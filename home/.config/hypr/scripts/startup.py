@@ -591,7 +591,7 @@ def services(props=None):
                     "since_s": since, "memory": mem if mem and mem < 1 << 60 else None,
                     "restarts": int(p.get("NRestarts") or 0), "owner": owner(p),
                     # units a restart of this one takes along (their PartOf=
-                    # names it): restarting waybar also restarts the toolbox
+                    # names it)
                     "parts": (p.get("ConsistsOf") or "").split(),
                     "log": "" if ok else last_log(unit)})
     return out

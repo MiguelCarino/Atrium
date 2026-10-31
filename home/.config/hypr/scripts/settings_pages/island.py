@@ -221,6 +221,11 @@ class Page:
         finally:
             self.updating = False
         self.color_box.set_sensitive((conf.get("style") or "notch") in SOLID)
+        # No top bar (dock.py TOP BAR OFF): no centre to match.
+        no_bar = bool(st.get("top_bar_off"))
+        self.switches["match_bar"].set_sensitive(not no_bar)
+        self.switches["match_bar"].set_tooltip_text(
+            "No top bar now (Dock & taskbar): nothing to match" if no_bar else None)
         self.now.set_text(now_text(st))
         stopped = bool(conf.get("enabled")) and st.get("service") != "active"
         self.not_running.set_visible(stopped)
