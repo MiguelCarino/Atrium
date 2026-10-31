@@ -9,7 +9,7 @@ without a battery it prints no text, and waybar hides the row.
     battery_row.py      one JSON line, then exit (the config runs it every 30 s)
 
 The row: the battery glyph (the taskbar's, dock.py BATTERY_GLYPHS, with the
-bolt while charging), "Battery", the charge and the time: "2h 15m left"
+bolt while charging), the charge and the time ("Battery" only without one): "2h 15m left"
 running down, "full in 40m" charging, "plugged in" on the cable held short
 of full, the charge alone when full. Short, as the row shares a line of the
 card's grid.
@@ -127,7 +127,10 @@ def row(got):
     else:
         when, cls = "plugged in", "full"
     tip = f"Battery {pct}% · {when or 'full'}\nclick: Power & lock settings"
-    return {"text": f"{glyph}   {WORD} {pct}%" + (f" · {when}" if when else ""), "tooltip": tip, "class": cls}
+    # With a time the glyph says "battery" alone: the word made the row wider
+    # than its column in the card's grid.
+    text = f"{glyph}   {pct}% · {when}" if when else f"{glyph}   {WORD} {pct}%"
+    return {"text": text, "tooltip": tip, "class": cls}
 
 
 def probe():

@@ -83,8 +83,9 @@ from ~/.config/waybar/config. So hide / show / move here decide the card's
 pills as they do the bar's; `status` says where each pill is (where_of). Made again at every toolbox start
 (toolbox-config-path), so hide / show / move here still decide what is in it;
 any problem making it, and the toolbox starts from config-toolbox itself.
-The card's Microphone and Battery rows (custom/keybinds#mic and #battery,
-hidden in config-toolbox; OFF_ROWS) are shown in that copy too, the bar's
+The card's Battery row (custom/keybinds#battery, hidden in config-toolbox;
+OFF_ROWS) is shown in that copy too -- unless the dock's battery tile has
+it -- the bar's
 battery pill left out for that row (OFF_SKIP), the bar's pills come in
 sections, a line each (OFF_SECTIONS: the time, the workspaces, the status,
 the meters -- whichever the taskbar does not show), the others after them,
@@ -116,14 +117,16 @@ TASKBAR_VARIANT = os.path.join(WAYBAR, "generated", "config-taskbar")
 NOBAR_TOOLBOX = os.path.join(WAYBAR, "generated", "config-toolbox-nobar")
 DOCK_TOOLBOX = os.path.join(WAYBAR, "generated", "config-toolbox-dock")
 GRID_TOOLBOX = os.path.join(WAYBAR, "generated", "config-toolbox-grid")
+CARD_CSS = os.path.join(WAYBAR, "generated", "toolbox-lines.css")
 # The card as a grid (grid_variant): its plain rows GRID_COLUMNS to a line,
 # in order; a row that is a group already (the bar's pills) and the tray keep
 # a line of their own, full width.
 GRID_COLUMNS = 2
 GRID_WIDE = ("tray",)
-MIC_ROW = "custom/keybinds#mic"            # the card's Microphone row, shown with the bar off
-BATTERY_ROW = "custom/keybinds#battery"    # its Battery row (time left), shown with the bar off
-OFF_ROWS = (MIC_ROW, BATTERY_ROW)
+BATTERY_ROW = "custom/keybinds#battery"    # the card's Battery row (time left), shown with the bar off
+# (The Microphone row, custom/keybinds#mic, stays hidden: the dock's and the
+# taskbar's sound button mutes the microphone; Settings can still show it.)
+OFF_ROWS = (BATTERY_ROW,)
 # With the bar off: the pills the Battery row stands in for (the card's
 # battery pill, a meter only), and the meters that get a line of their own,
 # first among the bar's pills.
@@ -138,8 +141,31 @@ WORKSPACES = ("ext/workspaces", "hyprland/submap")
 STATUS = ("custom/network", "pulseaudio", "custom/bluetooth", "custom/notifications", "privacy", "custom/power")
 OFF_SECTIONS = (TIME, WORKSPACES, STATUS, METERS)
 # ... and the tray (background apps): at the end of the last pill line, its
-# icons pills among pills, not a row of its own for one or two icons.
+# icons pills among pills, not a row of its own for one or two icons. That
+# line (the pills of no section: which of them show changes all the time)
+# goes under the tiles, the card's own tray row, left to right.
 OFF_TAIL = ("tray",)
+# A section's line is as wide as a pair of tiles (CARD_TILE px tiles in a
+# card with such lines, 12 px padding and 3 px margin a side, a 1 px border,
+# as style-toolbox.css pads the pills there too): each pill gets
+# a min-width, the line's room shared out by these weights, about each pill's
+# usual width, so a pill growing a digit has room and every line ends where
+# the tiles do (card_css). waybar ignores "expand" inside a group, so this is
+# the only way a line fills the card. 0: usually empty (waybar hides it), so
+# no share; when it shows, its line runs long and toolbox_fit.py widens the
+# card. A pill not here (a section changed) leaves its line unshared.
+CARD_TILE = 180                         # style-toolbox.css's 160, widened: the lines need the room
+PILL_OVERHEAD = 2 * 12 + 2 * 3 + 2 * 1
+LINE_WIDTH = 2 * (CARD_TILE + PILL_OVERHEAD)
+TILES = ("#custom-fsstate", "#custom-nightlight", "#custom-awake", "#custom-display",
+         "#custom-keybinds", "#custom-settings")    # style-toolbox.css's tile rule
+PILL_WEIGHTS = {
+    "custom/day": 100, "custom/clock": 85, "custom/menuclock": 0, "custom/weather": 75,
+    "ext/workspaces": 1, "hyprland/submap": 0,
+    "custom/network": 145, "pulseaudio": 135, "custom/bluetooth": 0, "custom/notifications": 50,
+    "privacy": 0, "custom/power": 40,
+    "custom/cpu": 120, "custom/gpu": 120, "custom/disk": 70, "custom/mempressure": 0,
+}
 STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hypr")
 
 SIDES = ("modules-left", "modules-center", "modules-right")
@@ -196,11 +222,9 @@ MODULES = {
                      " hidden by a theme whose logo opens it)"),
     # The toolbox card's rows.
     "custom/keybinds#mic": ("\uf130", "Microphone",
-                      "level and mute, lit while an app listens; shown by itself while the top bar is off"),
+                      "level and mute, lit while an app listens"),
     "custom/keybinds#battery": ("\uf240", "Battery",
                       "the charge and the time left; shown by itself while the top bar is off"),
-    "custom/keybinds#topbar": ("\uf2d0", "Top bar",
-                      "the top bar on or off, a click switches it; only while the dock or the taskbar runs"),
     "custom/settings": ("", "Settings", "this window (SUPER+I works without it)"),
     "custom/fsstate": ("", "Game mode", "split fullscreen: the app or the window thinks it is fullscreen"),
     "custom/nightlight": ("", "Night light", "warmer screens; same as SUPER+N"),
@@ -728,7 +752,7 @@ def dock_view():
         keys = {name: key for key, names in dock.TAKEOVER if key for name in names}
         return {"enabled": bool(cfg.get("enabled")), "layout": cfg.get("layout"),
                 "top_bar": bool(cfg.get("top_bar", True)), "taken": dock.bar_takeover(cfg),
-                "card": list(dock.CARD_PILLS), "keys": keys,
+                "card": list(dock.card_pills(cfg)), "keys": keys,
                 "settings": {k: cfg.get(k) for k in set(keys.values())}}
     except Exception:         # noqa: BLE001 - no dock: the bar as it is
         return {"enabled": False, "layout": None, "top_bar": True, "taken": [], "card": [], "keys": {},
@@ -757,7 +781,9 @@ def toolbox_variant(text, bar_text, skip, only=None, sections=(), then=()):
     inserted block ends in a comma and nothing else is touched. skip: the
     pills the taskbar takes over; only, when given, the only pills to add.
     then: the card's own rows (the tray) to move to the end of the last
-    pill line, out of the card's list.
+    pill line, out of the card's list; with sections, a last line of no
+    section's pills (the tray's) then goes last in the card, under its
+    own rows.
     Checked like an edit: anything else that would differ is a ValueError;
     with no pill to add it is the text itself."""
     bar = parse(bar_text)
@@ -794,12 +820,17 @@ def toolbox_variant(text, bar_text, skip, only=None, sections=(), then=()):
     items, tail = read_items(lines, start, end)
     indent = items[0]["indent"] if items else " " * 12
     items = [it for it in items if it["name"] not in then]
+    in_sections = {n for section in sections for n in section}
+    last = [group for group, names in rows if sections and then and not in_sections & set(names)]
+    first = [group for group, _names in rows if group not in last]
     items[:0] = [{"name": group, "shown": True, "indent": indent, "comment": "", "above": []}
-                 for group, _names in rows]
+                 for group in first]
+    items += [{"name": group, "shown": True, "indent": indent, "comment": "", "above": []}
+              for group in last]
     lines[start + 1:end] = write_items(items, tail)
     new = "\n".join(lines)
     want = parse(text)
-    card_of(want)[:] = [group for group, _names in rows] + [n for n in card_of(want) if n not in then]
+    card_of(want)[:] = first + [n for n in card_of(want) if n not in then] + last
     for group, names in rows:
         want[group] = {"orientation": "horizontal", "modules": names}
         for name in names:
@@ -810,21 +841,67 @@ def toolbox_variant(text, bar_text, skip, only=None, sections=(), then=()):
     return new
 
 
+def css_id(name):
+    """A module name -> its CSS selector in waybar: custom/x is #custom-x,
+    any other a/b is #b, a plain name itself; None for an instance
+    ("name#instance": a class, not an id)."""
+    if "#" in name:
+        return None
+    if name.startswith("custom/"):
+        return "#custom-" + name[len("custom/"):]
+    return "#" + name.rsplit("/", 1)[-1]
+
+
+def card_css(text):
+    """The CSS that shares out each pill line of the card (text: its
+    config) by PILL_WEIGHTS: a min-width per pill, so the line is
+    LINE_WIDTH wide, and the tiles CARD_TILE wide to match. Only lines
+    whose every pill has a weight; the workspaces take a whole line. ""
+    for none."""
+    rules = []
+    conf = parse(text)
+    for group in card_of(conf):
+        names = (conf.get(group) or {}).get("modules") or []
+        if not group.startswith("group/pills-") or not names or any(n not in PILL_WEIGHTS for n in names):
+            continue
+        weighted = [n for n in names if PILL_WEIGHTS[n] and css_id(n)]
+        total = sum(PILL_WEIGHTS[n] for n in weighted)
+        room = LINE_WIDTH - PILL_OVERHEAD * len(weighted)
+        for n in weighted:
+            rules.append(f"{css_id(n)} {{ min-width: {room * PILL_WEIGHTS[n] // total}px; }}")
+    if not rules:
+        return ""
+    rules.insert(0, ", ".join(TILES) + f" {{ min-width: {CARD_TILE}px; }}")
+    solos = ", ".join(f"#grid-solo-{n} > widget > *" for n in range(1, 5))
+    rules.insert(1, f"{solos} {{ min-width: {LINE_WIDTH - PILL_OVERHEAD}px; }}")
+    return ("/* bar-settings.py card_css: each pill line of the card as wide as a pair of\n"
+            "   tiles. Generated with the toolbox's config; do not edit. */\n" + "\n".join(rules) + "\n")
+
+
+def write_card_css(text):
+    """card_css(text) into CARD_CSS (style-toolbox.css imports it; empty
+    for a card without such lines)."""
+    os.makedirs(os.path.dirname(CARD_CSS), exist_ok=True)
+    tmp = f"{CARD_CSS}.{os.getpid()}.tmp"
+    with open(tmp, "w") as fh:
+        fh.write(card_css(text) if text else "")
+    os.replace(tmp, CARD_CSS)
+
+
 def card_pills():
-    """dock.py CARD_PILLS: the bar's pills the card holds while the dock or
-    the taskbar runs; () without it."""
+    """dock.py card_pills: the bar's pills the card holds while the dock or
+    the taskbar runs (none that the dock shows itself); () without it."""
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         import dock
-        return tuple(dock.CARD_PILLS)
+        return tuple(dock.card_pills(dock.read_settings()))
     except Exception:         # noqa: BLE001 - no dock: nothing moves
         return ()
 
 
 def show_off_rows(text, rows=OFF_ROWS):
-    """The toolbox's text with its Microphone and Battery rows (OFF_ROWS)
-    shown (the bar is off); each as it is when already shown or gone from
-    the card."""
+    """The toolbox's text with its Battery row (OFF_ROWS) shown (the bar is
+    off); each as it is when already shown or gone from the card."""
     for name in rows:
         try:
             text = set_shown(text, name, True, toolbox=True)
@@ -891,6 +968,16 @@ def grid_variant(text):
     return new
 
 
+def off_sections(taken):
+    """OFF_SECTIONS for a card whose dock or taskbar took `taken`: without
+    the network and the sound the status line would be the power pill alone,
+    the width of the card -- what is left of it joins the last line, the
+    small pills and the tray."""
+    if {"custom/network", "pulseaudio"} <= set(taken):
+        return tuple(s for s in OFF_SECTIONS if s is not STATUS)
+    return OFF_SECTIONS
+
+
 def toolbox_config_path():
     """The file the toolbox starts from (toolbox-main.sh), written fresh, the
     card always a grid (grid_variant): with the top bar off NOBAR_TOOLBOX,
@@ -905,11 +992,15 @@ def toolbox_config_path():
     try:
         text = read(TOOLBOX)
         if off:
-            text = show_off_rows(text)
-            text = toolbox_variant(text, read(BAR), (taken - card) | set(OFF_SKIP), sections=OFF_SECTIONS, then=OFF_TAIL)
+            # The dock's battery tile stands in for the card's Battery row
+            # (dock.py DOCK TILES: what is on the dock is not in the card).
+            text = show_off_rows(text, tuple(r for r in OFF_ROWS if r != BATTERY_ROW or "battery" not in taken))
+            text = toolbox_variant(text, read(BAR), (taken - card) | set(OFF_SKIP), sections=off_sections(taken),
+                                   then=OFF_TAIL)
         elif card:
             text = toolbox_variant(text, read(BAR), taken - card, only=card)
         text = grid_variant(text)
+        write_card_css(text)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = f"{path}.{os.getpid()}.tmp"
         with open(tmp, "w") as fh:
@@ -918,6 +1009,10 @@ def toolbox_config_path():
         return path
     except (OSError, ValueError) as exc:
         print(f"bar-settings: the toolbox as it is, without the bar's pills: {exc}", file=sys.stderr)
+        try:
+            write_card_css("")
+        except OSError:
+            pass
         return TOOLBOX
 
 

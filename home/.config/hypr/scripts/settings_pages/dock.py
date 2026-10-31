@@ -53,21 +53,30 @@ TASKBAR = [("combine", "", "One button per app",
            ("labels", "", "Window titles",
             "beside the icons"),
            ("tray", "", "System tray",
-            "the apps' tray icons at the right (the toolbox keeps its own)"),
-           ("clock", "", "Clock",
-            "the time and the date, as Date, time & region writes them"),
-           ("weather", "", "Weather",
-            "the temperature; click: the forecast"),
-           ("network", "", "Network",
-            "the connection; click: the network panel"),
-           ("sound", "", "Sound",
-            "the volume; click: the audio panel, scroll: louder or quieter, right-click: mute"),
-           ("workspaces", "\uf24d", "Workspaces",
-            "the one in front, after the start button; click: every window (Super+D)"),
-           ("notifications", "\uf0f3", "Notifications",
-            "the bell, right of the clock; click: the notifications, right-click: Do Not Disturb"),
-           ("battery", "\uf240", "Battery",
-            "the charge, while there is a battery")]
+            "the apps' tray icons at the right (the toolbox keeps its own)")]
+# On the taskbar, and on the dock with the top bar off (dock.py DOCK TILES):
+# beside the privacy indicators, which go by the same rule.
+BOTH = [("clock", "", "Clock",
+         "the time and the date, as Date, time & region writes them: on the taskbar, "
+         "or on the dock with the top bar off as a time tile and a date tile"),
+        ("weather", "", "Weather",
+         "the temperature; click: the forecast. On the taskbar, or on the dock with the top bar off"),
+        ("workspaces", "\uf24d", "Workspaces",
+         "the one in front; click: every window (Super+D). On the taskbar after the start "
+         "button, or a tile on the dock with the top bar off (scroll: the next one)"),
+        ("notifications", "\uf0f3", "Notifications",
+         "the bell and the unread count; click: the notifications, right-click: Do Not "
+         "Disturb. On the taskbar, or a tile on the dock with the top bar off; the dock's "
+         "app icons carry their own unread count"),
+        ("battery", "\uf240", "Battery",
+         "the charge, while there is a battery: on the taskbar, or a tile on the dock with "
+         "the top bar off"),
+        ("network", "", "Network",
+         "the connection; click: the network panel. On the taskbar, or a tile on the dock with "
+         "the top bar off (the network's name under its glyph)"),
+        ("sound", "", "Sound",
+         "the volume; click: the audio panel, scroll: louder or quieter, right-click: mute. On "
+         "the taskbar, or a tile on the dock with the top bar off (middle-click: mute the microphone)")]
 START_MENUS = [("launcher", "App launcher"), ("classic", "Classic menu")]
 
 
@@ -174,15 +183,20 @@ class Page:
                                      "hover a running app for its windows, with pictures")
         w.pack_start(grid, False, False, 0)
         self.top_bar, _sub = self.switch_row("top_bar", "\uf2d0", "Top bar",
-                                             "off: no bar at the top. The taskbar keeps what it shows; "
-                                             "the rest is in the toolbox, with a Microphone row (mute, "
-                                             "level). Back by itself if the dock or taskbar stops")
+                                             "off: no bar at the top. The dock or the taskbar shows the "
+                                             "clock and the status; the rest is in the toolbox. Back by "
+                                             "itself if the dock or taskbar stops")
         w.pack_start(self.top_bar, False, False, 0)
         self.privacy, _sub = self.switch_row("privacy", "\uf3ed", "Privacy indicators",
                                              "what records the screen or uses the microphone, the camera "
                                              "or the location, only while something does: on the taskbar, "
                                              "or on the dock with the top bar off")
         w.pack_start(self.privacy, False, False, 0)
+        self.both = []
+        for key, icon, title, sub in BOTH:
+            grid, _sub = self.switch_row(key, icon, title, sub)
+            self.both.append(grid)
+            w.pack_start(grid, False, False, 0)
         grid, _sub = self.switch_row("follow_theme", "\uf53f", "Follow the theme",
                                      "a theme that says how it looks best sets the dock, the taskbar "
                                      "and the top bar: Windows 95 and Luna the taskbar without a top "
@@ -332,6 +346,8 @@ class Page:
         mode = mode_of(conf)
         self.top_bar.set_sensitive(mode != "none")
         self.privacy.set_sensitive(mode == "taskbar" or (mode == "dock" and conf.get("top_bar") is False))
+        for grid in self.both:
+            grid.set_sensitive(mode == "taskbar" or (mode == "dock" and conf.get("top_bar") is False))
         self.dock_box.set_sensitive(mode == "dock")
         self.task_box.set_sensitive(mode == "taskbar")
         clear(self.pinned)  # noqa: F405

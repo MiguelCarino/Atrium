@@ -12,10 +12,15 @@ index b610f73..5c399a6 100644
                       fullMonitorSize.x, fullMonitorSize.y};
    return CRegion{monitorBox};
 diff --git a/src/hyprview.cpp b/src/hyprview.cpp
-index fe11c9a..76a2828 100644
+index fe11c9a..ba60798 100644
 --- a/src/hyprview.cpp
 +++ b/src/hyprview.cpp
-@@ -27,6 +27,44 @@ using Desktop::View::CWindow;
+@@ -1,3 +1,4 @@
++#include <unordered_map>
+ #include <linux/input-event-codes.h>
+ #include "hyprview.hpp"
+ #include <algorithm>
+@@ -27,6 +28,44 @@ using Desktop::View::CWindow;
  #include "HyprViewPassElement.hpp"
  #include "PlacementAlgorithms.hpp"
  
@@ -60,7 +65,7 @@ index fe11c9a..76a2828 100644
  // Helper to find the CHyprView instance for a given animation variable
  CHyprView *findInstanceForAnimation(
      WP<Hyprutils::Animation::CBaseAnimatedVariable> thisptr) {
-@@ -149,6 +187,7 @@ void CHyprView::setupWindowImages(std::vector<PHLWINDOW> &windowsToRender) {
+@@ -149,6 +188,7 @@ void CHyprView::setupWindowImages(std::vector<PHLWINDOW> &windowsToRender) {
      // Temporarily move window to monitor position for rendering
      window->positionAnimation()->setValue(pMonitor->m_position);
  
@@ -68,7 +73,7 @@ index fe11c9a..76a2828 100644
      g_pHyprRenderer->beginFullFakeRender(pMonitor.lock(), fakeDamage, image.fb);
  
      if (window && window->m_isMapped) {
-@@ -164,7 +203,7 @@ void CHyprView::setupWindowImages(std::vector<PHLWINDOW> &windowsToRender) {
+@@ -164,7 +204,7 @@ void CHyprView::setupWindowImages(std::vector<PHLWINDOW> &windowsToRender) {
    }
  
    // Setup scale animation
@@ -77,7 +82,7 @@ index fe11c9a..76a2828 100644
  
    g_pAnimationManager->createAnimation(
        1.0f, scale, Config::animationTree()->getAnimationPropertyConfig("windowsMove"),
-@@ -206,7 +245,7 @@ void CHyprView::captureBackground() {
+@@ -206,7 +246,7 @@ void CHyprView::captureBackground() {
      return;
  
    // Capture background at full monitor size to avoid recursive layers
@@ -86,7 +91,7 @@ index fe11c9a..76a2828 100644
    const auto FORMAT = monitor->m_output->state->state().drmFormat;
  
    // Allocate the background framebuffer at full size
-@@ -247,6 +286,7 @@ void CHyprView::captureBackground() {
+@@ -247,6 +287,7 @@ void CHyprView::captureBackground() {
  
    // Capture the background with hidden windows
    CRegion fullRegion{0, 0, (int)MONITOR_SIZE.x, (int)MONITOR_SIZE.y};
@@ -94,7 +99,7 @@ index fe11c9a..76a2828 100644
    g_pHyprRenderer->beginFullFakeRender(monitor, fullRegion, bgFramebuffer);
    // Render the workspace with hidden windows (showing just the
    // wallpaper/background)
-@@ -412,7 +452,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+@@ -412,7 +453,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
    // Prepare screen info (available area after reserved regions)
    Vector2D reservedTopLeft = Vector2D(pMonitor->m_reservedArea.left(), pMonitor->m_reservedArea.top());
    Vector2D reservedBottomRight = Vector2D(pMonitor->m_reservedArea.right(), pMonitor->m_reservedArea.bottom());
@@ -103,7 +108,7 @@ index fe11c9a..76a2828 100644
  
    // Calculate extra bottom margin needed for window names if enabled
    double bottomMarginAdjustment = 0.0;
-@@ -478,7 +518,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+@@ -478,7 +519,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
      // Check if mouse is actually on this monitor BEFORE cancelling
      Vector2D globalMousePos = g_pInputManager->getMouseCoordsInternal();
      Vector2D monitorPos = pMonitor->m_position;
@@ -112,7 +117,7 @@ index fe11c9a..76a2828 100644
  
      bool mouseOnThisMonitor =
          (globalMousePos.x >= monitorPos.x &&
-@@ -508,7 +548,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+@@ -508,7 +549,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
      // Check if mouse is on this monitor BEFORE cancelling
      Vector2D globalMousePos = g_pInputManager->getMouseCoordsInternal();
      Vector2D monitorPos = pMonitor->m_position;
@@ -121,7 +126,7 @@ index fe11c9a..76a2828 100644
  
      bool mouseOnThisMonitor =
          (globalMousePos.x >= monitorPos.x &&
-@@ -581,14 +621,15 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+@@ -581,14 +622,15 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
      close();
    };
  
@@ -139,7 +144,7 @@ index fe11c9a..76a2828 100644
  
      bool mouseOnThisMonitor =
          (globalMousePos.x >= monitorPos.x &&
-@@ -617,8 +658,14 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+@@ -617,8 +659,14 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
        }
      }
  
@@ -156,7 +161,7 @@ index fe11c9a..76a2828 100644
    };
  
    // 0.54: string-named hookSystem events became typed EventBus signals.
-@@ -629,7 +676,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
+@@ -629,7 +677,7 @@ CHyprView::CHyprView(PHLMONITOR pMonitor_, PHLWORKSPACE startedOn_, bool swipe_,
      if (event.button == BTN_LEFT && event.state == WL_POINTER_BUTTON_STATE_PRESSED)
        onCursorSelect(info);
    });
@@ -165,7 +170,7 @@ index fe11c9a..76a2828 100644
    touchDownHook   = EV.input.touch.down.listen([onCursorSelect](const ITouch::SDownEvent&, SCallbackInfo& info) { onCursorSelect(info); });
  
    // NOW unblock rendering - workspace migration is complete
-@@ -717,6 +764,7 @@ void CHyprView::redrawID(int id, bool forcelowres) {
+@@ -717,6 +765,7 @@ void CHyprView::redrawID(int id, bool forcelowres) {
    const auto REALPOS = window->positionAnimation()->value();
    window->positionAnimation()->setValue(pMonitor->m_position);
  
@@ -173,7 +178,7 @@ index fe11c9a..76a2828 100644
    g_pHyprRenderer->beginFullFakeRender(pMonitor.lock(), fakeDamage, image.fb);
  
    if (window->m_isMapped) {
-@@ -840,6 +888,13 @@ void CHyprView::onPreRender() {
+@@ -840,6 +889,13 @@ void CHyprView::onPreRender() {
  
  void CHyprView::onWorkspaceChange() {}
  
@@ -187,7 +192,7 @@ index fe11c9a..76a2828 100644
  void CHyprView::render() {
    g_pHyprRenderer->m_renderPass.add(makeUnique<CHyprViewPassElement>(this));
  }
-@@ -852,7 +907,7 @@ void CHyprView::fullRender() {
+@@ -852,7 +908,7 @@ void CHyprView::fullRender() {
    // Render the captured background instead of a solid color
    if (bgCaptured && bgFramebuffer && bgFramebuffer->m_size.x > 0 &&
        bgFramebuffer->m_size.y > 0) {
@@ -196,7 +201,7 @@ index fe11c9a..76a2828 100644
      CBox monitorBox = {0, 0, fullMonitorSize.x, fullMonitorSize.y};
      CRegion damage{0, 0, INT16_MAX, INT16_MAX};
      g_pHyprOpenGL->renderTexture(
-@@ -866,7 +921,7 @@ void CHyprView::fullRender() {
+@@ -866,7 +922,7 @@ void CHyprView::fullRender() {
  
    // If no windows, show centered message
    if (images.empty()) {
@@ -205,6 +210,67 @@ index fe11c9a..76a2828 100644
      std::string emptyMessage = "Overview (no windows)";
      int fontSize = 32;
  
+@@ -1107,7 +1163,24 @@ void CHyprView::renderWindowName(const SWindowImage &image,
+   double availableWidth = borderBox.width - workspaceWidth - (2 * bgPadding);
+ 
+   // Helper function to truncate string with smart ellipsis
+-  auto truncateWithEllipsis = [&](const std::string &text, double maxWidth) -> std::string {
++  // Titles are UTF-8: a cut must not land inside a character (pango warns
++  // for every invalid string, and the overview draws them every frame).
++  // Cut points snap back (head) / forward (tail) to a character boundary.
++  auto isCont = [](char c) { return (static_cast<unsigned char>(c) & 0xC0) == 0x80; };
++  auto headOf = [&](const std::string &text, size_t n) {
++    n = std::min(n, text.size());
++    while (n > 0 && n < text.size() && isCont(text[n]))
++      --n;
++    return text.substr(0, n);
++  };
++  auto tailOf = [&](const std::string &text, size_t n) {
++    size_t p = text.size() - std::min(n, text.size());
++    while (p < text.size() && isCont(text[p]))
++      ++p;
++    return text.substr(p);
++  };
++
++  auto truncateUncached = [&](const std::string &text, double maxWidth) -> std::string {
+     // First check if truncation is needed
+     auto fullTexture = g_pHyprRenderer->renderText(
+         text, WINDOW_TEXT_COLOR, WINDOW_NAME_FONT_SIZE, false, "sans-serif");
+@@ -1140,8 +1213,8 @@ void CHyprView::renderWindowName(const SWindowImage &image,
+       if (startChars + endChars >= textLen)
+         break;
+ 
+-      std::string truncated = text.substr(0, startChars) + ellipsis +
+-                              text.substr(textLen - endChars);
++      std::string truncated = headOf(text, startChars) + ellipsis +
++                              tailOf(text, endChars);
+ 
+       auto testTexture = g_pHyprRenderer->renderText(
+           truncated, WINDOW_TEXT_COLOR, WINDOW_NAME_FONT_SIZE, false, "sans-serif");
+@@ -1169,7 +1242,22 @@ void CHyprView::renderWindowName(const SWindowImage &image,
+     startChars = std::max(size_t(3), std::min(startChars, textLen / 2));
+     endChars = std::max(size_t(3), std::min(endChars, textLen / 2));
+ 
+-    return text.substr(0, startChars) + ellipsis + text.substr(textLen - endChars);
++    return headOf(text, startChars) + ellipsis + tailOf(text, endChars);
++  };
++
++  // The search above renders up to a dozen text textures; doing that for
++  // every window on every frame is what the overview spent its time on.
++  // Remember the answer per title and width instead.
++  static std::unordered_map<std::string, std::string> truncCache;
++  auto truncateWithEllipsis = [&](const std::string &text, double maxWidth) -> std::string {
++    const std::string key = std::to_string(static_cast<int>(maxWidth)) + '\x1f' + text;
++    if (auto it = truncCache.find(key); it != truncCache.end())
++      return it->second;
++    std::string result = truncateUncached(text, maxWidth);
++    if (truncCache.size() > 512)
++      truncCache.clear();
++    truncCache.emplace(key, result);
++    return result;
+   };
+ 
+   // Truncate window text if necessary
 diff --git a/src/hyprview.hpp b/src/hyprview.hpp
 index 8125b5c..d75ba83 100644
 --- a/src/hyprview.hpp

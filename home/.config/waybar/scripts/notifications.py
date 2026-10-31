@@ -6,6 +6,9 @@ notification panel.
     notifications.py list       history + on-screen ones, newest first, as JSON
     notifications.py dnd        toggle Do Not Disturb, refresh the bell
     notifications.py clear      dismiss what is on screen, hide the history so far
+    notifications.py unread     the unread ones' senders, as JSON: [[desktop
+                                entry, app name], ...] (the dock's badges on
+                                its app icons, hypr/scripts/dock.py)
 
 The bell is a bell while notifications pop up, a struck-through bell in Do Not
 Disturb (mako's do-not-disturb mode, the same one ALT+SHIFT+D toggles), and
@@ -151,10 +154,20 @@ def bar():
             "tooltip": tip, "class": "dnd" if dnd else "on"}
 
 
+def unread():
+    """[[desktop_entry, app_name], ...]: who sent each unread notification
+    (newer than seen(), as bar() counts them); "" where mako has none."""
+    since = seen()
+    return [[str(n.get("desktop_entry") or ""), str(n.get("app_name") or "")]
+            for n in entries() if n.get("id", 0) > since]
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd == "list":
         print(json.dumps(entries()))
+    elif cmd == "unread":
+        print(json.dumps(unread()))
     elif cmd == "clear":
         clear()
     elif cmd == "dnd":

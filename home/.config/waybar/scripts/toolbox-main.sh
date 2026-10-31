@@ -7,4 +7,8 @@
 # and so does this if it cannot run at all.
 config=$(/usr/bin/python3 "$HOME/.config/hypr/scripts/bar-settings.py" toolbox-config-path 2>/dev/null)
 [[ -f $config ]] || config=$HOME/.config/waybar/config-toolbox
+# style-toolbox.css imports this one (bar-settings.py card_css writes it): a
+# missing import is a CSS error, so it is there even when the above was not.
+lines=$HOME/.config/waybar/generated/toolbox-lines.css
+[[ -f $lines ]] || { mkdir -p "${lines%/*}" && : > "$lines"; }
 exec /usr/bin/waybar -c "$config" -s "$HOME/.config/waybar/style-toolbox.css"

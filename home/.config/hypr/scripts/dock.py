@@ -39,8 +39,10 @@ Settings > Bar & toolbox > Dock & taskbar):
     combine     the taskbar: one button per app (true) or one per window
     labels      the taskbar: the window titles beside the icons (true)
     tray        the taskbar: the system tray (true)
-    clock       the taskbar: the clock (true)
-    weather     the taskbar: the weather, wttr.py's pill (true)
+    clock       the taskbar: the clock (true); the dock with top_bar off:
+                a time tile and a date tile (DOCK TILES below)
+    weather     the taskbar: the weather, wttr.py's pill (true); the dock
+                with top_bar off: a weather tile
     network     the taskbar: the network, network.py's pill (true)
     sound       the taskbar: the volume; scroll for louder / quieter,
                 right-click mutes (true)
@@ -73,6 +75,8 @@ Settings > Bar & toolbox > Dock & taskbar):
     pinned      the pinned apps' desktop ids, in order. Unset (a first start):
                 the browser, the file manager and the terminal default-apps.py
                 knows
+    tile_order  the dock's tiles (DOCK TILES) as dragged: "time", "date",
+                "sound", ... in order; unset, DOCK_TILE_ORDER's
 
 WHERE IT ALL COMES FROM -- nothing polls; idle, the process sleeps in the
 GLib loop:
@@ -105,6 +109,39 @@ GLib loop:
                 (waybar/generated/bar.conf start=), its glyph bar.logo=,
                 magnification the theme's dock.magnify (magnify=)
 
+DOCK TILES: with the top bar off the dock stands in for it (the main
+screen's dock, as the toolbox button). First an Apps button (the launcher,
+or the classic menu as start_menu says). After the toolbox line, tiles a
+little bigger than an icon (TILE_GROW), each as its setting says:
+    submap        the key mode (SUPER+R's resize), only while one is on;
+                  click: leave it
+    workspaces    the one in front, "of N"; click: the window overview,
+                  scroll: the next / previous one
+    media         play / pause while something plays (player.py); click:
+                  play / pause, right: next, middle: the media panel,
+                  scroll: another player
+    notifications the bell and the unread count; click: the panel,
+                  right: Do Not Disturb
+    language      the keyboard layout ("US"), and fcitx5's input method
+                  when it is on one ("Mozc"); click: the language panel,
+                  right: the next layout
+    network       its glyph over the network's name; click: the network
+                  panel, right: nmtui
+    sound         the volume; click: the audio panel, scroll: louder /
+                  quieter, right: mute, middle: mute the microphone
+    battery       the charge, with the bolt while charging (while there is
+                  a battery); click: Power & lock
+    clock         the time, and the date as a calendar leaf (the weekday
+                  over the day); click: the clock / calendar panel
+    weather       its glyph over the temperature; click: the forecast,
+                  right: wttr.in
+What is on the dock is not in the toolbox card: they take the top bar's
+matching pills (bar_takeover; the keyboard layout: card_pills), and the
+card leaves out its Battery row with the battery tile (bar-settings.py
+toolbox-config-path). With the top bar on they stay off: a dock theme's bar has them.
+Every app's icon carries a badge with its unread notifications (dock layout,
+notifications on), and files dropped on an app open with it.
+
 CLICKS: an app that is not running starts (`uwsm app -- <id>`, like
 notify_source.go_argv); one that is goes to its window (hl.dsp.focus by its
 address, validated). Several windows: the most recent, and clicking again
@@ -112,7 +149,12 @@ while one of them has focus goes to the next. Hyprland has no minimize, so a
 focused app stays as it is. Middle click: a new one (its "new-window" action
 when the app has one). Right click: the app's own actions (the desktop
 file's), New window, Pin / Unpin, Move left / right, Close window(s), and
-these settings. Pinned apps are dragged to reorder too.
+these settings. Drag an app along the dock to move it: it swaps places with
+each icon it passes as you go, and stays where you let go -- pinned apps
+among the pinned, a running app among them to pin it there, running apps
+among themselves (until the dock restarts). The tiles after the line are
+dragged the same way, among themselves (tile_order). Files dragged from a file
+manager onto an app open with it.
 
 TOP BAR: what the taskbar shows leaves the top bar while it runs -- the date
 and time (custom/day, custom/clock, custom/menuclock) with clock on, the
@@ -266,7 +308,8 @@ Hyprland events, no toolbox file, refit or pill poke, no pid file, no
 exclusive zone and no input at all, on the OVERLAY layer above a "stage"
 picture on "monitor". It drives Fx with made-up pointer moves ("hold" a
 fraction along the dock, "sweep" seconds end to end, "hover" / "press" an
-app, "preview" one), and writes the frame timings to "stats" when it quits
+app, "preview" one, "drag" [from, to] one app to another's place and print
+the result), and writes the frame timings to "stats" when it quits
 ("exit_s", or SIGTERM).
 """
 import json
@@ -293,7 +336,7 @@ DEFAULTS = {"enabled": False, "layout": "dock", "position": "bottom", "autohide"
             "clock": True, "weather": True, "network": True, "sound": True, "previews": True,
             "workspaces": True, "notifications": True, "battery": True, "privacy": True,
             "magnify": "theme", "start_menu": "launcher", "top_bar": True, "follow_theme": False,
-            "theme_saved": None, "pinned": None}
+            "theme_saved": None, "pinned": None, "tile_order": None}
 CHOICES = {"layout": ("dock", "taskbar"), "position": ("bottom", "left", "right"),
            "autohide": ("never", "overlap", "always"), "monitors": ("main", "all"),
            "magnify": ("theme", "on", "off"), "start_menu": ("launcher", "classic")}
@@ -332,6 +375,30 @@ TOOLBOX_SH = os.path.expanduser("~/.config/waybar/scripts/toolbox.sh")
 TOOLBOX_BUTTON = os.path.join(RUNTIME, "dock-toolbox.json")
 NETWORK_PY = os.path.expanduser("~/.config/waybar/scripts/network.py")
 WTTR_PY = os.path.expanduser("~/.config/waybar/scripts/wttr.py")
+DRAG_START_PX = 8             # this far along the dock with the button held: a drag, not a click
+TILE_GROW = 8                 # the dock's tiles: this much bigger than an icon (size_tile)
+# The dock's tiles with the top bar off (DOCK TILES in the docstring), in
+# the order they stand after the line; the setting that shows each (None:
+# always, shown while there is something to say). "clock" is two tiles.
+DOCK_TILE_ORDER = ("submap", "workspaces", "media", "notifications", "language", "network", "sound",
+                   "battery", "clock", "weather")
+DOCK_TILE_SETTING = {"submap": None, "workspaces": "workspaces", "media": None,
+                     "notifications": "notifications", "language": None, "network": "network",
+                     "sound": "sound", "battery": "battery", "clock": "clock", "weather": "weather"}
+# The top bar's pills a tile stands in for beyond TAKEOVER's.
+DOCK_TAKES = {"submap": ("hyprland/submap",), "media": ("custom/player",)}
+TILE_SHARES = {"apps": (0.50, 0.0), "time": (0.30, 0.18), "date": (0.18, 0.40),
+               "weather": (0.38, 0.22), "workspaces": (0.42, 0.17), "submap": (0.32, 0.17),
+               "media": (0.38, 0.16), "notifications": (0.36, 0.22), "battery": (0.36, 0.22),
+               "language": (0.34, 0.17), "network": (0.36, 0.16), "sound": (0.36, 0.22)}
+TILE_HIDDEN = ("weather", "media", "battery", "submap", "network")    # shown only with something to say (a battery)
+SUBMAP_GLYPH = "\uf11c"       # Font Awesome keyboard
+SUBMAP_RESET = ["hyprctl", "eval", 'hl.dispatch(hl.dsp.submap("reset"))']
+# The tiles one by one ("clock" is "time" and "date"): what tile_order names.
+TILE_NAMES = tuple(t for k in DOCK_TILE_ORDER for t in (("time", "date") if k == "clock" else (k,)))
+STATUS_TILES = ("weather", "notifications", "battery", "media", "network", "sound")   # fed by set_status
+LANGUAGE_S = 15               # the language tile asks fcitx5 again (it sends no event)
+BADGE_MAX = 99
 WEATHER_S = 1800              # the top bar's weather interval: wttr.in turns away eager clients
 WEATHER_RETRY_S = 300         # after a stale answer (no network yet at login, say)
 STATUS_RESTART_S = 5          # a watcher that died (network.py, pactl) starts again after
@@ -343,6 +410,7 @@ WAYBAR_SCRIPTS = os.path.expanduser("~/.config/waybar/scripts")
 RECORDING_PY = os.path.join(WAYBAR_SCRIPTS, "recording.py")
 PRIVACY_PY = os.path.join(WAYBAR_SCRIPTS, "privacy.py")
 NOTIFICATIONS_PY = os.path.join(WAYBAR_SCRIPTS, "notifications.py")
+PLAYER_PY = os.path.join(WAYBAR_SCRIPTS, "player.py")
 RECORD_SH = os.path.join(HERE, "record.sh")
 # The pills beyond the three below (PILLS in the module docstring), in the
 # order they stand, left to right: the privacy cluster (before the tray),
@@ -352,7 +420,8 @@ PRIVACY_KEYS = ("recording", "mic", "camera", "location")
 PILL_SETTING = {"recording": "privacy", "mic": "privacy", "camera": "privacy", "location": "privacy",
                 "battery": "battery", "notifications": "notifications"}
 PILL_WATCH = {"recording": [RECORDING_PY, "watch"], "mic": [PRIVACY_PY, "watch", "mic"],
-              "camera": [PRIVACY_PY, "watch", "camera"], "location": [PRIVACY_PY, "watch", "location"]}
+              "camera": [PRIVACY_PY, "watch", "camera"], "location": [PRIVACY_PY, "watch", "location"],
+              "media": [PLAYER_PY, "watch"]}     # the dock's media tile (DOCK TILES)
 
 
 def in_terminal(cmd):
@@ -376,7 +445,7 @@ CHARGING_GLYPH = "\uf0e7"
 STATUS_KEYS = ("sound", "network", "weather")
 STATUS_PANELS = {"sound": "audio", "network": "network", "weather": "weather"}
 VOLUME_GLYPHS = ("\uf026", "\uf027", "\uf028")   # Font Awesome volume off / low / high, as the bar's
-MUTED_GLYPH = "\uf057"
+MUTED_GLYPH = "\uf6a9"      # Font Awesome volume-xmark: a speaker struck out (a lone X read as "remove")
 # The classic start menu's Programs, by a desktop file's Categories: checked
 # in this order (a "Game;Utility" app is a game), listed by title.
 MENU_CATEGORIES = (("Games", "applications-games", ("Game",)),
@@ -439,7 +508,8 @@ TASKBAR_PAD = 10              # room above the taskbar for its shadow / glow
 FX_STATS = 4000               # frame timings kept for the harness
 DOCK_EVENTS = ("openwindow", "closewindow", "activewindowv2", "movewindowv2", "windowtitlev2",
                "workspacev2", "focusedmonv2", "fullscreen", "urgent", "changefloatingmode",
-               "activespecial", "monitoraddedv2", "monitorremoved", "renameworkspace")
+               "activespecial", "monitoraddedv2", "monitorremoved", "renameworkspace", "submap",
+               "activelayout")
 WANTED_EVENTS = frozenset(n.encode() for n in DOCK_EVENTS)
 
 # StatusNotifierItem / dbusmenu
@@ -511,7 +581,34 @@ def read_settings():
             cur[k] = clean_pinned(v) if isinstance(v, list) else None
         elif k == "theme_saved":
             cur[k] = clean_saved(v)
+        elif k == "tile_order":
+            cur[k] = clean_tile_order(v)
     return cur
+
+
+def clean_tile_order(value):
+    """The dock tiles' order as dragged (tile_order): known tiles, each
+    once; None for no order of its own."""
+    if not isinstance(value, list):
+        return None
+    out = []
+    for v in value:
+        if v in TILE_NAMES and v not in out:
+            out.append(v)
+    return out
+
+
+def ordered_tiles(names, saved):
+    """The tiles to pack (names, in DOCK_TILE_ORDER's order) as tile_order
+    has them; one it does not name goes after its neighbour in the default
+    order (a tile switched on since the drag), or first."""
+    out = [n for n in saved or [] if n in names]
+    for i, n in enumerate(names):
+        if n in out:
+            continue
+        before = next((m for m in reversed(names[:i]) if m in out), None)
+        out.insert(out.index(before) + 1 if before else 0, n)
+    return out
 
 
 LAYOUT_KEYS = ("enabled", "layout", "top_bar")    # what a theme's layout sets (THEME LAYOUT)
@@ -573,15 +670,40 @@ def write_settings(d):
     os.replace(tmp, SETTINGS_FILE)
 
 
+def dock_only(cfg):
+    """The dock with no top bar (DOCK TILES in the docstring)."""
+    return bool(cfg.get("enabled")) and cfg.get("layout") != "taskbar" and bar_hidden(cfg)
+
+
+def dock_tiles(cfg):
+    """The dock's tiles (DOCK TILES in the docstring), DOCK_TILE_ORDER's
+    as their settings say, only on the dock with the top bar off."""
+    if not dock_only(cfg):
+        return ()
+    return tuple(k for k in DOCK_TILE_ORDER
+                 if DOCK_TILE_SETTING[k] is None or cfg.get(DOCK_TILE_SETTING[k]))
+
+
+def card_pills(cfg):
+    """The bar's pills that go to the toolbox card while this runs
+    (CARD_PILLS): none of them with the dock's language tile -- what is on
+    the dock is not in the card."""
+    return () if "language" in dock_tiles(cfg) else CARD_PILLS
+
+
 def bar_takeover(cfg):
     """The top bar's pills to leave out while this runs as the taskbar, in
-    TAKEOVER's order, then CARD_PILLS (the toolbox card's); for the dock the
-    privacy pills only with the top bar off (the dock shows them then), and
+    TAKEOVER's order, then CARD_PILLS (the toolbox card's); for the dock
+    with the top bar off the date, time and weather of its tiles
+    (dock_tiles) and the privacy pills (the dock shows them then), and
     CARD_PILLS; [] when it is off."""
     if not cfg.get("enabled"):
         return []
     if cfg.get("layout") != "taskbar":
-        return (list(PRIVACY_PILLS) if bar_hidden(cfg) and cfg.get("privacy") else []) + list(CARD_PILLS)
+        tiles = dock_tiles(cfg)
+        return ([name for key, names in TAKEOVER if key in tiles for name in names]
+                + [name for key in tiles for name in DOCK_TAKES.get(key, ())]
+                + (list(PRIVACY_PILLS) if bar_hidden(cfg) and cfg.get("privacy") else []) + list(CARD_PILLS))
     return [name for key, names in TAKEOVER if key is None or cfg.get(key) for name in names] + list(CARD_PILLS)
 
 
@@ -815,15 +937,26 @@ def move_pin(pinned, app_id, delta):
     return pinned
 
 
-def move_pin_to(pinned, app_id, target):
-    """Dragged onto `target`: takes its place, the rest shift over."""
-    pinned = list(pinned)
-    if app_id not in pinned or target not in pinned or app_id == target:
-        return pinned
-    j = pinned.index(target)
-    pinned.remove(app_id)
-    pinned.insert(j, app_id)
-    return pinned
+def drag_result(pinned, order, seen):
+    """A drag in the dock ended (Bar.drag_release): the pinned list and the
+    running apps' order (update_order) for what it now shows. seen: its
+    apps in their order on the dock, [(group, app_id, pinned now)] -- a
+    running app moved among the pinned is pinned there by its desktop id
+    (as it was, without one). Pinned apps the dock does not show (gone from
+    the system) keep their places after the ones it does."""
+    shown = [(g, a) for g, a, now in seen if now]
+    new_pinned = []
+    for group, app_id in shown:
+        entry = group if group in pinned else app_id
+        if not entry:
+            return list(pinned), list(order)
+        if entry not in new_pinned:
+            new_pinned.append(entry)
+    new_pinned += [p for p in pinned if p not in new_pinned and p not in {g for g, _a, _n in seen}]
+    running = [g for g, _a, now in seen if not now]
+    now_pinned = {g for g, _a, now in seen if now}
+    new_order = running + [k for k in order if k not in running and k not in now_pinned]
+    return new_pinned, new_order
 
 
 def pinned_match(pinned, app_id):
@@ -1097,12 +1230,15 @@ def read_events(lines):
     """socket2 lines -> what they ask of the dock:
         {"now": refresh soon, "titles": a title changed, "place": screens
          came or went, "game": a window opened or closed (look for a game
-         again), "ops": [("active", addr|None) | ("urgent", addr|None)] in order}
+         again), "ops": [("active", addr|None) | ("urgent", addr|None)] in order,
+         "submap": the key mode now ("" none), None when no event said,
+         "layout": the keyboard layout changed}
     Only DOCK_EVENTS count. Without the hyprbus relay the dock reads
     Hyprland's socket2 itself, which sends every event: a title (v1
     windowtitle), a layer opening (a notification, the OSD, our own
     preview), a keyboard layout and the rest must not cost a refresh."""
-    out = {"now": False, "titles": False, "place": False, "game": False, "ops": []}
+    out = {"now": False, "titles": False, "place": False, "game": False, "ops": [], "submap": None,
+           "layout": False}
     for line in lines:
         name, _, rest = line.partition(b">>")
         if name not in WANTED_EVENTS:
@@ -1120,6 +1256,10 @@ def read_events(lines):
             out["place"] = True
         elif name in (b"openwindow", b"closewindow"):
             out["game"] = out["now"] = True
+        elif name == b"submap":         # a key mode: its name, "" when it ends
+            out["submap"] = rest.strip()
+        elif name == b"activelayout":   # another keyboard layout (the language tile)
+            out["layout"] = True
         else:                     # fullscreen, workspacev2, focusedmonv2, movewindowv2, ...
             out["now"] = True
     return out
@@ -1184,6 +1324,86 @@ def clock_text(moment, conf=None, language=None):
     return region.time_text(moment, conf), region.date_text(moment, conf)
 
 
+def leaf(markup):
+    """A top bar pill's markup, "<glyph> words", -> (glyph, words) for a
+    tile's two lines: split at the first space after the glyph; ("", "")
+    for nothing."""
+    text = (markup or "").strip()
+    if not text:
+        return "", ""
+    if text.startswith("<"):            # a coloured glyph: <span ...>x</span> rest
+        end = text.find("</span>")
+        if end >= 0:
+            end += len("</span>")
+            return text[:end], text[end:].strip()
+    head, _sep, tail = text.partition(" ")
+    return head, tail.strip()
+
+
+def workspace_leaf(buttons, workspaces):
+    """The dock's workspaces tile: (the one in front, "of N"), from
+    workspace_buttons and hyprctl workspaces; ("", "") for none."""
+    if not buttons:
+        return "", ""
+    count = sum(1 for w in workspaces or [] if isinstance(w, dict) and isinstance(w.get("id"), int)
+                and not isinstance(w.get("id"), bool) and w["id"] >= 1)
+    return buttons[0][1], (f"of {count}" if count > 1 else "")
+
+
+def badge_count(item, unread):
+    """How many unread notifications are an app's (notifications.py unread:
+    [[desktop entry, app name], ...]): the sender's desktop entry or name
+    against the app's id, name and window class (notify_source.variants)."""
+    mine = set()
+    for word in (item.get("app_id"), item.get("name"), item.get("class")):
+        if word:
+            mine |= notify_source.variants(str(word))
+    if not mine:
+        return 0
+    n = 0
+    for entry, name in unread or []:
+        theirs = (notify_source.variants(entry) if entry else set()) | \
+                 (notify_source.variants(name) if name else set())
+        if theirs & mine:
+            n += 1
+    return n
+
+
+def open_with_argv(app_id, uris, which=shutil.which):
+    """Files dropped on an app: `uwsm app -- <id> <uri>...` (gtk-launch
+    without uwsm); None for no app or nothing usable."""
+    uris = [u for u in uris or [] if isinstance(u, str) and re.match(r"^[a-z][a-z0-9+.-]*:", u)]
+    base = launch_argv(app_id, which=which)
+    if base is None or not uris:
+        return None
+    return base + uris
+
+
+def day_leaf(moment, language=None):
+    """The dock's date tile: (weekday, day), "SAT" and "31"; a ja theme's
+    weekday as the top bar writes it, "土"."""
+    if language == "ja":
+        return JA_WEEKDAYS[moment.weekday()], str(moment.day)
+    return moment.strftime("%a").upper(), str(moment.day)
+
+
+def time_leaf(time_text):
+    """The dock's time tile: (time, "AM"/"PM" or ""), "9:41 PM" ->
+    ("9:41", "PM"): the clock big, a 12-hour clock's half of the day small."""
+    head, _sep, tail = (time_text or "").strip().partition(" ")
+    return head, tail.strip()
+
+
+def weather_leaf(markup):
+    """The dock's weather tile: wttr.py's pill markup, "<span ...>glyph</span>
+    20°", -> (glyph markup, "20°"); ("", "") for nothing."""
+    text = (markup or "").strip()
+    if not text:
+        return "", ""
+    head, sep, tail = text.rpartition(" ")
+    return (head, tail) if sep else (text, "")
+
+
 def volume_text(out):
     """`wpctl get-volume` ("Volume: 0.45", "Volume: 0.45 [MUTED]") -> (text,
     tooltip) for the taskbar's sound button; None when it is not that."""
@@ -1195,7 +1415,7 @@ def volume_text(out):
     except ValueError:
         return None
     if "MUTED" in m.group(2):
-        return MUTED_GLYPH, f"Muted ({pct}%)"
+        return MUTED_GLYPH, f"Muted ({pct}%)", "muted"
     glyph = VOLUME_GLYPHS[0 if pct == 0 else 1 if pct < 50 else 2]
     return f"{glyph} {pct}%", f"Volume {pct}%"
 
@@ -1208,6 +1428,29 @@ def pill_state(line):
         return None
     cls_ = json.loads(line).get("class")
     return got + (cls_ if isinstance(cls_, str) else "",)
+
+
+def network_leaf(text, tip):
+    """The dock's network tile: (its glyphs, the network's name) from
+    network.py's pill -- the glyph alone on a narrow screen, "Wi-Fi (70%)
+    <glyph>" on a wide one -- and its tooltip ("Kernel · 100%": the name
+    first)."""
+    plain = re.sub(r"<[^>]*>", "", text or "")
+    glyphs = "".join(ch for ch in plain if "\ue000" <= ch <= "\uf8ff")
+    words = "".join(ch for ch in plain if not "\ue000" <= ch <= "\uf8ff").strip()
+    name = (tip or "").split("\n")[0].split(" · ")[0].strip()
+    if not glyphs:
+        return words, name
+    return glyphs, name or words
+
+
+def language_leaf(codes, index, method=""):
+    """The dock's language tile: (the layout's code, "US", and the input
+    method when fcitx5 is on one beyond the plain keyboard, "Mozc")."""
+    code = codes[index] if isinstance(index, int) and 0 <= index < len(codes) else (codes[0] if codes else "")
+    method = (method or "").strip()
+    im = "" if not method or method.startswith("keyboard-") else method.replace("-", " ").title()
+    return code.upper(), im
 
 
 def battery_text(capacity, status):
@@ -1251,12 +1494,13 @@ def read_battery(root=POWER_SUPPLY):
 
 def status_wanted(cfg):
     """The status buttons this runs, STATUS_KEYS' and the PILLS': the
-    taskbar's by their settings; the dock's only the privacy ones, with the
-    top bar off (bar_takeover)."""
+    taskbar's by their settings; the dock's only the privacy ones and its
+    weather tile, with the top bar off (bar_takeover, dock_tiles)."""
     if not cfg.get("enabled"):
         return set()
     if cfg.get("layout") != "taskbar":
-        return set(PRIVACY_KEYS) if bar_hidden(cfg) and cfg.get("privacy") else set()
+        return ((set(PRIVACY_KEYS) if bar_hidden(cfg) and cfg.get("privacy") else set())
+                | ((set(STATUS_TILES) - {"language"}) & set(dock_tiles(cfg))))
     return {k for k in STATUS_KEYS if cfg.get(k)} | {k for k, setting in PILL_SETTING.items() if cfg.get(setting)}
 
 
@@ -1780,6 +2024,12 @@ def daemon():
                 cls(self.image, "dock-icon")
             else:
                 self.image = DockIcon(bar)
+            # the dock's unread badge, over the icon's top corner (set_badge)
+            self.badge = Gtk.Label()
+            cls(self.badge, "dock-badge")
+            self.badge.set_halign(Gtk.Align.END)
+            self.badge.set_valign(Gtk.Align.START)
+            self.badge.set_no_show_all(True)
             # the dock follows the pointer over its buttons (magnification)
             self.add_events(Gdk.EventMask.POINTER_MOTION_MASK)
             self.dots = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL if vertical else Gtk.Orientation.VERTICAL,
@@ -1801,24 +2051,32 @@ def daemon():
                 box.pack_start(self.count, False, False, 0)
                 self.label.set_no_show_all(True)
                 self.count.set_no_show_all(True)
-            elif bar.position == "right":
-                box.pack_start(self.dots, False, False, 0)
-                box.pack_start(self.image, False, False, 0)
             else:
-                box.pack_start(self.image, False, False, 0)
-                box.pack_start(self.dots, False, False, 0)
+                art = Gtk.Overlay()
+                art.add(self.image)
+                art.add_overlay(self.badge)
+                art.set_overlay_pass_through(self.badge, True)
+                if bar.position == "right":
+                    box.pack_start(self.dots, False, False, 0)
+                    box.pack_start(art, False, False, 0)
+                else:
+                    box.pack_start(art, False, False, 0)
+                    box.pack_start(self.dots, False, False, 0)
             self.add(box)
             self.connect("button-press-event", self.on_press)
             self.connect("button-release-event", self.on_release)
-            self.connect("clicked", lambda *_: self.engine.click(self.item))
+            self.connect("clicked", self.on_clicked)
             self.connect("enter-notify-event", lambda *_: (self.engine.hover(self), False)[1])
             self.connect("leave-notify-event", lambda *_: (self.engine.unhover(self), False)[1])
-            # Pinned apps are dragged to reorder (within the dock only).
-            target = [Gtk.TargetEntry.new("dock-pin", Gtk.TargetFlags.SAME_APP, 0)]
-            self.drag_source_set(Gdk.ModifierType.BUTTON1_MASK, target, Gdk.DragAction.MOVE)
-            self.drag_dest_set(Gtk.DestDefaults.ALL, target, Gdk.DragAction.MOVE)
-            self.connect("drag-begin", self.on_drag_begin)
-            self.connect("drag-data-get", self.on_drag_get)
+            # Moved along the dock with the button held: the dock's own drag
+            # (Bar.drag_*: it swaps places with the icons it passes, live).
+            # GTK's drag and drop only for files from a file manager, which
+            # open with the app.
+            self.suppress_click = False
+            self.connect("motion-notify-event", lambda _w, ev: self.bar.drag_motion(self, ev))
+            self.drag_dest_set(Gtk.DestDefaults.ALL,
+                               [Gtk.TargetEntry.new("text/uri-list", Gtk.TargetFlags.OTHER_APP, 1)],
+                               Gdk.DragAction.MOVE | Gdk.DragAction.COPY | Gdk.DragAction.LINK)
             self.connect("drag-data-received", self.on_drag_received)
 
         def set_item(self, item):
@@ -1873,31 +2131,36 @@ def daemon():
             if event.button == 3:
                 self.engine.item_menu(self, event)
                 return True
-            if event.button == 1 and self.bar.fx is not None:
-                self.bar.fx.press(self)
+            if event.button == 1:
+                self.suppress_click = False
+                self.bar.drag_press(self, event)
+                if self.bar.fx is not None:
+                    self.bar.fx.press(self)
             return False
 
         def on_release(self, _w, event):
+            if event.button == 1:
+                self.bar.drag_release(self)
             if self.bar.fx is not None:
                 self.bar.fx.release(self)
             if event.button == 2:
                 self.engine.new_window(self.item)
             return False
 
-        def on_drag_begin(self, _w, context):
-            if self.bar.fx is not None:
-                self.bar.fx.release(self)     # a drag never gets its button's release
-            self.engine.close_preview()
-            Gtk.drag_set_icon_gicon(context, gicon_for(self.item), 0, 0)
+        def on_clicked(self, _w):
+            if self.suppress_click:       # the release that ended a drag
+                self.suppress_click = False
+                return
+            self.engine.click(self.item)
 
-        def on_drag_get(self, _w, _ctx, data, _info, _time):
-            data.set_text(self.item.get("app_id") or "", -1)
+        def on_drag_received(self, _w, _ctx, _x, _y, data, info, _time):
+            if self.item and info == 1:
+                self.engine.open_files(self.item, data.get_uris() or [])
 
-        def on_drag_received(self, _w, _ctx, _x, _y, data, _info, _time):
-            src = data.get_text() or ""
-            dst = (self.item or {}).get("app_id")
-            if src and dst and (self.item or {}).get("pinned"):
-                self.engine.save_pinned(move_pin_to(self.engine.pinned(), src, dst))
+        def set_badge(self, n):
+            """The unread notifications' count over the icon; none at 0."""
+            self.badge.set_text(str(min(n, BADGE_MAX)) + ("+" if n > BADGE_MAX else ""))
+            self.badge.set_visible(n > 0)
 
     # -- the dock's motion -------------------------------------------------------------------
     class Fx:
@@ -1949,7 +2212,8 @@ def daemon():
                 a = c.get_allocation()
                 starts.append(float(a.x - ba.x) if horiz else float(a.y - ba.y))
                 lengths.append(float(a.width if horiz else a.height))
-                scalable.append(isinstance(c, ItemButton) or c is self.bar.toolbox)
+                scalable.append(isinstance(c, ItemButton) or c is self.bar.toolbox
+                                or any(c is t[0] for t in self.bar.tiles.values()))
             return starts, lengths, scalable
 
         def targets(self, kids):
@@ -2118,6 +2382,7 @@ def daemon():
             self.layout = engine.cfg["layout"]
             self.position = "bottom" if self.layout == "taskbar" else engine.cfg["position"]
             self.buttons = {}
+            self.dragging = None         # the dock's own drag (drag_press .. drag_release)
             self.edge = None
             self.hovered = False
             self.hidden = False          # autohide: unmapped, the edge stands in
@@ -2182,6 +2447,8 @@ def daemon():
             cls(self.sep, "dock-sep")
             self.sep.set_no_show_all(True)
             self.tray_box = self.clock = self.start = self.toolbox = self.ws_box = None
+            self.tiles = {}              # DOCK TILES: kind -> (button, box, top label, bottom label)
+            self.lead = []               # before the apps in the items box (the Apps button)
             self.status = {}             # STATUS_KEYS and the PILLS -> (button, label)
             self.ws_key = None           # the workspace buttons drawn last (update_workspaces)
             wanted = status_wanted(self.engine.cfg)
@@ -2238,6 +2505,9 @@ def daemon():
                 self.restyle_start()
             else:
                 self.frame.pack_start(self.items, False, False, 0)
+                if self.main and dock_only(self.engine.cfg):    # DOCK TILES: first, the Apps button
+                    self.lead.append(self.make_tile("apps"))
+                    self.items.pack_start(self.lead[-1], False, False, 0)
                 if self.main:       # a line, then the button: the dock's last item
                     # in the items box, after every app (update() only ever
                     # moves the apps and the pinned line, at the front), so
@@ -2245,6 +2515,10 @@ def daemon():
                     line = Gtk.Box()
                     cls(line, "dock-sep")
                     self.items.pack_start(line, False, False, 0)
+                    names = [t for kind in dock_tiles(self.engine.cfg)    # DOCK TILES: before the toolbox,
+                             for t in (("time", "date") if kind == "clock" else (kind,))]
+                    for tile in ordered_tiles(names, self.engine.cfg.get("tile_order")):    # as dragged
+                        self.items.pack_start(self.make_tile(tile), False, False, 0)
                     self.items.pack_start(self.make_toolbox(), False, False, 0)
                     self.toolbox.add_events(Gdk.EventMask.POINTER_MOTION_MASK)
                 if self.main and wanted & set(PRIVACY_KEYS):
@@ -2269,6 +2543,113 @@ def daemon():
             self.toolbox.connect("clicked", lambda *_: spawn(TOOLBOX_SH, "toggle"))
             self.size_toolbox()
             return self.toolbox
+
+        def make_tile(self, kind):
+            """A dock tile (DOCK TILES in the module docstring): two lines
+            in an app icon's square, "dock-tile-<kind>"; what its clicks and
+            its wheel do: tile_click, tile_scroll."""
+            btn = Gtk.Button()
+            btn.set_relief(Gtk.ReliefStyle.NONE)
+            btn.set_can_focus(False)
+            cls(btn, "dock-tile")
+            cls(btn, f"dock-tile-{kind}")
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            box.set_valign(Gtk.Align.CENTER)
+            top, bottom = Gtk.Label(), Gtk.Label()
+            cls(top, "dock-tile-top")
+            cls(bottom, "dock-tile-bottom")
+            box.pack_start(top, True, True, 0)
+            box.pack_start(bottom, True, True, 0)
+            btn.add(box)
+            btn.add_events(Gdk.EventMask.POINTER_MOTION_MASK | Gdk.EventMask.SCROLL_MASK
+                           | Gdk.EventMask.SMOOTH_SCROLL_MASK)
+            btn.suppress_click = False
+            btn.connect("clicked", lambda b: self.engine.tile_click(kind, 1, b)
+                        if not self.unsuppress(b) else None)
+            if kind != "apps":
+                # Dragged along the dock: among the other tiles (drag_*), its
+                # place kept in tile_order.
+                btn.connect("button-press-event", lambda b, ev: ev.button == 1
+                            and ev.type == Gdk.EventType.BUTTON_PRESS and self.drag_press(b, ev))
+                btn.connect("motion-notify-event", lambda b, ev: self.drag_motion(b, ev))
+                btn.connect("button-release-event", lambda b, ev: ev.button == 1 and self.drag_release(b))
+            btn.connect("button-press-event", lambda b, ev: ev.button in (2, 3)
+                        and ev.type == Gdk.EventType.BUTTON_PRESS and self.engine.tile_click(kind, ev.button, b))
+            btn.connect("scroll-event", lambda _b, ev: self.engine.tile_scroll(kind, ev))
+            self.tiles[kind] = (btn, box, top, bottom)
+            self.size_tile(kind)
+            if kind == "apps":
+                top.set_text(START_GLYPH)
+                bottom.set_visible(False)
+                bottom.set_no_show_all(True)
+                btn.set_tooltip_text("Apps")
+            if kind in TILE_HIDDEN:
+                # Hidden until there is something to say: out of the dock's
+                # show_all, so its own lines are shown here, the button by
+                # set_status / set_submap.
+                box.show_all()
+                btn.set_no_show_all(True)
+                btn.set_visible(False)
+            if kind in STATUS_TILES:
+                self.set_status(kind, *(self.engine.status_text.get(kind) or ("", "")))
+            elif kind == "language":
+                self.set_language(self.engine.language)
+            elif kind == "submap":
+                self.set_submap(self.engine.submap)
+            elif kind == "workspaces":
+                self.update_ws_tile(self.engine.ws_now(self.name))
+            return btn
+
+        def set_language(self, got):
+            if "language" not in self.tiles:
+                return
+            btn, _box, top, bottom = self.tiles["language"]
+            code, im = got
+            top.set_text(code or "\uf11c")
+            bottom.set_text(im)
+            bottom.set_visible(bool(im))
+            btn.set_tooltip_text(f"Keyboard: {code}" + (f" · {im}" if im else "")
+                                 + "\nclick: the layouts and input methods, right-click: the next layout")
+
+        def set_submap(self, name):
+            if "submap" not in self.tiles:
+                return
+            btn, _box, top, bottom = self.tiles["submap"]
+            top.set_text(SUBMAP_GLYPH)
+            bottom.set_text((name or "").capitalize())
+            btn.set_tooltip_text(f"{(name or '').capitalize()} mode: Esc leaves it; click: leave it" if name else None)
+            btn.set_visible(bool(name))
+
+        def update_ws_tile(self, got):
+            if "workspaces" not in self.tiles:
+                return
+            btn, _box, top, bottom = self.tiles["workspaces"]
+            head, tail = got
+            top.set_text(head)
+            bottom.set_text(tail)
+            bottom.set_visible(bool(tail))
+            btn.set_tooltip_text(f"Workspace {head} {tail}".strip() + "\nclick: every window, scroll: the next one"
+                                 if head else None)
+
+        def size_tile(self, kind):
+            """A tile's square and its two lines' sizes, from icon_size (as
+            size_toolbox): the time's digits and the day big, the rest small.
+            The square is TILE_GROW px past an icon's: a card of words reads
+            smaller than a picture of the same size (dock.css takes the
+            room back from the button's padding, so the dock stays as tall)."""
+            _btn, box, top, bottom = self.tiles[kind]
+            icon = self.engine.cfg["icon_size"] + TILE_GROW
+            box.set_size_request(icon, icon)
+            big = TILE_SHARES[kind]
+            if kind == "media":             # "Playing 2/3" in a tile's width
+                bottom.set_ellipsize(Pango.EllipsizeMode.END)
+                bottom.set_max_width_chars(9)
+            for label, share in ((top, big[0]), (bottom, big[1])):
+                if not share:
+                    continue
+                attrs = Pango.AttrList()
+                attrs.insert(Pango.attr_size_new_absolute(int(icon * share * Pango.SCALE)))
+                label.set_attributes(attrs)
 
         def make_status(self, key):
             """A status button (TOP BAR in the module docstring): the top
@@ -2305,6 +2686,38 @@ def daemon():
             return box
 
         def set_status(self, key, text, tip, state=""):
+            if key in self.tiles and key in STATUS_TILES:
+                btn, _box, top, bottom = self.tiles[key]
+                # the weather, the battery and the sound: the last word under
+                # the glyphs ("<bolt> <battery> 97%"); the network: its glyph
+                # over its name; the rest: the first glyph over the words
+                if key == "network":
+                    glyph, words = network_leaf(text, tip)
+                elif key == "sound" and state == "muted":
+                    glyph, words = text, "Muted"     # the speaker struck out, and the word
+                elif key in ("weather", "battery", "sound"):
+                    glyph, words = weather_leaf(text)
+                else:
+                    glyph, words = leaf(text)
+                top.set_markup(glyph)
+                bottom.set_markup(words) if key == "weather" else bottom.set_text(re.sub(r"<[^>]*>", "", words))
+                bottom.set_visible(bool(words))
+                hint = {"media": "click: play / pause, right-click: next, middle: the media panel",
+                        "sound": "click: the audio panel, scroll: louder / quieter, right-click: mute, "
+                                 "middle: mute the microphone",
+                        "network": "click: the network panel, right-click: nmtui"}.get(key)
+                btn.set_tooltip_text("\n".join(t for t in (tip, hint) if t) or None)
+                # (the battery's: whenever there is one, charging or not --
+                # the card leaves its Battery row out for it)
+                btn.set_visible(bool(glyph or words))
+                ctx = btn.get_style_context()
+                for name in ctx.list_classes():
+                    if name.startswith("dock-is-"):
+                        ctx.remove_class(name)
+                if state and re.match(r"^[A-Za-z0-9_-]+$", state):
+                    ctx.add_class(f"dock-is-{state}")
+                if key == "media":
+                    cls(btn, "dock-is-playing", words.startswith("Playing"))
             if key not in self.status:
                 return
             btn, label = self.status[key]
@@ -2356,6 +2769,8 @@ def daemon():
             self.start_text.set_visible(bool(word))
 
         def update(self, items):
+            if self.dragging and self.dragging["on"]:
+                return            # mid-drag: drag_release renders it all once the icon is let go
             keys = [it["key"] for it in items]
             for key in [k for k in self.buttons if k not in keys]:
                 self.buttons.pop(key).destroy()
@@ -2364,7 +2779,7 @@ def daemon():
             pinned_groups = {it["group"] for it in items if it["pinned"]}
             pinned_n = sum(1 for it in items if it["group"] in pinned_groups)
             show_sep = self.layout == "dock" and 0 < pinned_n < len(items)
-            pos = 0
+            pos = len(self.lead)
             for i, item in enumerate(items):
                 if i == pinned_n and show_sep:
                     self.items.reorder_child(self.sep, pos)
@@ -2375,14 +2790,27 @@ def daemon():
                     self.items.pack_start(btn, False, False, 0)
                     btn.show_all()
                 btn.set_item(item)
+                btn.set_badge(self.engine.badge_for(item) if self.layout == "dock" else 0)
                 self.items.reorder_child(btn, pos)
                 pos += 1
             self.sep.set_visible(show_sep)
 
-        def set_clock(self, time_text, date_text):
+        def set_clock(self, time_text, date_text, leaf=None):
             if self.clock is not None:
                 self.time_label.set_text(time_text)
                 self.date_label.set_text(date_text)
+            if "time" in self.tiles:
+                btn, _box, top, bottom = self.tiles["time"]
+                head, half = time_leaf(time_text)
+                top.set_text(head)
+                bottom.set_text(half)
+                bottom.set_visible(bool(half))
+                btn.set_tooltip_text(f"{time_text}\n{date_text}")
+            if "date" in self.tiles and leaf is not None:
+                btn, _box, top, bottom = self.tiles["date"]
+                top.set_text(leaf[0])
+                bottom.set_text(leaf[1])
+                btn.set_tooltip_text(date_text)
 
         def update_tray(self, tray):
             if self.tray_box is None:
@@ -2604,6 +3032,97 @@ def daemon():
                 fx.stats["draw_ms"].append(round((time.perf_counter() - fx.t0) * 1000, 3))
             return True
 
+        # -- the dock's own drag (ItemButton: press, motion, release) --------------
+        def drag_press(self, btn, event):
+            """A press on an app or a tile: maybe the start of a drag
+            (drag_motion). False: the press goes on to the button."""
+            btn.suppress_click = False
+            self.dragging = {"btn": btn, "start": self.along(event), "on": False,
+                             "tile": not isinstance(btn, ItemButton)}
+            return False
+
+        @staticmethod
+        def unsuppress(btn):
+            """The click a drag's release brings: True once, to be ignored."""
+            was, btn.suppress_click = btn.suppress_click, False
+            return was
+
+        def drag_motion(self, btn, event):
+            """The button held and moving: past DRAG_START_PX it is a drag --
+            the icon swaps places with each one it passes (drag_to)."""
+            d = self.dragging
+            if not d or d["btn"] is not btn or not event.state & Gdk.ModifierType.BUTTON1_MASK:
+                return False
+            at = self.along(event)
+            if not d["on"]:
+                item = getattr(btn, "item", None) or {}
+                if abs(at - d["start"]) < DRAG_START_PX or item.get("key") != item.get("group"):
+                    return False          # a click so far; or one window's button (never-combine)
+                d["on"] = True
+                if self.fx is not None:
+                    self.fx.release(btn)
+                self.engine.close_preview()
+                cls(btn, "dragging", True)
+            self.drag_to(btn, at)
+            return True
+
+        def drag_to(self, btn, at):
+            """Put btn where the pointer is: in the place of the app under
+            it. A pinned app stays among the pinned; a running one may go
+            among them (pinned there when it is let go)."""
+            ba = self.items.get_allocation()
+            horiz = self.position == "bottom"
+            kids = self.items.get_children()
+            tiles = {t[0] for k, t in self.tiles.items() if k != "apps"}
+            for c in kids:
+                if c is btn or not c.get_visible():
+                    continue
+                if self.dragging and self.dragging["tile"]:
+                    if c not in tiles:    # a tile among the tiles
+                        continue
+                    a = c.get_allocation()
+                    start, length = (a.x - ba.x, a.width) if horiz else (a.y - ba.y, a.height)
+                    if start <= at < start + length:
+                        self.items.reorder_child(btn, kids.index(c))
+                        return
+                    continue
+                if not isinstance(c, ItemButton) or not c.item:
+                    continue
+                if (btn.item or {}).get("pinned") and not c.item.get("pinned"):
+                    continue
+                a = c.get_allocation()
+                start, length = (a.x - ba.x, a.width) if horiz else (a.y - ba.y, a.height)
+                if start <= at < start + length:
+                    # c's place: after it coming from the left, before it from
+                    # the right (and so across the line, either way)
+                    self.items.reorder_child(btn, kids.index(c))
+                    return
+
+        def drag_release(self, btn):
+            """The drag ends: the order the dock shows now is kept
+            (drag_result): the pinned list saved, the running apps' order
+            remembered. The release's click does nothing."""
+            d, self.dragging = self.dragging, None
+            if not d or not d["on"] or d["btn"] is not btn:
+                return
+            cls(btn, "dragging", False)
+            btn.suppress_click = True
+            kids = self.items.get_children()
+            if d["tile"]:
+                where = {t[0]: k for k, t in self.tiles.items() if k != "apps"}
+                self.engine.save_tile_order([where[c] for c in kids if c in where])
+                return
+            line = kids.index(self.sep) if self.sep.get_visible() else None
+            seen = [(c.item["group"], c.item.get("app_id"),
+                     (kids.index(c) < line) if line is not None else bool(c.item.get("pinned")))
+                    for c in kids if isinstance(c, ItemButton) and c.item]
+            pinned, order = drag_result(self.engine.pinned(), self.engine.order, seen)
+            self.engine.order = order
+            if pinned != self.engine.pinned():
+                self.engine.save_pinned(pinned)
+            else:
+                self.engine.render()
+
         def along(self, event):
             """An event's point along the dock, in the items box's px (the
             event's own window is a button's, or the surface's)."""
@@ -2617,6 +3136,11 @@ def daemon():
             return (x - ba.x) if self.position == "bottom" else (y - ba.y)
 
         def on_motion(self, _w, event):
+            # A press on a magnified icon's grown part (on_band_press) holds
+            # the surface's window, not the button's: its drag moves here.
+            if self.dragging is not None and event.window == self.get_window() \
+                    and self.drag_motion(self.dragging["btn"], event):
+                return True
             if self.fx is not None and self.fx.magnify:
                 self.fx.point(self.along(event))
             return False
@@ -2634,11 +3158,24 @@ def daemon():
                 if event.button == 3:
                     self.engine.item_menu(child, event)
                 elif event.button == 1:
+                    self.drag_press(child, event)     # the grown icon is dragged too
                     self.fx.press(child)
+                return True
+            if child is not None and event.button == 1 and event.type == Gdk.EventType.BUTTON_PRESS \
+                    and any(child is t[0] for k, t in self.tiles.items() if k != "apps"):
+                self.drag_press(child, event)         # a tile's grown part, likewise
                 return True
             return False
 
         def on_band_release(self, _w, event):
+            d = self.dragging
+            if event.button == 1 and d is not None:
+                if d["on"]:               # a drag that began on a grown icon: no click
+                    self.drag_release(d["btn"])
+                    if self.fx is not None:
+                        self.fx.release(d["btn"])
+                    return True
+                self.dragging = None      # a band click, not a drag
             child = self.band_child(event)
             if self.fx is not None:
                 self.fx.release(child)
@@ -2650,6 +3187,9 @@ def daemon():
                 return True
             if child is not None and child is self.toolbox and event.button == 1:
                 spawn(TOOLBOX_SH, "toggle")
+                return True
+            if child is not None and event.button == 1 and any(child is t[0] for t in self.tiles.values()):
+                child.clicked()           # a tile's grown part: its panel, as its own click
                 return True
             return False
 
@@ -3161,6 +3701,9 @@ def daemon():
             self.active = None
             self.urgent = set()
             self.order = []
+            self.unread = []              # notifications.py unread: the apps' badges
+            self.submap = ""              # the key mode now (DOCK TILES' submap tile)
+            self.language = ("", "")      # the language tile's (code, input method)
             self.launching = {}       # app id -> monotonic deadline
             self.held = set()         # a menu or the preview is open: the dock stays
             self.thumbs = {}          # stableId -> (monotonic, pixbuf or None)
@@ -3271,6 +3814,146 @@ def daemon():
         def pinned(self):
             return list(self.cfg["pinned"] or [])
 
+        def tile_click(self, kind, button, widget):
+            """A dock tile's click (DOCK TILES); True: done with the event."""
+            left = {"apps": lambda: self.open_start(widget),
+                    "time": lambda: spawn(sys.executable, PANEL, "toggle", "clock"),
+                    "date": lambda: spawn(sys.executable, PANEL, "toggle", "calendar"),
+                    "weather": lambda: spawn(sys.executable, PANEL, "toggle", "weather"),
+                    "workspaces": lambda: spawn(*OVERVIEW_ARGV),
+                    "submap": lambda: spawn(*SUBMAP_RESET),
+                    "media": lambda: spawn(PLAYER_PY, "toggle"),
+                    "notifications": lambda: spawn(sys.executable, PANEL, "toggle", "notifications"),
+                    "battery": lambda: spawn(sys.executable, SETTINGS_APP, "power"),
+                    "language": lambda: spawn(sys.executable, PANEL, "toggle", "language"),
+                    "network": lambda: spawn(sys.executable, PANEL, "toggle", "network"),
+                    "sound": lambda: spawn(sys.executable, PANEL, "toggle", "audio")}
+            other = {("weather", 3): lambda: spawn(WTTR_PY, "open"),
+                     ("media", 3): lambda: spawn(PLAYER_PY, "next"),
+                     ("media", 2): lambda: spawn(sys.executable, PANEL, "toggle", "flyout"),
+                     ("notifications", 3): lambda: spawn(NOTIFICATIONS_PY, "dnd"),
+                     ("language", 3): lambda: spawn("hyprctl", "switchxkblayout", "all", "next"),
+                     ("network", 3): lambda: spawn("kitty", "-e", "nmtui"),
+                     ("sound", 3): lambda: spawn("wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"),
+                     ("sound", 2): lambda: spawn("wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle")}
+            run = left.get(kind) if button == 1 else other.get((kind, button))
+            if run is None:
+                return False
+            run()
+            return True
+
+        def tile_scroll(self, kind, event):
+            """The wheel on a tile: the workspaces tile goes to the next or
+            previous one, the media tile to another player."""
+            if kind == "sound":
+                return self.status_scroll("sound", event)
+            if kind not in ("workspaces", "media"):
+                return False
+            if event.direction == Gdk.ScrollDirection.SMOOTH:
+                _ok, _dx, dy = event.get_scroll_deltas()
+                if abs(dy) < 0.5:
+                    return True
+                down = dy > 0
+            elif event.direction in (Gdk.ScrollDirection.UP, Gdk.ScrollDirection.DOWN):
+                down = event.direction == Gdk.ScrollDirection.DOWN
+            else:
+                return False
+            if kind == "workspaces":
+                spawn("hyprctl", "eval", f'hl.dispatch(hl.dsp.focus({{ workspace = "{"e+1" if down else "e-1"}" }}))')
+            else:
+                spawn(PLAYER_PY, "cycle", "next" if down else "prev")
+            return True
+
+        def ws_now(self, bar_name):
+            """The workspaces tile's (number, "of N") for that bar."""
+            return workspace_leaf(workspace_buttons(self.monitors, bar_name if self.cfg["monitors"] == "all"
+                                                    else None), self.workspaces)
+
+        def fetch_language(self, again=True):
+            """The language tile's (code, input method): the main keyboard's
+            layout (hyprctl devices, getoption input:kb_layout) and fcitx5's
+            input method; again: every LANGUAGE_S while the tile is up
+            (fcitx5 sends no event), Hyprland's activelayout at once."""
+            if again:
+                self.ids["language"] = None
+            if "language" not in dock_tiles(self.cfg):
+                return False
+            got = {}
+
+            def finish():
+                codes = [c.strip() for c in str(got.get("layouts") or "").split(",") if c.strip()]
+                leaf_ = language_leaf(codes, got.get("index", 0), got.get("im", ""))
+                if leaf_ != self.language:
+                    self.language = leaf_
+                    for bar in self.bars.values():
+                        bar.set_language(leaf_)
+
+            def on_im(out):
+                got["im"] = out.strip()
+                finish()
+
+            def on_option(out):
+                try:
+                    got["layouts"] = json.loads(out).get("str", "")
+                except (ValueError, AttributeError):
+                    got["layouts"] = ""
+                self.run_text(["fcitx5-remote", "-n"], on_im)
+
+            def on_devices(out):
+                try:
+                    kbs = json.loads(out).get("keyboards") or []
+                except (ValueError, AttributeError):
+                    kbs = []
+                main = next((k for k in kbs if k.get("main")), kbs[0] if kbs else {})
+                got["index"] = main.get("active_layout_index", 0)
+                self.run_text(["hyprctl", "getoption", "input:kb_layout", "-j"], on_option)
+            self.run_text(["hyprctl", "devices", "-j"], on_devices)
+            if again:
+                self.ids["language"] = GLib.timeout_add_seconds(LANGUAGE_S, self.fetch_language)
+            return False
+
+        def badges_wanted(self):
+            return bool(self.cfg["enabled"]) and self.cfg["layout"] == "dock" and bool(self.cfg["notifications"])
+
+        def badge_for(self, item):
+            return badge_count(item, self.unread) if self.badges_wanted() else 0
+
+        def fetch_badges(self):
+            """notifications.py unread, every NOTIFY_S and on SIGUSR2
+            (poll_now): the apps' badges."""
+            self.ids["badges"] = None
+            if not self.badges_wanted():
+                if self.unread:
+                    self.unread = []
+                    self.render()
+                return False
+
+            def done(out):
+                try:
+                    got = json.loads(out.strip().splitlines()[-1]) if out.strip() else []
+                except ValueError:
+                    return
+                if isinstance(got, list) and got != self.unread:
+                    self.unread = [u for u in got if isinstance(u, list) and len(u) == 2]
+                    self.render()
+            self.run_text([NOTIFICATIONS_PY, "unread"], done)
+            self.ids["badges"] = GLib.timeout_add_seconds(NOTIFY_S, self.fetch_badges)
+            return False
+
+        def open_files(self, item, uris):
+            """Files dropped on an app's icon: open them with it."""
+            argv = open_with_argv(item.get("app_id"), uris)
+            if argv:
+                spawn(*argv)
+
+        def save_tile_order(self, order):
+            """The dock's tiles as dragged (tile_order); nothing to redraw,
+            they stand there already."""
+            cur = read_settings()
+            cur["tile_order"] = clean_tile_order(order)
+            write_settings(cur)
+            self.cfg = cur
+
         def save_pinned(self, pinned):
             cur = read_settings()
             cur["pinned"] = clean_pinned(pinned)
@@ -3376,6 +4059,12 @@ def daemon():
                 return False
             *lines, self.events_buf = (self.events_buf + data).split(b"\n")
             got = read_events(lines)
+            if got["layout"]:
+                self.debounce("layout", REFRESH_MS, lambda: self.fetch_language(again=False))
+            if got["submap"] is not None and got["submap"] != self.submap:
+                self.submap = got["submap"]
+                for bar in self.bars.values():
+                    bar.set_submap(self.submap)
             for op, addr in got["ops"]:
                 if op == "active":
                     self.active = addr
@@ -3454,6 +4143,7 @@ def daemon():
                                        urgent=self.urgent, launching=self.launching))
                 bar.update_workspaces(workspace_buttons(
                     self.monitors, name if self.cfg["monitors"] == "all" else None))
+                bar.update_ws_tile(self.ws_now(name))
 
         # autohide
         def autohide_all(self):
@@ -3687,14 +4377,16 @@ def daemon():
 
         # clock
         def tick_clock(self, reschedule=True):
-            if self.cfg["layout"] != "taskbar" or not self.cfg["clock"]:
+            if not ((self.cfg["layout"] == "taskbar" and self.cfg["clock"]) or "clock" in dock_tiles(self.cfg)):
                 self.cancel("clock")
                 return False
             import region
             moment = datetime.now()
-            t, d = clock_text(moment, region.prefs(), barclock.lang() if barclock is not None else None)
+            language = barclock.lang() if barclock is not None else None
+            t, d = clock_text(moment, region.prefs(), language)
+            leaf = day_leaf(moment, language)
             for bar in self.bars.values():
-                bar.set_clock(t, d)
+                bar.set_clock(t, d, leaf)
             if reschedule or not self.ids.get("clock"):
                 self.cancel("clock")
                 self.ids["clock"] = GLib.timeout_add_seconds(max(1, 60 - moment.second), self.on_minute)
@@ -3735,6 +4427,16 @@ def daemon():
                     self.cancel(key)
                 elif not self.ids.get(key):
                     fetch()
+            if self.badges_wanted() and not self.ids.get("badges"):
+                self.fetch_badges()
+            elif not self.badges_wanted():
+                self.cancel("badges")
+                self.unread = []
+            if "language" in dock_tiles(self.cfg):
+                if not self.ids.get("language"):
+                    self.fetch_language()
+            else:
+                self.cancel("language")
 
         def watch_lines(self, key, argv, on_line):
             """argv's output, a line at a time, to on_line; started again
@@ -3837,6 +4539,9 @@ def daemon():
             if "notifications" in self.status_wanted():
                 self.cancel("notifications")
                 self.fetch_notifications()
+            if self.badges_wanted():
+                self.cancel("badges")
+                self.fetch_badges()
 
         def pill_click(self, key, event):
             if event.type != Gdk.EventType.BUTTON_PRESS:
@@ -4110,6 +4815,58 @@ def daemon():
                     print(f"selftest along={b.fx.pointer} want={want} expanded={b.fx.expanded}", flush=True)
                 return False
             GLib.timeout_add(int(float(conf.get("delay_s") or 1.0) * 1000) + 200, selftest)
+        if conf.get("drag") is not None:
+            def drag():
+                """A real drag's path, through the button's own handlers and
+                input window (on_press, motion-notify -> Bar.drag_motion ->
+                along, on_release): app "drag"[0] pressed, the pointer moved
+                in steps to app [1]'s middle, let go; then the pinned list
+                and the running order are printed."""
+                src_i, dst_i = (int(n) for n in conf["drag"])
+                for b in engine.bars.values():
+                    kids = [c for c in b.items.get_children() if isinstance(c, ItemButton)]
+                    if max(src_i, dst_i) >= len(kids):
+                        continue
+                    btn, dst = kids[src_i], kids[dst_i]
+                    horiz = b.position == "bottom"
+
+                    def pos(c):
+                        a, ia = c.get_allocation(), b.items.get_allocation()
+                        return (a.x - ia.x, a.width) if horiz else (a.y - ia.y, a.height)
+
+                    def event(kind, along):
+                        # What the handlers read of a real event; a Gdk.Event's
+                        # "button" is its struct, not the button's number. The
+                        # window is the button's own input window, as a real one.
+                        from types import SimpleNamespace
+                        local = along - pos(btn)[0]
+                        x, y = (local, 5.0) if horiz else (5.0, local)
+                        return SimpleNamespace(type=kind, button=1, x=x, y=y, window=btn.get_event_window(),
+                                               state=Gdk.ModifierType.BUTTON1_MASK)
+                    s0, l0 = pos(btn)
+                    sd, ld = pos(dst)
+                    start, end = s0 + l0 / 2, sd + ld / 2
+                    btn.on_press(btn, event(Gdk.EventType.BUTTON_PRESS, start))
+                    steps = 24
+                    state = {"i": 0}
+
+                    def move():
+                        state["i"] += 1
+                        at = start + (end - start) * state["i"] / steps
+                        b.drag_motion(btn, event(Gdk.EventType.MOTION_NOTIFY, at))
+                        if state["i"] < steps:
+                            return True
+                        btn.on_release(btn, event(Gdk.EventType.BUTTON_RELEASE, end))
+                        btn.clicked()          # GTK's own click on the release: must do nothing
+                        GLib.timeout_add(300, lambda: (print(
+                            f"drag pinned={engine.pinned()} order={engine.order} "
+                            f"shown={[c.item['group'] for c in b.items.get_children() if isinstance(c, ItemButton)]}",
+                            flush=True), False)[1])
+                        return False
+                    GLib.timeout_add(20, move)     # the harness's pointer steps, not an animation
+                    break
+                return False
+            GLib.timeout_add(int(float(conf.get("delay_s") or 1.0) * 1000), drag)
         if conf.get("preview") is not None:
             def preview():
                 for b in engine.bars.values():

@@ -5,6 +5,7 @@ row (toolbox_awake.py) and the audio panel's volume limit. Pure functions
 on strings only: no config is written, waybar is never restarted."""
 import importlib.util
 import json
+import re
 import os
 import sys
 import unittest
@@ -13,6 +14,9 @@ from unittest import mock
 import helpers
 
 bs = helpers.import_script("bar-settings.py")
+# toolbox_config_path writes the card's CSS beside its config: never the
+# live one (the paths of the configs are mocked test by test).
+bs.CARD_CSS = os.path.join(helpers.SCRATCH, "toolbox-lines.css")
 
 WAYBAR_SCRIPTS = os.path.expanduser("~/.config/waybar/scripts")
 
@@ -267,15 +271,14 @@ class DockCard(unittest.TestCase):
         self.assertEqual(card["group/pills-1"]["modules"], ["hyprland/language"])
         self.assertNotIn("group/pills-2", card)
 
-    def test_mic_row_is_shown(self):
-        self.assertNotIn("custom/keybinds#mic", bs.parse(MIC_TOOLBOX)["group/card"]["modules"])
-        shown = bs.show_off_rows(MIC_TOOLBOX)
-        self.assertIn("custom/keybinds#mic", bs.parse(shown)["group/card"]["modules"])
+    def test_mic_row_stays_hidden(self):
+        # the dock's and the taskbar's sound button mutes the microphone
+        self.assertEqual(bs.show_off_rows(MIC_TOOLBOX), MIC_TOOLBOX)
         self.assertEqual(bs.show_off_rows(NAMED_TOOLBOX), NAMED_TOOLBOX)      # no row: as it is
 
-    def test_battery_row_is_shown_too(self):
+    def test_battery_row_is_shown(self):
         modules = bs.parse(bs.show_off_rows(BATT_TOOLBOX))["group/card"]["modules"]
-        self.assertIn("custom/keybinds#mic", modules)
+        self.assertNotIn("custom/keybinds#mic", modules)
         self.assertIn("custom/keybinds#battery", modules)
 
     def test_bar_off_meters_first_and_no_battery_pill(self):
@@ -295,6 +298,25 @@ class DockCard(unittest.TestCase):
         self.assertIn("custom/drives", pills)
         rows = [n for g, v in card.items() if g.startswith("group/grid-") for n in v["modules"]]
         self.assertIn("custom/keybinds#battery", rows + card["group/card"]["modules"])
+
+    def test_bar_off_no_battery_row_when_the_dock_has_the_battery(self):
+        # what is on the dock is not in the card: the battery tile took "battery"
+        with mock.patch.object(bs, "bar_wanted", lambda: False), \
+                mock.patch.object(bs, "taken_by_taskbar", lambda: ["custom/power", "battery"]), \
+                mock.patch.object(bs, "card_pills", lambda: ("hyprland/language",)), \
+                mock.patch.object(bs, "read", lambda p: BATT_TOOLBOX if p == bs.TOOLBOX else METER_BAR), \
+                mock.patch.object(bs, "NOBAR_TOOLBOX", os.path.join(helpers.SCRATCH, "tb-nobar-dock")):
+            with open(bs.toolbox_config_path()) as handle:
+                card = bs.parse(handle.read())
+        rows = [n for g, v in card.items() if g.startswith("group/grid") for n in v["modules"]]
+        rows += card["group/card"]["modules"]
+        self.assertNotIn("custom/keybinds#battery", rows)
+        self.assertNotIn("custom/keybinds#mic", rows)
+
+    def test_no_status_line_for_the_power_pill_alone(self):
+        self.assertEqual(bs.off_sections(["custom/power"]), bs.OFF_SECTIONS)
+        self.assertNotIn(bs.STATUS, bs.off_sections(["custom/network", "pulseaudio", "custom/power"]))
+        self.assertIn(bs.METERS, bs.off_sections(["custom/network", "pulseaudio"]))
 
     def test_sections_a_line_each_in_their_order(self):
         bar = METER_BAR.replace('"custom/cpu",', '"pulseaudio",\n        "custom/network",\n        "custom/cpu",', 1)
@@ -318,7 +340,9 @@ class DockCard(unittest.TestCase):
         self.assertEqual(card[last]["modules"][-1], "tray")
         self.assertEqual(card["tray"], bs.parse(NAMED_TOOLBOX)["tray"])          # its own block, as it was
         grid = bs.parse(bs.grid_variant(new))
-        self.assertEqual(grid["group/card"]["modules"][-1], "group/grid-1")      # no tray row
+        self.assertEqual(grid["group/card"]["modules"][-1], last)                # under the tiles
+        self.assertEqual(grid["group/card"]["modules"][0], "group/pills-1")      # the meters on top
+        self.assertIn("group/grid-1", grid["group/card"]["modules"])             # no tray row
         # No pills: the tray stays a row of its own.
         none = bs.toolbox_variant(NAMED_TOOLBOX, BAR, skip={"ext/workspaces", "custom/day", "custom/clock",
                                                             "custom/weather", "custom/cpu", "custom/power"},
@@ -361,8 +385,47 @@ class DockCard(unittest.TestCase):
         self.assertEqual(card["group/pills-2"]["modules"], ["ext/workspaces"])
         self.assertEqual(card["group/pills-3"]["modules"], ["custom/cpu"])
         self.assertEqual(card["group/pills-4"]["modules"], ["hyprland/language", "tray"])
-        self.assertIn("custom/keybinds#mic", card["group/grid-solo-1"]["modules"])
+        rows = [n for g, v in card.items() if g.startswith("group/grid") for n in v["modules"]]
+        self.assertNotIn("custom/keybinds#mic", rows + card["group/card"]["modules"])
         self.assertNotIn("group/pills-5", card)                                 # the dock has the power pill
+
+
+class CardCss(unittest.TestCase):
+    """card_css: each section line shared out to a pair of tiles' width."""
+    def card(self, lines):
+        groups = {f"group/pills-{n}": {"orientation": "horizontal", "modules": names}
+                  for n, names in enumerate(lines, 1)}
+        return json.dumps({"name": "waybar-toolbox", **groups,
+                           "group/card": {"orientation": "vertical", "modules": list(groups) + ["group/grid-1"]}})
+
+    def widths(self, css):
+        return {m.group(1): int(m.group(2)) for m in re.finditer(r"^(#[\w-]+) \{ min-width: (\d+)px; \}$", css, re.M)}
+
+    def test_ids(self):
+        self.assertEqual(bs.css_id("custom/day"), "#custom-day")
+        self.assertEqual(bs.css_id("ext/workspaces"), "#workspaces")
+        self.assertEqual(bs.css_id("pulseaudio"), "#pulseaudio")
+        self.assertIsNone(bs.css_id("custom/keybinds#mic"))
+
+    def test_lines_fill_a_pair(self):
+        css = bs.card_css(self.card([list(bs.TIME), list(bs.STATUS), ["hyprland/language", "tray"]]))
+        w = self.widths(css)
+        for line in (bs.TIME, bs.STATUS):
+            shown = [n for n in line if bs.PILL_WEIGHTS[n]]
+            total = sum(w[bs.css_id(n)] + bs.PILL_OVERHEAD for n in shown)
+            self.assertLessEqual(bs.LINE_WIDTH - total, len(shown))                # rounding only
+        self.assertNotIn("#custom-menuclock", w)                                  # weight 0: its own width
+        self.assertNotIn("#language", w)                                          # not a section's line
+        self.assertIn(f"min-width: {bs.CARD_TILE}px", css)                        # the tiles to match
+        self.assertIn(f"min-width: {bs.LINE_WIDTH - bs.PILL_OVERHEAD}px", css)    # the odd tile out
+
+    def test_workspaces_take_the_line(self):
+        w = self.widths(bs.card_css(self.card([list(bs.WORKSPACES)])))
+        self.assertEqual(w["#workspaces"] + bs.PILL_OVERHEAD, bs.LINE_WIDTH)
+
+    def test_no_section_lines_no_css(self):
+        self.assertEqual(bs.card_css(self.card([["hyprland/language"]])), "")
+        self.assertEqual(bs.card_css(self.card([])), "")
 
 
 class Grid(unittest.TestCase):
@@ -382,7 +445,7 @@ class Grid(unittest.TestCase):
         card = bs.parse(bs.grid_variant(text))
         self.assertEqual(card["group/card"]["modules"], ["group/pills-1", "group/grid-1", "tray"])
         self.assertEqual(card["group/grid-1"]["modules"], ["custom/settings", "custom/awake"])  # mic hidden
-        shown = bs.parse(bs.grid_variant(bs.show_off_rows(MIC_TOOLBOX)))
+        shown = bs.parse(bs.grid_variant(bs.show_off_rows(MIC_TOOLBOX, rows=("custom/keybinds#mic",))))
         self.assertEqual(shown["group/card"]["modules"], ["group/grid-1", "group/grid-solo-1", "tray"])
         self.assertEqual(shown["group/grid-solo-1"]["modules"], ["custom/keybinds#mic"])
 
@@ -486,7 +549,8 @@ class BatteryRow(unittest.TestCase):
     def test_row(self):
         plain = lambda r: r["text"].replace("\u200c", "")
         down = self.m.row({"pct": 64, "state": "discharging", "hours": 2.25})
-        self.assertIn("Battery 64% · 2h 15m left", plain(down))
+        self.assertIn("64% · 2h 15m left", plain(down))
+        self.assertNotIn("Battery", plain(down))                                # the glyph says it
         self.assertEqual(down["class"], "on")
         self.assertNotIn("Battery", down["text"])                    # no Font Awesome ligature
         self.assertEqual(self.m.row({"pct": 20, "state": "discharging", "hours": 0.5})["class"], "warning")
@@ -509,40 +573,6 @@ class BatteryRow(unittest.TestCase):
         self.assertIn("battery_row.py", block["exec"])
         self.assertIn("settings.py power", block["on-click"])
 
-
-class TopbarRow(unittest.TestCase):
-    """scripts/topbar_row.py: the card's Top bar row."""
-    @classmethod
-    def setUpClass(cls):
-        cls.m = load(os.path.join(WAYBAR_SCRIPTS, "topbar_row.py"), "topbar_row")
-
-    def test_row(self):
-        self.assertEqual(self.m.row({})["text"], "")                         # no dock: no row
-        self.assertEqual(self.m.row({"enabled": False, "top_bar": False})["text"], "")
-        off = self.m.row({"enabled": True, "top_bar": False})
-        self.assertEqual(off["class"], "off")
-        self.assertTrue(off["text"].replace("\u200c", "").endswith("Top bar off"))
-        self.assertIn("turn it on", off["tooltip"])
-        self.assertEqual(self.m.row({"enabled": True})["class"], "on")       # the default: on
-
-    def test_toggle_flips_through_dock_py(self):
-        calls = []
-        with mock.patch.object(self.m, "settings", lambda: {"enabled": True, "top_bar": False}), \
-                mock.patch.object(self.m.subprocess, "run",
-                                  lambda cmd, **kw: calls.append(cmd) or mock.Mock(returncode=0)):
-            self.assertEqual(self.m.toggle(), 0)
-        self.assertEqual(calls[0][1:], ["hide"])                            # the card folds away first
-        self.assertEqual(calls[1][1:], ["set", "top_bar", "on"])
-        with mock.patch.object(self.m, "settings", lambda: {}):
-            self.assertEqual(self.m.toggle(), 1)                             # no dock: nothing to switch
-
-    def test_card_row(self):
-        self.assertIn("custom/keybinds#topbar", bs.MODULES)
-        with open(bs.TOOLBOX) as handle:
-            toolbox = handle.read()
-        card = dict((it["name"], it["shown"]) for it in bs.lists_of(toolbox, True)["card"])
-        self.assertIs(card.get("custom/keybinds#topbar"), True)          # hides itself without a dock
-        self.assertIn("topbar_row.py toggle", bs.parse(toolbox)["custom/keybinds#topbar"]["on-click"])
 
 
 TASKBAR_VIEW = {"enabled": True, "layout": "taskbar", "top_bar": True,

@@ -337,9 +337,15 @@ class Clicks(unittest.TestCase):
         quiet = D.read_events([b"windowtitle>>55d3", b"openlayer>>notifications", b"closelayer>>x",
                                b"activelayout>>kbd,English", b"activewindow>>kitty,shell", b"workspace>>2",
                                b"focusedmon>>DP-1,2", b"movewindow>>55d3,2", b"screencast>>1,0", b""])
-        self.assertEqual(quiet, {"now": False, "titles": False, "place": False, "game": False, "ops": []})
+        self.assertEqual(quiet, {"now": False, "titles": False, "place": False, "game": False, "ops": [],
+                                 "submap": None, "layout": True})          # the layout: the language tile only
         self.assertEqual(D.read_events([b"windowtitlev2>>55d3,a title"]),
-                         {"now": False, "titles": True, "place": False, "game": False, "ops": []})
+                         {"now": False, "titles": True, "place": False, "game": False, "ops": [], "submap": None,
+                          "layout": False})
+        # a key mode: its name, then "" when it ends (the dock's submap tile)
+        self.assertEqual(D.read_events([b"submap>>resize"])["submap"], "resize")
+        self.assertEqual(D.read_events([b"submap>>resize", b"submap>>"])["submap"], "")
+        self.assertFalse(D.read_events([b"submap>>resize"])["now"])
         got = D.read_events([b"activewindowv2>>55d3", b"urgent>>66e4", b"openwindow>>77,1,kitty,x"])
         self.assertTrue(got["now"] and got["game"])
         self.assertEqual(got["ops"], [("active", "0x55d3"), ("urgent", "0x66e4")])
@@ -357,8 +363,29 @@ class Clicks(unittest.TestCase):
     def test_pins(self):
         self.assertEqual(D.move_pin(["a", "b", "c"], "a", -1), ["a", "b", "c"])
         self.assertEqual(D.move_pin(["a", "b", "c"], "a", 1), ["b", "a", "c"])
-        self.assertEqual(D.move_pin_to(["a", "b", "c"], "c", "a"), ["c", "a", "b"])
-        self.assertEqual(D.move_pin_to(["a", "b"], "z", "a"), ["a", "b"])
+        # a drag ends: the dock's order now, [(group, app_id, pinned now)]
+        P = lambda g: (g, g, True)
+        R = lambda g, app=None: (g, app, False)
+        self.assertEqual(D.drag_result(["a", "b", "c"], ["x"], [P("c"), P("a"), P("b"), R("x")]),
+                         (["c", "a", "b"], ["x"]))                                # pinned reordered
+        self.assertEqual(D.drag_result(["a", "b"], ["x", "y"], [P("a"), ("y", "y.desktop", True), P("b"), R("x")]),
+                         (["a", "y.desktop", "b"], ["x"]))                        # a running app pinned
+        self.assertEqual(D.drag_result(["a"], ["x", "y"], [P("a"), ("y", None, True), R("x")]),
+                         (["a"], ["x", "y"]))                                     # no desktop id: as it was
+        self.assertEqual(D.drag_result(["a"], ["x", "y", "gone"], [P("a"), R("y"), R("x")]),
+                         (["a"], ["y", "x", "gone"]))                             # running reordered
+        self.assertEqual(D.drag_result(["a", "old", "b"], [], [P("b"), P("a")]),
+                         (["b", "a", "old"], []))                                 # unshown pins kept
+        # the tiles: their order as dragged, a tile it does not name after
+        # its default neighbour
+        N = ["workspaces", "sound", "time", "date", "weather"]
+        self.assertEqual(D.ordered_tiles(N, None), N)
+        self.assertEqual(D.ordered_tiles(N, ["date", "time", "weather", "sound", "workspaces"]),
+                         ["date", "time", "weather", "sound", "workspaces"])
+        self.assertEqual(D.ordered_tiles(N, ["weather", "workspaces", "gone"]),
+                         ["weather", "workspaces", "sound", "time", "date"])
+        self.assertEqual(D.clean_tile_order(["date", "bogus", "date", 3, "sound"]), ["date", "sound"])
+        self.assertIsNone(D.clean_tile_order("date"))
         self.assertEqual(D.seed_pinned(["firefox.desktop", "", "firefox.desktop", "kitty.desktop"]),
                          ["firefox.desktop", "kitty.desktop"])
         self.assertIsNone(D.pinned_match(["org.a.x.desktop", "org.b.x.desktop"], "x"))   # ambiguous
@@ -747,9 +774,86 @@ class TopBarTakeover(unittest.TestCase):
 
     def test_the_dock_takes_the_privacy_pills_only_with_the_bar_off(self):
         lang = list(D.CARD_PILLS)
-        self.assertEqual(D.bar_takeover(self.cfg(layout="dock", top_bar=False)), list(D.PRIVACY_PILLS) + lang)
-        self.assertEqual(D.bar_takeover(self.cfg(layout="dock", top_bar=False, privacy=False)), lang)
+        tiles = dict(clock=False, weather=False, notifications=False, battery=False, workspaces=False,
+                     network=False, sound=False)
+        always = ["hyprland/submap", "custom/player"]                             # the tiles always there
+        self.assertEqual(D.bar_takeover(self.cfg(layout="dock", top_bar=False, **tiles)),
+                         always + list(D.PRIVACY_PILLS) + lang)
+        self.assertEqual(D.bar_takeover(self.cfg(layout="dock", top_bar=False, privacy=False, **tiles)),
+                         always + lang)
         self.assertEqual(D.bar_takeover(self.cfg(layout="dock")), lang)
+
+    def test_the_dock_tiles_take_the_date_time_and_weather_with_the_bar_off(self):
+        time_pills = list(dict(D.TAKEOVER)["clock"])
+        weather = list(dict(D.TAKEOVER)["weather"])
+        off = self.cfg(layout="dock", top_bar=False, privacy=False)
+        self.assertEqual(D.dock_tiles(off), D.DOCK_TILE_ORDER)
+        self.assertTrue(D.dock_only(off))
+        # what is on the dock is not in the card
+        self.assertEqual(D.bar_takeover(off), time_pills + weather + ["custom/network", "pulseaudio",
+                                                                      "ext/workspaces", "custom/notifications",
+                                                                      "battery", "hyprland/submap", "custom/player"]
+                         + list(D.CARD_PILLS))
+        # the keyboard layout: on the dock, so not in the card either
+        self.assertEqual(D.card_pills(off), ())
+        self.assertEqual(D.card_pills(self.cfg(layout="dock")), D.CARD_PILLS)      # a bar: the card has it
+        self.assertEqual(D.card_pills(self.cfg(top_bar=False)), D.CARD_PILLS)      # the taskbar has none
+        self.assertNotIn("weather", D.dock_tiles(self.cfg(layout="dock", top_bar=False, weather=False)))
+        self.assertNotIn("workspaces", D.dock_tiles(self.cfg(layout="dock", top_bar=False, workspaces=False)))
+        self.assertIn("submap", D.dock_tiles(self.cfg(layout="dock", top_bar=False, clock=False)))
+        self.assertEqual(D.dock_tiles(self.cfg(layout="dock")), ())                 # a bar: its own clock
+        self.assertEqual(D.dock_tiles(self.cfg(top_bar=False)), ())                 # the taskbar's clock
+        self.assertEqual(D.dock_tiles(dict(D.DEFAULTS, top_bar=False)), ())         # off
+
+    def test_more_tile_words(self):
+        self.assertEqual(D.leaf("\uf0f3 35"), ("\uf0f3", "35"))
+        self.assertEqual(D.leaf("\uf1f6"), ("\uf1f6", ""))
+        self.assertEqual(D.leaf("<span color='#f00'>\uf04b</span> Playing 1/2"),
+                         ("<span color='#f00'>\uf04b</span>", "Playing 1/2"))
+        self.assertEqual(D.leaf(""), ("", ""))
+        ws = [{"id": 1}, {"id": 2}, {"id": -98, "name": "special:x"}, {"id": 3}]
+        self.assertEqual(D.workspace_leaf([(2, "2")], ws), ("2", "of 3"))
+        self.assertEqual(D.workspace_leaf([(1, "1")], [{"id": 1}]), ("1", ""))
+        self.assertEqual(D.workspace_leaf([], ws), ("", ""))
+
+    def test_network_and_language_words(self):
+        self.assertEqual(D.network_leaf("\uf1eb", "Kernel · 100%"), ("\uf1eb", "Kernel"))
+        self.assertEqual(D.network_leaf("Wi-Fi (70%) \uf1eb", ""), ("\uf1eb", "Wi-Fi (70%)"))
+        self.assertEqual(D.network_leaf("Disconnected", ""), ("Disconnected", ""))
+        self.assertEqual(D.network_leaf("", ""), ("", ""))
+        self.assertEqual(D.language_leaf(["us", "latam"], 1, "keyboard-latam"), ("LATAM", ""))
+        self.assertEqual(D.language_leaf(["us", "jp"], 0, "mozc"), ("US", "Mozc"))
+        self.assertEqual(D.language_leaf(["us"], 5, ""), ("US", ""))                 # a stale index
+        self.assertEqual(D.language_leaf([], 0, ""), ("", ""))
+
+    def test_badges(self):
+        firefox = {"app_id": "org.mozilla.firefox.desktop", "name": "Firefox", "class": "firefox"}
+        unread = [["", "Firefox"], ["org.mozilla.firefox", ""], ["", "Screenshot"], ["", "kitty"]]
+        self.assertEqual(D.badge_count(firefox, unread), 2)
+        self.assertEqual(D.badge_count({"app_id": None, "name": "", "class": ""}, unread), 0)
+        self.assertEqual(D.badge_count(firefox, []), 0)
+
+    def test_files_dropped_on_an_app(self):
+        uwsm = lambda name: "/usr/bin/uwsm" if name == "uwsm" else None
+        self.assertEqual(D.open_with_argv("org.gnome.TextEditor.desktop", ["file:///tmp/a.txt"], which=uwsm),
+                         ["uwsm", "app", "--", "org.gnome.TextEditor.desktop", "file:///tmp/a.txt"])
+        self.assertIsNone(D.open_with_argv("org.gnome.TextEditor.desktop", ["not a uri"], which=uwsm))
+        self.assertIsNone(D.open_with_argv(None, ["file:///tmp/a"], which=uwsm))
+        self.assertEqual(D.open_with_argv("a.desktop", ["file:///x"], which=lambda n: None),
+                         ["gtk-launch", "a.desktop", "file:///x"])
+
+    def test_tile_words(self):
+        from datetime import datetime
+        sat = datetime(2026, 10, 31, 21, 41)
+        self.assertEqual(D.day_leaf(sat, "ja"), ("土", "31"))
+        self.assertEqual(D.day_leaf(sat)[1], "31")
+        self.assertEqual(D.time_leaf("9:41 PM"), ("9:41", "PM"))
+        self.assertEqual(D.time_leaf("21:41"), ("21:41", ""))
+        self.assertEqual(D.weather_leaf("<span color='#ffd75e'>\uf6c4</span> 20°"),
+                         ("<span color='#ffd75e'>\uf6c4</span>", "20°"))
+        self.assertEqual(D.weather_leaf(""), ("", ""))
+        self.assertEqual(D.weather_leaf("\uf0e7 \uf240 97%"), ("\uf0e7 \uf240", "97%"))   # the battery tile
+        self.assertEqual(D.weather_leaf("\uf6c4"), ("\uf6c4", ""))
 
     def test_status_wanted(self):
         self.assertEqual(D.status_wanted(dict(D.DEFAULTS)), set())
@@ -758,7 +862,11 @@ class TopBarTakeover(unittest.TestCase):
         self.assertEqual(D.status_wanted(self.cfg(privacy=False, battery=False, sound=False)),
                          {"network", "weather", "notifications"})
         self.assertEqual(D.status_wanted(self.cfg(layout="dock")), set())
-        self.assertEqual(D.status_wanted(self.cfg(layout="dock", top_bar=False)), set(D.PRIVACY_KEYS))
+        self.assertEqual(D.status_wanted(self.cfg(layout="dock", top_bar=False)),
+                         set(D.PRIVACY_KEYS) | {"weather", "notifications", "battery", "media", "network", "sound"})
+        self.assertEqual(D.status_wanted(self.cfg(layout="dock", top_bar=False, weather=False, notifications=False,
+                                                  battery=False, network=False, sound=False)),
+                         set(D.PRIVACY_KEYS) | {"media"})
         # every pill has its clicks, its setting, and a source
         for key in D.PILL_SETTING:
             self.assertIn(key, D.PILL_CLICKS)
@@ -901,7 +1009,8 @@ class TopBarTakeover(unittest.TestCase):
         self.assertEqual(D.volume_text("Volume: 0.45\n"), ("\uf027 45%", "Volume 45%"))
         self.assertEqual(D.volume_text("Volume: 0.80"), ("\uf028 80%", "Volume 80%"))
         self.assertEqual(D.volume_text("Volume: 0.00"), ("\uf026 0%", "Volume 0%"))
-        self.assertEqual(D.volume_text("Volume: 0.30 [MUTED]"), (D.MUTED_GLYPH, "Muted (30%)"))
+        self.assertEqual(D.volume_text("Volume: 0.30 [MUTED]"), (D.MUTED_GLYPH, "Muted (30%)", "muted"))
+        self.assertEqual(D.MUTED_GLYPH, "\uf6a9")                                # a speaker struck out, not an X
         self.assertIsNone(D.volume_text(""))
         self.assertIsNone(D.volume_text("no such node"))
 

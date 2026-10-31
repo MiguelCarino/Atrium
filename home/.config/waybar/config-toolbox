@@ -52,16 +52,15 @@
             "custom/fsstate",
             "custom/nightlight",
             "custom/awake",
-            // The microphone and battery rows: shown by bar-settings.py while
-            // the top bar is off (toolbox-config-path); show them here to keep
-            // them for good.
+            // The battery row: shown by bar-settings.py while the top bar is
+            // off (toolbox-config-path) and the dock has no battery tile. The
+            // microphone row is never shown by itself (the dock's and the
+            // taskbar's sound button mutes the microphone). Show either here
+            // to keep it for good.
             // hidden: "custom/keybinds#mic",
             // hidden: "custom/keybinds#battery",
             "custom/display",
             "custom/keybinds",
-            // The top bar on / off: only while the dock or the taskbar runs
-            // (scripts/topbar_row.py prints nothing otherwise).
-            "custom/keybinds#topbar",
             "tray"
         ]
     },
@@ -161,18 +160,6 @@
         "format": "{}",
         "align": 0,
         "on-click": "$HOME/.config/waybar/scripts/toolbox.sh hide; $HOME/.config/hypr/scripts/settings.py power"
-    },
-
-    // The Top bar row: on or off, a click switches it (scripts/topbar_row.py;
-    // hypr/scripts/dock.py set top_bar). No text, so no row, without the dock
-    // or the taskbar. Named keybinds#topbar for the plain row's look.
-    "custom/keybinds#topbar": {
-        "exec": "$HOME/.config/waybar/scripts/topbar_row.py",
-        "return-type": "json",
-        "interval": 60,
-        "format": "{}",
-        "align": 0,
-        "on-click": "$HOME/.config/waybar/scripts/topbar_row.py toggle"
     },
 
     // Display: HDR, screen filter, animation preset, wallpaper theme -- the

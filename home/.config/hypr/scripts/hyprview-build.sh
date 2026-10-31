@@ -85,15 +85,18 @@ declare -A pkgs=(
     [xcb-util-errors-devel]=xcb-util-errors
     [lua-devel]=lua-libs        [glslang-devel]=glslang
 )
-specs=()
+# The exact version-release first; a rebuild (0.15.1-2 installed, only the
+# -devel of 0.15.1-1 in the repos) has the same headers, so the same version
+# from another release will do.
 for dev in "${!pkgs[@]}"; do
     if v=$(rpm -q --qf '%{version}-%{release}' "${pkgs[$dev]}" 2>/dev/null); then
-        specs+=("$dev-$v.x86_64")
+        ( cd "$work" && dnf download -q "$dev-$v.x86_64" 2>/dev/null ) ||
+            ( cd "$work" && dnf download -q "$dev-${v%-*}" ) ||
+            { echo "hyprview: no $dev for ${pkgs[$dev]} $v" >&2; exit 1; }
     else
-        specs+=("$dev.x86_64")
+        ( cd "$work" && dnf download -q "$dev.x86_64" )
     fi
 done
-( cd "$work" && dnf download -q "${specs[@]}" )
 for r in "$work"/*.rpm; do
     ( cd "$work" && rpm2cpio "$r" | cpio -idm --quiet )
 done

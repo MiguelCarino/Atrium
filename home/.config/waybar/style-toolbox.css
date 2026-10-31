@@ -42,26 +42,23 @@
 
 /* The odd tile out under the pairs (bar-settings.py grid_variant:
    group/grid-solo-N) as wide as a pair: two tiles of 160 + 2 x 12 padding
-   + 2 x 3 margin, less its own padding and margin. Left alone in the card
-   it would stretch to the card's width instead. */
+   + 2 x 3 margin + 2 x 1 border, less its own padding, margin and border.
+   Left alone in the card it would stretch to the card's width instead.
+   (A card with the bar's pill lines widens both: generated/toolbox-lines.css
+   at the end.) */
 #grid-solo-1 > widget > *, #grid-solo-2 > widget > *,
 #grid-solo-3 > widget > *, #grid-solo-4 > widget > * {
-    min-width: 350px;
+    min-width: 352px;
 }
 
-/* The bar's pills on top of the card (bar-settings.py card_lines: the
-   keyboard layout with the dock or taskbar, every pill with the top bar
-   off), the meters first, then PILLS_PER_LINE to a line, each pill styled
-   as on the bar. */
+/* The bar's pills in the card (bar-settings.py card_lines: the keyboard
+   layout with the dock or taskbar, every pill with the top bar off): a
+   section a line on top, the rest with the tray under the tiles. Each pill
+   is styled as on the bar but spaced as a tile (the rule at the end, after
+   the theme), so a line shared out by generated/toolbox-lines.css ends
+   where the tiles do. */
 #pills-1, #pills-2, #pills-3, #pills-4, #pills-5, #pills-6, #pills-7, #pills-8 {
-    margin: 0 3px 6px 3px;
-}
-
-/* A gap between the pills of a line: on the bar they sit in capsules, side
-   by side, but here pills from different sides of the bar meet. */
-#pills-1 > widget > *, #pills-2 > widget > *, #pills-3 > widget > *, #pills-4 > widget > *,
-#pills-5 > widget > *, #pills-6 > widget > *, #pills-7 > widget > *, #pills-8 > widget > * {
-    margin-right: 4px;
+    margin: 0 0 6px 0;
 }
 
 #tray {
@@ -73,6 +70,19 @@
 /* The desktop theme, again (see the top of this file): same file as the one
    style.css imports, so a theme writes its toolbox rules in its waybar.css. */
 @import url("generated/theme.css");
+
+/* The pills of a line spaced as the tiles, after the theme on purpose: a
+   theme pads a pill for the bar, where its capsule joins the next. */
+#pills-1 > widget > *, #pills-2 > widget > *, #pills-3 > widget > *, #pills-4 > widget > *,
+#pills-5 > widget > *, #pills-6 > widget > *, #pills-7 > widget > *, #pills-8 > widget > * {
+    margin: 0 3px;
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+/* Each line shared out to the tiles' width (bar-settings.py card_css,
+   written with the toolbox's config; empty without pill lines). Last. */
+@import url("generated/toolbox-lines.css");
 
 /* Off is the plain look in the card, as Keep awake already is: on the bar a
    dim pill reads "off", but in a menu a dim row reads "can't be clicked".
@@ -111,6 +121,6 @@
    OFF_TAIL): a pill's height there, not a row's. */
 #pills-1 #tray, #pills-2 #tray, #pills-3 #tray, #pills-4 #tray,
 #pills-5 #tray, #pills-6 #tray, #pills-7 #tray, #pills-8 #tray {
-    margin: 0;
+    margin: 0 3px;
     padding: 0 10px;
 }

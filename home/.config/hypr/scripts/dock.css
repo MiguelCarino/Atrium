@@ -96,6 +96,13 @@ button.dock-item {
     padding: 4px 6px 4px 4px;
 }
 
+/* being dragged along the dock (dock.py Bar.drag_motion): lifted, see-through */
+button.dock-item.dragging,
+button.dock-tile.dragging {
+    opacity: 0.6;
+    background-color: @dock-hover;
+}
+
 button.dock-item:hover {
     background-color: @dock-hover;
 }
@@ -358,6 +365,138 @@ button.dock-tray-item.attention {
 
 button.dock-toolbox:hover .dock-toolbox-glyph {
     color: @cyan;
+}
+
+/* --- the dock's tiles (dock.py's DOCK TILES) ---------------------------------
+   With the top bar off: the time, the date as a calendar leaf and the
+   weather, each in an app icon's square (dock.py sizes the lines from
+   icon_size), before the toolbox button. A faint card behind each, as an
+   icon has its own picture. */
+#dock.dock-layout-dock button.dock-tile {
+    min-width: 0;
+    min-height: 0;
+    margin: 0 2px;
+    padding: 2px 2px 6px 2px;   /* dock.py TILE_GROW px less than the toolbox's */
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    transition: background-color 160ms ease-out;
+}
+
+#dock.dock-pos-left button.dock-tile,
+#dock.dock-pos-right button.dock-tile {
+    margin: 2px 0;
+    padding: 2px 6px 2px 2px;
+}
+
+#dock.dock-layout-dock button.dock-tile > box {
+    border-radius: 10px;
+    border: 1px solid @edge;
+    background-color: alpha(@surface, 0.85);
+}
+
+#dock.dock-layout-dock button.dock-tile:hover {
+    background-color: @dock-hover;
+}
+
+.dock-tile-top,
+.dock-tile-bottom {
+    color: @text;
+    font-weight: bold;
+}
+
+/* the time: the digits big, AM / PM small and dim */
+.dock-tile-time .dock-tile-bottom {
+    color: @text-dim;
+    font-weight: normal;
+}
+
+/* the date: the weekday in red over the day, as a desk calendar's leaf */
+.dock-tile-date .dock-tile-top {
+    color: @red;
+    margin-top: 2px;
+}
+
+.dock-tile-date .dock-tile-bottom {
+    color: @text-bright;
+    margin-bottom: 2px;
+}
+
+/* the weather: wttr.py's coloured glyph over the temperature; the Apps
+   button's grid, the key mode's keyboard, the bell, the battery and the
+   media's play / pause are Font Awesome glyphs too */
+.dock-tile-weather .dock-tile-top,
+.dock-tile-apps .dock-tile-top,
+.dock-tile-submap .dock-tile-top,
+.dock-tile-notifications .dock-tile-top,
+.dock-tile-battery .dock-tile-top,
+.dock-tile-media .dock-tile-top {
+    font-family: "Font Awesome 6 Free Solid", "Font Awesome 6 Free", sans-serif;
+    font-weight: 900;
+}
+
+.dock-tile-workspaces .dock-tile-bottom,
+.dock-tile-notifications .dock-tile-bottom,
+.dock-tile-media .dock-tile-bottom,
+.dock-tile-battery .dock-tile-bottom {
+    color: @text-dim;
+}
+
+/* a key mode is on: the tile lit, so the keys doing something else is never
+   a surprise */
+#dock.dock-layout-dock button.dock-tile-submap > box {
+    border-color: @accent;
+    background-color: alpha(@accent, 0.30);
+}
+
+.dock-tile-submap .dock-tile-top,
+.dock-tile-submap .dock-tile-bottom {
+    color: @text-bright;
+}
+
+/* the battery running low, as the bar's pill */
+button.dock-tile-battery.dock-is-warning .dock-tile-top,
+button.dock-tile-battery.dock-is-warning .dock-tile-bottom {
+    color: @yellow;
+}
+
+#dock.dock-layout-dock button.dock-tile-battery.dock-is-critical > box {
+    border-color: @red;
+}
+
+button.dock-tile-battery.dock-is-critical .dock-tile-top,
+button.dock-tile-battery.dock-is-critical .dock-tile-bottom {
+    color: @red;
+}
+
+/* Do Not Disturb: the bell struck through and dim */
+button.dock-tile-notifications.dock-is-dnd .dock-tile-top {
+    color: @text-dim;
+}
+
+/* the sound muted: the struck-out speaker and "Muted", dim */
+button.dock-tile-sound.dock-is-muted .dock-tile-top,
+button.dock-tile-sound.dock-is-muted .dock-tile-bottom {
+    color: @text-dim;
+}
+
+button.dock-tile-media.dock-is-playing .dock-tile-top {
+    color: @cyan;
+}
+
+/* --- an app's unread notifications (dock.py set_badge) -------------------- */
+.dock-badge {
+    min-width: 12px;
+    min-height: 16px;
+    margin: 0;
+    padding: 0 4px;
+    border-radius: 999px;
+    background-color: @red;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: bold;
 }
 
 /* The taskbar's status buttons: the top bar's weather, network and sound
