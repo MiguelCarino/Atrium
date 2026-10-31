@@ -91,7 +91,7 @@ class PageHelpers(unittest.TestCase):
 
     def test_switches_for_everything(self):
         p, _ran = self.build()
-        self.assertEqual(set(p.switches), {"previews", "top_bar"} | {k for k, *_ in self.page.TASKBAR})
+        self.assertEqual(set(p.switches), {"previews", "top_bar", "privacy"} | {k for k, *_ in self.page.TASKBAR})
 
     def test_controls_run_dock_set(self):
         p, ran = self.build()
@@ -103,6 +103,12 @@ class PageHelpers(unittest.TestCase):
         self.assertFalse(p.dock_box.get_sensitive())
         self.assertTrue(p.task_box.get_sensitive())
         self.assertTrue(p.top_bar.get_sensitive())
+        self.assertTrue(p.privacy.get_sensitive())
+        p.show(status(enabled=True))                                # a dock with the bar: the bar has them
+        self.assertFalse(p.privacy.get_sensitive())
+        p.show(status(enabled=True, top_bar=False))
+        self.assertTrue(p.privacy.get_sensitive())
+        p.show(status(enabled=True, layout="taskbar"))
         p.switches["top_bar"].set_state(False)
         p.switches["top_bar"].emit("state-set", False)
         self.assertEqual(ran[-1][1:], ("set", "top_bar", "off"))

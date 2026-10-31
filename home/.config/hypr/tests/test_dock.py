@@ -703,16 +703,22 @@ class TopBarTakeover(unittest.TestCase):
         return dict(D.DEFAULTS, **dict({"enabled": True, "layout": "taskbar"}, **kw))
 
     def test_only_the_taskbar_takes_pills(self):
+        """The dock takes only the keyboard layout (to the toolbox card);
+        off, nothing at all."""
         self.assertEqual(D.bar_takeover(dict(D.DEFAULTS)), [])
-        self.assertEqual(D.bar_takeover(self.cfg(layout="dock")), [])
+        self.assertEqual(D.bar_takeover(self.cfg(layout="dock")), ["hyprland/language"])
         self.assertEqual(D.bar_takeover(self.cfg(enabled=False)), [])
 
     def test_each_setting_takes_its_pills_and_power_always_goes(self):
         self.assertEqual(D.bar_takeover(self.cfg()),
                          ["custom/day", "custom/clock", "custom/menuclock", "custom/weather",
-                          "custom/network", "pulseaudio", "custom/power"])
-        self.assertEqual(D.bar_takeover(self.cfg(clock=False, weather=False, network=False, sound=False)),
-                         ["custom/power"])
+                          "custom/network", "pulseaudio", "ext/workspaces", "custom/notifications",
+                          "battery", "custom/recording", "custom/mic", "custom/camera", "custom/location",
+                          "custom/power", "hyprland/language"])
+        self.assertEqual(D.bar_takeover(self.cfg(clock=False, weather=False, network=False, sound=False,
+                                                 workspaces=False, notifications=False, battery=False,
+                                                 privacy=False)),
+                         ["custom/power", "hyprland/language"])
         self.assertNotIn("pulseaudio", D.bar_takeover(self.cfg(sound=False)))
 
     def test_start_menu_setting(self):
@@ -738,6 +744,67 @@ class TopBarTakeover(unittest.TestCase):
         finally:
             D.dry_env, D.restart_bar = real_dry, real_restart
             D.switch_unit, D.toolbox_refit, D.poke_toolbox_pill = real_switch, real_refit, real_poke
+
+    def test_the_dock_takes_the_privacy_pills_only_with_the_bar_off(self):
+        lang = list(D.CARD_PILLS)
+        self.assertEqual(D.bar_takeover(self.cfg(layout="dock", top_bar=False)), list(D.PRIVACY_PILLS) + lang)
+        self.assertEqual(D.bar_takeover(self.cfg(layout="dock", top_bar=False, privacy=False)), lang)
+        self.assertEqual(D.bar_takeover(self.cfg(layout="dock")), lang)
+
+    def test_status_wanted(self):
+        self.assertEqual(D.status_wanted(dict(D.DEFAULTS)), set())
+        self.assertEqual(D.status_wanted(self.cfg()),
+                         set(D.STATUS_KEYS) | set(D.PRIVACY_KEYS) | {"notifications", "battery"})
+        self.assertEqual(D.status_wanted(self.cfg(privacy=False, battery=False, sound=False)),
+                         {"network", "weather", "notifications"})
+        self.assertEqual(D.status_wanted(self.cfg(layout="dock")), set())
+        self.assertEqual(D.status_wanted(self.cfg(layout="dock", top_bar=False)), set(D.PRIVACY_KEYS))
+        # every pill has its clicks, its setting, and a source
+        for key in D.PILL_SETTING:
+            self.assertIn(key, D.PILL_CLICKS)
+            self.assertTrue(key in D.PILL_WATCH or key in ("notifications", "battery"), key)
+
+    def test_pill_state(self):
+        self.assertEqual(D.pill_state('{"text": "x", "tooltip": "t", "class": "active"}'), ("x", "t", "active"))
+        self.assertEqual(D.pill_state('{"text": "x"}'), ("x", "", ""))
+        self.assertEqual(D.pill_state('{"text": "x", "class": ["a", "b"]}'), ("x", "", ""))
+        self.assertIsNone(D.pill_state("nope"))
+
+    def test_battery_text(self):
+        self.assertEqual(D.battery_text(None, ""), ("", "", ""))
+        self.assertEqual(D.battery_text(100, "Full"), ("\uf240 100%", "Battery 100% · full", "full"))
+        self.assertEqual(D.battery_text(64, "Discharging"), ("\uf241 64%", "Battery 64% · on battery", ""))
+        self.assertEqual(D.battery_text(20, "Discharging")[2], "warning")
+        self.assertEqual(D.battery_text(10, "Discharging")[2], "critical")
+        self.assertEqual(D.battery_text(10, "Charging"),
+                         (f"{D.CHARGING_GLYPH} \uf244 10%", "Battery 10% · charging", "charging"))
+        self.assertEqual(D.battery_text(130, "Unknown")[0], "\uf240 100%")
+
+    def test_read_battery(self):
+        root = tempfile.mkdtemp(dir=helpers.SCRATCH)
+        self.assertEqual(D.read_battery(root), (None, ""))
+        os.makedirs(os.path.join(root, "AC"))
+        os.makedirs(os.path.join(root, "BAT0"))
+        with open(os.path.join(root, "BAT0", "capacity"), "w") as fh:
+            fh.write("57\n")
+        with open(os.path.join(root, "BAT0", "status"), "w") as fh:
+            fh.write("Discharging\n")
+        self.assertEqual(D.read_battery(root), (57, "Discharging"))
+        self.assertEqual(D.read_battery(os.path.join(root, "nope")), (None, ""))
+
+    def test_workspace_buttons(self):
+        """Only the workspace in front: the focused screen's, or one
+        screen's on its own bar; none for a special one or no screen."""
+        mons = [{"name": "eDP-1", "focused": True, "activeWorkspace": {"id": 1, "name": "1"}},
+                {"name": "DP-1", "focused": False, "activeWorkspace": {"id": 3, "name": "code"}}]
+        self.assertEqual(D.workspace_buttons(mons), [(1, "1")])
+        self.assertEqual(D.workspace_buttons(mons, "DP-1"), [(3, "code")])
+        self.assertEqual(D.workspace_buttons(mons, "HDMI-A-1"), [])
+        self.assertEqual(D.workspace_buttons(None), [])
+        special = [{"name": "eDP-1", "focused": True, "activeWorkspace": {"id": -98, "name": "special:x"}}]
+        self.assertEqual(D.workspace_buttons(special), [])
+        self.assertEqual(D.OVERVIEW_ARGV[:2], ["hyprctl", "eval"])
+        self.assertIn("hyprview.toggle", D.OVERVIEW_ARGV[2])
 
     def test_top_bar_off(self):
         """TOP BAR OFF: bar_hidden needs the dock on; switching it off while

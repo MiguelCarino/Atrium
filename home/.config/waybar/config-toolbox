@@ -52,6 +52,9 @@
             "custom/fsstate",
             "custom/nightlight",
             "custom/awake",
+            // The microphone row: shown by bar-settings.py while the top bar is
+            // off (toolbox-config-path); show it here to keep it for good.
+            // hidden: "custom/keybinds#mic",
             "custom/display",
             "custom/keybinds",
             "tray"
@@ -121,17 +124,42 @@
         "on-click-right": "$HOME/.config/waybar/scripts/toolbox_awake.py toggle 60"
     },
 
+    // Microphone: the default input's level, muted or not, lit while an app
+    // listens (scripts/mic_row.py; the bar's mic pill says only "in use").
+    // Left: mute / unmute. Wheel: 5 % louder / quieter. Right: the input
+    // devices in pavucontrol. Event-driven (pactl subscribe), no interval.
+    // Named keybinds#mic on purpose: waybar gives a "module#name" the
+    // module's CSS id (#custom-keybinds) and the name as a class (.mic), so
+    // every theme styles it as the plain row it is -- a new id would get no
+    // row look at all, and the bar's Font Awesome fallback would draw the
+    // word "Microphone" as its ligature, the mic icon.
+    "custom/keybinds#mic": {
+        "exec": "$HOME/.config/waybar/scripts/mic_row.py watch",
+        "return-type": "json",
+        "restart-interval": 5,
+        "format": "{}",
+        "align": 0,
+        "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+        "on-scroll-up": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SOURCE@ 5%+",
+        "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%-",
+        "on-click-right": "$HOME/.config/waybar/scripts/toolbox.sh hide; pavucontrol -t 4"
+    },
+
     // Display: HDR, screen filter, animation preset, wallpaper theme -- the
     // display panel (scripts/display_panel.py), same as SUPER+ALT+D. Lit
     // while a screen filter is on. Right: filter on/off (= SUPER+SHIFT+F).
     // ~/.config/hypr/scripts/display.py signals 13 after every change.
+    // The word has a zero-width non-joiner between its letters: "display"
+    // (and "play") are Font Awesome icon names, and in a theme whose font
+    // stack reaches Font Awesome first its ligature drew the word as the
+    // icon (scripts/mic_row.py has the same for "Microphone").
     "custom/display": {
         "tooltip": false,
         "exec": "$HOME/.config/hypr/scripts/display.py bar",
         "return-type": "json",
         "interval": "once",
         "signal": 13,
-        "format": "{}   Display",
+        "format": "{}   D\u200ci\u200cs\u200cp\u200cl\u200ca\u200cy",
         "align": 0,
         "on-click": "$HOME/.config/waybar/scripts/toolbox.sh hide; $HOME/.config/waybar/scripts/panel.py toggle display",
         "on-click-right": "$HOME/.config/hypr/scripts/display.py filter toggle"

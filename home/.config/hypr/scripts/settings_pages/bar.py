@@ -161,7 +161,8 @@ class Page:
         # file each time, since a move changes their order.
         self.lists = {}
         for key in (*SIDE_TEXT, "card"):
-            title, sub = SIDE_TEXT.get(key, ("TOOLBOX", "the card the toolbox button opens, top to bottom"))
+            title, sub = SIDE_TEXT.get(key, ("TOOLBOX", "the card the toolbox button opens: in this order, two to a line "
+                                                    "(the tray a line of its own)"))
             w.pack_start(heading(title), False, False, 0)
             hint = dp.label(sub, "ctl-sub")
             hint.set_line_wrap(True)

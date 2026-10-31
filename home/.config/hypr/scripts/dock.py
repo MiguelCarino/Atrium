@@ -2,10 +2,11 @@
 """Dock and taskbar: one engine, two layouts. "dock" is a floating card of
 app icons at the bottom (or the left / right) of the screen, macOS-like;
 "taskbar" is a full-width strip along the bottom, Windows-like: a start
-button that opens the launcher (or a classic start menu), a button per app
-(or per window) with its icon and title, the system tray, the weather, the
-network, the sound and a clock. Both show the pinned apps and
-every app that runs, grouped by app.
+button that opens the launcher (or a classic start menu), the workspace in
+front, a button per app (or per window) with its icon and title, what is using the
+camera, the microphone, the location or the screen, the system tray, the
+weather, the network, the sound, the battery, a clock and the notifications.
+Both show the pinned apps and every app that runs, grouped by app.
 
     dock.py daemon                 run it (dock.service); exits at once when
                                    it is switched off
@@ -41,6 +42,15 @@ Settings > Bar & toolbox > Dock & taskbar):
     network     the taskbar: the network, network.py's pill (true)
     sound       the taskbar: the volume; scroll for louder / quieter,
                 right-click mutes (true)
+    workspaces  the taskbar: the workspace in front, after the start button
+                (the bar's ext/workspaces); click: the window overview (true)
+    notifications
+                the taskbar: the bell, right of the clock; click the
+                notifications panel, right-click Do Not Disturb (true)
+    battery     the taskbar: the charge, while there is a battery (true)
+    privacy     the taskbar, and the dock with top_bar off: what records the
+                screen or uses the microphone, the camera or the location,
+                only while something does (true; PILLS below)
     start_menu  the taskbar's start button: "launcher" (launcher.py, with a
                 Power button at its foot while the taskbar runs) or
                 "classic" (a cascading menu: the pinned apps, Programs by
@@ -98,8 +108,14 @@ these settings. Pinned apps are dragged to reorder too.
 
 TOP BAR: what the taskbar shows leaves the top bar while it runs -- the date
 and time (custom/day, custom/clock, custom/menuclock) with clock on, the
-weather, the network, the sound (pulseaudio) with theirs, and the power pill
-always, its menu being the start button's now (bar_takeover). waybar has no
+weather, the network, the sound (pulseaudio), the workspaces, the
+notifications, the battery and the privacy pills (custom/recording, mic,
+camera, location) with theirs, the power pill always, its menu being the
+start button's now, and the keyboard layout (CARD_PILLS) always -- that one
+into the toolbox card instead (bar-settings.py toolbox-config-path)
+(bar_takeover). The dock takes the keyboard layout too, and the privacy
+pills only with the top bar off (TOP BAR OFF), so they are never in the
+closed toolbox card. waybar has no
 way to hide a built-in module from outside, so the bar starts from another
 config instead: its service runs waybar-main.sh, which asks bar-settings.py
 config-path -- ~/.config/waybar/config itself, or generated/config-taskbar,
@@ -107,7 +123,19 @@ that file with those pills hidden. `dock.py set` restarts the bar when what
 is taken over changes (switched on or off, the layout, one of those four).
 The taskbar's buttons run the same scripts: network.py watch and `pactl
 subscribe` (then `wpctl get-volume`) as long-lived watchers, started again
-if they end; wttr.py every 30 min, sooner after a stale answer. A click
+if they end; wttr.py every 30 min, sooner after a stale answer.
+
+PILLS: the other buttons run the bar's scripts too, the same way: recording.py
+watch and privacy.py watch mic|camera|location as watchers (each hidden while
+its text is empty, as on the bar), notifications.py every NOTIFY_S and at
+once on SIGUSR2 -- bar_signals.py poke("notifications") sends it here as
+well, as waybar's pill had signal 14 -- and the battery from
+/sys/class/power_supply every BATTERY_S (battery_text). The pill's JSON
+"class" becomes a dock-is-<class> style class (dock.css: REC red, a mic in
+use magenta ...). The workspace comes from the same Hyprland reads as the
+windows (workspace_buttons): the focused screen's on the main bar, a
+screen's own on its bar ("all"); a click toggles hyprview's window overview,
+SUPER+D's (OVERVIEW_ARGV). A click
 opens the bar's panel, which rises from the bottom when the click was in the
 lower half of the screen (panelui.py). If the daemon is down while it is on,
 those pills are on neither bar until it is back (dock.service restarts it).
@@ -245,6 +273,7 @@ PID_FILE = os.path.join(RUNTIME, "dock.pid")
 DEFAULTS = {"enabled": False, "layout": "dock", "position": "bottom", "autohide": "never",
             "icon_size": 48, "monitors": "main", "combine": True, "labels": True, "tray": True,
             "clock": True, "weather": True, "network": True, "sound": True, "previews": True,
+            "workspaces": True, "notifications": True, "battery": True, "privacy": True,
             "magnify": "theme", "start_menu": "launcher", "top_bar": True, "pinned": None}
 CHOICES = {"layout": ("dock", "taskbar"), "position": ("bottom", "left", "right"),
            "autohide": ("never", "overlap", "always"), "monitors": ("main", "all"),
@@ -255,7 +284,15 @@ TAKEOVER = (("clock", ("custom/day", "custom/clock", "custom/menuclock")),
             ("weather", ("custom/weather",)),
             ("network", ("custom/network",)),
             ("sound", ("pulseaudio",)),
+            ("workspaces", ("ext/workspaces",)),
+            ("notifications", ("custom/notifications",)),
+            ("battery", ("battery",)),
+            ("privacy", ("custom/recording", "custom/mic", "custom/camera", "custom/location")),
             (None, ("custom/power",)))
+PRIVACY_PILLS = dict(TAKEOVER)["privacy"]
+# The bar's pills that go to the toolbox card whenever this runs, either
+# layout (bar-settings.py toolbox-config-path puts them there).
+CARD_PILLS = ("hyprland/language",)
 BAR_RESTART = os.path.expanduser("~/.config/waybar/scripts/bar-restart.sh")
 BOOL_KEYS = tuple(k for k, v in DEFAULTS.items() if isinstance(v, bool))
 ICON_MIN, ICON_MAX = 24, 96
@@ -280,6 +317,41 @@ WEATHER_S = 1800              # the top bar's weather interval: wttr.in turns aw
 WEATHER_RETRY_S = 300         # after a stale answer (no network yet at login, say)
 STATUS_RESTART_S = 5          # a watcher that died (network.py, pactl) starts again after
 VOLUME_STEP = "5%"
+NOTIFY_S = 30                 # the bar's notifications interval; SIGUSR2 is the signal
+BATTERY_S = 30                # the bar's battery interval
+POWER_SUPPLY = "/sys/class/power_supply"
+WAYBAR_SCRIPTS = os.path.expanduser("~/.config/waybar/scripts")
+RECORDING_PY = os.path.join(WAYBAR_SCRIPTS, "recording.py")
+PRIVACY_PY = os.path.join(WAYBAR_SCRIPTS, "privacy.py")
+NOTIFICATIONS_PY = os.path.join(WAYBAR_SCRIPTS, "notifications.py")
+RECORD_SH = os.path.join(HERE, "record.sh")
+# The pills beyond the three below (PILLS in the module docstring), in the
+# order they stand, left to right: the privacy cluster (before the tray),
+# the battery (after the sound), the notifications (after the clock). The
+# setting that shows each; the watchers' argv; what each mouse button runs.
+PRIVACY_KEYS = ("recording", "mic", "camera", "location")
+PILL_SETTING = {"recording": "privacy", "mic": "privacy", "camera": "privacy", "location": "privacy",
+                "battery": "battery", "notifications": "notifications"}
+PILL_WATCH = {"recording": [RECORDING_PY, "watch"], "mic": [PRIVACY_PY, "watch", "mic"],
+              "camera": [PRIVACY_PY, "watch", "camera"], "location": [PRIVACY_PY, "watch", "location"]}
+
+
+def in_terminal(cmd):
+    return ["kitty", "-e", "sh", "-c", f"{cmd}; echo; printf 'press enter '; read x"]
+
+
+# The bar's on-click / on-click-right / on-click-middle for each, as argv.
+PILL_CLICKS = {
+    "recording": {1: [RECORD_SH, "click"], 3: [RECORD_SH, "stop-replay"]},
+    "mic": {1: [PRIVACY_PY, "mic", "focus"], 3: ["pavucontrol", "-t", "2"],
+            2: ["wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"]},
+    "camera": {1: [PRIVACY_PY, "camera", "focus"], 3: in_terminal(f"{PRIVACY_PY} camera list")},
+    "location": {1: in_terminal(f"{PRIVACY_PY} location list")},
+    "notifications": {1: [sys.executable, PANEL, "toggle", "notifications"], 3: [NOTIFICATIONS_PY, "dnd"]},
+    "battery": {},
+}
+BATTERY_GLYPHS = ("\uf244", "\uf243", "\uf242", "\uf241", "\uf240")   # Font Awesome empty .. full
+CHARGING_GLYPH = "\uf0e7"
 # The taskbar's status buttons, right to left after the toolbox: the panel a
 # click opens, and the top bar's matching pill (TAKEOVER).
 STATUS_KEYS = ("sound", "network", "weather")
@@ -348,7 +420,7 @@ TASKBAR_PAD = 10              # room above the taskbar for its shadow / glow
 FX_STATS = 4000               # frame timings kept for the harness
 DOCK_EVENTS = ("openwindow", "closewindow", "activewindowv2", "movewindowv2", "windowtitlev2",
                "workspacev2", "focusedmonv2", "fullscreen", "urgent", "changefloatingmode",
-               "activespecial", "monitoraddedv2", "monitorremoved")
+               "activespecial", "monitoraddedv2", "monitorremoved", "renameworkspace")
 WANTED_EVENTS = frozenset(n.encode() for n in DOCK_EVENTS)
 
 # StatusNotifierItem / dbusmenu
@@ -432,10 +504,14 @@ def write_settings(d):
 
 def bar_takeover(cfg):
     """The top bar's pills to leave out while this runs as the taskbar, in
-    TAKEOVER's order; [] for the dock, or when it is off."""
-    if not cfg.get("enabled") or cfg.get("layout") != "taskbar":
+    TAKEOVER's order, then CARD_PILLS (the toolbox card's); for the dock the
+    privacy pills only with the top bar off (the dock shows them then), and
+    CARD_PILLS; [] when it is off."""
+    if not cfg.get("enabled"):
         return []
-    return [name for key, names in TAKEOVER if key is None or cfg.get(key) for name in names]
+    if cfg.get("layout") != "taskbar":
+        return (list(PRIVACY_PILLS) if bar_hidden(cfg) and cfg.get("privacy") else []) + list(CARD_PILLS)
+    return [name for key, names in TAKEOVER if key is None or cfg.get(key) for name in names] + list(CARD_PILLS)
 
 
 def bar_hidden(cfg):
@@ -1031,6 +1107,85 @@ def volume_text(out):
         return MUTED_GLYPH, f"Muted ({pct}%)"
     glyph = VOLUME_GLYPHS[0 if pct == 0 else 1 if pct < 50 else 2]
     return f"{glyph} {pct}%", f"Volume {pct}%"
+
+
+def pill_state(line):
+    """pill_text's (markup, tooltip) and the pill's JSON "class" ("" without
+    one): the PILLS' lines, whose class says how to colour them."""
+    got = pill_text(line)
+    if got is None:
+        return None
+    cls_ = json.loads(line).get("class")
+    return got + (cls_ if isinstance(cls_, str) else "",)
+
+
+def battery_text(capacity, status):
+    """A battery's sysfs capacity (0-100, None: no battery) and status
+    ("Charging", "Discharging", "Full", ...) -> (text, tooltip, class), as
+    the bar's battery module shows it: warning at 25 %, critical at 12 %
+    while it runs down; ("", "", "") without a battery."""
+    if capacity is None:
+        return "", "", ""
+    pct = max(0, min(100, int(capacity)))
+    glyph = BATTERY_GLYPHS[min(4, (pct + 12) // 25)]
+    charging = status in ("Charging", "Full", "Not charging")
+    if status == "Charging":
+        glyph = f"{CHARGING_GLYPH} {glyph}"
+    state = ("charging" if status == "Charging" else "full" if charging
+             else "critical" if pct <= 12 else "warning" if pct <= 25 else "")
+    words = {"Charging": "charging", "Full": "full", "Not charging": "plugged in"}.get(status, "on battery")
+    return f"{glyph} {pct}%", f"Battery {pct}% · {words}", state
+
+
+def read_battery(root=POWER_SUPPLY):
+    """(capacity, status) of the first battery under root, (None, "") with none."""
+    try:
+        names = sorted(n for n in os.listdir(root) if n.startswith("BAT"))
+    except OSError:
+        names = []
+    for name in names:
+        try:
+            with open(os.path.join(root, name, "capacity")) as fh:
+                cap = int(fh.read().strip())
+        except (OSError, ValueError):
+            continue
+        try:
+            with open(os.path.join(root, name, "status")) as fh:
+                status = fh.read().strip()
+        except OSError:
+            status = ""
+        return cap, status
+    return None, ""
+
+
+def status_wanted(cfg):
+    """The status buttons this runs, STATUS_KEYS' and the PILLS': the
+    taskbar's by their settings; the dock's only the privacy ones, with the
+    top bar off (bar_takeover)."""
+    if not cfg.get("enabled"):
+        return set()
+    if cfg.get("layout") != "taskbar":
+        return set(PRIVACY_KEYS) if bar_hidden(cfg) and cfg.get("privacy") else set()
+    return {k for k in STATUS_KEYS if cfg.get(k)} | {k for k, setting in PILL_SETTING.items() if cfg.get(setting)}
+
+
+def workspace_buttons(monitors, monitor=None):
+    """[(id, name)] for the taskbar's workspace button: the one in front --
+    on the focused screen, or with monitor on that screen -- or [] when
+    there is none to say (no such screen, a special workspace in front)."""
+    for m in monitors or []:
+        if (m.get("name") == monitor) if monitor is not None else m.get("focused"):
+            ws = m.get("activeWorkspace") or {}
+            wid = ws.get("id")
+            if isinstance(wid, int) and not isinstance(wid, bool) and wid >= 1:
+                return [(wid, str(ws.get("name") or wid))]
+            return []
+    return []
+
+
+# The workspace button's click: hyprview's window overview, as SUPER+D
+# (lua/overview.lua); nothing when the plugin is not loaded.
+OVERVIEW_ARGV = ["hyprctl", "eval", "if hl.plugin.hyprview then hl.plugin.hyprview.toggle('') end"]
 
 
 def pill_text(line):
@@ -1935,8 +2090,10 @@ def daemon():
             self.sep = Gtk.Box()
             cls(self.sep, "dock-sep")
             self.sep.set_no_show_all(True)
-            self.tray_box = self.clock = self.start = self.toolbox = None
-            self.status = {}             # STATUS_KEYS -> (button, label), the taskbar's
+            self.tray_box = self.clock = self.start = self.toolbox = self.ws_box = None
+            self.status = {}             # STATUS_KEYS and the PILLS -> (button, label)
+            self.ws_key = None           # the workspace buttons drawn last (update_workspaces)
+            wanted = status_wanted(self.engine.cfg)
             if self.layout == "taskbar":
                 self.start = Gtk.Button()
                 self.start.set_relief(Gtk.ReliefStyle.NONE)
@@ -1954,7 +2111,13 @@ def daemon():
                 self.start.set_tooltip_text("Start")
                 self.start.connect("clicked", lambda b: self.engine.open_start(b))
                 self.frame.pack_start(self.start, False, False, 0)
+                if self.engine.cfg["workspaces"]:
+                    self.ws_box = Gtk.Box(spacing=0)
+                    cls(self.ws_box, "dock-workspaces")
+                    self.frame.pack_start(self.ws_box, False, False, 0)
                 self.frame.pack_start(self.items, True, True, 0)
+                if "notifications" in wanted:   # the far right, after the clock
+                    self.frame.pack_end(self.make_status("notifications"), False, False, 0)
                 if self.engine.cfg["clock"]:
                     self.clock = Gtk.Button()
                     self.clock.set_relief(Gtk.ReliefStyle.NONE)
@@ -1972,13 +2135,15 @@ def daemon():
                     self.frame.pack_end(self.clock, False, False, 0)
                 if self.main:       # between the tray and the clock (packed from the end)
                     self.frame.pack_end(self.make_toolbox(), False, False, 0)
-                for key in STATUS_KEYS:     # then sound, network, weather, leftwards
-                    if self.engine.cfg[key]:
+                for key in ("battery",) + STATUS_KEYS:     # then battery, sound, network, weather, leftwards
+                    if key in wanted:
                         self.frame.pack_end(self.make_status(key), False, False, 0)
                 if self.engine.cfg["tray"] and self.main:
                     self.tray_box = Gtk.Box(spacing=0)
                     cls(self.tray_box, "dock-tray")
                     self.frame.pack_end(self.tray_box, False, False, 0)
+                if wanted & set(PRIVACY_KEYS):      # what is in use, left of the tray
+                    self.frame.pack_end(self.make_privacy(), False, False, 0)
                 self.restyle_start()
             else:
                 self.frame.pack_start(self.items, False, False, 0)
@@ -1991,6 +2156,10 @@ def daemon():
                     self.items.pack_start(line, False, False, 0)
                     self.items.pack_start(self.make_toolbox(), False, False, 0)
                     self.toolbox.add_events(Gdk.EventMask.POINTER_MOTION_MASK)
+                if self.main and wanted & set(PRIVACY_KEYS):
+                    # With the top bar off: what is in use, after the card's
+                    # items -- outside them, so the effects leave it be.
+                    self.frame.pack_start(self.make_privacy(), False, False, 0)
             self.items.pack_start(self.sep, False, False, 0)
             self.frame.show_all()
 
@@ -2024,16 +2193,27 @@ def daemon():
             cls(label, "dock-status-text")
             btn.add(label)
             btn.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
-            btn.connect("clicked", lambda *_: spawn(sys.executable, PANEL, "toggle", STATUS_PANELS[key]))
-            btn.connect("button-press-event", lambda _b, ev: self.engine.status_click(key, ev))
-            btn.connect("scroll-event", lambda _b, ev: self.engine.status_scroll(key, ev))
+            if key in PILL_CLICKS:
+                btn.connect("button-press-event", lambda _b, ev: self.engine.pill_click(key, ev))
+            else:
+                btn.connect("clicked", lambda *_: spawn(sys.executable, PANEL, "toggle", STATUS_PANELS[key]))
+                btn.connect("button-press-event", lambda _b, ev: self.engine.status_click(key, ev))
+                btn.connect("scroll-event", lambda _b, ev: self.engine.status_scroll(key, ev))
             btn.set_no_show_all(True)
             self.status[key] = (btn, label)
-            text, tip = self.engine.status_text.get(key) or ("", "")
-            self.set_status(key, text, tip)
+            self.set_status(key, *(self.engine.status_text.get(key) or ("", "")))
             return btn
 
-        def set_status(self, key, text, tip):
+        def make_privacy(self):
+            """The privacy cluster (PILLS): recording, mic, camera, location,
+            each shown only while in use."""
+            box = Gtk.Box(spacing=0)
+            cls(box, "dock-privacy")
+            for key in PRIVACY_KEYS:
+                box.pack_start(self.make_status(key), False, False, 0)
+            return box
+
+        def set_status(self, key, text, tip, state=""):
             if key not in self.status:
                 return
             btn, label = self.status[key]
@@ -2041,6 +2221,30 @@ def daemon():
             btn.set_tooltip_text(tip or None)
             btn.set_visible(bool(text))
             label.set_visible(bool(text))
+            ctx = btn.get_style_context()
+            for name in ctx.list_classes():
+                if name.startswith("dock-is-"):
+                    ctx.remove_class(name)
+            if state and re.match(r"^[A-Za-z0-9_-]+$", state):
+                ctx.add_class(f"dock-is-{state}")
+
+        def update_workspaces(self, buttons):
+            """The workspace button (workspace_buttons), rebuilt only when it
+            changes."""
+            if self.ws_box is None or buttons == self.ws_key:
+                return
+            self.ws_key = buttons
+            for child in self.ws_box.get_children():
+                child.destroy()
+            for _wid, name in buttons:
+                b = Gtk.Button(label=name)
+                b.set_relief(Gtk.ReliefStyle.NONE)
+                b.set_can_focus(False)
+                cls(b, "dock-ws")
+                b.set_tooltip_text(f"Workspace {name} -- click: every window (Super+D)")
+                b.connect("clicked", lambda *_: spawn(*OVERVIEW_ARGV))
+                self.ws_box.pack_start(b, False, False, 0)
+            self.ws_box.show_all()
 
         def size_toolbox(self):
             if self.toolbox is None or self.layout != "dock":
@@ -3157,6 +3361,8 @@ def daemon():
                 bar.update(build_items(self.cfg["pinned"], self.clients, self.index, self.by_id, self.order,
                                        monitor_id=mon_id, combine=combine, active=self.active,
                                        urgent=self.urgent, launching=self.launching))
+                bar.update_workspaces(workspace_buttons(
+                    self.monitors, name if self.cfg["monitors"] == "all" else None))
 
         # autohide
         def autohide_all(self):
@@ -3410,9 +3616,7 @@ def daemon():
 
         # the status buttons (TOP BAR in the module docstring)
         def status_wanted(self):
-            if self.cfg["layout"] != "taskbar":
-                return set()
-            return {k for k in STATUS_KEYS if self.cfg[k]}
+            return status_wanted(self.cfg)
 
         def status_sources(self):
             """Start what the taskbar's status buttons need and stop the rest;
@@ -3432,6 +3636,14 @@ def daemon():
                 self.read_volume()
             if "weather" in want and not self.ids.get("weather") and not self.status_text.get("weather"):
                 self.fetch_weather()
+            for key, argv in PILL_WATCH.items():
+                if key in want and key not in self.status_procs:
+                    self.watch_lines(key, argv, lambda line, k=key: self.set_status(k, pill_state(line)))
+            for key, fetch in (("notifications", self.fetch_notifications), ("battery", self.read_battery)):
+                if key not in want:
+                    self.cancel(key)
+                elif not self.ids.get(key):
+                    fetch()
 
         def watch_lines(self, key, argv, on_line):
             """argv's output, a line at a time, to on_line; started again
@@ -3511,6 +3723,37 @@ def daemon():
                         WEATHER_RETRY_S if stale else WEATHER_S, self.fetch_weather)
             self.run_text([WTTR_PY], done)
             return False
+
+        def fetch_notifications(self):
+            """notifications.py, as the bar's pill ran it: every NOTIFY_S,
+            and at once on SIGUSR2 (poll_now)."""
+            self.ids["notifications"] = None
+            self.run_text([NOTIFICATIONS_PY], lambda out: self.set_status(
+                "notifications", pill_state((out.strip().splitlines() or [""])[-1])))
+            if "notifications" in self.status_wanted():
+                self.ids["notifications"] = GLib.timeout_add_seconds(NOTIFY_S, self.fetch_notifications)
+            return False
+
+        def read_battery(self):
+            self.ids["battery"] = None
+            self.set_status("battery", battery_text(*read_battery()))
+            if "battery" in self.status_wanted():
+                self.ids["battery"] = GLib.timeout_add_seconds(BATTERY_S, self.read_battery)
+            return False
+
+        def poll_now(self):
+            """SIGUSR2 (bar_signals.py poke): the notifications' count again."""
+            if "notifications" in self.status_wanted():
+                self.cancel("notifications")
+                self.fetch_notifications()
+
+        def pill_click(self, key, event):
+            if event.type != Gdk.EventType.BUTTON_PRESS:
+                return True         # a double click's second press: one click is one run
+            argv = PILL_CLICKS.get(key, {}).get(event.button)
+            if argv:
+                spawn(*argv)
+            return True
 
         def status_click(self, key, event):
             if event.button != 3:
@@ -3645,7 +3888,7 @@ def daemon():
                 return
             old, self.cfg = self.cfg, new
             shape = ("layout", "position", "autohide", "monitors", "tray", "clock", "weather", "network",
-                     "sound", "magnify")
+                     "sound", "magnify", "workspaces", "notifications", "battery", "privacy", "top_bar")
             if any(old[k] != new[k] for k in shape):
                 self.rebuild()
                 return
@@ -3830,6 +4073,7 @@ def daemon():
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal_add(GLib.PRIORITY_DEFAULT, sig, lambda: (Gtk.main_quit(), False)[1])
     signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR1, lambda: (engine.reload_settings(), True)[1])
+    signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR2, lambda: (engine.poll_now(), True)[1])
     # dock.service's WatchdogSec: a ping from the main loop, so a dock that
     # hangs is restarted.
     try:

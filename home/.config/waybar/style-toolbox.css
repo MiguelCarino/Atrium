@@ -17,17 +17,24 @@
     box-shadow: none;
 }
 
-/* Rows: full width, small gap, no per-pill right margin from the bar. */
+/* Tiles: two to a line (bar-settings.py grid_variant: group/grid-N), a gap
+   of 6 px between them and under them, no per-pill right margin from the
+   bar. Every tile as wide as the widest label of the usual ones, so the two
+   columns line up. The tray has a line of its own, full width. */
 #custom-fsstate,
 #custom-nightlight,
 #custom-awake,
 #custom-display,
 #custom-keybinds,
-#custom-settings,
+#custom-settings {
+    margin: 0 3px 6px 3px;
+    padding: 4px 12px;
+    min-width: 136px;
+}
+
 #tray {
-    margin: 0 0 6px 0;
+    margin: 0 3px 6px 3px;
     padding: 4px 14px;
-    min-width: 150px;
 }
 
 /* With the top bar off (hypr/scripts/dock.py, TOP BAR OFF) the card opens
@@ -35,7 +42,7 @@
    pill styled as on the bar. */
 #status-now,
 #status-more {
-    margin: 0 0 6px 0;
+    margin: 0 3px 6px 3px;
 }
 
 #tray {
@@ -55,4 +62,15 @@
 #custom-fsstate.none,
 #custom-nightlight.off {
     color: @text;
+}
+
+/* The Microphone row (scripts/mic_row.py): magenta while an app listens, as
+   the bar's mic pill; muted or missing, dim. After the theme on purpose. */
+#custom-keybinds.mic.listening {
+    color: @magenta;
+}
+
+#custom-keybinds.mic.muted,
+#custom-keybinds.mic.none {
+    color: @text-dim;
 }

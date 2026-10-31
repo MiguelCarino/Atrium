@@ -230,8 +230,10 @@ class ToolboxVariant(unittest.TestCase):
             bs.toolbox_variant(TOOLBOX, BAR, skip=set())
 
     def test_toolbox_config_path(self):
-        with mock.patch.object(bs, "bar_wanted", lambda: True):
-            self.assertEqual(bs.toolbox_config_path(), bs.TOOLBOX)
+        with mock.patch.object(bs, "bar_wanted", lambda: True), \
+                mock.patch.object(bs, "taken_by_taskbar", lambda: []), \
+                mock.patch.object(bs, "GRID_TOOLBOX", os.path.join(helpers.SCRATCH, "tb-grid0")):
+            self.assertEqual(bs.toolbox_config_path(), bs.GRID_TOOLBOX)
         with mock.patch.object(bs, "bar_wanted", lambda: False), \
                 mock.patch.object(bs, "taken_by_taskbar", lambda: []), \
                 mock.patch.object(bs, "read", lambda p: NAMED_TOOLBOX if p == bs.TOOLBOX else BAR), \
@@ -246,6 +248,124 @@ class ToolboxVariant(unittest.TestCase):
                 mock.patch.object(bs, "taken_by_taskbar", lambda: []), \
                 mock.patch.object(bs, "read", lambda p: TOOLBOX if p == bs.TOOLBOX else BAR):   # no "name"
             self.assertEqual(bs.toolbox_config_path(), bs.TOOLBOX)
+
+
+LANG_BAR = BAR.replace('"ext/workspaces",', '"ext/workspaces",\n        "hyprland/language",', 1)
+MIC_TOOLBOX = NAMED_TOOLBOX.replace('"custom/awake",', '"custom/awake",\n            // hidden: "custom/keybinds#mic",', 1)
+
+
+class DockCard(unittest.TestCase):
+    """The card while the dock or taskbar runs: the keyboard layout always
+    (dock.py CARD_PILLS), the Microphone row with the top bar off."""
+    def test_only_limits_what_is_added(self):
+        new = bs.toolbox_variant(NAMED_TOOLBOX, LANG_BAR, skip=set(), only={"hyprland/language"})
+        card = bs.parse(new)
+        self.assertEqual(card["group/card"]["modules"][0], "group/status-now")
+        self.assertEqual(card["group/status-now"]["modules"], ["hyprland/language"])
+        self.assertNotIn("group/status-more", card)
+
+    def test_mic_row_is_shown(self):
+        self.assertNotIn("custom/keybinds#mic", bs.parse(MIC_TOOLBOX)["group/card"]["modules"])
+        shown = bs.show_mic_row(MIC_TOOLBOX)
+        self.assertIn("custom/keybinds#mic", bs.parse(shown)["group/card"]["modules"])
+        self.assertEqual(bs.show_mic_row(NAMED_TOOLBOX), NAMED_TOOLBOX)      # no row: as it is
+
+    def paths(self, wanted, taken, card=("hyprland/language",)):
+        out = {}
+        with mock.patch.object(bs, "bar_wanted", lambda: wanted), \
+                mock.patch.object(bs, "taken_by_taskbar", lambda: list(taken)), \
+                mock.patch.object(bs, "card_pills", lambda: card), \
+                mock.patch.object(bs, "read", lambda p: MIC_TOOLBOX if p == bs.TOOLBOX else LANG_BAR), \
+                mock.patch.object(bs, "NOBAR_TOOLBOX", os.path.join(helpers.SCRATCH, "tb-nobar")), \
+                mock.patch.object(bs, "DOCK_TOOLBOX", os.path.join(helpers.SCRATCH, "tb-dock")), \
+                mock.patch.object(bs, "GRID_TOOLBOX", os.path.join(helpers.SCRATCH, "tb-grid")):
+            path = bs.toolbox_config_path()
+            if path != bs.TOOLBOX:
+                with open(path) as handle:
+                    out = bs.parse(handle.read())
+            return os.path.basename(path), out
+
+    def test_toolbox_config_path_by_case(self):
+        name, card = self.paths(True, [])                                       # no dock: the grid alone
+        self.assertEqual(name, "tb-grid")
+        self.assertNotIn("group/status-now", card)
+        name, card = self.paths(True, ["hyprland/language", "custom/power"])     # dock, bar on
+        self.assertEqual(name, "tb-dock")
+        self.assertEqual(card["group/status-now"]["modules"], ["hyprland/language"])
+        self.assertNotIn("custom/keybinds#mic", card["group/card"]["modules"])
+        name, card = self.paths(False, ["hyprland/language", "custom/power"])    # bar off
+        self.assertEqual(name, "tb-nobar")
+        self.assertIn("hyprland/language", card["group/status-now"]["modules"])
+        self.assertIn("custom/keybinds#mic", card["group/card"]["modules"])
+        self.assertNotIn("custom/power", card["group/status-more"]["modules"])  # the taskbar has it
+
+
+class Grid(unittest.TestCase):
+    """grid_variant: the card's plain rows two to a line; groups and the tray
+    a line of their own; hidden rows gone; an odd one out stays alone."""
+    def test_pairs_in_order(self):
+        text = NAMED_TOOLBOX.replace('"custom/awake",', '"custom/awake",\n            "custom/display",', 1)
+        card = bs.parse(bs.grid_variant(text))
+        self.assertEqual(card["group/card"]["modules"], ["group/grid-1", "custom/display", "tray"])
+        self.assertEqual(card["group/grid-1"], {"orientation": "horizontal",
+                                                "modules": ["custom/settings", "custom/awake"]})
+        self.assertEqual(card["tray"], bs.parse(text)["tray"])
+
+    def test_groups_cut_the_runs_and_hidden_rows_go(self):
+        text = bs.toolbox_variant(MIC_TOOLBOX, LANG_BAR, skip=set(), only={"hyprland/language"})
+        card = bs.parse(bs.grid_variant(text))
+        self.assertEqual(card["group/card"]["modules"], ["group/status-now", "group/grid-1", "tray"])
+        self.assertEqual(card["group/grid-1"]["modules"], ["custom/settings", "custom/awake"])  # mic hidden
+        shown = bs.parse(bs.grid_variant(bs.show_mic_row(MIC_TOOLBOX)))
+        self.assertEqual(shown["group/card"]["modules"], ["group/grid-1", "custom/keybinds#mic", "tray"])
+
+    def test_nothing_to_pair(self):
+        one = NAMED_TOOLBOX.replace('            "custom/awake",\n', "", 1)
+        self.assertEqual(bs.grid_variant(one), one)
+
+    def test_plain_toolbox_is_a_grid_too(self):
+        with mock.patch.object(bs, "bar_wanted", lambda: True), \
+                mock.patch.object(bs, "taken_by_taskbar", lambda: []), \
+                mock.patch.object(bs, "read", lambda p: NAMED_TOOLBOX if p == bs.TOOLBOX else BAR), \
+                mock.patch.object(bs, "GRID_TOOLBOX", os.path.join(helpers.SCRATCH, "tb-grid")):
+            path = bs.toolbox_config_path()
+            self.assertEqual(path, bs.GRID_TOOLBOX)
+            with open(path) as handle:
+                self.assertIn("group/grid-1", bs.parse(handle.read())["group/card"]["modules"])
+
+
+class MicRow(unittest.TestCase):
+    """scripts/mic_row.py: the card's Microphone row."""
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, WAYBAR_SCRIPTS)
+        cls.m = load(os.path.join(WAYBAR_SCRIPTS, "mic_row.py"), "mic_row")
+
+    def test_level(self):
+        self.assertEqual(self.m.level("Volume: 0.45\n"), (45, False))
+        self.assertEqual(self.m.level("Volume: 1.00 [MUTED]"), (100, True))
+        self.assertIsNone(self.m.level(""))
+
+    def test_row(self):
+        self.assertEqual(self.m.row((45, False), [])["class"], "on")
+        self.assertIn("45%", self.m.row((45, False), [])["text"])
+        busy = self.m.row((45, False), [{"app": "Firefox"}, {"app": "Firefox"}, {"app": "OBS"}])
+        self.assertEqual(busy["class"], "listening")
+        self.assertIn("in use: Firefox, OBS", busy["tooltip"])
+        self.assertEqual(self.m.row((45, True), [{"app": "x"}])["class"], "muted")
+        self.assertEqual(self.m.row(None, [])["class"], "none")
+        # Font Awesome ligatures ("microphone", "phone") never see the word whole.
+        text = self.m.row((45, False), [])["text"]
+        self.assertNotIn("phone", text)
+        self.assertIn("Microphone 45%", text.replace("\u200c", ""))
+
+    def test_card_row_and_config(self):
+        self.assertIn("custom/keybinds#mic", bs.MODULES)
+        with open(bs.TOOLBOX) as handle:
+            toolbox = handle.read()
+        card = dict((it["name"], it["shown"]) for it in bs.lists_of(toolbox, True)["card"])
+        self.assertIs(card.get("custom/keybinds#mic"), False)          # hidden as shipped
+        self.assertIn("mic_row.py watch", bs.parse(toolbox)["custom/keybinds#mic"]["exec"])
 
 
 class Wanted(unittest.TestCase):

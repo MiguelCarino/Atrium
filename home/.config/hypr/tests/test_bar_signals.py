@@ -18,6 +18,7 @@ import struct
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from datetime import date
 
 import helpers
@@ -133,6 +134,30 @@ class Poke(unittest.TestCase):
         sent = []
         bs.poke("phone", "nightlight", proc=self.proc, kill=lambda pid, sig: sent.append((pid, sig)))
         self.assertEqual(sorted(sent), [(200, rt + 11), (200, rt + 20), (300, rt + 11)])
+
+    def test_the_dock_gets_usr2_for_its_pills(self):
+        """dock.py PILLS: the notifications' poke reaches the dock too, by
+        its pid file, only once it catches SIGUSR2 and only if that pid is
+        still the dock."""
+        pidfile = os.path.join(self.proc, "dock.pid")
+        with open(pidfile, "w") as handle:
+            handle.write("500\n")
+        self.fake(500, "python3", "python3 /x/dock.py daemon", [signal.SIGUSR2])
+        self.fake(600, "python3", "python3 /x/other.py", [signal.SIGUSR2])
+        sent = []
+        kill = lambda pid, sig: sent.append((pid, sig))     # noqa: E731
+        with mock.patch.object(bs, "DOCK_PID", pidfile):
+            bs.poke("notifications", proc=self.proc, kill=kill)
+            bs.poke("updates", proc=self.proc, kill=kill)     # not a dock pill
+        self.assertEqual(sent, [(500, signal.SIGUSR2)])
+        with open(pidfile, "w") as handle:
+            handle.write("600\n")                            # recycled: someone else's
+        self.assertEqual(bs.poke_dock(self.proc, kill, pidfile), 0)
+        self.fake(700, "python3", "python3 /x/dock.py daemon", [])     # still starting
+        with open(pidfile, "w") as handle:
+            handle.write("700\n")
+        self.assertEqual(bs.poke_dock(self.proc, kill, pidfile), 0)
+        self.assertEqual(bs.poke_dock(self.proc, kill, os.path.join(self.proc, "none")), 0)
 
     def test_off_switch_spares_the_live_bar(self):
         """HYPR_BAR_SIGNALS_OFF=1: the real os.kill is never reached. The
