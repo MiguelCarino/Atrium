@@ -76,9 +76,11 @@ making it, and the bar starts from the file itself.
 With the top bar off (dock.py's top_bar, TOP BAR OFF there), waybar.service
 is skipped by its ExecCondition (waybar/scripts/bar-wanted.sh -> `wanted`),
 and the toolbox starts from generated/config-toolbox-nobar instead: the
-card with two more rows on top (STATUS_ROWS), the bar's pills that neither the
-taskbar takes over nor Settings hides, each with its settings block copied
-from ~/.config/waybar/config. Made again at every toolbox start
+card with the bar's pills on top (card_lines): every one the bar shows that
+the taskbar does not take over, in the bar's order -- a line per side, cut
+at PILLS_PER_LINE -- but CARD_NEVER, each with its settings block copied
+from ~/.config/waybar/config. So hide / show / move here decide the card's
+pills as they do the bar's; `status` says where each pill is (where_of). Made again at every toolbox start
 (toolbox-config-path), so hide / show / move here still decide what is in it;
 any problem making it, and the toolbox starts from config-toolbox itself.
 The card's Microphone row (custom/keybinds#mic, hidden in config-toolbox) is shown
@@ -181,24 +183,12 @@ MODULES = {
              "minimised or lose their icon until it is back"),
 }
 
-# With the top bar off, the bar's pills the toolbox card takes in, as two
-# rows above its own (each a horizontal waybar group, so they stay pills):
-# what is going on now, then the rest worth a click. In the bar's own order
-# within a row; a pill the taskbar takes over, one hidden in the bar, or one
-# not on it at all is left out. Not here, so gone with the bar: the logo,
-# the window title (the taskbar's labels have it), the context, the work
-# hours, the meters, the disk, the repos, Keep awake (the card's own row is
-# the same switch) and the sliders pill itself.
-STATUS_ROWS = (
-    ("group/status-now", ("custom/day", "custom/clock", "custom/menuclock", "custom/recording",
-                          "custom/mic", "custom/camera", "custom/location", "privacy",
-                          "custom/doctor", "custom/tasks", "custom/notifications",
-                          "hyprland/submap", "hyprland/language", "battery")),
-    ("group/status-more", ("ext/workspaces", "custom/player", "custom/timers", "custom/voice",
-                           "custom/capture", "custom/updates", "custom/drives", "custom/printing",
-                           "custom/phone", "custom/bluetooth", "custom/weather", "custom/network",
-                           "pulseaudio", "custom/power")),
-)
+# With the top bar off the card takes the bar's pills (card_lines), but not
+# these: the window title (the taskbar's labels have it), the logo (the
+# start button is that), Keep awake (the card's own row is the same switch)
+# and the sliders pill itself.
+CARD_NEVER = frozenset({"hyprland/window", "custom/logo", "custom/keepawake", "custom/toolbox"})
+PILLS_PER_LINE = 7
 
 HIDDEN_RE = re.compile(r'^(\s*)//\s*hidden(?: by Settings)?:\s*"([^"]+)"\s*,?\s*(//.*)?$')
 ENTRY_RE = re.compile(r'^(\s*)"([^"]+)"\s*(,?)\s*(//.*)?$')
@@ -549,9 +539,16 @@ def status():
         except (OSError, ValueError) as exc:
             out["problems"].append(f"{path.replace(os.path.expanduser('~'), '~')}: {exc}")
             continue
+        view = dock_view()
         out[key] = {"path": path, "output": bar.get("output"),
-                    "lists": {k: [dict(describe(it["name"]), shown=it["shown"]) for it in items]
+                    "lists": {k: [dict(describe(it["name"]), shown=it["shown"],
+                                       **({} if toolbox else {"where": where_of(it["name"], it["shown"], view),
+                                                              "dock_key": view["keys"].get(it["name"]),
+                                                              "card_never": it["name"] in CARD_NEVER}))
+                                  for it in items]
                               for k, items in lists.items()}}
+        if not toolbox:
+            out["dock"] = view
         if not toolbox:
             out["intervals"] = [dict(INTERVALS[n], module=n, seconds=interval_of(bar, n))
                                 for n in INTERVALS if n in bar]
@@ -662,8 +659,55 @@ def bar_wanted():
         return True
 
 
+def card_lines(bar_text, skip, only=None):
+    """[(group, [pills])]: the bar's shown pills for the card, in the bar's
+    order, a line per side cut at PILLS_PER_LINE; skip (the taskbar's) and
+    CARD_NEVER left out, and with only just those."""
+    lists = lists_of(bar_text)
+    lines = []
+    for side in SIDES:
+        names = [it["name"] for it in lists.get(side) or [] if it["shown"] and it["name"] not in skip
+                 and it["name"] not in CARD_NEVER and (only is None or it["name"] in only)]
+        lines += [names[i:i + PILLS_PER_LINE] for i in range(0, len(names), PILLS_PER_LINE)]
+    return [(f"group/pills-{n}", names) for n, names in enumerate(lines, 1)]
+
+
+def dock_view():
+    """What the dock or taskbar does to the bar's pills, for `status` and
+    where_of: {"enabled", "layout", "top_bar", "taken" (bar_takeover),
+    "card" (CARD_PILLS), "keys" (pill -> the dock setting that shows it on
+    the taskbar)}. Off on any trouble."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import dock
+        cfg = dock.read_settings()
+        keys = {name: key for key, names in dock.TAKEOVER if key for name in names}
+        return {"enabled": bool(cfg.get("enabled")), "layout": cfg.get("layout"),
+                "top_bar": bool(cfg.get("top_bar", True)), "taken": dock.bar_takeover(cfg),
+                "card": list(dock.CARD_PILLS), "keys": keys,
+                "settings": {k: cfg.get(k) for k in set(keys.values())}}
+    except Exception:         # noqa: BLE001 - no dock: the bar as it is
+        return {"enabled": False, "layout": None, "top_bar": True, "taken": [], "card": [], "keys": {},
+                "settings": {}}
+
+
+def where_of(name, shown, view):
+    """Where a bar pill is now: "hidden" (hidden here, or with the top bar
+    off one of CARD_NEVER), "toolbox", "taskbar" or "dock" (it took it), or
+    "bar"."""
+    if not shown:
+        return "hidden"
+    if view["enabled"] and name in view["card"]:
+        return "toolbox"
+    if name in view["taken"]:
+        return "dock" if view["layout"] == "dock" else "taskbar"
+    if view["enabled"] and not view["top_bar"]:
+        return "hidden" if name in CARD_NEVER else "toolbox"
+    return "bar"
+
+
 def toolbox_variant(text, bar_text, skip, only=None):
-    """The toolbox's text with the bar's pills added (STATUS_ROWS): their
+    """The toolbox's text with the bar's pills added (card_lines): their
     rows first in the card, the groups and each pill's settings block (as
     the bar has it, comments and all) right after the "name" line, so every
     inserted block ends in a comma and nothing else is touched. skip: the
@@ -671,10 +715,7 @@ def toolbox_variant(text, bar_text, skip, only=None):
     Checked like an edit: anything else that would differ is a ValueError;
     with no pill to add it is the text itself."""
     bar = parse(bar_text)
-    shown = {it["name"] for items in lists_of(bar_text).values() for it in items if it["shown"]}
-    rows = [(group, [n for n in names if n in shown and n not in skip and (only is None or n in only)])
-            for group, names in STATUS_ROWS]
-    rows = [(group, names) for group, names in rows if names]
+    rows = card_lines(bar_text, skip, only)
     if not rows:
         return text
     bar_lines = bar_text.split("\n")

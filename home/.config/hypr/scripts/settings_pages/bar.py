@@ -3,7 +3,12 @@
     THE BAR          which screen it is on (the toolbox goes along), whether
                      the running bar has every change, Restart the bar
     LEFT / MIDDLE / RIGHT   every pill on that side of the bar, in order: a
-                     switch to show or hide it, arrows to move it along its side
+                     switch to show or hide it, arrows to move it along its side.
+                     While the dock or the taskbar runs, a choice of where it
+                     goes instead of the switch (destinations): the top bar --
+                     or with the top bar off the toolbox card, which takes the
+                     bar's pills in this same order --, the taskbar (or the
+                     dock) for the pills it can show, or nowhere
     TOOLBOX          the toolbox card's rows, the same way
     REFRESH          how often the updates, weather and git pills look again
     CLOCK AND DATE   a link to Date, time & region, where their format lives
@@ -32,6 +37,8 @@ PAGE = {"id": "bar", "title": "Bar & toolbox", "icon": "", "group": "Look", "
                      "refresh interval", "weather", "git", "updates pill", "clock"]}
 
 BAR_SETTINGS = os.path.join(HYPR, "bar-settings.py")
+DOCK = os.path.join(HYPR, "dock.py")
+DEST_TEXT = {"bar": "Top bar", "toolbox": "Toolbox", "taskbar": "Taskbar", "dock": "Dock", "hidden": "Hidden"}
 SETTINGS = os.path.join(HYPR, "settings.py")
 APPLY_AFTER_MS = 1500           # restart the bar this long after the last change
 
@@ -111,6 +118,68 @@ def bar_sub(data, now=None):
     else:
         text += "  ·  up to date"
     return text
+
+
+def destinations(item, dock):
+    """Where a bar pill can go, in the chooser's order, while the dock or the
+    taskbar runs (dock: bar-settings.py status's "dock"); None without them
+    (the plain switch). The top bar, or the toolbox with the top bar off
+    (never for a CARD_NEVER pill); the taskbar for a pill it can show, the
+    dock only the privacy ones with the top bar off; the keyboard layout
+    only the toolbox; a pill the taskbar always takes (the power pill) only
+    that."""
+    if not dock or not dock.get("enabled"):
+        return None
+    name, key, off = item["name"], item.get("dock_key"), not dock.get("top_bar", True)
+    if name in (dock.get("card") or []):
+        return ["toolbox", "hidden"]
+    if name in (dock.get("taken") or []) and not key:
+        return [item["where"]]
+    out = [] if off and item.get("card_never") else ["toolbox" if off else "bar"]
+    if key and dock.get("layout") == "taskbar":
+        out.append("taskbar")
+    elif key == "privacy" and dock.get("layout") == "dock" and off:
+        out.append("dock")
+    out.append("hidden")
+    if item["where"] not in out:
+        out.insert(0, item["where"])
+    return out
+
+
+def destination_commands(item, choice, dock):
+    """The calls a pick runs, in order: ("dock", args) for dock.py, ("bar",
+    args) for bar-settings.py. The dock setting goes first, so the bar's
+    show / hide lands on the takeover it makes; showing a pill again is part
+    of sending it anywhere, so it comes back when the taskbar lets it go."""
+    name, key = item["name"], item.get("dock_key")
+    on = bool(key and (dock.get("settings") or {}).get(key))
+    cmds = []
+    if choice in ("taskbar", "dock"):
+        if key and not on:
+            cmds.append(("dock", "set", key, "on"))
+        if not item["shown"]:
+            cmds.append(("bar", "show", name))
+    elif choice in ("bar", "toolbox"):
+        if key and on:
+            cmds.append(("dock", "set", key, "off"))
+        if not item["shown"]:
+            cmds.append(("bar", "show", name))
+    elif choice == "hidden":
+        if key and on:
+            cmds.append(("dock", "set", key, "off"))
+        if item["shown"]:
+            cmds.append(("bar", "hide", name))
+    return cmds
+
+
+def together(item, lists):
+    """The other pills one dock setting moves along with this one (the date
+    and time, the privacy indicators), by title."""
+    key = item.get("dock_key")
+    if not key:
+        return []
+    return [it["title"] for side in lists.values() for it in side
+            if it.get("dock_key") == key and it["name"] != item["name"]]
 
 
 def attempt(*cmd, timeout=30):
@@ -211,19 +280,38 @@ class Page:
             b.set_tooltip_text("Move it " + ("left / up" if where == "up" else "right / down"))
             b.connect("clicked", lambda _b, n=item["name"], wh=where: self.do("move", n, wh))
             controls.pack_start(b, False, False, 0)
-        sw = Gtk.Switch()
-        sw.set_active(item["shown"])
-        sw.set_state(item["shown"])
-        sw.set_sensitive(not item.get("keep") or not item["shown"])
-        sw.connect("state-set", lambda _s, state, n=item["name"]: self.toggle(n, state))
-        controls.pack_start(sw, False, False, 6)
+        dock = (self.data or {}).get("dock")
+        choices = destinations(item, dock) if "where" in item else None
+        if choices is None:
+            sw = Gtk.Switch()
+            sw.set_active(item["shown"])
+            sw.set_state(item["shown"])
+            sw.set_sensitive(not item.get("keep") or not item["shown"])
+            sw.connect("state-set", lambda _s, state, n=item["name"]: self.toggle(n, state))
+            controls.pack_start(sw, False, False, 6)
+        else:
+            combo = Gtk.ComboBoxText()
+            for key in choices:
+                # a zero-width non-joiner between the letters: "toolbox" is a
+                # Font Awesome icon name, drawn as the icon in some themes
+                combo.append(key, "\u200c".join(DEST_TEXT[key]))
+            combo.set_active_id(item["where"])
+            combo.set_sensitive(len(choices) > 1)
+            combo.set_tooltip_text("Where this pill goes")
+            combo.connect("changed", lambda c, it=item: self.send(it, c.get_active_id()))
+            controls.pack_start(combo, False, False, 6)
         sub = item["what"] or item["name"]
+        others = together(item, (self.data or {}).get("bar", {}).get("lists") or {}) if choices else []
+        if others:
+            sub += "  ·  moves with " + ", ".join(others)
         if item.get("keep"):
             sub += f"  ·  stays: {item['keep']}"
+        elif choices is not None and item["where"] != "bar":
+            sub = f"{DEST_TEXT[item['where']].lower()}  ·  " + sub
         elif not item["shown"]:
             sub = "hidden  ·  " + sub
         grid, _sub = row(item["icon"], item["title"], sub, controls)
-        if not item["shown"]:
+        if item.get("where", "bar" if item["shown"] else "hidden") == "hidden":
             grid.set_opacity(0.6)
         return grid
 
@@ -266,6 +354,22 @@ class Page:
         self.error.set_text(f"!  {error}" if error else "")
         self.error.set_visible(bool(error))
         self.refresh()
+
+    def send(self, item, choice):
+        """A pick in a pill's chooser: destination_commands, one after the
+        other in the background, then as any change (done: the bar restarts
+        a moment later, if dock.py has not already)."""
+        if self.updating or not choice or choice == item["where"]:
+            return
+        cmds = destination_commands(item, choice, (self.data or {}).get("dock") or {})
+
+        def run_all():
+            for which, *args in cmds:
+                error = attempt(DOCK if which == "dock" else BAR_SETTINGS, *args)
+                if error:
+                    return error
+            return ""
+        background(run_all, self.done)
 
     def toggle(self, name, state):
         if not self.updating:

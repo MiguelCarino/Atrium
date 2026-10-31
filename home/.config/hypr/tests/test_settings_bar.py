@@ -206,13 +206,13 @@ class ToolboxVariant(unittest.TestCase):
         new = bs.toolbox_variant(NAMED_TOOLBOX, BAR, skip=set())
         card = bs.parse(new)
         self.assertEqual(card["group/card"]["modules"],
-                         ["group/status-now", "group/status-more", "custom/settings", "custom/awake", "tray"])
-        self.assertEqual(card["group/status-now"], {"orientation": "horizontal",
-                                                    "modules": ["custom/day", "custom/clock"]})
-        # In STATUS_ROWS' order, only what the bar shows; the cpu and the
-        # window title are not taken in, the toolbox pill never.
-        self.assertEqual(card["group/status-more"]["modules"],
-                         ["ext/workspaces", "custom/weather", "custom/power"])
+                         ["group/pills-1", "group/pills-2", "group/pills-3", "custom/settings", "custom/awake",
+                          "tray"])
+        # A line per side of the bar, in its order; the window title and
+        # the toolbox pill never (CARD_NEVER).
+        self.assertEqual(card["group/pills-1"], {"orientation": "horizontal", "modules": ["ext/workspaces"]})
+        self.assertEqual(card["group/pills-2"]["modules"], ["custom/day", "custom/clock", "custom/weather"])
+        self.assertEqual(card["group/pills-3"]["modules"], ["custom/cpu", "custom/power"])
         self.assertEqual(card["custom/weather"], bs.parse(BAR)["custom/weather"])
         self.assertIn("// wttr.in turns away the impatient", new)          # copied, comments and all
         self.assertNotIn("custom/updates", card)                           # not on the bar: not copied
@@ -220,7 +220,7 @@ class ToolboxVariant(unittest.TestCase):
     def test_skips_what_the_taskbar_shows_and_what_is_hidden(self):
         bar = bs.set_shown(BAR, "ext/workspaces", False)
         new = bs.toolbox_variant(NAMED_TOOLBOX, bar, skip={"custom/day", "custom/clock", "custom/weather",
-                                                           "custom/power"})
+                                                           "custom/power", "custom/cpu"})
         card = bs.parse(new)
         self.assertEqual(card["group/card"]["modules"], ["custom/settings", "custom/awake", "tray"])
         self.assertEqual(new, NAMED_TOOLBOX)                              # nothing left to add
@@ -241,7 +241,7 @@ class ToolboxVariant(unittest.TestCase):
             path = bs.toolbox_config_path()
             self.assertEqual(path, bs.NOBAR_TOOLBOX)
             with open(path) as handle:
-                self.assertIn("group/status-now", handle.read())
+                self.assertIn("group/pills-1", handle.read())
 
     def test_toolbox_config_path_falls_back(self):
         with mock.patch.object(bs, "bar_wanted", lambda: False), \
@@ -260,9 +260,9 @@ class DockCard(unittest.TestCase):
     def test_only_limits_what_is_added(self):
         new = bs.toolbox_variant(NAMED_TOOLBOX, LANG_BAR, skip=set(), only={"hyprland/language"})
         card = bs.parse(new)
-        self.assertEqual(card["group/card"]["modules"][0], "group/status-now")
-        self.assertEqual(card["group/status-now"]["modules"], ["hyprland/language"])
-        self.assertNotIn("group/status-more", card)
+        self.assertEqual(card["group/card"]["modules"][0], "group/pills-1")
+        self.assertEqual(card["group/pills-1"]["modules"], ["hyprland/language"])
+        self.assertNotIn("group/pills-2", card)
 
     def test_mic_row_is_shown(self):
         self.assertNotIn("custom/keybinds#mic", bs.parse(MIC_TOOLBOX)["group/card"]["modules"])
@@ -288,16 +288,16 @@ class DockCard(unittest.TestCase):
     def test_toolbox_config_path_by_case(self):
         name, card = self.paths(True, [])                                       # no dock: the grid alone
         self.assertEqual(name, "tb-grid")
-        self.assertNotIn("group/status-now", card)
+        self.assertNotIn("group/pills-1", card)
         name, card = self.paths(True, ["hyprland/language", "custom/power"])     # dock, bar on
         self.assertEqual(name, "tb-dock")
-        self.assertEqual(card["group/status-now"]["modules"], ["hyprland/language"])
+        self.assertEqual(card["group/pills-1"]["modules"], ["hyprland/language"])
         self.assertNotIn("custom/keybinds#mic", card["group/card"]["modules"])
         name, card = self.paths(False, ["hyprland/language", "custom/power"])    # bar off
         self.assertEqual(name, "tb-nobar")
-        self.assertIn("hyprland/language", card["group/status-now"]["modules"])
+        self.assertEqual(card["group/pills-1"]["modules"], ["ext/workspaces", "hyprland/language"])
         self.assertIn("custom/keybinds#mic", card["group/card"]["modules"])
-        self.assertNotIn("custom/power", card["group/status-more"]["modules"])  # the taskbar has it
+        self.assertEqual(card["group/pills-3"]["modules"], ["custom/cpu"])      # the taskbar has the power pill
 
 
 class Grid(unittest.TestCase):
@@ -314,7 +314,7 @@ class Grid(unittest.TestCase):
     def test_groups_cut_the_runs_and_hidden_rows_go(self):
         text = bs.toolbox_variant(MIC_TOOLBOX, LANG_BAR, skip=set(), only={"hyprland/language"})
         card = bs.parse(bs.grid_variant(text))
-        self.assertEqual(card["group/card"]["modules"], ["group/status-now", "group/grid-1", "tray"])
+        self.assertEqual(card["group/card"]["modules"], ["group/pills-1", "group/grid-1", "tray"])
         self.assertEqual(card["group/grid-1"]["modules"], ["custom/settings", "custom/awake"])  # mic hidden
         shown = bs.parse(bs.grid_variant(bs.show_mic_row(MIC_TOOLBOX)))
         self.assertEqual(shown["group/card"]["modules"], ["group/grid-1", "custom/keybinds#mic", "tray"])
@@ -366,6 +366,82 @@ class MicRow(unittest.TestCase):
         card = dict((it["name"], it["shown"]) for it in bs.lists_of(toolbox, True)["card"])
         self.assertIs(card.get("custom/keybinds#mic"), False)          # hidden as shipped
         self.assertIn("mic_row.py watch", bs.parse(toolbox)["custom/keybinds#mic"]["exec"])
+
+
+TASKBAR_VIEW = {"enabled": True, "layout": "taskbar", "top_bar": True,
+                "taken": ["custom/day", "custom/clock", "custom/power", "hyprland/language"],
+                "card": ["hyprland/language"],
+                "keys": {"custom/day": "clock", "custom/clock": "clock", "custom/weather": "weather"},
+                "settings": {"clock": True, "weather": False}}
+
+
+class Destinations(unittest.TestCase):
+    """Phase 3: where each bar pill is (where_of), the card's lines from the
+    bar's own list (card_lines), and the Bar page's chooser (destinations,
+    destination_commands)."""
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import gi
+            gi.require_version("Gtk", "3.0")
+            sys.path.insert(0, os.path.dirname(helpers.SCRIPTS + "/"))
+            from settings_pages import bar
+        except Exception as exc:                    # noqa: BLE001 - no GTK
+            raise unittest.SkipTest(f"settings_pages.bar not importable: {exc}")
+        cls.page = bar
+
+    def item(self, name, shown=True, view=TASKBAR_VIEW, title=None):
+        return {"name": name, "title": title or name, "shown": shown, "where": bs.where_of(name, shown, view),
+                "dock_key": view["keys"].get(name), "card_never": name in bs.CARD_NEVER}
+
+    def test_where_of(self):
+        off = dict(TASKBAR_VIEW, top_bar=False)
+        self.assertEqual(bs.where_of("custom/day", True, TASKBAR_VIEW), "taskbar")
+        self.assertEqual(bs.where_of("hyprland/language", True, TASKBAR_VIEW), "toolbox")
+        self.assertEqual(bs.where_of("custom/cpu", True, TASKBAR_VIEW), "bar")
+        self.assertEqual(bs.where_of("custom/cpu", False, TASKBAR_VIEW), "hidden")
+        self.assertEqual(bs.where_of("custom/cpu", True, off), "toolbox")
+        self.assertEqual(bs.where_of("hyprland/window", True, off), "hidden")       # CARD_NEVER
+        self.assertEqual(bs.where_of("custom/cpu", True, dict(TASKBAR_VIEW, enabled=False, taken=[])), "bar")
+        self.assertEqual(bs.where_of("custom/mic", True, dict(off, layout="dock", taken=["custom/mic"])), "dock")
+
+    def test_card_lines_cut_long_sides(self):
+        many = BAR.replace('"custom/cpu",', "".join(f'"custom/p{i}",\n        ' for i in range(9)) + '"custom/cpu",')
+        lines = bs.card_lines(many, skip={"custom/power"})
+        self.assertEqual([len(n) for _g, n in lines], [1, 3, bs.PILLS_PER_LINE, 3])
+        self.assertEqual([g for g, _n in lines], ["group/pills-1", "group/pills-2", "group/pills-3", "group/pills-4"])
+        self.assertEqual(lines[3][1], ["custom/p7", "custom/p8", "custom/cpu"])     # the toolbox pill never
+
+    def test_destinations(self):
+        d = self.page.destinations
+        self.assertIsNone(d(self.item("custom/cpu"), dict(TASKBAR_VIEW, enabled=False)))   # the switch
+        self.assertEqual(d(self.item("custom/cpu"), TASKBAR_VIEW), ["bar", "hidden"])
+        self.assertEqual(d(self.item("custom/day"), TASKBAR_VIEW), ["bar", "taskbar", "hidden"])
+        self.assertEqual(d(self.item("hyprland/language"), TASKBAR_VIEW), ["toolbox", "hidden"])
+        self.assertEqual(d(self.item("custom/power"), TASKBAR_VIEW), ["taskbar"])          # always the start menu's
+        off = dict(TASKBAR_VIEW, top_bar=False)
+        self.assertEqual(d(self.item("custom/cpu", view=off), off), ["toolbox", "hidden"])
+        self.assertEqual(d(self.item("hyprland/window", view=off), off), ["hidden"])
+        dock = dict(off, layout="dock", taken=["custom/mic"], keys={"custom/mic": "privacy"},
+                    settings={"privacy": True})
+        self.assertEqual(d(self.item("custom/mic", view=dock), dock), ["toolbox", "dock", "hidden"])
+
+    def test_commands(self):
+        c = self.page.destination_commands
+        self.assertEqual(c(self.item("custom/day"), "bar", TASKBAR_VIEW), [("dock", "set", "clock", "off")])
+        self.assertEqual(c(self.item("custom/day"), "hidden", TASKBAR_VIEW),
+                         [("dock", "set", "clock", "off"), ("bar", "hide", "custom/day")])
+        self.assertEqual(c(self.item("custom/weather", shown=False), "taskbar", TASKBAR_VIEW),
+                         [("dock", "set", "weather", "on"), ("bar", "show", "custom/weather")])
+        self.assertEqual(c(self.item("custom/cpu", shown=False), "bar", TASKBAR_VIEW),
+                         [("bar", "show", "custom/cpu")])
+        self.assertEqual(c(self.item("custom/cpu"), "hidden", TASKBAR_VIEW), [("bar", "hide", "custom/cpu")])
+
+    def test_together(self):
+        lists = {"modules-center": [self.item("custom/day", title="Date"), self.item("custom/clock", title="Time"),
+                                    self.item("custom/weather", title="Weather")]}
+        self.assertEqual(self.page.together(lists["modules-center"][0], lists), ["Time"])
+        self.assertEqual(self.page.together(self.item("custom/cpu"), lists), [])
 
 
 class Wanted(unittest.TestCase):
