@@ -76,7 +76,12 @@ hl.on("hyprland.start", function()
     -- own Ctrl+Space trigger is off (~/.config/fcitx5/config). Underneath the
     -- two still stack: the xkb group decides which letters the physical keys
     -- produce, mozc then reads those letters as romaji.
-    hl.exec_cmd("fcitx5 -d --replace")
+    --
+    -- --disable=notificationitem: no fcitx5 icon in the tray. The bar's
+    -- keyboard-layout pill (hyprland/language, scripts/language_panel.py)
+    -- already shows and picks the layout and the input method, and the icon
+    -- sat next to it in the toolbox card as a second keyboard.
+    hl.exec_cmd("fcitx5 -d --replace --disable=notificationitem")
 
     -- After a Hyprland update the cube and overview plugins no longer load;
     -- this rebuilds whichever did not and reloads (see the script's header).
