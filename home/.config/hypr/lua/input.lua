@@ -198,4 +198,12 @@ end
 
 M.apply()
 
+-- Touchpad: three fingers swiped left or right go to the next or previous
+-- workspace, the page following the fingers (Hyprland's own "workspace"
+-- gesture; gestures.workspace_swipe_* tune it). Out here, not in apply():
+-- hl.gesture adds a gesture, and apply() runs again on every change made in
+-- Settings, which would stack copies; a config reload starts the list fresh.
+-- A machine without a touchpad never sees it.
+hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+
 return M
