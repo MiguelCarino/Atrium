@@ -206,13 +206,11 @@ class ToolboxVariant(unittest.TestCase):
         new = bs.toolbox_variant(NAMED_TOOLBOX, BAR, skip=set())
         card = bs.parse(new)
         self.assertEqual(card["group/card"]["modules"],
-                         ["group/pills-1", "group/pills-2", "group/pills-3", "custom/settings", "custom/awake",
-                          "tray"])
-        # A line per side of the bar, in its order; the window title and
+                         ["group/pills-1", "custom/settings", "custom/awake", "tray"])
+        # Packed across the bar's sides, in its order; the window title and
         # the toolbox pill never (CARD_NEVER).
-        self.assertEqual(card["group/pills-1"], {"orientation": "horizontal", "modules": ["ext/workspaces"]})
-        self.assertEqual(card["group/pills-2"]["modules"], ["custom/day", "custom/clock", "custom/weather"])
-        self.assertEqual(card["group/pills-3"]["modules"], ["custom/cpu", "custom/power"])
+        self.assertEqual(card["group/pills-1"], {"orientation": "horizontal", "modules": [
+            "ext/workspaces", "custom/day", "custom/clock", "custom/weather", "custom/cpu", "custom/power"]})
         self.assertEqual(card["custom/weather"], bs.parse(BAR)["custom/weather"])
         self.assertIn("// wttr.in turns away the impatient", new)          # copied, comments and all
         self.assertNotIn("custom/updates", card)                           # not on the bar: not copied
@@ -301,7 +299,7 @@ class DockCard(unittest.TestCase):
         hidden = METER_BAR.replace('"custom/gpu",', '// hidden: "custom/gpu",', 1)
         lines = bs.card_lines(hidden, skip=set(), first=bs.METERS)
         self.assertEqual(lines[0][1], ["custom/cpu", "custom/disk"])
-        self.assertEqual(bs.card_lines(BAR, skip={"custom/cpu"}, first=bs.METERS)[0][1], ["ext/workspaces"])
+        self.assertEqual(bs.card_lines(BAR, skip={"custom/cpu"}, first=bs.METERS)[0][1][0], "ext/workspaces")
 
     def paths(self, wanted, taken, card=("hyprland/language",)):
         out = {}
@@ -329,9 +327,10 @@ class DockCard(unittest.TestCase):
         name, card = self.paths(False, ["hyprland/language", "custom/power"])    # bar off
         self.assertEqual(name, "tb-nobar")
         self.assertEqual(card["group/pills-1"]["modules"], ["custom/cpu"])      # the meters first
-        self.assertEqual(card["group/pills-2"]["modules"], ["ext/workspaces", "hyprland/language"])
+        self.assertEqual(card["group/pills-2"]["modules"], ["ext/workspaces", "hyprland/language", "custom/day",
+                                                            "custom/clock", "custom/weather"])
         self.assertIn("custom/keybinds#mic", card["group/card"]["modules"])
-        self.assertNotIn("group/pills-4", card)                                 # the taskbar has the power pill
+        self.assertNotIn("group/pills-3", card)                                 # the taskbar has the power pill
 
 
 class Grid(unittest.TestCase):
@@ -509,9 +508,9 @@ class Destinations(unittest.TestCase):
     def test_card_lines_cut_long_sides(self):
         many = BAR.replace('"custom/cpu",', "".join(f'"custom/p{i}",\n        ' for i in range(9)) + '"custom/cpu",')
         lines = bs.card_lines(many, skip={"custom/power"})
-        self.assertEqual([len(n) for _g, n in lines], [1, 3, bs.PILLS_PER_LINE, 3])
-        self.assertEqual([g for g, _n in lines], ["group/pills-1", "group/pills-2", "group/pills-3", "group/pills-4"])
-        self.assertEqual(lines[3][1], ["custom/p7", "custom/p8", "custom/cpu"])     # the toolbox pill never
+        self.assertEqual([len(n) for _g, n in lines], [bs.PILLS_PER_LINE, 14 - bs.PILLS_PER_LINE])   # 14 pills
+        self.assertEqual([g for g, _n in lines], ["group/pills-1", "group/pills-2"])
+        self.assertEqual(lines[1][1][-2:], ["custom/p8", "custom/cpu"])            # the toolbox pill never
 
     def test_destinations(self):
         d = self.page.destinations

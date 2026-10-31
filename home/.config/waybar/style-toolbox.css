@@ -19,8 +19,10 @@
 
 /* Tiles: two to a line (bar-settings.py grid_variant: group/grid-N), a gap
    of 6 px between them and under them, no per-pill right margin from the
-   bar. Every tile as wide as the widest label of the usual ones, so the two
-   columns line up. The tray has a line of its own, full width. */
+   bar. Every tile at least as wide as the widest label (the Microphone row
+   at 100 %), and "expand" in config-toolbox shares out what is left of a
+   line, so the two columns line up and fill the card. The tray has a line
+   of its own, full width. */
 #custom-fsstate,
 #custom-nightlight,
 #custom-awake,
@@ -29,7 +31,7 @@
 #custom-settings {
     margin: 0 3px 6px 3px;
     padding: 4px 12px;
-    min-width: 136px;
+    min-width: 160px;
 }
 
 #tray {
@@ -39,9 +41,17 @@
 
 /* The bar's pills on top of the card (bar-settings.py card_lines: the
    keyboard layout with the dock or taskbar, every pill with the top bar
-   off), a line per side of the bar, each pill styled as on the bar. */
+   off), the meters first, then PILLS_PER_LINE to a line, each pill styled
+   as on the bar. */
 #pills-1, #pills-2, #pills-3, #pills-4, #pills-5, #pills-6, #pills-7, #pills-8 {
     margin: 0 3px 6px 3px;
+}
+
+/* A gap between the pills of a line: on the bar they sit in capsules, side
+   by side, but here pills from different sides of the bar meet. */
+#pills-1 > widget > *, #pills-2 > widget > *, #pills-3 > widget > *, #pills-4 > widget > *,
+#pills-5 > widget > *, #pills-6 > widget > *, #pills-7 > widget > *, #pills-8 > widget > * {
+    margin-right: 4px;
 }
 
 #tray {

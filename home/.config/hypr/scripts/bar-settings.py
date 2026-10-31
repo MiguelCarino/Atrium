@@ -77,8 +77,8 @@ With the top bar off (dock.py's top_bar, TOP BAR OFF there), waybar.service
 is skipped by its ExecCondition (waybar/scripts/bar-wanted.sh -> `wanted`),
 and the toolbox starts from generated/config-toolbox-nobar instead: the
 card with the bar's pills on top (card_lines): every one the bar shows that
-the taskbar does not take over, in the bar's order -- a line per side, cut
-at PILLS_PER_LINE -- but CARD_NEVER, each with its settings block copied
+the taskbar does not take over, in the bar's order -- the meters a line of
+their own, the rest PILLS_PER_LINE to a line -- but CARD_NEVER, each with its settings block copied
 from ~/.config/waybar/config. So hide / show / move here decide the card's
 pills as they do the bar's; `status` says where each pill is (where_of). Made again at every toolbox start
 (toolbox-config-path), so hide / show / move here still decide what is in it;
@@ -202,7 +202,12 @@ MODULES = {
 # start button is that), Keep awake (the card's own row is the same switch)
 # and the sliders pill itself.
 CARD_NEVER = frozenset({"hyprland/window", "custom/logo", "custom/keepawake", "custom/toolbox"})
-PILLS_PER_LINE = 7
+# Most pills print nothing most of the time (a timer, a capture, a phone:
+# only while there is one), and waybar hides an empty one, so a line is cut
+# by what could show, not by what does: wide enough that the few that usually
+# show share one line. When more show, toolbox_fit.py measures the card again
+# and it widens; the tiles under it fill the new width ("expand").
+PILLS_PER_LINE = 12
 
 HIDDEN_RE = re.compile(r'^(\s*)//\s*hidden(?: by Settings)?:\s*"([^"]+)"\s*,?\s*(//.*)?$')
 ENTRY_RE = re.compile(r'^(\s*)"([^"]+)"\s*(,?)\s*(//.*)?$')
@@ -675,17 +680,17 @@ def bar_wanted():
 
 def card_lines(bar_text, skip, only=None, first=()):
     """[(group, [pills])]: the bar's shown pills for the card, in the bar's
-    order, a line per side cut at PILLS_PER_LINE; skip (the taskbar's) and
+    order, packed PILLS_PER_LINE to a line across its sides (most pills
+    print nothing most of the time, and a line per side left a card of
+    ragged one-pill lines); skip (the taskbar's) and
     CARD_NEVER left out, and with only just those. The shown ones of first
     (METERS) make a line of their own ahead of the rest, in the bar's order."""
     lists = lists_of(bar_text)
     wanted = [it["name"] for side in SIDES for it in lists.get(side) or [] if it["shown"]
               and it["name"] not in skip and it["name"] not in CARD_NEVER and (only is None or it["name"] in only)]
     head = [n for n in wanted if n in first]
-    lines = [head] if head else []
-    for side in SIDES:
-        names = [it["name"] for it in lists.get(side) or [] if it["name"] in wanted and it["name"] not in head]
-        lines += [names[i:i + PILLS_PER_LINE] for i in range(0, len(names), PILLS_PER_LINE)]
+    rest = [n for n in wanted if n not in head]
+    lines = ([head] if head else []) + [rest[i:i + PILLS_PER_LINE] for i in range(0, len(rest), PILLS_PER_LINE)]
     return [(f"group/pills-{n}", names) for n, names in enumerate(lines, 1)]
 
 
