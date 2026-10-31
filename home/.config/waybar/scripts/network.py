@@ -87,6 +87,9 @@ VPN_NAME_MAX = 14           # the pill has max-length 50; a long name is cut
 BAR_CONF = os.path.expanduser("~/.config/waybar/generated/bar.conf")
 STYLES = ("", "icon")
 NARROW = False
+# `watch --icon` (the dock and the taskbar): the glyph alone whatever the
+# bar's style, so no address ends up on a tile.
+FORCED_STYLE = ""
 
 
 def bar_style(path=None):
@@ -438,7 +441,7 @@ def _pill_text(iface, v4, wifi_signal, wifi):
 
 
 def current_pill():
-    style = bar_style() or ("icon" if NARROW else "")
+    style = FORCED_STYLE or bar_style() or ("icon" if NARROW else "")
     iface, _gw = default_iface()
     if not iface or not counters(iface):
         radio = style == "icon" and bool(wifi_iface())
@@ -681,6 +684,8 @@ def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "watch"
 
     if mode == "watch":
+        global FORCED_STYLE
+        FORCED_STYLE = "icon" if "--icon" in sys.argv[2:] else ""
         watch()
         return
 

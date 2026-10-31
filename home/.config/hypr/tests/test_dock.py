@@ -817,8 +817,8 @@ class TopBarTakeover(unittest.TestCase):
         self.assertEqual(D.workspace_leaf([], ws), ("", ""))
 
     def test_network_and_language_words(self):
-        self.assertEqual(D.network_leaf("\uf1eb", "Kernel · 100%"), ("\uf1eb", "Kernel"))
-        self.assertEqual(D.network_leaf("Wi-Fi (70%) \uf1eb", ""), ("\uf1eb", "Wi-Fi (70%)"))
+        self.assertEqual(D.network_leaf("\uf1eb", "Kernel · 100%"), ("\uf1eb", ""))
+        self.assertEqual(D.network_leaf("Wi-Fi (70%) \uf1eb", ""), ("\uf1eb", ""))
         self.assertEqual(D.network_leaf("Disconnected", ""), ("Disconnected", ""))
         self.assertEqual(D.network_leaf("", ""), ("", ""))
         self.assertEqual(D.language_leaf(["us", "latam"], 1, "keyboard-latam"), ("LATAM", ""))

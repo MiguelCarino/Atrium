@@ -1431,17 +1431,13 @@ def pill_state(line):
 
 
 def network_leaf(text, tip):
-    """The dock's network tile: (its glyphs, the network's name) from
-    network.py's pill -- the glyph alone on a narrow screen, "Wi-Fi (70%)
-    <glyph>" on a wide one -- and its tooltip ("Kernel · 100%": the name
-    first)."""
+    """The dock's network tile: (its glyphs, "") from network.py's pill --
+    the interface's glyph alone, no name or address under it (the tooltip
+    keeps the details); the text itself when it has no glyph
+    ("Disconnected")."""
     plain = re.sub(r"<[^>]*>", "", text or "")
     glyphs = "".join(ch for ch in plain if "\ue000" <= ch <= "\uf8ff")
-    words = "".join(ch for ch in plain if not "\ue000" <= ch <= "\uf8ff").strip()
-    name = (tip or "").split("\n")[0].split(" · ")[0].strip()
-    if not glyphs:
-        return words, name
-    return glyphs, name or words
+    return (glyphs or plain.strip()), ""
 
 
 def language_leaf(codes, index, method=""):
@@ -2690,7 +2686,7 @@ def daemon():
                 btn, _box, top, bottom = self.tiles[key]
                 # the weather, the battery and the sound: the last word under
                 # the glyphs ("<bolt> <battery> 97%"); the network: its glyph
-                # over its name; the rest: the first glyph over the words
+                # alone; the rest: the first glyph over the words
                 if key == "network":
                     glyph, words = network_leaf(text, tip)
                 elif key == "sound" and state == "muted":
@@ -4412,7 +4408,7 @@ def daemon():
             if "weather" not in want:
                 self.cancel("weather")
             if "network" in want and "network" not in self.status_procs:
-                self.watch_lines("network", [NETWORK_PY, "watch"],
+                self.watch_lines("network", [NETWORK_PY, "watch", "--icon"],
                                  lambda line: self.set_status("network", pill_text(line)))
             if "sound" in want and "sound" not in self.status_procs:
                 self.watch_lines("sound", ["pactl", "subscribe"], self.on_pactl)
