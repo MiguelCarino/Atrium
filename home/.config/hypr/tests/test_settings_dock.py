@@ -91,7 +91,7 @@ class PageHelpers(unittest.TestCase):
 
     def test_switches_for_everything(self):
         p, _ran = self.build()
-        self.assertEqual(set(p.switches), {"previews", "top_bar", "privacy"} | {k for k, *_ in self.page.TASKBAR})
+        self.assertEqual(set(p.switches), {"previews", "top_bar", "privacy", "follow_theme"} | {k for k, *_ in self.page.TASKBAR})
 
     def test_controls_run_dock_set(self):
         p, ran = self.build()

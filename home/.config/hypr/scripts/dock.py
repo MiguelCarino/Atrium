@@ -18,6 +18,8 @@ Both show the pinned apps and every app that runs, grouped by app.
     dock.py pin APP_ID             pin an app (a desktop id; ".desktop" may
                                    be left off); unpin APP_ID takes it off
     dock.py move APP_ID -1|+1      a pinned app one place left / right
+    dock.py follow-theme           the theme's layout now, if follow_theme
+                                   (theme.py runs it at every switch)
 
 SETTINGS ($XDG_STATE_HOME/hypr/dock.json, or DOCK_SETTINGS=<path>;
 Settings > Bar & toolbox > Dock & taskbar):
@@ -59,6 +61,12 @@ Settings > Bar & toolbox > Dock & taskbar):
     previews    hovering a running app lists its windows, with pictures (true)
     top_bar     the top bar at all while this runs (true). Off, the bar is
                 not started (TOP BAR OFF below); only while enabled
+    follow_theme
+                a theme that names its layout sets it (false; THEME
+                LAYOUT below)
+    theme_saved your own enabled / layout / top_bar while a theme's is in
+                place, put back after it (written by follow-theme, never by
+                hand; null otherwise)
     magnify     the dock only: the icons under the pointer grow, macOS-like
                 (EFFECTS below): "theme" (the theme's dock.magnify: orchard's
                 yes), "on" or "off"
@@ -153,6 +161,16 @@ is running although it should not be -- a skipped condition is a bar that
 stays stopped -- so after a crash and dock.service's own restart it goes
 again. `dock.py set` restarts the bar when bar_hidden changes, as for what
 the taskbar takes over; switching top_bar off while this is off is refused.
+
+THEME LAYOUT: a theme may say what it looks best with -- dock.layout=
+dock|taskbar and dock.top_bar=on|off in its theme.conf, written to
+waybar/generated/bar.conf as layout= and top_bar= (Windows 95 and Luna: the
+taskbar without the top bar; the Orchard themes: the dock). Nothing follows
+it unless follow_theme is on: then `dock.py follow-theme` (theme.py, at every
+switch; and switching follow_theme itself) applies it, after keeping your
+own three settings in theme_saved; a theme that names none, or follow_theme
+off, puts them back (theme_layout). Changing one of the three yourself makes
+it yours: theme_saved goes, and the next theme leaves it be.
 
 THE TOOLBOX: game mode, night light, Keep awake, shortcuts and the tray card
 (waybar-toolbox, toolbox.sh) opens from a button here while this runs -- the
@@ -274,7 +292,8 @@ DEFAULTS = {"enabled": False, "layout": "dock", "position": "bottom", "autohide"
             "icon_size": 48, "monitors": "main", "combine": True, "labels": True, "tray": True,
             "clock": True, "weather": True, "network": True, "sound": True, "previews": True,
             "workspaces": True, "notifications": True, "battery": True, "privacy": True,
-            "magnify": "theme", "start_menu": "launcher", "top_bar": True, "pinned": None}
+            "magnify": "theme", "start_menu": "launcher", "top_bar": True, "follow_theme": False,
+            "theme_saved": None, "pinned": None}
 CHOICES = {"layout": ("dock", "taskbar"), "position": ("bottom", "left", "right"),
            "autohide": ("never", "overlap", "always"), "monitors": ("main", "all"),
            "magnify": ("theme", "on", "off"), "start_menu": ("launcher", "classic")}
@@ -490,7 +509,59 @@ def read_settings():
                 pass
         elif k == "pinned":
             cur[k] = clean_pinned(v) if isinstance(v, list) else None
+        elif k == "theme_saved":
+            cur[k] = clean_saved(v)
     return cur
+
+
+LAYOUT_KEYS = ("enabled", "layout", "top_bar")    # what a theme's layout sets (THEME LAYOUT)
+
+
+def clean_saved(v):
+    """theme_saved as written, or None when it is not whole."""
+    if not isinstance(v, dict) or not isinstance(v.get("enabled"), bool) \
+            or v.get("layout") not in CHOICES["layout"] or not isinstance(v.get("top_bar"), bool):
+        return None
+    return {k: v[k] for k in LAYOUT_KEYS}
+
+
+def read_theme_layout(path=None):
+    """{"layout", "top_bar"} from bar.conf (theme.py writes it from the
+    theme's dock.layout= / dock.top_bar=); "" for what it does not say."""
+    out = {"layout": "", "top_bar": ""}
+    try:
+        with open(path or os.path.join(GEN_DIR, "bar.conf")) as fh:
+            for line in fh:
+                k, sep, v = line.strip().partition("=")
+                if sep and k in out:
+                    out[k] = v.strip().lower()
+    except OSError:
+        pass
+    return out
+
+
+def theme_layout(cfg, theme):
+    """The settings after following the theme (THEME LAYOUT): with
+    follow_theme on and a theme that names a layout (dock / taskbar) or a top
+    bar (on / off), those, the dock switched on for a layout, and your own
+    three kept in theme_saved (once: a theme after a theme keeps the first
+    ones); else your saved ones back. A top bar the theme turns off needs the
+    dock on: alone it is left as it is."""
+    new = dict(cfg)
+    want = {}
+    if cfg.get("follow_theme"):
+        if theme.get("layout") in CHOICES["layout"]:
+            want.update(enabled=True, layout=theme["layout"])
+        if theme.get("top_bar") in ("on", "off"):
+            if theme["top_bar"] == "on" or want.get("enabled", cfg.get("enabled")):
+                want["top_bar"] = theme["top_bar"] == "on"
+    if want:
+        new["theme_saved"] = cfg.get("theme_saved") or {k: cfg[k] for k in LAYOUT_KEYS}
+        new.update(want)
+    elif cfg.get("theme_saved"):
+        new.update(cfg["theme_saved"])
+        new["theme_saved"] = None
+    return new
 
 
 def write_settings(d):
@@ -556,10 +627,10 @@ def switch_unit(on):
 
 
 def set_key(key, value):
-    if key not in DEFAULTS:
-        raise SystemExit(f"dock.py: no setting {key!r} (one of {', '.join(DEFAULTS)})")
-    cur = read_settings()
-    was_bar = (bar_takeover(cur), bar_hidden(cur))
+    if key not in DEFAULTS or key == "theme_saved":
+        raise SystemExit(f"dock.py: no setting {key!r} (one of {', '.join(k for k in DEFAULTS if k != 'theme_saved')})")
+    old = read_settings()
+    cur = dict(old)
     if key in BOOL_KEYS:
         try:
             cur[key] = bool_value(value)
@@ -584,10 +655,30 @@ def set_key(key, value):
         cur[key] = clean_pinned(ids)
     if key == "top_bar" and not cur["top_bar"] and not cur["enabled"]:
         raise SystemExit("dock.py: the top bar can only go while the dock or the taskbar is on (dock.py set on)")
+    if key in LAYOUT_KEYS and cur[key] != old[key]:
+        cur["theme_saved"] = None       # yours now: the next theme leaves it be (THEME LAYOUT)
+    if key == "follow_theme":
+        cur = theme_layout(cur, read_theme_layout())
+    return apply_settings(old, cur)
+
+
+def follow_theme():
+    """`dock.py follow-theme` (theme.py, at every switch): THEME LAYOUT."""
+    old = read_settings()
+    new = theme_layout(old, read_theme_layout())
+    return apply_settings(old, new) if new != old else old
+
+
+def apply_settings(old, cur):
+    """Write cur, then what changing old to it takes: dock.service on or off,
+    the toolbox placed again and its pill poked, the bar restarted when what
+    it shows changes (one restart, however many keys changed)."""
+    was_bar = (bar_takeover(old), bar_hidden(old))
     # Written first: a daemon that starts reads enabled=true, and one that
     # sees enabled=false in the file quits by itself.
     write_settings(cur)
-    if key == "enabled" and not dry_env():
+    flipped = cur["enabled"] != old["enabled"]
+    if flipped and not dry_env():
         switch_unit(cur["enabled"])
         if not cur["enabled"]:
             # The daemon is gone (disable --now waits for the stop) and took
@@ -596,7 +687,7 @@ def set_key(key, value):
             # not in the daemon's way out: a process it started while
             # stopping would be killed with the rest of dock.service.
             toolbox_refit()
-    if key == "enabled":
+    if flipped:
         # The top bar's sliders pill re-reads whether the dock has the
         # toolbox button (toolbox.sh status): gone with a dock, back without.
         # Switched on, the daemon pokes it again once its button is there.
@@ -4135,6 +4226,8 @@ def main(argv):
         set_key(args[1], args[2])
     elif cmd == "set" and len(args) == 2 and args[1].lower() in ("on", "off"):
         set_key("enabled", args[1].lower())
+    elif cmd == "follow-theme" and len(args) == 1:
+        follow_theme()
     elif cmd in ("pin", "unpin") and len(args) == 2:
         change_pinned(cmd, args[1])
     elif cmd == "move" and len(args) == 3 and args[2] in ("-1", "+1", "1", "left", "right", "up", "down"):

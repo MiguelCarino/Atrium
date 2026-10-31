@@ -345,6 +345,14 @@ theme.conf KEYS (cyberpunk's file lists every one with its value)
                                "theme", its default; orchard and
                                orchard-dark). "" or no = they do not. Written
                                to bar.conf as magnify=
+    dock.layout=               what the theme looks best with: dock or taskbar
+                               (win95 and luna: taskbar; orchard: dock). ""
+                               = no say. Written to bar.conf as layout=;
+                               only followed with Settings > Dock & taskbar >
+                               Follow the theme on (dock.py follow-theme,
+                               run at every switch; THEME LAYOUT there)
+    dock.top_bar=              on or off, the same way (win95 and luna: off);
+                               bar.conf as top_bar=
     color.<name>=#rrggbb       colours DRAWN by code rather than CSS -- Pango
                                markup in bar scripts, cairo graphs in panels:
                                written to waybar/generated/colors.conf, read
@@ -439,6 +447,9 @@ BAR_NETWORK = ("", "icon")                 # network.py STYLES
 NETWORK_WATCH = r"^\S*python3?\S* \S*waybar/scripts/network\.py watch"
 DOCK_START_MAX = 12                        # dock.start=: one short word
 DOCK_MAGNIFY = ("", "yes", "no")           # dock.magnify=
+DOCK_LAYOUT = ("", "dock", "taskbar")      # dock.layout=
+DOCK_TOP_BAR = ("", "on", "off")           # dock.top_bar=
+DOCK_PY = os.path.join(HYPR, "dock.py")
 
 # The values cyberpunk/theme.conf holds, so that a deleted or half-written
 # theme folder can never leave a key unanswered (the slideshow, for one, asks
@@ -454,7 +465,7 @@ DEFAULTS = {
     "crt_suggest": "no", "lang": "en", "cursor_theme": "Adwaita",
     "island.enabled": "", "island.style": "", "island.match_bar": "",
     "bar.clock": "", "bar.logo": "", "bar.workspaces": "", "bar.network": "", "dock.start": "",
-    "dock.magnify": "",
+    "dock.magnify": "", "dock.layout": "", "dock.top_bar": "",
     "term.font": BASE_MONO, "term.font_size": "14", "glass": "12", "term.bright_bold": "no",
     "cosmic.background": "#0d1018", "cosmic.foreground": "#c8d3e6", "cosmic.accent": "#00f0ff",
     "cosmic.radius": "1",
@@ -1033,8 +1044,13 @@ def font_rules(base_files, swaps):
     """For every rule in the base stylesheets that names a font-family, the same
     selector again with the face swapped -- so `font=` reaches the clock, the
     weather, the key caps... without a theme having to find and repeat each
-    of those selectors itself. Font Awesome and emoji fallbacks are kept.
-    Emitted BEFORE the theme's own css, so the theme can still override one."""
+    of those selectors itself. Font Awesome and emoji fallbacks are kept,
+    and so is the face replaced, right after the theme's (unless its list
+    names it already): IBM Plex Sans ships with the desktop, so a theme face
+    that is not installed falls back to it -- not to Font Awesome, next in
+    the base's lists, whose letters and icon-name ligatures ("at" -> @, "th",
+    "display") would draw every word. Emitted BEFORE the theme's own css, so
+    the theme can still override one."""
     out = []
     for path in base_files:
         try:
@@ -1050,7 +1066,8 @@ def font_rules(base_files, swaps):
             value = m.group(1).strip()
             # One pass for all swaps, so font=IBM Plex Mono with a different
             # font_mono cannot have its result swapped a second time.
-            table = {f'"{old}"': css_families(face) for old, face in swaps}
+            table = {f'"{old}"': css_families(face) + ("" if old in font_list(face) else f', "{old}"')
+                     for old, face in swaps}
             new = re.sub("|".join(re.escape(k) for k in table), lambda x: table[x.group(0)], value)
             if new != value:
                 out.append(f"{' '.join(sel.split())} {{ font-family: {' '.join(new.split())}; }}")
@@ -1251,14 +1268,17 @@ def bar_text(conf):
     (bar_style()): clock=menubar moves the date and time to the far right,
     logo= is custom/logo's glyph; network= the network pill's style
     (network.py); start= is the word on dock.py's start button
-    (dock.start), magnify= whether its dock magnifies (dock.magnify).
-    Empty values = the usual bar."""
+    (dock.start), magnify= whether its dock magnifies (dock.magnify),
+    layout= and top_bar= what the theme looks best with (dock.layout,
+    dock.top_bar: dock.py follow-theme). Empty values = the usual bar."""
     return (f"# {MARK} from theme '{conf['id']}' -- do not edit.\n"
             f"clock={conf.get('bar.clock', '')}\n"
             f"logo={conf.get('bar.logo', '')}\n"
             f"network={conf.get('bar.network', '')}\n"
             f"start={conf.get('dock.start', '')}\n"
-            f"magnify={conf.get('dock.magnify', '')}\n")
+            f"magnify={conf.get('dock.magnify', '')}\n"
+            f"layout={conf.get('dock.layout', '')}\n"
+            f"top_bar={conf.get('dock.top_bar', '')}\n")
 
 
 def write_if_changed(path, text):
@@ -1756,6 +1776,11 @@ def apply(conf, quiet=False):
     bar_signals.poke("display")
     if "kitty" in changed:
         run(["pkill", "-USR1", "-x", "kitty"])     # kitty: reload kitty.conf
+    if "bar" in changed:
+        # The theme's layout (dock.layout / dock.top_bar), if you follow it:
+        # before the bar restart below, so the one that runs starts the bar
+        # (or not) for the new layout. Nothing at all with follow_theme off.
+        run([DOCK_PY, "follow-theme"], timeout=30)
     if "modules" in changed:
         # The include is read with the config, not the style, so the bar has
         # to start again to pick it up. Not SIGUSR2: waybar 0.15 can crash
@@ -2608,6 +2633,10 @@ def check_layout_keys(conf):
         problems.append(f"dock.start={start!r}: one short word (at most {DOCK_START_MAX} characters)")
     if conf.get("dock.magnify", "") not in DOCK_MAGNIFY:
         problems.append(f"dock.magnify={conf.get('dock.magnify')!r}: yes, no or empty")
+    if conf.get("dock.layout", "") not in DOCK_LAYOUT:
+        problems.append(f"dock.layout={conf.get('dock.layout')!r}: dock, taskbar or empty")
+    if conf.get("dock.top_bar", "") not in DOCK_TOP_BAR:
+        problems.append(f"dock.top_bar={conf.get('dock.top_bar')!r}: on, off or empty")
     return problems
 
 

@@ -806,6 +806,57 @@ class TopBarTakeover(unittest.TestCase):
         self.assertEqual(D.OVERVIEW_ARGV[:2], ["hyprctl", "eval"])
         self.assertIn("hyprview.toggle", D.OVERVIEW_ARGV[2])
 
+    def test_theme_layout(self):
+        """THEME LAYOUT: only with follow_theme; your own three kept once and
+        put back by a theme with no say, or by switching it off."""
+        mine = self.cfg(layout="dock", top_bar=True, follow_theme=True)
+        win = {"layout": "taskbar", "top_bar": "off"}
+        none = {"layout": "", "top_bar": ""}
+        self.assertEqual(D.theme_layout(dict(mine, follow_theme=False), win), dict(mine, follow_theme=False))
+        got = D.theme_layout(mine, win)
+        self.assertEqual((got["layout"], got["top_bar"], got["enabled"]), ("taskbar", False, True))
+        self.assertEqual(got["theme_saved"], {"enabled": True, "layout": "dock", "top_bar": True})
+        # Another theme after it keeps the first saved ones.
+        again = D.theme_layout(got, {"layout": "dock", "top_bar": "on"})
+        self.assertEqual(again["theme_saved"], got["theme_saved"])
+        self.assertEqual(again["layout"], "dock")
+        back = D.theme_layout(got, none)
+        self.assertEqual((back["layout"], back["top_bar"], back["theme_saved"]), ("dock", True, None))
+        self.assertEqual(D.theme_layout(dict(got, follow_theme=False), win)["layout"], "dock")  # off: yours
+        # The dock off: a theme's layout turns it on; its top bar alone cannot go.
+        off = dict(mine, enabled=False)
+        self.assertTrue(D.theme_layout(off, win)["enabled"])
+        self.assertEqual(D.theme_layout(off, {"layout": "", "top_bar": "off"}), off)
+
+    def test_read_theme_layout_and_saved(self):
+        path = os.path.join(helpers.SCRATCH, "bar.conf")
+        with open(path, "w") as fh:
+            fh.write("# generated\nclock=\nlayout=Taskbar\ntop_bar=off\n")
+        self.assertEqual(D.read_theme_layout(path), {"layout": "taskbar", "top_bar": "off"})
+        self.assertEqual(D.read_theme_layout(path + ".none"), {"layout": "", "top_bar": ""})
+        self.assertIsNone(D.clean_saved({"enabled": "yes", "layout": "dock", "top_bar": True}))
+        self.assertIsNone(D.clean_saved({"enabled": True, "layout": "metro", "top_bar": True}))
+        self.assertEqual(D.clean_saved({"enabled": True, "layout": "dock", "top_bar": False, "x": 1}),
+                         {"enabled": True, "layout": "dock", "top_bar": False})
+        with self.assertRaises(SystemExit):
+            D.set_key("theme_saved", "x")
+
+    def test_your_own_change_drops_the_saved_layout(self):
+        real_dry, real_restart = D.dry_env, D.restart_bar
+        D.dry_env, D.restart_bar = (lambda: False), (lambda: None)
+        real_switch, real_refit, real_poke = D.switch_unit, D.toolbox_refit, D.poke_toolbox_pill
+        D.switch_unit = D.toolbox_refit = D.poke_toolbox_pill = lambda *a: None
+        try:
+            D.write_settings(self.cfg(layout="taskbar", top_bar=False, follow_theme=True,
+                                      theme_saved={"enabled": True, "layout": "dock", "top_bar": True}))
+            D.set_key("combine", "off")                         # not one of the three: kept
+            self.assertIsNotNone(D.read_settings()["theme_saved"])
+            D.set_key("layout", "dock")
+            self.assertIsNone(D.read_settings()["theme_saved"])
+        finally:
+            D.dry_env, D.restart_bar = real_dry, real_restart
+            D.switch_unit, D.toolbox_refit, D.poke_toolbox_pill = real_switch, real_refit, real_poke
+
     def test_top_bar_off(self):
         """TOP BAR OFF: bar_hidden needs the dock on; switching it off while
         the dock is off is refused; a change restarts the bar, on either

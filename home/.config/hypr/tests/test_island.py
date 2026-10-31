@@ -199,7 +199,7 @@ class Cli(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         st = json.loads(done.stdout)
         self.assertEqual(set(st), {"settings", "defaults", "service", "enabled_unit", "running",
-                                   "monitors", "sock", "popups"})
+                                   "monitors", "sock", "popups", "top_bar_off"})
         self.assertEqual(set(st["settings"]), set(isl.DEFAULTS))
         self.assertEqual(st["defaults"], isl.DEFAULTS)
         self.assertEqual(st["service"], "dry")
@@ -230,7 +230,7 @@ class Status(unittest.TestCase):
     def test_shape_in_process(self):
         st = isl.status()
         self.assertEqual(set(st), {"settings", "defaults", "service", "enabled_unit", "running",
-                                   "monitors", "sock", "popups"})
+                                   "monitors", "sock", "popups", "top_bar_off"})
         self.assertEqual(st["service"], "dry")
         self.assertIs(st["enabled_unit"], False)
         self.assertIs(st["running"], os.path.exists(isl.SOCK) and stat.S_ISSOCK(os.stat(isl.SOCK).st_mode))

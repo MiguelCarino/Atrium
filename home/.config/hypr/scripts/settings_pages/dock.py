@@ -5,7 +5,8 @@
                     floating dock, or a Windows-style taskbar along the
                     bottom; one screen or every screen, the window previews
                     on hover; the top bar on or off (off: only while one of
-                    them is on -- dock.py, TOP BAR OFF)
+                    them is on -- dock.py, TOP BAR OFF); whether a theme's
+                    layout is followed (dock.py, THEME LAYOUT)
     DOCK            its edge (bottom, left, right), when it hides (never,
                     when a window covers it, always), the icon size,
                     magnification (as the theme says, on, off)
@@ -182,6 +183,11 @@ class Page:
                                              "or the location, only while something does: on the taskbar, "
                                              "or on the dock with the top bar off")
         w.pack_start(self.privacy, False, False, 0)
+        grid, _sub = self.switch_row("follow_theme", "\uf53f", "Follow the theme",
+                                     "a theme that says how it looks best sets the dock, the taskbar "
+                                     "and the top bar: Windows 95 and Luna the taskbar without a top "
+                                     "bar, Orchard the dock. Leaving it puts yours back")
+        w.pack_start(grid, False, False, 0)
 
         # -- dock ---------------------------------------------------------------------------------
         w.pack_start(sep(), False, False, 0)  # noqa: F405
