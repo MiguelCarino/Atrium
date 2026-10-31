@@ -94,7 +94,7 @@ memory (any vendor) next to what is already on it.
 | `home/.config/{mako,wofi,uwsm,autostart,systemd/user,qt5ct,qt6ct}` | notifications, launcher, session, services, Qt colours |
 | `home/.local/share/nautilus-python/extensions/` | Files (Nautilus): Open in Terminal, Open in Text Editor, Set as Wallpaper, Ask the Local Model, Copy Path / URI, and a Git column with emblems; the logic is `scripts/nautilus_actions.py`. Loads when Nautilus starts (`nautilus -q` closes it) |
 | `packages/` | Fedora packages, repositories, the services install.sh enables |
-| `system/` | the root-side pieces (cpu-power, railguard's SysRq keys, the greetd login screen, a hybrid laptop's NVIDIA power saving, a touchpad re-probe at boot) |
+| `system/` | the root-side pieces (cpu-power, railguard's SysRq keys, the greetd login screen, a hybrid laptop's NVIDIA power saving, a touchpad re-probe at boot and a watchdog for its I2C bus) |
 | `install.sh`, `uninstall.sh` | set it up; put back what it replaced |
 | `extras/` | the smart features' models |
 

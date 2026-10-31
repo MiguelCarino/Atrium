@@ -1,0 +1,75 @@
+#!/bin/bash
+# Reset the I2C controller under a touchpad when it locks up. Seen on an
+# ASUS ZenBook UX425UG after BIOS 301: some minutes in, often right after the
+# touchpad wakes from idle, the DesignWare controller it hangs off stops
+# finishing transfers -- "i2c_designware AMDI0010:03: controller timed out"
+# once a second -- and the touchpad is dead until the controller is unbound
+# and bound again. This follows the kernel log; TRIPS timeouts within WINDOW
+# seconds on a controller that carries an I2C HID device (ACPI PNP0C50) reset
+# it, then touchpad-reprobe binds the touchpad again. At most one reset per
+# HOLDOFF seconds, so a controller that never comes back is not hammered.
+#
+#   touchpad-watchdog            follow `journalctl -k -f` (the service)
+#   touchpad-watchdog --dry      read kernel lines on stdin, print what it
+#                                would do (the tests: no /sys is touched)
+set -u
+TRIPS=3
+WINDOW=10
+HOLDOFF=30
+DRY=0
+[[ ${1:-} == --dry ]] && DRY=1
+DRIVER=/sys/bus/platform/drivers/i2c_designware
+REPROBE=/usr/local/libexec/touchpad-reprobe
+
+# The platform devices (controllers) that carry a PNP0C50 device: its sysfs
+# path is .../platform/<controller>/i2c-<n>/i2c-PNP0C50:xx.
+touchpad_controllers() {
+    local dev path
+    for dev in /sys/bus/i2c/devices/i2c-PNP0C50:*; do
+        [[ -e $dev ]] || continue
+        path=$(readlink -f "$dev")
+        path=${path%/i2c-[0-9]*/*}
+        echo "${path##*/}"
+    done
+}
+
+watched=" $(touchpad_controllers | tr '\n' ' ') "
+(( DRY )) && watched=" ${TOUCHPAD_WATCHDOG_CONTROLLERS:-AMDI0010:03} "
+echo "touchpad-watchdog: watching${watched% }"
+
+declare -A hits last_reset
+reset() {
+    local ctl=$1
+    echo "touchpad-watchdog: $ctl locked up ($TRIPS timeouts in ${WINDOW}s): resetting it"
+    (( DRY )) && return
+    echo "$ctl" > "$DRIVER/unbind" 2>/dev/null
+    sleep 1
+    echo "$ctl" > "$DRIVER/bind" 2>/dev/null || echo "touchpad-watchdog: $ctl did not bind again"
+    sleep 2
+    [[ -x $REPROBE ]] && "$REPROBE"
+}
+
+source_lines() {
+    if (( DRY )); then cat; else exec journalctl -k -f -n 0 -o cat; fi
+}
+
+source_lines | while IFS= read -r line; do
+    [[ $line =~ ^i2c_designware\ ([^ ]+):\ controller\ timed\ out ]] || continue
+    ctl=${BASH_REMATCH[1]}
+    [[ $watched == *" $ctl "* ]] || continue
+    now=$SECONDS
+    (( DRY )) && now=$(( ${hits[$ctl.n]:-0} ))     # dry: one line = one second
+    hits[$ctl.n]=$(( ${hits[$ctl.n]:-0} + 1 ))
+    # the timeouts of the last WINDOW seconds, newest last
+    kept=""
+    for t in ${hits[$ctl]:-} $now; do
+        (( now - t < WINDOW )) && kept+=" $t"
+    done
+    hits[$ctl]=$kept
+    set -- $kept
+    if (( $# >= TRIPS )) && (( now - ${last_reset[$ctl]:--HOLDOFF} >= HOLDOFF )); then
+        last_reset[$ctl]=$now
+        hits[$ctl]=""
+        reset "$ctl"
+    fi
+done

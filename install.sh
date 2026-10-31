@@ -401,8 +401,8 @@ if [[ -e /sys/class/powercap/intel-rapl:0/energy_uj ]] && ask "Show the CPU's po
     run sudo "$REPO/system/cpu-power/install.sh"
 fi
 # A laptop's I2C touchpad that the driver missed at boot (some firmware
-# powers it up late) is bound again. The script checks for one and does
-# nothing else.
+# powers it up late) is bound again, and its I2C controller is reset when it
+# locks up. The script checks for one and does nothing else.
 run sudo "$REPO/system/touchpad-reprobe/install.sh"
 # The desktop that was here (GNOME, Plasma, COSMIC, ...): offered for
 # removal, so what is left is a Hyprland desktop and nothing else. Safe order:

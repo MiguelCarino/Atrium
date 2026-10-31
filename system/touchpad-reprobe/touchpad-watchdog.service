@@ -1,0 +1,21 @@
+# touchpad-watchdog.service -- see /usr/local/libexec/touchpad-watchdog for what and why.
+[Unit]
+Description=Reset the touchpad's I2C controller when it locks up
+After=systemd-journald.service touchpad-reprobe.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/libexec/touchpad-watchdog
+Restart=always
+RestartSec=5
+# It reads the kernel log and writes the driver's bind / unbind, so /sys
+# stays writable.
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
