@@ -1,0 +1,18 @@
+# touchpad-reprobe.service -- see /usr/local/libexec/touchpad-reprobe for what and why.
+[Unit]
+Description=Bind I2C HID touchpads the driver missed at boot
+After=systemd-udev-settle.service systemd-modules-load.service
+Wants=systemd-udev-settle.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/touchpad-reprobe
+# It writes one sysfs file (drivers_probe), so /sys stays writable.
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

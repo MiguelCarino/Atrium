@@ -1,0 +1,22 @@
+#!/bin/sh
+# Bind I2C HID devices (touchpads, touchscreens: ACPI PNP0C50) that the
+# driver gave up on at boot. Some firmware powers the touchpad up after
+# i2c_hid_acpi has probed it once; the device does not answer, the probe
+# fails without a log line and is never retried, so the touchpad is dead
+# until a manual re-probe. Seen on an ASUS ZenBook UX425UG after BIOS 301.
+# Devices that already have a driver are left alone; with none missing it
+# exits at once.
+for try in 1 2 3 4 5; do
+    missing=0
+    for dev in /sys/bus/i2c/devices/i2c-PNP0C50:*; do
+        [ -e "$dev" ] || continue
+        [ -e "$dev/driver" ] && continue
+        missing=1
+        echo "${dev##*/}" > /sys/bus/i2c/drivers_probe 2>/dev/null &&
+            [ -e "$dev/driver" ] && echo "touchpad-reprobe: bound ${dev##*/} (try $try)"
+    done
+    [ "$missing" -eq 0 ] && exit 0
+    sleep 1
+done
+echo "touchpad-reprobe: still unbound after 5 tries:" /sys/bus/i2c/devices/i2c-PNP0C50:*
+exit 0
