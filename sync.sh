@@ -28,7 +28,7 @@ PATHS=(
     .config/wofi/
     .config/themes/             # desktop themes (scripts/theme.py)
     .config/uwsm/
-    .config/autostart/          # NotShowIn=Hyprland overrides of /etc/xdg/autostart
+    .config/autostart/          # NotShowIn=Hyprland overrides of /etc/xdg/autostart (keep_autostart)
     .config/systemd/user/
     .config/qt5ct/              # the themes write their colours here
     .config/qt6ct/
@@ -79,6 +79,20 @@ EXCLUDES=(
     '--exclude=*.bak'
 )
 
+# The repo's autostart overrides only hide a system entry from Hyprland, so
+# one whose app is not installed here (no /etc/xdg/autostart entry, nothing
+# to hide) is absent from ~/.config/autostart for that reason alone, not
+# because it was dropped: rsync's protect rule keeps it in the repo for the
+# machines that have the app. install.sh copies by the same test.
+keep_autostart() {
+    local f
+    for f in "$DEST"/.config/autostart/*.desktop; do
+        [[ -e $f ]] || continue
+        f=${f##*/}
+        [[ -e /etc/xdg/autostart/$f || -e $HOME/.config/autostart/$f ]] || printf '%s\n' "--filter=P /$f"
+    done
+}
+
 # The user units enabled on this install, minus the personal ones and the
 # ones that ship OFF however the maintainer runs them (dock: the dock or
 # taskbar is chosen in Settings): what install.sh turns on for a new user.
@@ -99,12 +113,14 @@ case ${1:-} in
     drift=0 sample=()
     for p in "${PATHS[@]}"; do
         [[ -e $HOME/$p ]] || continue
+        keep=()
+        [[ $p == .config/autostart/ ]] && mapfile -t keep < <(keep_autostart)
         while IFS= read -r line; do
             [[ -z $line || $line == */ ]] && continue
             drift=$((drift + 1))
             if [[ $p == */ ]]; then f="${p%/}/${line#./}"; else f=$p; fi
             ((${#sample[@]} < 12)) && sample+=("$f")
-        done < <(rsync -an --delete --out-format='%n' "${PERSONAL[@]}" "${EXCLUDES[@]}" "$HOME/$p" "$DEST/$p" 2>/dev/null |
+        done < <(rsync -an --delete --out-format='%n' "${keep[@]}" "${PERSONAL[@]}" "${EXCLUDES[@]}" "$HOME/$p" "$DEST/$p" 2>/dev/null |
                  grep -v '^deleting .*/$')
     done
     cd "$REPO"
@@ -130,8 +146,10 @@ for p in "${PATHS[@]}"; do
         continue
     fi
     mkdir -p "$DEST/$(dirname "$p")"
+    keep=()
+    [[ $p == .config/autostart/ ]] && mapfile -t keep < <(keep_autostart)
     # --delete-excluded: a file newly marked personal leaves the repo too
-    rsync -a --delete --delete-excluded "${PERSONAL[@]}" "${EXCLUDES[@]}" "$HOME/$p" "$DEST/$p"
+    rsync -a --delete --delete-excluded "${keep[@]}" "${PERSONAL[@]}" "${EXCLUDES[@]}" "$HOME/$p" "$DEST/$p"
 done
 write_units
 # wofi's @import must be absolute (GTK gets the text, not the path), so the
