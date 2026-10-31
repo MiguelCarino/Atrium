@@ -4,7 +4,8 @@
     DOCK & TASKBAR  None, Dock or Taskbar: off (dock.service stopped), a
                     floating dock, or a Windows-style taskbar along the
                     bottom; one screen or every screen, the window previews
-                    on hover
+                    on hover; the top bar on or off (off: only while one of
+                    them is on -- dock.py, TOP BAR OFF)
     DOCK            its edge (bottom, left, right), when it hides (never,
                     when a window covers it, always), the icon size,
                     magnification (as the theme says, on, off)
@@ -32,7 +33,8 @@ PAGE = {"id": "dock", "title": "Dock & taskbar", "icon": "", "group": "Look",
         "keywords": ["dock", "taskbar", "task bar", "barra de tareas", "start button", "start menu",
                      "pinned apps", "pin app", "running apps", "autohide", "auto hide", "system tray",
                      "tray icons", "window previews", "thumbnails", "launcher bar", "magnification",
-                     "magnify icons"]}
+                     "magnify icons", "top bar", "hide top bar", "no top bar", "remove top bar",
+                     "without the bar", "disable top bar", "top bar off", "turn off top bar"]}
 
 DOCK = os.path.join(HYPR, "dock.py")  # noqa: F405  (HYPR: common)
 MODES = [("none", "None"), ("dock", "Dock"), ("taskbar", "Taskbar")]
@@ -96,7 +98,7 @@ def now_text(st):
         return "On but not running: systemctl --user status dock"
     what = "a taskbar" if conf.get("layout") == "taskbar" else "a dock"
     where = "on every screen" if conf.get("monitors") == "all" else "on the main screen"
-    return f"On: {what}, {where}"
+    return f"On: {what}, {where}" + ("; no top bar" if conf.get("top_bar") is False else "")
 
 
 def pinned_rows(st):
@@ -160,6 +162,11 @@ class Page:
         grid, _sub = self.switch_row("previews", "", "Window previews",
                                      "hover a running app for its windows, with pictures")
         w.pack_start(grid, False, False, 0)
+        self.top_bar, _sub = self.switch_row("top_bar", "\uf2d0", "Top bar",
+                                             "off: no bar at the top. The taskbar keeps what it shows; "
+                                             "the rest (notifications, battery, workspaces...) is in the "
+                                             "toolbox. Back by itself if the dock or taskbar stops")
+        w.pack_start(self.top_bar, False, False, 0)
 
         # -- dock ---------------------------------------------------------------------------------
         w.pack_start(sep(), False, False, 0)  # noqa: F405
@@ -300,6 +307,7 @@ class Page:
         finally:
             self.updating = False
         mode = mode_of(conf)
+        self.top_bar.set_sensitive(mode != "none")
         self.dock_box.set_sensitive(mode == "dock")
         self.task_box.set_sensitive(mode == "taskbar")
         clear(self.pinned)  # noqa: F405

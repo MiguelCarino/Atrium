@@ -122,6 +122,18 @@ class Poke(unittest.TestCase):
         self.assertEqual(sorted(sent), [(100, rt + 20), (200, rt + 11)])
         self.assertEqual(n, 2)
 
+    def test_a_bar_pill_in_the_toolbox_is_poked_there(self):
+        """The top bar off: the card holds the bar's pills, so a "main"
+        signal reaches the toolbox too -- when it catches it. A toolbox
+        signal still never goes to the main bar."""
+        rt = signal.SIGRTMIN
+        self.fake(200, "waybar", "/usr/bin/waybar -c /x/generated/config-toolbox-nobar", [rt + 20, rt + 11])
+        self.fake(300, "waybar", "/usr/bin/waybar -c /x/config-toolbox", [rt + 11])     # no phone pill
+        self.fake(100, "waybar", "/usr/bin/waybar", [rt + 11])
+        sent = []
+        bs.poke("phone", "nightlight", proc=self.proc, kill=lambda pid, sig: sent.append((pid, sig)))
+        self.assertEqual(sorted(sent), [(200, rt + 11), (200, rt + 20), (300, rt + 11)])
+
     def test_off_switch_spares_the_live_bar(self):
         """HYPR_BAR_SIGNALS_OFF=1: the real os.kill is never reached. The
         "waybar" in the fake /proc is this test process itself, with a

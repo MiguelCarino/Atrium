@@ -30,6 +30,14 @@
     min-width: 150px;
 }
 
+/* With the top bar off (hypr/scripts/dock.py, TOP BAR OFF) the card opens
+   with the bar's pills, two rows of them (bar-settings.py STATUS_ROWS), each
+   pill styled as on the bar. */
+#status-now,
+#status-more {
+    margin: 0 0 6px 0;
+}
+
 #tray {
     margin-bottom: 0;
     padding-top: 6px;

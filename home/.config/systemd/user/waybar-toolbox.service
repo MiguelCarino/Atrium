@@ -1,10 +1,14 @@
 # The toolbox section of the bar: a second, normally hidden waybar holding game
 # mode, night light, idle, shortcuts and the tray. Opened and closed by the
-# sliders pill on the main bar (~/.config/waybar/scripts/toolbox.sh).
-# Tied to waybar.service: started, stopped and restarted along with it.
+# sliders pill on the main bar (~/.config/waybar/scripts/toolbox.sh), or the
+# dock's / taskbar's button.
+# Not tied to waybar.service any more: with the top bar off (hypr/scripts/
+# dock.py, TOP BAR OFF) the bar is not started at all, and this one must
+# still run -- its tray is the session's StatusNotifierWatcher, the taskbar's
+# tray included. bar-restart.sh restarts the two together instead.
 [Unit]
 Description=Waybar toolbox section (game mode, night light, idle, tray)
-PartOf=graphical-session.target waybar.service
+PartOf=graphical-session.target
 After=graphical-session.target waybar.service
 Requisite=graphical-session.target
 StartLimitIntervalSec=30
@@ -20,10 +24,12 @@ ExecStartPre=/usr/bin/rm -f %t/waybar-toolbox.open
 # own after generated/ was cleared would come up unstyled; ensure only
 # creates missing files, so running it twice costs nothing.
 ExecStartPre=-/usr/bin/python3 %h/.config/hypr/scripts/theme.py ensure
-ExecStart=/usr/bin/waybar -c %h/.config/waybar/config-toolbox -s %h/.config/waybar/style-toolbox.css
+# config-toolbox, or with the top bar off a copy that also holds the bar's
+# pills (toolbox-main.sh; bar-settings.py toolbox-config-path).
+ExecStart=%h/.config/waybar/scripts/toolbox-main.sh
 Restart=always
 RestartSec=2
 TimeoutStopSec=3
 
 [Install]
-WantedBy=graphical-session.target waybar.service
+WantedBy=graphical-session.target

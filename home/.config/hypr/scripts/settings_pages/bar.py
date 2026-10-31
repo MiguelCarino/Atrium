@@ -99,6 +99,10 @@ def bar_sub(data, now=None):
     loaded every change."""
     now = time.time() if now is None else now
     since = (data.get("running") or {}).get("bar")
+    if data.get("top_bar") == "off":
+        # dock.py TOP BAR OFF: its pills are in the toolbox card meanwhile.
+        text = "off: the dock or taskbar runs without it (Dock & taskbar); its pills below are in the toolbox"
+        return text + ("  ·  changes not loaded yet: Restart the bar (ALT+G)" if data.get("pending") else "")
     if not since:
         return "NOT running: Restart the bar starts it"
     text = "running"

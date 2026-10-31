@@ -24,7 +24,11 @@ time its card is refit -- must not be hit. pkill had no such check.
 
 The "bar" column: "main" is the top bar (config), "toolbox" the drop-down
 card (config-toolbox, waybar-toolbox.service); poke() signals only that
-waybar, so the other never re-runs scripts for nothing.
+waybar, so the other never re-runs scripts for nothing -- except that a
+"main" pill is also poked in the toolbox when the toolbox catches its signal:
+with the top bar off the card holds the bar's pills (bar-settings.py
+toolbox-config-path), and the numbers are unique, so catching one means
+having that pill.
 
 HYPR_BAR_SIGNALS_OFF=1 in the environment turns poke() into a no-op (it
 still returns 0): the tests set it, so a script under test that redraws a
@@ -132,7 +136,7 @@ def poke(*names, proc="/proc", kill=os.kill):
         number, bar = SIGNALS[name][:2]
         signum = signal.SIGRTMIN + number
         for pid, which in bars:
-            if which != bar:
+            if which != bar and not (bar == "main" and which == "toolbox"):
                 continue
             if not catches(_read(f"{proc}/{pid}/status").decode(errors="replace"), signum):
                 continue

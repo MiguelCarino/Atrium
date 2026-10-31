@@ -52,7 +52,9 @@ Nothing here installs anything or needs root. The one source of each fact:
              re-login. Not `systemctl --user reload` / SIGUSR2: waybar 0.15
              rebuilds its modules in place on that and can abort (the
              fork/pthread_cancel race bar-restart.sh describes). Only when
-             waybar.service is running -- a bar that is off stays off. "login" is waybar's "once": a
+             waybar.service is running -- a bar that is off stays off -- or the
+             top bar is off for the dock (bar-wanted.sh says no; the toolbox
+             holds the updates pill then). "login" is waybar's "once": a
              check each time the bar starts, then only when asked.
   snapshots  snapshots.py status (snapper, set up by setup-root.sh); without
              snapper, safe-upgrade.sh's own read-only snapshots in
@@ -474,8 +476,9 @@ def write_interval(name):
         os.chmod(tmp, mode)
         os.replace(tmp, WAYBAR_CONFIG)
         # A scratch config (the tests) never touches the live bar.
-        if not os.environ.get("SOFTWARE_UPDATES_WAYBAR_CONFIG") and \
-                run("systemctl", "--user", "is-active", "--quiet", "waybar.service", timeout=5)[0] == 0:
+        if not os.environ.get("SOFTWARE_UPDATES_WAYBAR_CONFIG") and (
+                run("systemctl", "--user", "is-active", "--quiet", "waybar.service", timeout=5)[0] == 0
+                or run(os.path.join(WAYBAR_SCRIPTS, "bar-wanted.sh"), timeout=10)[0] == 1):
             run(BAR_RESTART, timeout=20)
     return value
 

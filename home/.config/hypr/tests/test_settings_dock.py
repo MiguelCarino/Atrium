@@ -43,7 +43,7 @@ class PageHelpers(unittest.TestCase):
     def test_found_by_search(self):
         from settings_pages import _catalog as C
         pages = C.read_pages()
-        for words in ("taskbar", "dock", "system tray", "pinned apps"):
+        for words in ("taskbar", "dock", "system tray", "pinned apps", "no top bar", "disable top bar"):
             self.assertEqual(C.resolve(pages, words), "dock", words)
         self.assertEqual(C.host_of(pages, "dock"), "bar")
 
@@ -54,6 +54,8 @@ class PageHelpers(unittest.TestCase):
         self.assertEqual(self.page.now_text(dict(status(enabled=True, layout="taskbar", monitors="all"),
                                                  service="active")), "On: a taskbar, on every screen")
         self.assertIn("not running", self.page.now_text(status(enabled=True)))
+        self.assertEqual(self.page.now_text(dict(status(enabled=True, top_bar=False), service="active")),
+                         "On: a dock, on the main screen; no top bar")
 
     def test_modes(self):
         off, dock, task = status(), status(enabled=True), status(enabled=True, layout="taskbar")
@@ -89,16 +91,21 @@ class PageHelpers(unittest.TestCase):
 
     def test_switches_for_everything(self):
         p, _ran = self.build()
-        self.assertEqual(set(p.switches), {"previews"} | {k for k, *_ in self.page.TASKBAR})
+        self.assertEqual(set(p.switches), {"previews", "top_bar"} | {k for k, *_ in self.page.TASKBAR})
 
     def test_controls_run_dock_set(self):
         p, ran = self.build()
         p.show(status(layout="taskbar"))                            # off: both sections dim
         self.assertFalse(p.dock_box.get_sensitive() or p.task_box.get_sensitive())
+        self.assertFalse(p.top_bar.get_sensitive())                 # the bar can only go with one of them
         p.show(status(enabled=True, layout="taskbar"))
         self.assertFalse(ran)                                       # drawing changes nothing
         self.assertFalse(p.dock_box.get_sensitive())
         self.assertTrue(p.task_box.get_sensitive())
+        self.assertTrue(p.top_bar.get_sensitive())
+        p.switches["top_bar"].set_state(False)
+        p.switches["top_bar"].emit("state-set", False)
+        self.assertEqual(ran[-1][1:], ("set", "top_bar", "off"))
         p.switches["combine"].set_state(False)
         p.switches["combine"].emit("state-set", False)
         self.assertEqual(ran[-1][1:], ("set", "combine", "off"))

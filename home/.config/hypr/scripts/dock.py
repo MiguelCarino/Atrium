@@ -47,6 +47,8 @@ Settings > Bar & toolbox > Dock & taskbar):
                 category, Files, Settings, Search, Run, Lock, Sleep, Shut
                 down -- the power panel, which asks first)
     previews    hovering a running app lists its windows, with pictures (true)
+    top_bar     the top bar at all while this runs (true). Off, the bar is
+                not started (TOP BAR OFF below); only while enabled
     magnify     the dock only: the icons under the pointer grow, macOS-like
                 (EFFECTS below): "theme" (the theme's dock.magnify: orchard's
                 yes), "on" or "off"
@@ -109,6 +111,20 @@ if they end; wttr.py every 30 min, sooner after a stale answer. A click
 opens the bar's panel, which rises from the bottom when the click was in the
 lower half of the screen (panelui.py). If the daemon is down while it is on,
 those pills are on neither bar until it is back (dock.service restarts it).
+
+TOP BAR OFF (top_bar off, bar_hidden): no top bar at all while this runs.
+waybar.service has an ExecCondition (waybar/scripts/bar-wanted.sh, asking
+bar-settings.py wanted) that skips the bar while bar_hidden says so AND
+dock.service is active -- the setting alone never hides it, so a dock that is
+not running leaves the bar where it was. What the taskbar does not take over
+goes into the toolbox card instead (bar-settings.py toolbox-config-path: the
+clock and the rest too, for the dock). Both ways back are automatic:
+dock.service's ExecStopPost starts the bar whenever this stops (switched off,
+a crash, `systemctl stop`), and the daemon, on starting, restarts a bar that
+is running although it should not be -- a skipped condition is a bar that
+stays stopped -- so after a crash and dock.service's own restart it goes
+again. `dock.py set` restarts the bar when bar_hidden changes, as for what
+the taskbar takes over; switching top_bar off while this is off is refused.
 
 THE TOOLBOX: game mode, night light, Keep awake, shortcuts and the tray card
 (waybar-toolbox, toolbox.sh) opens from a button here while this runs -- the
@@ -229,7 +245,7 @@ PID_FILE = os.path.join(RUNTIME, "dock.pid")
 DEFAULTS = {"enabled": False, "layout": "dock", "position": "bottom", "autohide": "never",
             "icon_size": 48, "monitors": "main", "combine": True, "labels": True, "tray": True,
             "clock": True, "weather": True, "network": True, "sound": True, "previews": True,
-            "magnify": "theme", "start_menu": "launcher", "pinned": None}
+            "magnify": "theme", "start_menu": "launcher", "top_bar": True, "pinned": None}
 CHOICES = {"layout": ("dock", "taskbar"), "position": ("bottom", "left", "right"),
            "autohide": ("never", "overlap", "always"), "monitors": ("main", "all"),
            "magnify": ("theme", "on", "off"), "start_menu": ("launcher", "classic")}
@@ -422,6 +438,21 @@ def bar_takeover(cfg):
     return [name for key, names in TAKEOVER if key is None or cfg.get(key) for name in names]
 
 
+def bar_hidden(cfg):
+    """No top bar at all (TOP BAR OFF in the docstring): switched on, with
+    top_bar off. Whether the bar really goes also needs dock.service up
+    (bar-settings.py wanted)."""
+    return bool(cfg.get("enabled")) and not cfg.get("top_bar", True)
+
+
+def unit_active(unit):
+    try:
+        return subprocess.run(["systemctl", "--user", "is-active", "--quiet", unit],
+                              stdin=subprocess.DEVNULL, timeout=10).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def restart_bar():
     """bar-restart.sh in the background: the top bar starts again from the
     config bar-settings.py config-path picks (TOP BAR in the docstring).
@@ -452,7 +483,7 @@ def set_key(key, value):
     if key not in DEFAULTS:
         raise SystemExit(f"dock.py: no setting {key!r} (one of {', '.join(DEFAULTS)})")
     cur = read_settings()
-    was_taken = bar_takeover(cur)
+    was_bar = (bar_takeover(cur), bar_hidden(cur))
     if key in BOOL_KEYS:
         try:
             cur[key] = bool_value(value)
@@ -475,6 +506,8 @@ def set_key(key, value):
         if bad:
             raise SystemExit(f"dock.py: not desktop ids: {', '.join(bad)}")
         cur[key] = clean_pinned(ids)
+    if key == "top_bar" and not cur["top_bar"] and not cur["enabled"]:
+        raise SystemExit("dock.py: the top bar can only go while the dock or the taskbar is on (dock.py set on)")
     # Written first: a daemon that starts reads enabled=true, and one that
     # sees enabled=false in the file quits by itself.
     write_settings(cur)
@@ -492,7 +525,7 @@ def set_key(key, value):
         # toolbox button (toolbox.sh status): gone with a dock, back without.
         # Switched on, the daemon pokes it again once its button is there.
         poke_toolbox_pill()
-    if bar_takeover(cur) != was_taken and not dry_env():
+    if (bar_takeover(cur), bar_hidden(cur)) != was_bar and not dry_env():
         restart_bar()
     return cur
 
@@ -3813,6 +3846,11 @@ def daemon():
                 fh.write(f"{os.getpid()}\n")
         except OSError:
             pass
+        # Back after a crash (dock.service's ExecStopPost brought the bar
+        # back meanwhile): the bar goes again, its restart now skipped by
+        # bar-wanted.sh since this unit is active (TOP BAR OFF).
+        if bar_hidden(cfg) and not dry_env() and unit_active("waybar.service"):
+            restart_bar()
     stage = None
     try:
         engine.start()

@@ -196,11 +196,106 @@ class TaskbarVariant(unittest.TestCase):
             bs.taken_by_taskbar, bs.read = real_taken, real_read
 
 
+NAMED_TOOLBOX = TOOLBOX.replace('{\n    "output"', '{\n    "name": "waybar-toolbox",\n    "output"', 1)
+
+
+class ToolboxVariant(unittest.TestCase):
+    """toolbox-config-path's copy of the card with the top bar off
+    (dock.py TOP BAR OFF): the bar's pills as rows on top."""
+    def test_rows_on_top_with_the_bars_blocks(self):
+        new = bs.toolbox_variant(NAMED_TOOLBOX, BAR, skip=set())
+        card = bs.parse(new)
+        self.assertEqual(card["group/card"]["modules"],
+                         ["group/status-now", "group/status-more", "custom/settings", "custom/awake", "tray"])
+        self.assertEqual(card["group/status-now"], {"orientation": "horizontal",
+                                                    "modules": ["custom/day", "custom/clock"]})
+        # In STATUS_ROWS' order, only what the bar shows; the cpu and the
+        # window title are not taken in, the toolbox pill never.
+        self.assertEqual(card["group/status-more"]["modules"],
+                         ["ext/workspaces", "custom/weather", "custom/power"])
+        self.assertEqual(card["custom/weather"], bs.parse(BAR)["custom/weather"])
+        self.assertIn("// wttr.in turns away the impatient", new)          # copied, comments and all
+        self.assertNotIn("custom/updates", card)                           # not on the bar: not copied
+
+    def test_skips_what_the_taskbar_shows_and_what_is_hidden(self):
+        bar = bs.set_shown(BAR, "ext/workspaces", False)
+        new = bs.toolbox_variant(NAMED_TOOLBOX, bar, skip={"custom/day", "custom/clock", "custom/weather",
+                                                           "custom/power"})
+        card = bs.parse(new)
+        self.assertEqual(card["group/card"]["modules"], ["custom/settings", "custom/awake", "tray"])
+        self.assertEqual(new, NAMED_TOOLBOX)                              # nothing left to add
+
+    def test_no_name_line_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "name"):
+            bs.toolbox_variant(TOOLBOX, BAR, skip=set())
+
+    def test_toolbox_config_path(self):
+        with mock.patch.object(bs, "bar_wanted", lambda: True):
+            self.assertEqual(bs.toolbox_config_path(), bs.TOOLBOX)
+        with mock.patch.object(bs, "bar_wanted", lambda: False), \
+                mock.patch.object(bs, "taken_by_taskbar", lambda: []), \
+                mock.patch.object(bs, "read", lambda p: NAMED_TOOLBOX if p == bs.TOOLBOX else BAR), \
+                mock.patch.object(bs, "NOBAR_TOOLBOX", os.path.join(helpers.SCRATCH, "config-toolbox-nobar")):
+            path = bs.toolbox_config_path()
+            self.assertEqual(path, bs.NOBAR_TOOLBOX)
+            with open(path) as handle:
+                self.assertIn("group/status-now", handle.read())
+
+    def test_toolbox_config_path_falls_back(self):
+        with mock.patch.object(bs, "bar_wanted", lambda: False), \
+                mock.patch.object(bs, "taken_by_taskbar", lambda: []), \
+                mock.patch.object(bs, "read", lambda p: TOOLBOX if p == bs.TOOLBOX else BAR):   # no "name"
+            self.assertEqual(bs.toolbox_config_path(), bs.TOOLBOX)
+
+
+class Wanted(unittest.TestCase):
+    """bar-settings.py wanted (bar-wanted.sh, waybar.service's condition):
+    off only with the dock's top_bar off AND dock.service active."""
+    def wanted(self, settings, dock_state="active"):
+        dock = helpers.import_script("dock.py", "dock")
+        with mock.patch.object(dock, "read_settings", lambda: dict(dock.DEFAULTS, **settings)), \
+                mock.patch.dict(sys.modules, {"dock": dock}), \
+                mock.patch.object(bs, "run", lambda *cmd, **_kw: dock_state + "\n"):
+            return bs.bar_wanted()
+
+    def test_off_needs_all_three(self):
+        self.assertFalse(self.wanted({"enabled": True, "top_bar": False}))
+        self.assertTrue(self.wanted({"enabled": True, "top_bar": True}))
+        self.assertTrue(self.wanted({"enabled": False, "top_bar": False}))
+        for state in ("inactive", "failed", "activating", "deactivating", ""):
+            self.assertTrue(self.wanted({"enabled": True, "top_bar": False}, state), state)
+
+    def test_any_trouble_is_a_bar(self):
+        def broken():
+            raise RuntimeError("no dock")
+        dock = helpers.import_script("dock.py", "dock")
+        with mock.patch.object(dock, "read_settings", broken), mock.patch.dict(sys.modules, {"dock": dock}):
+            self.assertTrue(bs.bar_wanted())
+
+    def test_condition_script_skips_only_on_off(self):
+        """bar-wanted.sh: exit 1 on the exact word, 0 on anything else."""
+        import subprocess
+        import tempfile
+        script = os.path.join(WAYBAR_SCRIPTS, "bar-wanted.sh")
+        with open(script) as handle:
+            text = handle.read()
+        for said, rc in (("off", 1), ("on", 0), ("", 0), ("Traceback", 0)):
+            home = tempfile.mkdtemp(dir=helpers.SCRATCH)
+            os.makedirs(os.path.join(home, ".config/hypr/scripts"))
+            with open(os.path.join(home, ".config/hypr/scripts/bar-settings.py"), "w") as handle:
+                handle.write(f"print({said!r})\n")
+            done = subprocess.run(["bash", "-c", text], env=dict(os.environ, HOME=home))
+            self.assertEqual(done.returncode, rc, said)
+
+
 class Status(unittest.TestCase):
     def test_pending(self):
         self.assertTrue(bs.pending(100.0, 100.0, {"bar": 101.0, "toolbox": 50.0}))
         self.assertFalse(bs.pending(100.0, 100.0, {"bar": 99.0, "toolbox": 99.5}))
         self.assertFalse(bs.pending(None, None, {"bar": 101.0}))      # not running: nothing to reload
+        # The bar off: its file feeds the toolbox, which reloads for it.
+        self.assertTrue(bs.pending(None, 100.0, {"bar": 101.0}, bar_off=True))
+        self.assertFalse(bs.pending(None, 100.0, {"bar": 99.0}, bar_off=True))
 
     def test_describe(self):
         self.assertEqual(bs.describe("custom/toolbox")["keep"], bs.KEEP["custom/toolbox"])
@@ -260,6 +355,9 @@ class PageHelpers(unittest.TestCase):
     def test_bar_sub(self):
         self.assertIn("NOT running", self.bar.bar_sub({"running": {}}))
         self.assertIn("not loaded", self.bar.bar_sub({"running": {"bar": 100.0}, "pending": True}, now=200.0))
+        off = self.bar.bar_sub({"running": {}, "top_bar": "off"})
+        self.assertIn("Dock & taskbar", off)
+        self.assertNotIn("NOT running", off)                 # not a fault: switched off there
 
 
 class ToolboxAwake(unittest.TestCase):

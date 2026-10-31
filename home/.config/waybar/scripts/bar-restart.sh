@@ -33,8 +33,12 @@
 # when the old waybar exits. Apps started from on-click (kitty, pavucontrol)
 # do not set PDEATHSIG and keep running, which is what we want.
 #
-# The toolbox section (waybar-toolbox.service) is PartOf waybar.service, so
-# the restart below takes it down and brings it back (hidden) as well.
+# The toolbox section (waybar-toolbox.service) is restarted with it, named
+# here: it is no longer PartOf waybar.service, since with the top bar off
+# (hypr/scripts/dock.py, TOP BAR OFF) it runs without the bar. Then the bar's
+# own restart is skipped by its ExecCondition (bar-wanted.sh), which leaves
+# it stopped -- that is the restart that takes the bar away -- and only the
+# toolbox is checked afterwards.
 #
 # Bound to ALT+G in ~/.config/hypr/lua/binds.lua ("Bar: Restart bar").
 
@@ -70,16 +74,19 @@ python3 "$HERE/panel.py" close-all 2>/dev/null || true
 #    and it also takes the module scripts' grandchildren with it -- escalates
 #    to SIGKILL after 3 s (TimeoutStopSec), then starts a fresh one.
 #    9>&- keeps the lock fd away from systemctl (harmless, but tidy).
-if ! systemctl --user restart waybar.service 9>&-; then
+if ! systemctl --user restart waybar.service waybar-toolbox.service 9>&-; then
     note "systemctl --user restart waybar failed. See: journalctl --user -u waybar" critical
     exit 1
 fi
+# The top bar meant to be off: only the toolbox is there to check.
+unit=waybar.service
+"$HERE/bar-wanted.sh" 9>&- || unit=waybar-toolbox.service
 
 # 3. Check it is still up a moment later. A bad config makes waybar start and
 #    exit within a second, which `restart` alone does not report; the unit
 #    then retries on its own (Restart=always) until its start limit.
 sleep 1.5
-if ! systemctl --user is-active --quiet waybar.service; then
+if ! systemctl --user is-active --quiet "$unit"; then
     note "waybar did not stay up -- usually a config error. See: journalctl --user -u waybar" critical
     exit 1
 fi

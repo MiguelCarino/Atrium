@@ -1,8 +1,8 @@
 # Dock and taskbar: ~/.config/hypr/scripts/dock.py (its docstring has the rest).
 # Off as shipped: Settings > Bar & toolbox > Dock & taskbar (dock.py set
-# on|off) enables or disables it. The top bar stays as it is; the taskbar's
-# tray is a second StatusNotifierHost beside waybar-toolbox's, never the
-# watcher.
+# on|off) enables or disables it. The top bar stays as it is unless top_bar
+# is off (dock.py, TOP BAR OFF); the taskbar's tray is a second
+# StatusNotifierHost beside waybar-toolbox's, never the watcher.
 [Unit]
 Description=Dock and taskbar (pinned and running apps, tray, clock)
 PartOf=graphical-session.target
@@ -16,6 +16,11 @@ RestartSec=3
 # dock.py pings from its main loop (sd_notify WATCHDOG=1, every 10 s); a
 # hung one is restarted.
 WatchdogSec=20
+# However this stops -- switched off, a crash, `systemctl stop` -- the top bar
+# comes back: with this unit no longer active, its ExecCondition (bar-wanted.sh)
+# lets it start. If the bar is meant to be off, the daemon restarts it away
+# again once it is back up. "-" and --no-block: never holds up or fails a stop.
+ExecStopPost=-/usr/bin/systemctl --user --no-block start waybar.service
 NotifyAccess=main
 MemoryHigh=150M
 

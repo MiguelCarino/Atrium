@@ -739,6 +739,39 @@ class TopBarTakeover(unittest.TestCase):
             D.dry_env, D.restart_bar = real_dry, real_restart
             D.switch_unit, D.toolbox_refit, D.poke_toolbox_pill = real_switch, real_refit, real_poke
 
+    def test_top_bar_off(self):
+        """TOP BAR OFF: bar_hidden needs the dock on; switching it off while
+        the dock is off is refused; a change restarts the bar, on either
+        layout, and so does switching the dock off with the bar gone."""
+        self.assertTrue(D.DEFAULTS["top_bar"])
+        self.assertFalse(D.bar_hidden(dict(D.DEFAULTS)))
+        self.assertTrue(D.bar_hidden(self.cfg(top_bar=False)))
+        self.assertTrue(D.bar_hidden(self.cfg(top_bar=False, layout="dock")))
+        self.assertFalse(D.bar_hidden(self.cfg(top_bar=False, enabled=False)))
+        calls = []
+        real_dry, real_restart = D.dry_env, D.restart_bar
+        D.dry_env, D.restart_bar = (lambda: False), (lambda: calls.append(1))
+        real_switch, real_refit, real_poke = D.switch_unit, D.toolbox_refit, D.poke_toolbox_pill
+        D.switch_unit = D.toolbox_refit = D.poke_toolbox_pill = lambda *a: None
+        try:
+            D.write_settings(self.cfg(enabled=False))
+            with self.assertRaises(SystemExit):
+                D.set_key("top_bar", "off")
+            self.assertTrue(D.read_settings()["top_bar"])     # nothing written
+            D.write_settings(self.cfg(layout="dock"))
+            D.set_key("top_bar", "off")
+            self.assertEqual(calls, [1])
+            D.set_key("enabled", "off")             # the bar is back
+            self.assertEqual(calls, [1, 1])
+            self.assertFalse(D.read_settings()["top_bar"])    # remembered for the next time
+            D.set_key("enabled", "on")              # and gone again
+            self.assertEqual(calls, [1, 1, 1])
+            D.set_key("top_bar", "on")
+            self.assertEqual(calls, [1, 1, 1, 1])
+        finally:
+            D.dry_env, D.restart_bar = real_dry, real_restart
+            D.switch_unit, D.toolbox_refit, D.poke_toolbox_pill = real_switch, real_refit, real_poke
+
     def test_clock_in_a_ja_theme(self):
         moment = datetime(2026, 10, 30, 21, 5)         # a Friday
         t, d = D.clock_text(moment, None, "ja")
@@ -783,12 +816,29 @@ class Wiring(unittest.TestCase):
         for line in ("PartOf=graphical-session.target", "Restart=on-failure", "WatchdogSec=20",
                      "MemoryHigh=150M", "dock.py daemon", 'ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""'):
             self.assertIn(line, text)
+        # TOP BAR OFF: however the dock stops, the bar comes back.
+        self.assertIn("ExecStopPost=-/usr/bin/systemctl --user --no-block start waybar.service", text)
         # Ships OFF even when this install has it on: the repo's sync.sh keeps
         # dock.service out of the units a new install enables.
         sync = os.path.expanduser("~/Github/Atrium/sync.sh")
         if os.path.exists(sync):
             with open(sync) as handle:
                 self.assertRegex(handle.read(), r"grep -vE '\^\([^)]*\bdock\b[^)]*\)", "dock.service ships OFF")
+
+    def test_the_toolbox_runs_without_the_bar(self):
+        """With the top bar off the bar is skipped (its condition) and the
+        toolbox -- the session's tray watcher -- must stay up on its own."""
+        units = os.path.expanduser("~/.config/systemd/user")
+        with open(os.path.join(units, "waybar-toolbox.service")) as handle:
+            toolbox = handle.read()
+        self.assertRegex(toolbox, r"(?m)^PartOf=graphical-session\.target$")
+        self.assertRegex(toolbox, r"(?m)^WantedBy=graphical-session\.target$")
+        self.assertIn("ExecStart=%h/.config/waybar/scripts/toolbox-main.sh", toolbox)
+        with open(os.path.join(units, "waybar.service.d", "hyprland.conf")) as handle:
+            bar = handle.read()
+        self.assertIn("ExecCondition=%h/.config/waybar/scripts/bar-wanted.sh", bar)
+        self.assertRegex(bar, r"(?m)^After=dock\.service$")
+        self.assertIn("ExecStartPost=-%h/.config/waybar/scripts/toolbox-follow.sh", bar)
 
     def test_events_are_valid_hyprbus_names(self):
         import hyprbus
