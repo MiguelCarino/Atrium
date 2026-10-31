@@ -13,6 +13,10 @@ Settings > Bar & toolbox, usable from a terminal or a key as well.
     bar-settings.py interval <module> <seconds>
                                              how often updates / weather / repos
                                              run again (custom/updates ...)
+    bar-settings.py config-path              the config the bar starts from (its
+                                             service runs waybar-main.sh, which asks):
+                                             the file itself, or with the taskbar on
+                                             a copy without the pills it stands in for
     bar-settings.py check                    parse both files; exit 1 on an error
     bar-settings.py apply                    restart the bar if a file is newer than
                                              the running bar (bar-restart.sh)
@@ -50,6 +54,15 @@ have keys of their own.) The bar and the toolbox always go on the same screen,
 since the toolbox card drops down under the bar's sliders pill; after a
 screen change toolbox_fit.py sizes the card for the new screen's width.
 
+With the taskbar on (hypr/scripts/dock.py), the bar does not start from
+~/.config/waybar/config itself but from generated/config-taskbar: the same
+text with the pills the taskbar shows instead (the date and time, the
+weather, the network, the sound, the power pill: dock.py bar_takeover())
+hidden the way `hide` hides them. It is made again at every bar start
+(config-path), so the file here stays the only one to edit, and dock.py
+restarts the bar when what the taskbar takes over changes. Any problem
+making it, and the bar starts from the file itself.
+
 Restarting goes through waybar/scripts/bar-restart.sh (systemctl restart of
 waybar.service, which takes the toolbox along), never SIGUSR2, which crashes
 waybar 0.15 (bar-restart.sh says why).
@@ -67,6 +80,7 @@ BAR = os.path.join(WAYBAR, "config")
 TOOLBOX = os.path.join(WAYBAR, "config-toolbox")
 RESTART = os.path.join(WAYBAR, "scripts", "bar-restart.sh")
 FIT = os.path.join(WAYBAR, "scripts", "toolbox_fit.py")
+TASKBAR_VARIANT = os.path.join(WAYBAR, "generated", "config-taskbar")
 STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hypr")
 
 SIDES = ("modules-left", "modules-center", "modules-right")
@@ -523,6 +537,56 @@ def restart():
     return 0
 
 
+def taskbar_variant(text, names):
+    """The bar's text with these pills hidden (set_shown); a name in no list
+    is skipped. Checked like a hide: anything else that would differ is a
+    ValueError."""
+    new = text
+    for name in names:
+        try:
+            new = set_shown(new, name, False)
+        except ValueError:
+            continue
+    want = parse(text)
+    for name in names:
+        for side in SIDES:
+            if name in (want.get(side) or []):
+                want[side] = [n for n in want[side] if n != name]
+    if parse(new) != want:
+        raise ValueError("the taskbar variant changes more than its pills")
+    return new
+
+
+def taken_by_taskbar():
+    """dock.py's bar_takeover() for its settings now; [] without it."""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import dock
+        return dock.bar_takeover(dock.read_settings())
+    except Exception:         # noqa: BLE001 - no dock: the bar as it is
+        return []
+
+
+def config_path():
+    """The file the bar starts from (waybar-main.sh): BAR, or TASKBAR_VARIANT
+    written fresh when the taskbar takes pills over. Never raises: whatever
+    goes wrong, the bar starts from BAR."""
+    names = taken_by_taskbar()
+    if not names:
+        return BAR
+    try:
+        text = taskbar_variant(read(BAR), names)
+        os.makedirs(os.path.dirname(TASKBAR_VARIANT), exist_ok=True)
+        tmp = f"{TASKBAR_VARIANT}.{os.getpid()}.tmp"
+        with open(tmp, "w") as fh:
+            fh.write(text)
+        os.replace(tmp, TASKBAR_VARIANT)
+        return TASKBAR_VARIANT
+    except (OSError, ValueError) as exc:
+        print(f"bar-settings: the bar as it is, not the taskbar's: {exc}", file=sys.stderr)
+        return BAR
+
+
 def check():
     bad = 0
     for path, toolbox in ((BAR, False), (TOOLBOX, True)):
@@ -543,6 +607,8 @@ def main():
     try:
         if cmd == "status":
             print(json.dumps(status(), indent=1))
+        elif cmd == "config-path":
+            print(config_path())
         elif cmd in ("show", "hide") and len(args) == 2:
             name = args[1]
             if cmd == "hide" and name in KEEP:

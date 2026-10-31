@@ -168,6 +168,34 @@ class Editing(unittest.TestCase):
             bs.expect_change(BAR, sneaky, lambda bar: bar.__setitem__("output", "DP-2"))
 
 
+class TaskbarVariant(unittest.TestCase):
+    """config-path's copy of the bar for the taskbar (dock.py TOP BAR)."""
+    def test_pills_hidden_in_place_the_rest_kept(self):
+        new = bs.taskbar_variant(BAR, ["custom/day", "custom/clock", "custom/power", "pulseaudio"])
+        self.assertEqual(names(new, "modules-center"),
+                         [("custom/day", False), ("custom/clock", False), ("custom/weather", True)])
+        self.assertEqual(bs.parse(new)["modules-right"], ["custom/cpu", "custom/toolbox"])
+        self.assertEqual(bs.parse(new)["custom/weather"], bs.parse(BAR)["custom/weather"])
+        self.assertIn("// keep next to the day", new)            # the comments stay
+
+    def test_nothing_taken_is_the_same_bar(self):
+        self.assertEqual(bs.parse(bs.taskbar_variant(BAR, [])), bs.parse(BAR))
+
+    def test_config_path_falls_back_to_the_bar(self):
+        real_taken, real_read = bs.taken_by_taskbar, bs.read
+        try:
+            bs.taken_by_taskbar = lambda: []
+            self.assertEqual(bs.config_path(), bs.BAR)
+            bs.taken_by_taskbar = lambda: ["custom/power"]
+
+            def broken(_path):
+                raise OSError("gone")
+            bs.read = broken
+            self.assertEqual(bs.config_path(), bs.BAR)
+        finally:
+            bs.taken_by_taskbar, bs.read = real_taken, real_read
+
+
 class Status(unittest.TestCase):
     def test_pending(self):
         self.assertTrue(bs.pending(100.0, 100.0, {"bar": 101.0, "toolbox": 50.0}))

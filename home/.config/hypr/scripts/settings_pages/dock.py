@@ -9,7 +9,9 @@
                     when a window covers it, always), the icon size,
                     magnification (as the theme says, on, off)
     TASKBAR         one button per app or per window, the titles, the tray,
-                    the clock
+                    the clock, the weather, the network, the sound (each
+                    leaves the top bar while it is here); what the start
+                    button opens: the app launcher or a classic start menu
     PINNED          the pinned apps in order: up, down, remove (pin more
                     from the dock itself: right-click a running app)
     Details         the state file, the service, the journal
@@ -46,7 +48,14 @@ TASKBAR = [("combine", "", "One button per app",
            ("tray", "", "System tray",
             "the apps' tray icons at the right (the toolbox keeps its own)"),
            ("clock", "", "Clock",
-            "the time and the date, as Date, time & region writes them")]
+            "the time and the date, as Date, time & region writes them"),
+           ("weather", "", "Weather",
+            "the temperature; click: the forecast"),
+           ("network", "", "Network",
+            "the connection; click: the network panel"),
+           ("sound", "", "Sound",
+            "the volume; click: the audio panel, scroll: louder or quieter, right-click: mute")]
+START_MENUS = [("launcher", "App launcher"), ("classic", "Classic menu")]
 
 
 # -- words (pure; tests/test_settings_dock.py) ----------------------------------------------------
@@ -180,8 +189,14 @@ class Page:
         for key, icon, title, sub in TASKBAR:
             grid, _sub = self.switch_row(key, icon, title, sub)
             self.task_box.pack_start(grid, False, False, 0)
-        self.task_box.pack_start(wrapped("The start button opens the app launcher. The top bar stays "
-                                         "as it is."), False, False, 0)
+        self.task_box.pack_start(dp.label("Start button", "ctl-sub"), False, False, 0)  # noqa: F405
+        self.start_menu = Chips(lambda k: self.change(DOCK, "set", "start_menu", k))  # noqa: F405
+        self.task_box.pack_start(self.start_menu.widget, False, False, 0)
+        self.task_box.pack_start(wrapped("The app launcher searches everything; the classic menu lists "
+                                         "your apps by category. Both have the power menu (lock, sleep, "
+                                         "restart, power off). What the taskbar shows leaves the top bar: "
+                                         "the clock, weather, network, sound and the power button move "
+                                         "down here, and the top bar restarts to match."), False, False, 0)
         w.pack_start(self.task_box, False, False, 0)
 
         # -- pinned -------------------------------------------------------------------------------
@@ -281,6 +296,7 @@ class Page:
             self.autohide.set(HIDES, conf.get("autohide") or "never")
             self.size.set(size_choices(conf.get("icon_size")), str(conf.get("icon_size") or 48))
             self.magnify.set(MAGNIFIES, conf.get("magnify") or "theme")
+            self.start_menu.set(START_MENUS, conf.get("start_menu") or "launcher")
         finally:
             self.updating = False
         mode = mode_of(conf)

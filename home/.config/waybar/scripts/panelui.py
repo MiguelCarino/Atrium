@@ -29,6 +29,9 @@ CSS_FILE = os.path.join(os.path.dirname(HERE), "panel.css")
 
 # Anchored to the top edge and centred under the cursor, so a panel comes up
 # beneath the pill that was clicked rather than in the middle of the screen.
+# A click in the lower half of the screen (the taskbar's clock or status
+# buttons, hypr/scripts/dock.py) anchors it to the bottom edge instead, so it
+# rises above the button; the taskbar's reserved strip keeps it clear.
 # The exclusive zone stays at 0 (not -1): claim no space of our own, but stay
 # clear of the bar's.
 MARGIN_TOP = 10
@@ -485,9 +488,7 @@ class Panel(Gtk.Window):
         # TOP rather than OVERLAY: a fullscreen window should cover a panel the
         # same way it covers the bar that opened it.
         GtkLayerShell.set_layer(self, GtkLayerShell.Layer.TOP)
-        GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.TOP, True)
         GtkLayerShell.set_anchor(self, GtkLayerShell.Edge.LEFT, True)
-        GtkLayerShell.set_margin(self, GtkLayerShell.Edge.TOP, MARGIN_TOP)
         GtkLayerShell.set_exclusive_zone(self, 0)
         # The keyboard is the card's while it is open, so Esc closes it. It
         # used to take none ("whatever is playing behind keeps it"), but every
@@ -501,6 +502,19 @@ class Panel(Gtk.Window):
         self.monitor = self.pick_monitor()
         if self.monitor:
             GtkLayerShell.set_monitor(self, self.monitor)
+        below = self.from_below()
+        edge, other = ((GtkLayerShell.Edge.BOTTOM, GtkLayerShell.Edge.TOP) if below
+                       else (GtkLayerShell.Edge.TOP, GtkLayerShell.Edge.BOTTOM))
+        GtkLayerShell.set_anchor(self, other, False)
+        GtkLayerShell.set_anchor(self, edge, True)
+        GtkLayerShell.set_margin(self, edge, MARGIN_TOP)
+
+    def from_below(self):
+        """Opened from the lower half of its screen: the taskbar, not the bar."""
+        if not (self.cursor and self.monitor):
+            return False
+        box = self.monitor.get_geometry()
+        return self.cursor[1] - box.y > box.height / 2
 
     def all_monitors(self):
         display = self.get_display()

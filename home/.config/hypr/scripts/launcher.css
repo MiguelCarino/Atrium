@@ -163,6 +163,28 @@ label.empty {
     padding: 30px;
 }
 
+/* --- The foot: the power menu, while the taskbar runs (launcher.py) ------- */
+#launcher-foot {
+    padding: 6px 4px 0 4px;
+    border-top: 1px solid @edge;
+}
+
+button.launcher-power {
+    font-family: "Font Awesome 6 Free Solid", "IBM Plex Sans", sans-serif;
+    font-size: 13px;
+    color: @text-dim;
+    padding: 4px 12px;
+    border: 1px solid transparent;
+    border-radius: 2px 8px 2px 8px;
+    background: transparent;
+    box-shadow: none;
+}
+
+button.launcher-power:hover {
+    color: @text;
+    border-color: @edge;
+}
+
 /* --- Tiles ---------------------------------------------------------------- */
 #tiles-scroll {
     min-height: 420px;          /* three rows of tiles */

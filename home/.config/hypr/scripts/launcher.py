@@ -913,6 +913,15 @@ def start_reaper():
     GLib.timeout_add_seconds(REAP_EVERY, lambda: reap() >= 0)
 
 
+def taskbar_on():
+    """dock.py's taskbar is on (and so took the top bar's power pill)."""
+    try:
+        import dock
+        return bool(dock.bar_takeover(dock.read_settings()))
+    except Exception:         # noqa: BLE001 - no dock: the bar keeps its pill
+        return False
+
+
 def spawn(argv):
     """Start argv in a session of its own, not waited for (reaped later).
     Returns None, as it always has: callers use it inside GLib callbacks."""
@@ -5088,6 +5097,22 @@ class Launcher(Gtk.Window):
         self.scroll = scroll
         card.pack_start(scroll, True, True, 0)
 
+        # The power menu, at the foot of the card while the taskbar runs: the
+        # top bar's power pill goes then (dock.py bar_takeover), and its menu
+        # comes here, as a start menu's would. The power panel asks before it
+        # logs out, restarts or powers off.
+        self.foot = Gtk.Box(spacing=0)
+        self.foot.set_name("launcher-foot")
+        self.foot.set_no_show_all(True)
+        power = styled(Gtk.Button(label="\uf011  Power"), "launcher-power")
+        power.set_relief(Gtk.ReliefStyle.NONE)
+        power.set_can_focus(False)
+        power.set_tooltip_text("Lock, sleep, log out, restart, power off")
+        power.connect("clicked", lambda _b: self.power_menu())
+        self.foot.pack_end(power, False, False, 0)
+        card.pack_start(self.foot, False, False, 0)
+        self.show_foot()
+
         self.connect("key-press-event", self.on_key)
         self.connect("destroy", Gtk.main_quit)
         self.refresh()
@@ -5096,6 +5121,16 @@ class Launcher(Gtk.Window):
             self.entry.grab_focus()
             self.make_catchers()
             self.check_clipboard()
+
+    def show_foot(self):
+        on = taskbar_on()
+        self.foot.set_visible(on)
+        for child in self.foot.get_children():
+            child.set_visible(on)
+
+    def power_menu(self):
+        self.close()
+        spawn([sys.executable, os.path.join(BAR, "panel.py"), "toggle", "power"])
 
     def make_catchers(self):
         # Under the card, over everything else: a click there missed it.
@@ -5120,6 +5155,7 @@ class Launcher(Gtk.Window):
         self.stop_quick()
         self.entry.set_text(text)       # refresh()es through on_changed
         self.show_all()
+        self.show_foot()
         # Not grab_focus(): it selects the text, and the first key typed after
         # `launcher.py ">"` replaced the ">".
         self.entry.grab_focus_without_selecting()

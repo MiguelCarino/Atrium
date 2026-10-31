@@ -683,9 +683,10 @@
     // orchard-dark: the leaf, custom/logo at the top left) opens the power
     // panel from that mark already, so there this pill prints an empty text
     // and waybar hides it (clock.py power reads bar.conf's logo=). Every
-    // other theme keeps it. The taskbar's start button is no such place --
-    // it opens the launcher, which has Lock but no power menu -- so the pill
-    // stays with the taskbar on. No poll: interval once, and signal 10 (the
+    // other theme keeps it. With the taskbar on, the pill leaves the bar
+    // altogether: the start button's menu has the power menu (the launcher's
+    // Power button, the classic menu's Shut down), and the bar starts from
+    // a copy of this file without it (hypr/scripts/dock.py, TOP BAR). No poll: interval once, and signal 10 (the
     // menu-bar layout's, bar_signals.py "day") re-runs it when theme.py
     // rewrites bar.conf -- a theme switch shows or hides it at once.
     "custom/power": {

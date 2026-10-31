@@ -2,8 +2,9 @@
 """Dock and taskbar: one engine, two layouts. "dock" is a floating card of
 app icons at the bottom (or the left / right) of the screen, macOS-like;
 "taskbar" is a full-width strip along the bottom, Windows-like: a start
-button that opens the launcher, a button per app (or per window) with its
-icon and title, the system tray and a clock. Both show the pinned apps and
+button that opens the launcher (or a classic start menu), a button per app
+(or per window) with its icon and title, the system tray, the weather, the
+network, the sound and a clock. Both show the pinned apps and
 every app that runs, grouped by app.
 
     dock.py daemon                 run it (dock.service); exits at once when
@@ -36,6 +37,15 @@ Settings > Bar & toolbox > Dock & taskbar):
     labels      the taskbar: the window titles beside the icons (true)
     tray        the taskbar: the system tray (true)
     clock       the taskbar: the clock (true)
+    weather     the taskbar: the weather, wttr.py's pill (true)
+    network     the taskbar: the network, network.py's pill (true)
+    sound       the taskbar: the volume; scroll for louder / quieter,
+                right-click mutes (true)
+    start_menu  the taskbar's start button: "launcher" (launcher.py, with a
+                Power button at its foot while the taskbar runs) or
+                "classic" (a cascading menu: the pinned apps, Programs by
+                category, Files, Settings, Search, Run, Lock, Sleep, Shut
+                down -- the power panel, which asks first)
     previews    hovering a running app lists its windows, with pictures (true)
     magnify     the dock only: the icons under the pointer grow, macOS-like
                 (EFFECTS below): "theme" (the theme's dock.magnify: orchard's
@@ -66,7 +76,8 @@ GLib loop:
                 dbusmenu as a menu (ContextMenu when it has none). Passive
                 items are hidden, as waybar hides them
     clock       region.py's 12 / 24 hour and date preferences, without the
-                seconds: one wake-up a minute
+                seconds: one wake-up a minute; a ja theme's date as the top
+                bar writes it, "10月30日(金)" (waybar/generated/lang)
     look        dock.css next to this file; it imports waybar/panel.css, so
                 every theme's colours and fonts come along, and the theme's
                 own dock.css last (every theme has one: its dock and its
@@ -82,6 +93,22 @@ focused app stays as it is. Middle click: a new one (its "new-window" action
 when the app has one). Right click: the app's own actions (the desktop
 file's), New window, Pin / Unpin, Move left / right, Close window(s), and
 these settings. Pinned apps are dragged to reorder too.
+
+TOP BAR: what the taskbar shows leaves the top bar while it runs -- the date
+and time (custom/day, custom/clock, custom/menuclock) with clock on, the
+weather, the network, the sound (pulseaudio) with theirs, and the power pill
+always, its menu being the start button's now (bar_takeover). waybar has no
+way to hide a built-in module from outside, so the bar starts from another
+config instead: its service runs waybar-main.sh, which asks bar-settings.py
+config-path -- ~/.config/waybar/config itself, or generated/config-taskbar,
+that file with those pills hidden. `dock.py set` restarts the bar when what
+is taken over changes (switched on or off, the layout, one of those four).
+The taskbar's buttons run the same scripts: network.py watch and `pactl
+subscribe` (then `wpctl get-volume`) as long-lived watchers, started again
+if they end; wttr.py every 30 min, sooner after a stale answer. A click
+opens the bar's panel, which rises from the bottom when the click was in the
+lower half of the screen (panelui.py). If the daemon is down while it is on,
+those pills are on neither bar until it is back (dock.service restarts it).
 
 THE TOOLBOX: game mode, night light, Keep awake, shortcuts and the tray card
 (waybar-toolbox, toolbox.sh) opens from a button here while this runs -- the
@@ -201,10 +228,19 @@ SETTINGS_FILE = os.environ.get("DOCK_SETTINGS") or os.path.join(STATE_DIR, "dock
 PID_FILE = os.path.join(RUNTIME, "dock.pid")
 DEFAULTS = {"enabled": False, "layout": "dock", "position": "bottom", "autohide": "never",
             "icon_size": 48, "monitors": "main", "combine": True, "labels": True, "tray": True,
-            "clock": True, "previews": True, "magnify": "theme", "pinned": None}
+            "clock": True, "weather": True, "network": True, "sound": True, "previews": True,
+            "magnify": "theme", "start_menu": "launcher", "pinned": None}
 CHOICES = {"layout": ("dock", "taskbar"), "position": ("bottom", "left", "right"),
            "autohide": ("never", "overlap", "always"), "monitors": ("main", "all"),
-           "magnify": ("theme", "on", "off")}
+           "magnify": ("theme", "on", "off"), "start_menu": ("launcher", "classic")}
+# The top bar's pills the taskbar stands in for (TOP BAR in the module
+# docstring), per taskbar setting; None: whenever the taskbar is on.
+TAKEOVER = (("clock", ("custom/day", "custom/clock", "custom/menuclock")),
+            ("weather", ("custom/weather",)),
+            ("network", ("custom/network",)),
+            ("sound", ("pulseaudio",)),
+            (None, ("custom/power",)))
+BAR_RESTART = os.path.expanduser("~/.config/waybar/scripts/bar-restart.sh")
 BOOL_KEYS = tuple(k for k, v in DEFAULTS.items() if isinstance(v, bool))
 ICON_MIN, ICON_MAX = 24, 96
 TASKBAR_ICON = 24
@@ -222,13 +258,39 @@ SETTINGS_APP = os.path.join(HERE, "settings.py")
 PANEL = os.path.expanduser("~/.config/waybar/scripts/panel.py")
 TOOLBOX_SH = os.path.expanduser("~/.config/waybar/scripts/toolbox.sh")
 TOOLBOX_BUTTON = os.path.join(RUNTIME, "dock-toolbox.json")
+NETWORK_PY = os.path.expanduser("~/.config/waybar/scripts/network.py")
+WTTR_PY = os.path.expanduser("~/.config/waybar/scripts/wttr.py")
+WEATHER_S = 1800              # the top bar's weather interval: wttr.in turns away eager clients
+WEATHER_RETRY_S = 300         # after a stale answer (no network yet at login, say)
+STATUS_RESTART_S = 5          # a watcher that died (network.py, pactl) starts again after
+VOLUME_STEP = "5%"
+# The taskbar's status buttons, right to left after the toolbox: the panel a
+# click opens, and the top bar's matching pill (TAKEOVER).
+STATUS_KEYS = ("sound", "network", "weather")
+STATUS_PANELS = {"sound": "audio", "network": "network", "weather": "weather"}
+VOLUME_GLYPHS = ("\uf026", "\uf027", "\uf028")   # Font Awesome volume off / low / high, as the bar's
+MUTED_GLYPH = "\uf057"
+# The classic start menu's Programs, by a desktop file's Categories: checked
+# in this order (a "Game;Utility" app is a game), listed by title.
+MENU_CATEGORIES = (("Games", "applications-games", ("Game",)),
+                   ("Development", "applications-development", ("Development",)),
+                   ("Graphics", "applications-graphics", ("Graphics",)),
+                   ("Multimedia", "applications-multimedia", ("AudioVideo", "Audio", "Video")),
+                   ("Internet", "applications-internet", ("Network",)),
+                   ("Office", "applications-office", ("Office",)),
+                   ("Education", "applications-science", ("Education", "Science")),
+                   ("Settings", "preferences-desktop", ("Settings",)),
+                   ("System", "applications-system", ("System",)),
+                   ("Accessories", "applications-accessories", ("Utility",)))
+MENU_OTHER = ("Other", "applications-other")
 TOOLBOX_GLYPH = ""      # Font Awesome's sliders: the top bar's toolbox pill's own
 # DOCK_CSS / DOCK_GEN: another stylesheet and another theme folder (bar.conf)
 # -- the scratch harness's, to draw a theme that is not the one in use.
 CSS_FILE = os.environ.get("DOCK_CSS") or os.path.join(HERE, "dock.css")
 GEN_DIR = os.environ.get("DOCK_GEN") or os.path.expanduser("~/.config/waybar/generated")
 HARNESS_ENV = "DOCK_HARNESS"  # HARNESS in the module docstring
-THEME_FILES = ("theme-panel.css", "accent.css", "theme-dock.css", "bar.conf")
+THEME_FILES = ("theme-panel.css", "accent.css", "theme-dock.css", "bar.conf", "lang")
+JA_WEEKDAYS = "月火水木金土日"     # Monday first, as clock.py's (the top bar's date)
 START_GLYPH = ""        # Font Awesome's grid: the start button, unless the theme has a logo
 CLOSE_GLYPH = ""
 
@@ -352,6 +414,25 @@ def write_settings(d):
     os.replace(tmp, SETTINGS_FILE)
 
 
+def bar_takeover(cfg):
+    """The top bar's pills to leave out while this runs as the taskbar, in
+    TAKEOVER's order; [] for the dock, or when it is off."""
+    if not cfg.get("enabled") or cfg.get("layout") != "taskbar":
+        return []
+    return [name for key, names in TAKEOVER if key is None or cfg.get(key) for name in names]
+
+
+def restart_bar():
+    """bar-restart.sh in the background: the top bar starts again from the
+    config bar-settings.py config-path picks (TOP BAR in the docstring).
+    Never fails a caller, never waits for the bar."""
+    try:
+        subprocess.Popen([BAR_RESTART], start_new_session=True, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        pass
+
+
 def dry_env():
     """DOCK_DRY=1 (the tests): settings are written, systemd is left alone."""
     return os.environ.get("DOCK_DRY") == "1"
@@ -371,6 +452,7 @@ def set_key(key, value):
     if key not in DEFAULTS:
         raise SystemExit(f"dock.py: no setting {key!r} (one of {', '.join(DEFAULTS)})")
     cur = read_settings()
+    was_taken = bar_takeover(cur)
     if key in BOOL_KEYS:
         try:
             cur[key] = bool_value(value)
@@ -410,6 +492,8 @@ def set_key(key, value):
         # toolbox button (toolbox.sh status): gone with a dock, back without.
         # Switched on, the daemon pokes it again once its button is there.
         poke_toolbox_pill()
+    if bar_takeover(cur) != was_taken and not dry_env():
+        restart_bar()
     return cur
 
 
@@ -887,12 +971,71 @@ def thumb_scale(size, width=THUMB_W, height=THUMB_H):
     return round(max(0.05, min(1.0, width / w, height / h)), 3)
 
 
-def clock_text(moment, conf=None):
+def clock_text(moment, conf=None, language=None):
     """(time, date) for the taskbar: region.py's way of writing them, never
-    the seconds (one wake-up a minute)."""
+    the seconds (one wake-up a minute). A ja theme (waybar/generated/lang)
+    writes the date as the top bar does, "10月30日(金)" (clock.py's
+    menubar_text)."""
     import region
     conf = dict(conf or region.DEFAULTS, seconds="off")
+    if language == "ja":
+        weekday = JA_WEEKDAYS[moment.weekday()]
+        return region.time_text(moment, conf), f"{moment.month}月{moment.day}日({weekday})"
     return region.time_text(moment, conf), region.date_text(moment, conf)
+
+
+def volume_text(out):
+    """`wpctl get-volume` ("Volume: 0.45", "Volume: 0.45 [MUTED]") -> (text,
+    tooltip) for the taskbar's sound button; None when it is not that."""
+    m = re.match(r"\s*Volume:\s*([0-9.]+)(.*)", out or "")
+    if not m:
+        return None
+    try:
+        pct = round(float(m.group(1)) * 100)
+    except ValueError:
+        return None
+    if "MUTED" in m.group(2):
+        return MUTED_GLYPH, f"Muted ({pct}%)"
+    glyph = VOLUME_GLYPHS[0 if pct == 0 else 1 if pct < 50 else 2]
+    return f"{glyph} {pct}%", f"Volume {pct}%"
+
+
+def pill_text(line):
+    """One JSON line of a top bar script (network.py watch, wttr.py) ->
+    (markup, tooltip); None when it is not one. Its text is pango markup
+    already, as waybar takes it."""
+    try:
+        data = json.loads(line)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get("text"), str):
+        return None
+    tip = data.get("tooltip")
+    return data["text"], tip if isinstance(tip, str) else ""
+
+
+def menu_category(categories):
+    """A desktop file's Categories ("GTK;Game;Utility;") -> the Programs
+    submenu it goes in: (title, icon)."""
+    have = {c for c in (categories or "").split(";") if c}
+    for title, icon, keys in MENU_CATEGORIES:
+        if have.intersection(keys):
+            return title, icon
+    return MENU_OTHER
+
+
+def menu_programs(apps):
+    """[(name, app_id, categories)] -> [((title, icon), [(name, app_id)])]:
+    the classic menu's Programs, the submenus by title, the apps by name,
+    each id once."""
+    groups, seen = {}, set()
+    for name, app_id, categories in apps:
+        if not name or app_id in seen:
+            continue
+        seen.add(app_id)
+        groups.setdefault(menu_category(categories), []).append((name, app_id))
+    return [(cat, sorted(items, key=lambda a: a[0].casefold()))
+            for cat, items in sorted(groups.items(), key=lambda kv: kv[0][0].casefold())]
 
 
 def css_text(path=CSS_FILE):
@@ -1760,6 +1903,7 @@ def daemon():
             cls(self.sep, "dock-sep")
             self.sep.set_no_show_all(True)
             self.tray_box = self.clock = self.start = self.toolbox = None
+            self.status = {}             # STATUS_KEYS -> (button, label), the taskbar's
             if self.layout == "taskbar":
                 self.start = Gtk.Button()
                 self.start.set_relief(Gtk.ReliefStyle.NONE)
@@ -1774,8 +1918,8 @@ def daemon():
                 inner.pack_start(self.start_glyph, False, False, 0)
                 inner.pack_start(self.start_text, False, False, 0)
                 self.start.add(inner)
-                self.start.set_tooltip_text("Apps")
-                self.start.connect("clicked", lambda *_: spawn(sys.executable, LAUNCHER))
+                self.start.set_tooltip_text("Start")
+                self.start.connect("clicked", lambda b: self.engine.open_start(b))
                 self.frame.pack_start(self.start, False, False, 0)
                 self.frame.pack_start(self.items, True, True, 0)
                 if self.engine.cfg["clock"]:
@@ -1795,6 +1939,9 @@ def daemon():
                     self.frame.pack_end(self.clock, False, False, 0)
                 if self.main:       # between the tray and the clock (packed from the end)
                     self.frame.pack_end(self.make_toolbox(), False, False, 0)
+                for key in STATUS_KEYS:     # then sound, network, weather, leftwards
+                    if self.engine.cfg[key]:
+                        self.frame.pack_end(self.make_status(key), False, False, 0)
                 if self.engine.cfg["tray"] and self.main:
                     self.tray_box = Gtk.Box(spacing=0)
                     cls(self.tray_box, "dock-tray")
@@ -1829,6 +1976,38 @@ def daemon():
             self.toolbox.connect("clicked", lambda *_: spawn(TOOLBOX_SH, "toggle"))
             self.size_toolbox()
             return self.toolbox
+
+        def make_status(self, key):
+            """A status button (TOP BAR in the module docstring): the top
+            bar's pill's text, its panel on a click. Right click: the sound
+            mutes, the weather opens wttr.in; the wheel on the sound sets
+            the volume."""
+            btn = Gtk.Button()
+            btn.set_relief(Gtk.ReliefStyle.NONE)
+            btn.set_can_focus(False)
+            cls(btn, "dock-status")
+            cls(btn, f"dock-{key}")
+            label = Gtk.Label()
+            cls(label, "dock-status-text")
+            btn.add(label)
+            btn.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
+            btn.connect("clicked", lambda *_: spawn(sys.executable, PANEL, "toggle", STATUS_PANELS[key]))
+            btn.connect("button-press-event", lambda _b, ev: self.engine.status_click(key, ev))
+            btn.connect("scroll-event", lambda _b, ev: self.engine.status_scroll(key, ev))
+            btn.set_no_show_all(True)
+            self.status[key] = (btn, label)
+            text, tip = self.engine.status_text.get(key) or ("", "")
+            self.set_status(key, text, tip)
+            return btn
+
+        def set_status(self, key, text, tip):
+            if key not in self.status:
+                return
+            btn, label = self.status[key]
+            label.set_markup(text)
+            btn.set_tooltip_text(tip or None)
+            btn.set_visible(bool(text))
+            label.set_visible(bool(text))
 
         def size_toolbox(self):
             if self.toolbox is None or self.layout != "dock":
@@ -2663,6 +2842,8 @@ def daemon():
             self.game = False
             self.dirty_game = True
             self.tray = None
+            self.status_text = {}     # STATUS_KEYS -> (markup, tooltip), the latest
+            self.status_procs = {}    # "network" / "sound" -> its watcher (Gio.Subprocess)
             self.preview = Preview(self)
             self.keep = []            # Gio monitors (kept, or they are collected)
             self.toolbox_written = None   # the TOOLBOX_BUTTON record on disk
@@ -2828,6 +3009,7 @@ def daemon():
             elif not want_tray and self.tray is not None:
                 self.tray.stop()
                 self.tray = None
+            self.status_sources()
             self.place()
 
         # Hyprland
@@ -3180,7 +3362,7 @@ def daemon():
                 return False
             import region
             moment = datetime.now()
-            t, d = clock_text(moment, region.prefs())
+            t, d = clock_text(moment, region.prefs(), barclock.lang() if barclock is not None else None)
             for bar in self.bars.values():
                 bar.set_clock(t, d)
             if reschedule or not self.ids.get("clock"):
@@ -3192,6 +3374,198 @@ def daemon():
             self.ids["clock"] = None      # this source ends here: never keep a dead id
             self.tick_clock()
             return False
+
+        # the status buttons (TOP BAR in the module docstring)
+        def status_wanted(self):
+            if self.cfg["layout"] != "taskbar":
+                return set()
+            return {k for k in STATUS_KEYS if self.cfg[k]}
+
+        def status_sources(self):
+            """Start what the taskbar's status buttons need and stop the rest;
+            called at each rebuild, so it only ever starts what is missing."""
+            want = self.status_wanted()
+            for key in [k for k in self.status_procs if k not in want]:
+                self.status_procs.pop(key).force_exit()
+            for key in [k for k in self.status_text if k not in want]:
+                del self.status_text[key]
+            if "weather" not in want:
+                self.cancel("weather")
+            if "network" in want and "network" not in self.status_procs:
+                self.watch_lines("network", [NETWORK_PY, "watch"],
+                                 lambda line: self.set_status("network", pill_text(line)))
+            if "sound" in want and "sound" not in self.status_procs:
+                self.watch_lines("sound", ["pactl", "subscribe"], self.on_pactl)
+                self.read_volume()
+            if "weather" in want and not self.ids.get("weather") and not self.status_text.get("weather"):
+                self.fetch_weather()
+
+        def watch_lines(self, key, argv, on_line):
+            """argv's output, a line at a time, to on_line; started again
+            STATUS_RESTART_S after it ends while its button is wanted."""
+            try:
+                proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.STDOUT_PIPE
+                                          | Gio.SubprocessFlags.STDERR_SILENCE)
+            except GLib.Error as exc:
+                print(f"dock: {argv[0]}: {exc.message}", file=sys.stderr, flush=True)
+                self.debounce(f"status-{key}", STATUS_RESTART_S * 1000, self.status_sources)
+                return
+            self.status_procs[key] = proc
+            stream = Gio.DataInputStream.new(proc.get_stdout_pipe())
+
+            def got(src, res):
+                try:
+                    line, _n = src.read_line_finish_utf8(res)
+                except GLib.Error:
+                    line = None
+                if self.status_procs.get(key) is not proc:
+                    return            # stopped, or another one runs
+                if line is None:      # it ended
+                    del self.status_procs[key]
+                    self.debounce(f"status-{key}", STATUS_RESTART_S * 1000, self.status_sources)
+                    return
+                on_line(line)
+                src.read_line_async(GLib.PRIORITY_DEFAULT, None, got)
+            stream.read_line_async(GLib.PRIORITY_DEFAULT, None, got)
+
+        def run_text(self, argv, done):
+            """argv's whole output to done(text) ("" when it could not run)."""
+            try:
+                proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.STDOUT_PIPE
+                                          | Gio.SubprocessFlags.STDERR_SILENCE)
+            except GLib.Error:
+                done("")
+                return
+
+            def finished(p, res):
+                try:
+                    _ok, out, _err = p.communicate_utf8_finish(res)
+                except GLib.Error:
+                    out = ""
+                done(out or "")
+            proc.communicate_utf8_async(None, None, finished)
+
+        def set_status(self, key, got):
+            if got is None or key not in self.status_wanted():
+                return
+            self.status_text[key] = got
+            for bar in self.bars.values():
+                bar.set_status(key, *got)
+
+        def on_pactl(self, line):
+            # "Event 'change' on sink #56": the volume, a mute, another
+            # default; never the apps' own streams (sink-input), which
+            # change all the time something plays.
+            if " on sink #" in line or " on server" in line:
+                self.debounce("volume", 80, self.read_volume)
+
+        def read_volume(self):
+            self.run_text(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"],
+                          lambda out: self.set_status("sound", volume_text(out) or ("", "")))
+
+        def fetch_weather(self):
+            """wttr.py, as the top bar's pill ran it: every WEATHER_S, sooner
+            after a stale answer."""
+            self.ids["weather"] = None
+
+            def done(out):
+                lines = out.strip().splitlines()
+                got = pill_text(lines[-1]) if lines else None
+                self.set_status("weather", got)
+                if "weather" in self.status_wanted() and not self.ids.get("weather"):
+                    stale = got is None or '"stale"' in lines[-1]
+                    self.ids["weather"] = GLib.timeout_add_seconds(
+                        WEATHER_RETRY_S if stale else WEATHER_S, self.fetch_weather)
+            self.run_text([WTTR_PY], done)
+            return False
+
+        def status_click(self, key, event):
+            if event.button != 3:
+                return False
+            if key == "sound":
+                spawn("wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle")
+            elif key == "weather":
+                spawn(WTTR_PY, "open")
+            elif key == "network":
+                spawn("kitty", "-e", "nmtui")
+            return True
+
+        def status_scroll(self, key, event):
+            if key != "sound":
+                return False
+            up = event.direction == Gdk.ScrollDirection.UP
+            if event.direction == Gdk.ScrollDirection.SMOOTH:
+                _ok, _dx, dy = event.get_scroll_deltas()
+                if abs(dy) < 0.5:
+                    return True
+                up = dy < 0
+            elif event.direction != Gdk.ScrollDirection.DOWN and not up:
+                return True
+            spawn("wpctl", "set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@",
+                  VOLUME_STEP + ("+" if up else "-"))
+            return True
+
+        # the start button: the launcher, or the classic menu (start_menu)
+        def open_start(self, button):
+            if self.cfg["start_menu"] == "classic":
+                self.classic_menu(button, Gtk.get_current_event())
+            else:
+                spawn(sys.executable, LAUNCHER)
+
+        def classic_menu(self, button, event):
+            """A cascading menu above the start button: the pinned apps,
+            Programs by category (menu_programs), Files, Settings, Search,
+            Run, then Lock, Sleep and Shut down (the power panel, which asks
+            before it logs out, restarts or powers off)."""
+            menu = Gtk.Menu()
+            cls(menu, "dock-start-menu")
+
+            def entry(text, icon=None, action=None, sub=None, gicon=None):
+                mi = Gtk.MenuItem()
+                box = Gtk.Box(spacing=8)
+                img = (Gtk.Image.new_from_gicon(gicon, Gtk.IconSize.MENU) if gicon is not None
+                       else Gtk.Image.new_from_icon_name(icon or "", Gtk.IconSize.MENU))
+                box.pack_start(img, False, False, 0)
+                box.pack_start(Gtk.Label(label=text, xalign=0), True, True, 0)
+                mi.add(box)
+                if sub is not None:
+                    cls(sub, "dock-start-menu")   # its own window: no class comes down to it
+                    mi.set_submenu(sub)
+                if action is not None:
+                    mi.connect("activate", lambda *_: action())
+                return mi
+
+            def app_entry(name, app_id, info):
+                return entry(name, gicon=info.get_icon() if info is not None else fallback_icon,
+                             action=lambda: spawn(*(launch_argv(app_id) or [None])))
+
+            pinned = [(a, app_info(a)) for a in self.pinned()]
+            pinned = [(a, i) for a, i in pinned if i is not None]
+            for app_id, info in pinned:
+                menu.append(app_entry(info.get_display_name(), app_id, info))
+            if pinned:
+                menu.append(Gtk.SeparatorMenuItem())
+            apps = [(i.get_display_name(), i.get_id(), i.get_categories() or "")
+                    for i in Gio.AppInfo.get_all() if i.should_show() and i.get_id()]
+            programs = Gtk.Menu()
+            for (title, icon), items in menu_programs(apps):
+                sub = Gtk.Menu()
+                for name, app_id in items:
+                    sub.append(app_entry(name, app_id, app_info(app_id)))
+                programs.append(entry(title, icon, sub=sub))
+            menu.append(entry("Programs", "applications-all", sub=programs))
+            menu.append(entry("Files", "system-file-manager",
+                              lambda: spawn(sys.executable, DEFAULT_APPS, "run", "files")))
+            menu.append(entry("Settings", "preferences-system", lambda: spawn(sys.executable, SETTINGS_APP)))
+            menu.append(entry("Search…", "system-search", lambda: spawn(sys.executable, LAUNCHER)))
+            menu.append(entry("Run…", "system-run", lambda: spawn(sys.executable, LAUNCHER, "!")))
+            menu.append(Gtk.SeparatorMenuItem())
+            menu.append(entry("Lock", "system-lock-screen", lambda: spawn("hyprlock")))
+            menu.append(entry("Sleep", "system-suspend", lambda: spawn("systemctl", "suspend")))
+            menu.append(entry("Shut down…", "system-shutdown",
+                              lambda: spawn(sys.executable, PANEL, "toggle", "power")))
+            menu.show_all()
+            self.popup(menu, button, event)
 
         # files
         def watch(self, folder, handler):
@@ -3228,6 +3602,7 @@ def daemon():
                 return
             for bar in self.bars.values():
                 bar.restyle_start()
+            self.tick_clock(reschedule=False)     # a ja theme writes the date its way (lang)
 
         def reload_settings(self):
             new = read_settings()
@@ -3236,7 +3611,8 @@ def daemon():
                 Gtk.main_quit()
                 return
             old, self.cfg = self.cfg, new
-            shape = ("layout", "position", "autohide", "monitors", "tray", "clock", "magnify")
+            shape = ("layout", "position", "autohide", "monitors", "tray", "clock", "weather", "network",
+                     "sound", "magnify")
             if any(old[k] != new[k] for k in shape):
                 self.rebuild()
                 return

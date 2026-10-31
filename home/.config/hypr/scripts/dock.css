@@ -257,6 +257,7 @@ button.dock-item:hover .dock-label {
 button.dock-start,
 button.dock-tray-item,
 #dock.dock-layout-taskbar button.dock-toolbox,
+button.dock-status,
 button.dock-clock {
     min-width: 0;
     min-height: 0;
@@ -274,6 +275,7 @@ button.dock-clock {
 button.dock-start:hover,
 button.dock-tray-item:hover,
 #dock.dock-layout-taskbar button.dock-toolbox:hover,
+button.dock-status:hover,
 button.dock-clock:hover {
     background-color: @dock-hover;
 }
@@ -281,6 +283,7 @@ button.dock-clock:hover {
 button.dock-start:active,
 button.dock-tray-item:active,
 #dock.dock-layout-taskbar button.dock-toolbox:active,
+button.dock-status:active,
 button.dock-clock:active {
     background-color: alpha(@text, 0.18);
     transition-duration: 60ms;
@@ -354,6 +357,37 @@ button.dock-tray-item.attention {
 }
 
 button.dock-toolbox:hover .dock-toolbox-glyph {
+    color: @cyan;
+}
+
+/* The taskbar's status buttons: the top bar's weather, network and sound
+   pills' own text (Font Awesome glyphs; the weather's in its condition
+   colour, as wttr.py writes it). */
+.dock-status-text {
+    font-family: "Font Awesome 6 Free Solid", "Font Awesome 6 Free", sans-serif;
+    color: @text;
+}
+
+button.dock-status:hover .dock-status-text {
+    color: @cyan;
+}
+
+/* The classic start menu (dock.py start_menu=classic): a GTK menu, so the
+   theme's panel colours rather than the GTK theme's grey. */
+menu.dock-start-menu {
+    padding: 4px 0;
+    border: 1px solid @edge-lit;
+    border-radius: 8px;
+    background-color: @surface;
+}
+
+menu.dock-start-menu menuitem {
+    padding: 6px 14px;
+    color: @text;
+}
+
+menu.dock-start-menu menuitem:hover {
+    background-color: @dock-hover;
     color: @cyan;
 }
 

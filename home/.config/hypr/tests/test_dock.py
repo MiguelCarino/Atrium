@@ -696,6 +696,85 @@ class TrayParsing(unittest.TestCase):
         self.assertIsNone(D.menu_tree("garbage"))
 
 
+class TopBarTakeover(unittest.TestCase):
+    """TOP BAR: the pills the taskbar stands in for, and the status
+    buttons' and the classic menu's pure parts."""
+    def cfg(self, **kw):
+        return dict(D.DEFAULTS, **dict({"enabled": True, "layout": "taskbar"}, **kw))
+
+    def test_only_the_taskbar_takes_pills(self):
+        self.assertEqual(D.bar_takeover(dict(D.DEFAULTS)), [])
+        self.assertEqual(D.bar_takeover(self.cfg(layout="dock")), [])
+        self.assertEqual(D.bar_takeover(self.cfg(enabled=False)), [])
+
+    def test_each_setting_takes_its_pills_and_power_always_goes(self):
+        self.assertEqual(D.bar_takeover(self.cfg()),
+                         ["custom/day", "custom/clock", "custom/menuclock", "custom/weather",
+                          "custom/network", "pulseaudio", "custom/power"])
+        self.assertEqual(D.bar_takeover(self.cfg(clock=False, weather=False, network=False, sound=False)),
+                         ["custom/power"])
+        self.assertNotIn("pulseaudio", D.bar_takeover(self.cfg(sound=False)))
+
+    def test_start_menu_setting(self):
+        self.assertEqual(D.DEFAULTS["start_menu"], "launcher")
+        self.assertEqual(D.set_key("start_menu", "Classic")["start_menu"], "classic")
+        with self.assertRaises(SystemExit):
+            D.set_key("start_menu", "metro")
+
+    def test_set_restarts_the_bar_only_when_the_takeover_changes(self):
+        calls = []
+        real_dry, real_restart = D.dry_env, D.restart_bar
+        D.dry_env, D.restart_bar = (lambda: False), (lambda: calls.append(1))
+        real_switch, real_refit, real_poke = D.switch_unit, D.toolbox_refit, D.poke_toolbox_pill
+        D.switch_unit = D.toolbox_refit = D.poke_toolbox_pill = lambda *a: None
+        try:
+            D.write_settings(self.cfg())
+            D.set_key("combine", "off")             # not a pill: no restart
+            self.assertEqual(calls, [])
+            D.set_key("sound", "off")               # pulseaudio comes back to the bar
+            self.assertEqual(calls, [1])
+            D.set_key("layout", "dock")             # every pill comes back
+            self.assertEqual(calls, [1, 1])
+        finally:
+            D.dry_env, D.restart_bar = real_dry, real_restart
+            D.switch_unit, D.toolbox_refit, D.poke_toolbox_pill = real_switch, real_refit, real_poke
+
+    def test_clock_in_a_ja_theme(self):
+        moment = datetime(2026, 10, 30, 21, 5)         # a Friday
+        t, d = D.clock_text(moment, None, "ja")
+        self.assertEqual(d, "10月30日(金)")
+        self.assertEqual(t, D.clock_text(moment)[0])   # the time as region.conf says
+        self.assertNotIn("月", D.clock_text(moment, None, "en")[1])
+
+    def test_volume_text(self):
+        self.assertEqual(D.volume_text("Volume: 0.45\n"), ("\uf027 45%", "Volume 45%"))
+        self.assertEqual(D.volume_text("Volume: 0.80"), ("\uf028 80%", "Volume 80%"))
+        self.assertEqual(D.volume_text("Volume: 0.00"), ("\uf026 0%", "Volume 0%"))
+        self.assertEqual(D.volume_text("Volume: 0.30 [MUTED]"), (D.MUTED_GLYPH, "Muted (30%)"))
+        self.assertIsNone(D.volume_text(""))
+        self.assertIsNone(D.volume_text("no such node"))
+
+    def test_pill_text(self):
+        self.assertEqual(D.pill_text('{"text": "<b>x</b>", "tooltip": "t", "class": "c"}'), ("<b>x</b>", "t"))
+        self.assertEqual(D.pill_text('{"text": "x"}'), ("x", ""))
+        for bad in ("", "nope", "[]", '{"text": 3}'):
+            self.assertIsNone(D.pill_text(bad))
+
+    def test_menu_programs(self):
+        got = D.menu_programs([("Steam", "steam.desktop", "Network;Game;"),
+                               ("Files", "files.desktop", "GTK;Utility;Core;"),
+                               ("blender", "b.desktop", "Graphics;3DGraphics;"),
+                               ("Krita", "k.desktop", "Graphics;"),
+                               ("Odd", "odd.desktop", ""),
+                               ("Files again", "files.desktop", "Utility;")])
+        self.assertEqual([title for (title, _icon), _ in got],
+                         ["Accessories", "Games", "Graphics", "Other"])
+        self.assertEqual(dict((t, items) for (t, _i), items in got)["Graphics"],
+                         [("blender", "b.desktop"), ("Krita", "k.desktop")])   # by name, any case
+        self.assertEqual(dict((t, items) for (t, _i), items in got)["Accessories"],
+                         [("Files", "files.desktop")])                         # each id once
+
+
 class Wiring(unittest.TestCase):
     def test_unit_ships_off_and_like_the_island(self):
         unit = os.path.expanduser("~/.config/systemd/user/dock.service")
