@@ -361,17 +361,18 @@ class DockCard(unittest.TestCase):
         self.assertEqual(card["group/pills-2"]["modules"], ["ext/workspaces"])
         self.assertEqual(card["group/pills-3"]["modules"], ["custom/cpu"])
         self.assertEqual(card["group/pills-4"]["modules"], ["hyprland/language", "tray"])
-        self.assertIn("custom/keybinds#mic", card["group/card"]["modules"])
+        self.assertIn("custom/keybinds#mic", card["group/grid-solo-1"]["modules"])
         self.assertNotIn("group/pills-5", card)                                 # the dock has the power pill
 
 
 class Grid(unittest.TestCase):
     """grid_variant: the card's plain rows two to a line; groups and the tray
-    a line of their own; hidden rows gone; an odd one out stays alone."""
+    a line of their own; hidden rows gone; an odd one out under a pair in a
+    solo group, as wide as a pair (style-toolbox.css)."""
     def test_pairs_in_order(self):
         text = NAMED_TOOLBOX.replace('"custom/awake",', '"custom/awake",\n            "custom/display",', 1)
         card = bs.parse(bs.grid_variant(text))
-        self.assertEqual(card["group/card"]["modules"], ["group/grid-1", "custom/display", "tray"])
+        self.assertEqual(card["group/card"]["modules"], ["group/grid-1", "group/grid-solo-1", "tray"])
         self.assertEqual(card["group/grid-1"], {"orientation": "horizontal",
                                                 "modules": ["custom/settings", "custom/awake"]})
         self.assertEqual(card["tray"], bs.parse(text)["tray"])
@@ -382,7 +383,16 @@ class Grid(unittest.TestCase):
         self.assertEqual(card["group/card"]["modules"], ["group/pills-1", "group/grid-1", "tray"])
         self.assertEqual(card["group/grid-1"]["modules"], ["custom/settings", "custom/awake"])  # mic hidden
         shown = bs.parse(bs.grid_variant(bs.show_off_rows(MIC_TOOLBOX)))
-        self.assertEqual(shown["group/card"]["modules"], ["group/grid-1", "custom/keybinds#mic", "tray"])
+        self.assertEqual(shown["group/card"]["modules"], ["group/grid-1", "group/grid-solo-1", "tray"])
+        self.assertEqual(shown["group/grid-solo-1"]["modules"], ["custom/keybinds#mic"])
+
+    def test_odd_one_under_pairs_gets_a_solo_group(self):
+        text = NAMED_TOOLBOX.replace('"custom/awake",', '"custom/awake",\n            "custom/display",', 1)
+        new = bs.grid_variant(text)
+        self.assertIn('"group/grid-solo-1"', new)
+        card = bs.parse(new)
+        self.assertEqual(card["group/card"]["modules"], ["group/grid-1", "group/grid-solo-1", "tray"])
+        self.assertEqual(card["group/grid-solo-1"], {"orientation": "horizontal", "modules": ["custom/display"]})
 
     def test_nothing_to_pair(self):
         one = NAMED_TOOLBOX.replace('            "custom/awake",\n', "", 1)

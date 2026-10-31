@@ -837,22 +837,29 @@ def grid_variant(text):
     """The toolbox's text with its card's shown rows laid out as a grid: each
     run of plain rows cut into horizontal "group/grid-N" lines of
     GRID_COLUMNS, defined right after the "name" line (as toolbox_variant
-    adds its groups); groups and GRID_WIDE rows stay lines of their own. The
+    adds its groups); groups and GRID_WIDE rows stay lines of their own. An
+    odd row left under a pair goes in a "group/grid-solo-N" of its own, which
+    style-toolbox.css keeps as wide as a pair: alone it would stretch to the
+    card's width, a few pixels past the pairs. The
     card list then holds only what is shown. Checked like an edit; a card
     with nothing to pair is the text itself."""
     lines = text.split("\n")
     start, end = find_list(lines, "modules", inside=CARD)
     items, tail = read_items(lines, start, end)
     shown = [it for it in items if it["shown"]]
-    out, lines_of, run_ = [], [], []
+    out, lines_of, run_, solos = [], [], [], []
 
     def flush():
         for i in range(0, len(run_), GRID_COLUMNS):
             chunk = run_[i:i + GRID_COLUMNS]
-            if len(chunk) == 1:
+            if len(chunk) == 1 and not i:
                 out.append(chunk[0])
                 continue
-            name = f"group/grid-{len(lines_of) + 1}"
+            if len(chunk) == 1:         # the odd one out under a pair
+                solos.append(chunk)
+                name = f"group/grid-solo-{len(solos)}"
+            else:
+                name = f"group/grid-{len(lines_of) - len(solos) + 1}"
             lines_of.append((name, chunk))
             out.append(name)
         run_.clear()

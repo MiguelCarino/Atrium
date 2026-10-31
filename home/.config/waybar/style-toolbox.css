@@ -40,6 +40,15 @@
     padding: 4px 14px;
 }
 
+/* The odd tile out under the pairs (bar-settings.py grid_variant:
+   group/grid-solo-N) as wide as a pair: two tiles of 160 + 2 x 12 padding
+   + 2 x 3 margin, less its own padding and margin. Left alone in the card
+   it would stretch to the card's width instead. */
+#grid-solo-1 > widget > *, #grid-solo-2 > widget > *,
+#grid-solo-3 > widget > *, #grid-solo-4 > widget > * {
+    min-width: 350px;
+}
+
 /* The bar's pills on top of the card (bar-settings.py card_lines: the
    keyboard layout with the dock or taskbar, every pill with the top bar
    off), the meters first, then PILLS_PER_LINE to a line, each pill styled
