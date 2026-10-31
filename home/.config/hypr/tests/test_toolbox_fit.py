@@ -184,5 +184,19 @@ class ToolboxConfig(unittest.TestCase):
         self.assertIn('"include": ["~/.config/waybar/generated/toolbox-margin.jsonc"]', text)
 
 
+
+
+class CardKey(unittest.TestCase):
+    """card_key: a width per theme and per dock layout / top bar."""
+    def test_keys(self):
+        from unittest import mock
+        with mock.patch.object(fit, "theme", lambda: "matrix"):
+            self.assertEqual(fit.card_key({}), "matrix")
+            self.assertEqual(fit.card_key({"enabled": False, "layout": "dock"}), "matrix")
+            self.assertEqual(fit.card_key({"enabled": True, "layout": "dock", "top_bar": True}), "matrix|dock")
+            self.assertEqual(fit.card_key({"enabled": True, "layout": "taskbar", "top_bar": False}),
+                             "matrix|taskbar|nobar")
+
+
 if __name__ == "__main__":
     unittest.main()

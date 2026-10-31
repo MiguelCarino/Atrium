@@ -60,7 +60,8 @@ what is open:
   * the card's width: measured. A layer surface narrower than its content
     grows past its margins, so `measure` (toolbox.sh, right after the card is
     shown) reads the real width off `hyprctl layers` and keeps it per theme
-    in ~/.local/state/hypr/toolbox-fit.json. A theme not measured yet starts
+    in ~/.local/state/hypr/toolbox-fit.json (card_key: per theme, and per
+    dock layout and top bar, which change the card's rows). A theme not measured yet starts
     from PROBE_W, narrower than any card, so the first open always measures.
     measure exits 0 when the fit changed (toolbox.sh then refits and shows
     the card again), 1 when it was right.
@@ -251,6 +252,26 @@ def theme():
     return ""
 
 
+def card_key(cfg=None):
+    """What a measured width is kept under: the theme, and with the dock
+    engine on its layout and whether the top bar is off -- those change
+    which rows the card has (bar-settings.py toolbox-config-path). A width
+    is only ever measured upwards (a layer surface is never narrower than
+    its margins make it), so a card that got narrower needs a key of its
+    own to be measured again."""
+    key = theme()
+    try:
+        if cfg is None:
+            sys.path.insert(0, os.path.expanduser("~/.config/hypr/scripts"))
+            import dock
+            cfg = dock.read_settings()
+        if cfg.get("enabled"):
+            key += f"|{cfg.get('layout')}" + ("|nobar" if not cfg.get("top_bar", True) else "")
+    except Exception:         # noqa: BLE001 - no dock: the theme's own
+        pass
+    return key
+
+
 def load(path, default):
     try:
         with open(path) as handle:
@@ -320,7 +341,7 @@ def fit(follow_click=True):
     False (measure): the sliders pill's edge as it is, no cursor read."""
     mon = toolbox_monitor()
     cache = load(CACHE, {})
-    card = cache.get(theme(), PROBE_W) + tray_extra(tray_items())
+    card = cache.get(card_key(), PROBE_W) + tray_extra(tray_items())
     current = written()
     dock = dock_button(mon["name"] if mon else toolbox_output())
     if dock is not None:
@@ -348,9 +369,10 @@ def measure():
         return False
     base = shown[0] - tray_extra(tray_items())
     cache = load(CACHE, {})
-    if cache.get(theme()) == base:
+    key = card_key()
+    if cache.get(key) == base:
         return False
-    cache[theme()] = base
+    cache[key] = base
     save_cache(cache)
     return fit(follow_click=False)
 

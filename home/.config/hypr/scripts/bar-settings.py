@@ -85,9 +85,10 @@ pills as they do the bar's; `status` says where each pill is (where_of). Made ag
 any problem making it, and the toolbox starts from config-toolbox itself.
 The card's Microphone and Battery rows (custom/keybinds#mic and #battery,
 hidden in config-toolbox; OFF_ROWS) are shown in that copy too, the bar's
-battery pill left out for that row (OFF_SKIP), the CPU, GPU and disk
-meters (METERS) are the first line of the bar's pills, on their own, and
-the tray ends the last line (OFF_TAIL) instead of being a row of its own. bar_signals.py pokes a pill in the toolbox waybar too once
+battery pill left out for that row (OFF_SKIP), the bar's pills come in
+sections, a line each (OFF_SECTIONS: the time, the workspaces, the status,
+the meters -- whichever the taskbar does not show), the others after them,
+and the tray ends the last line (OFF_TAIL) instead of being a row of its own. bar_signals.py pokes a pill in the toolbox waybar too once
 it is there.
 
 While the dock or the taskbar runs, with the bar on as well, the keyboard
@@ -127,7 +128,15 @@ OFF_ROWS = (MIC_ROW, BATTERY_ROW)
 # battery pill, a meter only), and the meters that get a line of their own,
 # first among the bar's pills.
 OFF_SKIP = ("battery",)
-METERS = ("custom/cpu", "custom/gpu", "custom/disk")
+METERS = ("custom/cpu", "custom/gpu", "custom/disk", "custom/mempressure")
+# The card's sections with the top bar off: a line each, in this order and
+# each in its own order, skipped when it has nothing (the taskbar shows the
+# time, the workspaces and the status itself; the dock shows none of them);
+# the bar's other pills make the line after them.
+TIME = ("custom/day", "custom/clock", "custom/menuclock", "custom/weather")
+WORKSPACES = ("ext/workspaces", "hyprland/submap")
+STATUS = ("custom/network", "pulseaudio", "custom/bluetooth", "custom/notifications", "privacy", "custom/power")
+OFF_SECTIONS = (TIME, WORKSPACES, STATUS, METERS)
 # ... and the tray (background apps): at the end of the last pill line, its
 # icons pills among pills, not a row of its own for one or two icons.
 OFF_TAIL = ("tray",)
@@ -190,6 +199,8 @@ MODULES = {
                       "level and mute, lit while an app listens; shown by itself while the top bar is off"),
     "custom/keybinds#battery": ("\uf240", "Battery",
                       "the charge and the time left; shown by itself while the top bar is off"),
+    "custom/keybinds#topbar": ("\uf2d0", "Top bar",
+                      "the top bar on or off, a click switches it; only while the dock or the taskbar runs"),
     "custom/settings": ("", "Settings", "this window (SUPER+I works without it)"),
     "custom/fsstate": ("", "Game mode", "split fullscreen: the app or the window thinks it is fullscreen"),
     "custom/nightlight": ("", "Night light", "warmer screens; same as SUPER+N"),
@@ -211,8 +222,7 @@ CARD_NEVER = frozenset({"hyprland/window", "custom/logo", "custom/keepawake", "c
 # by what could show, not by what does -- and a cut line left the tray (which
 # ends the last one, OFF_TAIL) alone on a line of empty pills. So in practice
 # one line: the few that show sit together. When more show, toolbox_fit.py
-# measures the card again and it widens; the tiles under it fill the new
-# width ("expand").
+# measures the card again and it widens.
 PILLS_PER_LINE = 24
 
 HIDDEN_RE = re.compile(r'^(\s*)//\s*hidden(?: by Settings)?:\s*"([^"]+)"\s*,?\s*(//.*)?$')
@@ -684,19 +694,25 @@ def bar_wanted():
         return True
 
 
-def card_lines(bar_text, skip, only=None, first=()):
-    """[(group, [pills])]: the bar's shown pills for the card, in the bar's
-    order, packed PILLS_PER_LINE to a line across its sides (most pills
-    print nothing most of the time, and a line per side left a card of
-    ragged one-pill lines); skip (the taskbar's) and
-    CARD_NEVER left out, and with only just those. The shown ones of first
-    (METERS) make a line of their own ahead of the rest, in the bar's order."""
+def card_lines(bar_text, skip, only=None, sections=()):
+    """[(group, [pills])]: the bar's shown pills for the card; skip (the
+    taskbar's) and CARD_NEVER left out, and with only just those. Each of
+    sections (OFF_SECTIONS: tuples of names) that has any makes a line of
+    its own, in the section's order; the rest follow in the bar's order,
+    packed PILLS_PER_LINE to a line across its sides (most pills print
+    nothing most of the time, and a line per side left a card of ragged
+    one-pill lines)."""
     lists = lists_of(bar_text)
     wanted = [it["name"] for side in SIDES for it in lists.get(side) or [] if it["shown"]
               and it["name"] not in skip and it["name"] not in CARD_NEVER and (only is None or it["name"] in only)]
-    head = [n for n in wanted if n in first]
-    rest = [n for n in wanted if n not in head]
-    lines = ([head] if head else []) + [rest[i:i + PILLS_PER_LINE] for i in range(0, len(rest), PILLS_PER_LINE)]
+    lines, used = [], set()
+    for section in sections:
+        names = [n for n in section if n in wanted and n not in used]
+        if names:
+            lines.append(names)
+            used.update(names)
+    rest = [n for n in wanted if n not in used]
+    lines += [rest[i:i + PILLS_PER_LINE] for i in range(0, len(rest), PILLS_PER_LINE)]
     return [(f"group/pills-{n}", names) for n, names in enumerate(lines, 1)]
 
 
@@ -734,7 +750,7 @@ def where_of(name, shown, view):
     return "bar"
 
 
-def toolbox_variant(text, bar_text, skip, only=None, first=(), then=()):
+def toolbox_variant(text, bar_text, skip, only=None, sections=(), then=()):
     """The toolbox's text with the bar's pills added (card_lines): their
     rows first in the card, the groups and each pill's settings block (as
     the bar has it, comments and all) right after the "name" line, so every
@@ -745,7 +761,7 @@ def toolbox_variant(text, bar_text, skip, only=None, first=(), then=()):
     Checked like an edit: anything else that would differ is a ValueError;
     with no pill to add it is the text itself."""
     bar = parse(bar_text)
-    rows = card_lines(bar_text, skip, only, first)
+    rows = card_lines(bar_text, skip, only, sections)
     if not rows:
         return text
     then = [n for n in then if n in card_of(parse(text))]
@@ -883,7 +899,7 @@ def toolbox_config_path():
         text = read(TOOLBOX)
         if off:
             text = show_off_rows(text)
-            text = toolbox_variant(text, read(BAR), (taken - card) | set(OFF_SKIP), first=METERS, then=OFF_TAIL)
+            text = toolbox_variant(text, read(BAR), (taken - card) | set(OFF_SKIP), sections=OFF_SECTIONS, then=OFF_TAIL)
         elif card:
             text = toolbox_variant(text, read(BAR), taken - card, only=card)
         text = grid_variant(text)

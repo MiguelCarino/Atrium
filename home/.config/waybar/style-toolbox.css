@@ -19,10 +19,11 @@
 
 /* Tiles: two to a line (bar-settings.py grid_variant: group/grid-N), a gap
    of 6 px between them and under them, no per-pill right margin from the
-   bar. Every tile at least as wide as the widest label (the Microphone row
-   at 100 %), and "expand" in config-toolbox shares out what is left of a
-   line, so the two columns line up and fill the card. The tray has a line
-   of its own, full width. */
+   bar. Every tile as wide as the widest label (the Microphone row at
+   100 %), so the two columns line up. (waybar ignores a module's "expand"
+   inside a group, so a line cannot share out a wider card: the card's
+   lines are kept about this wide instead -- bar-settings.py OFF_SECTIONS.)
+   The tray has a line of its own, full width. */
 #custom-fsstate,
 #custom-nightlight,
 #custom-awake,

@@ -59,6 +59,9 @@
             // hidden: "custom/keybinds#battery",
             "custom/display",
             "custom/keybinds",
+            // The top bar on / off: only while the dock or the taskbar runs
+            // (scripts/topbar_row.py prints nothing otherwise).
+            "custom/keybinds#topbar",
             "tray"
         ]
     },
@@ -79,7 +82,6 @@
         "restart-interval": 5,
         "format": "{}   Game mode",
         "align": 0,
-        "expand": true,         // the two tiles of a grid line share its width
         "on-click": "$HOME/.config/waybar/scripts/fsstate.py a",
         "on-click-right": "$HOME/.config/waybar/scripts/fsstate.py b",
         "on-click-middle": "$HOME/.config/waybar/scripts/fsstate.py reset"
@@ -101,7 +103,6 @@
         "signal": 11,
         "format": "{icon}   Night light",
         "align": 0,
-        "expand": true,         // the two tiles of a grid line share its width
         "format-icons": { "on": "", "off": "" },
         "on-click": "$HOME/.config/hypr/scripts/nightlight.sh toggle"
     },
@@ -123,7 +124,6 @@
         "signal": 21,
         "format": "{icon}   {text}",
         "align": 0,
-        "expand": true,         // the two tiles of a grid line share its width
         "format-icons": { "activated": "\uf0f4", "deactivated": "\uf186" },
         "on-click": "$HOME/.config/waybar/scripts/toolbox_awake.py toggle",
         "on-click-right": "$HOME/.config/waybar/scripts/toolbox_awake.py toggle 60"
@@ -144,7 +144,6 @@
         "restart-interval": 5,
         "format": "{}",
         "align": 0,
-        "expand": true,         // the two tiles of a grid line share its width
         "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
         "on-scroll-up": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SOURCE@ 5%+",
         "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%-",
@@ -161,8 +160,19 @@
         "interval": 30,
         "format": "{}",
         "align": 0,
-        "expand": true,         // the two tiles of a grid line share its width
         "on-click": "$HOME/.config/waybar/scripts/toolbox.sh hide; $HOME/.config/hypr/scripts/settings.py power"
+    },
+
+    // The Top bar row: on or off, a click switches it (scripts/topbar_row.py;
+    // hypr/scripts/dock.py set top_bar). No text, so no row, without the dock
+    // or the taskbar. Named keybinds#topbar for the plain row's look.
+    "custom/keybinds#topbar": {
+        "exec": "$HOME/.config/waybar/scripts/topbar_row.py",
+        "return-type": "json",
+        "interval": 60,
+        "format": "{}",
+        "align": 0,
+        "on-click": "$HOME/.config/waybar/scripts/topbar_row.py toggle"
     },
 
     // Display: HDR, screen filter, animation preset, wallpaper theme -- the
@@ -181,7 +191,6 @@
         "signal": 13,
         "format": "{}   D\u200ci\u200cs\u200cp\u200cl\u200ca\u200cy",
         "align": 0,
-        "expand": true,         // the two tiles of a grid line share its width
         "on-click": "$HOME/.config/waybar/scripts/toolbox.sh hide; $HOME/.config/waybar/scripts/panel.py toggle display",
         "on-click-right": "$HOME/.config/hypr/scripts/display.py filter toggle"
     },
@@ -196,7 +205,6 @@
         "interval": "once",
         "format": "{}   Shortcuts",
         "align": 0,
-        "expand": true,         // the two tiles of a grid line share its width
         "on-click": "$HOME/.config/waybar/scripts/toolbox.sh hide; $HOME/.config/waybar/scripts/panel.py toggle keybinds"
     },
 
@@ -209,7 +217,6 @@
         "interval": "once",
         "format": "{}   Settings",
         "align": 0,
-        "expand": true,         // the two tiles of a grid line share its width
         "on-click": "$HOME/.config/waybar/scripts/toolbox.sh hide; $HOME/.config/hypr/scripts/settings.py"
     },
 
