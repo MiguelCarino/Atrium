@@ -85,8 +85,9 @@ pills as they do the bar's; `status` says where each pill is (where_of). Made ag
 any problem making it, and the toolbox starts from config-toolbox itself.
 The card's Microphone and Battery rows (custom/keybinds#mic and #battery,
 hidden in config-toolbox; OFF_ROWS) are shown in that copy too, the bar's
-battery pill left out for that row (OFF_SKIP), and the CPU, GPU and disk
-meters (METERS) are the first line of the bar's pills, on their own. bar_signals.py pokes a pill in the toolbox waybar too once
+battery pill left out for that row (OFF_SKIP), the CPU, GPU and disk
+meters (METERS) are the first line of the bar's pills, on their own, and
+the tray ends the last line (OFF_TAIL) instead of being a row of its own. bar_signals.py pokes a pill in the toolbox waybar too once
 it is there.
 
 While the dock or the taskbar runs, with the bar on as well, the keyboard
@@ -127,6 +128,9 @@ OFF_ROWS = (MIC_ROW, BATTERY_ROW)
 # first among the bar's pills.
 OFF_SKIP = ("battery",)
 METERS = ("custom/cpu", "custom/gpu", "custom/disk")
+# ... and the tray (background apps): at the end of the last pill line, its
+# icons pills among pills, not a row of its own for one or two icons.
+OFF_TAIL = ("tray",)
 STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hypr")
 
 SIDES = ("modules-left", "modules-center", "modules-right")
@@ -204,10 +208,12 @@ MODULES = {
 CARD_NEVER = frozenset({"hyprland/window", "custom/logo", "custom/keepawake", "custom/toolbox"})
 # Most pills print nothing most of the time (a timer, a capture, a phone:
 # only while there is one), and waybar hides an empty one, so a line is cut
-# by what could show, not by what does: wide enough that the few that usually
-# show share one line. When more show, toolbox_fit.py measures the card again
-# and it widens; the tiles under it fill the new width ("expand").
-PILLS_PER_LINE = 12
+# by what could show, not by what does -- and a cut line left the tray (which
+# ends the last one, OFF_TAIL) alone on a line of empty pills. So in practice
+# one line: the few that show sit together. When more show, toolbox_fit.py
+# measures the card again and it widens; the tiles under it fill the new
+# width ("expand").
+PILLS_PER_LINE = 24
 
 HIDDEN_RE = re.compile(r'^(\s*)//\s*hidden(?: by Settings)?:\s*"([^"]+)"\s*,?\s*(//.*)?$')
 ENTRY_RE = re.compile(r'^(\s*)"([^"]+)"\s*(,?)\s*(//.*)?$')
@@ -728,18 +734,22 @@ def where_of(name, shown, view):
     return "bar"
 
 
-def toolbox_variant(text, bar_text, skip, only=None, first=()):
+def toolbox_variant(text, bar_text, skip, only=None, first=(), then=()):
     """The toolbox's text with the bar's pills added (card_lines): their
     rows first in the card, the groups and each pill's settings block (as
     the bar has it, comments and all) right after the "name" line, so every
     inserted block ends in a comma and nothing else is touched. skip: the
     pills the taskbar takes over; only, when given, the only pills to add.
+    then: the card's own rows (the tray) to move to the end of the last
+    pill line, out of the card's list.
     Checked like an edit: anything else that would differ is a ValueError;
     with no pill to add it is the text itself."""
     bar = parse(bar_text)
     rows = card_lines(bar_text, skip, only, first)
     if not rows:
         return text
+    then = [n for n in then if n in card_of(parse(text))]
+    rows[-1] = (rows[-1][0], rows[-1][1] + then)
     bar_lines = bar_text.split("\n")
     added = []
     for group, names in rows:
@@ -748,6 +758,8 @@ def toolbox_variant(text, bar_text, skip, only=None, first=()):
                   '        "modules": [' + ", ".join(json.dumps(n) for n in names) + "]",
                   "    },"]
         for name in names:
+            if name in then:
+                continue              # the card's own: its block is there already
             try:
                 start, end = block_range(bar_lines, name)
             except ValueError:
@@ -765,16 +777,17 @@ def toolbox_variant(text, bar_text, skip, only=None, first=()):
     start, end = find_list(lines, "modules", inside=CARD)
     items, tail = read_items(lines, start, end)
     indent = items[0]["indent"] if items else " " * 12
+    items = [it for it in items if it["name"] not in then]
     items[:0] = [{"name": group, "shown": True, "indent": indent, "comment": "", "above": []}
                  for group, _names in rows]
     lines[start + 1:end] = write_items(items, tail)
     new = "\n".join(lines)
     want = parse(text)
-    card_of(want)[:0] = [group for group, _names in rows]
+    card_of(want)[:] = [group for group, _names in rows] + [n for n in card_of(want) if n not in then]
     for group, names in rows:
         want[group] = {"orientation": "horizontal", "modules": names}
         for name in names:
-            if name in bar:
+            if name in bar and name not in then:
                 want[name] = bar[name]
     if parse(new) != want:
         raise ValueError("the toolbox variant changes more than its pills")
@@ -870,7 +883,7 @@ def toolbox_config_path():
         text = read(TOOLBOX)
         if off:
             text = show_off_rows(text)
-            text = toolbox_variant(text, read(BAR), (taken - card) | set(OFF_SKIP), first=METERS)
+            text = toolbox_variant(text, read(BAR), (taken - card) | set(OFF_SKIP), first=METERS, then=OFF_TAIL)
         elif card:
             text = toolbox_variant(text, read(BAR), taken - card, only=card)
         text = grid_variant(text)

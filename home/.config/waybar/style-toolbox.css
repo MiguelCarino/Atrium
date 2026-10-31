@@ -96,3 +96,11 @@
 #custom-keybinds.battery.critical {
     color: @red;
 }
+
+/* With the top bar off the tray ends the last pill line (bar-settings.py
+   OFF_TAIL): a pill's height there, not a row's. */
+#pills-1 #tray, #pills-2 #tray, #pills-3 #tray, #pills-4 #tray,
+#pills-5 #tray, #pills-6 #tray, #pills-7 #tray, #pills-8 #tray {
+    margin: 0;
+    padding: 0 10px;
+}

@@ -434,6 +434,25 @@ class NetworkVpnTest(unittest.TestCase):
         self.assertTrue(barfit.narrow("DP-3", mons))      # rotated: 2160 wide
         self.assertFalse(barfit.narrow("HDMI-A-9", mons))  # not there: the usual bar
 
+    def test_barfit_never_narrow_in_the_card(self):
+        import tempfile
+        from unittest import mock
+        with tempfile.NamedTemporaryFile("w", suffix=".cgroup", delete=False) as fh:
+            fh.write("0::/user.slice/user-1000.slice/user@1000.service/app.slice/waybar-toolbox.service\n")
+        try:
+            self.assertTrue(barfit.in_card(fh.name))
+            with open(fh.name, "w") as out:
+                out.write("0::/user.slice/user@1000.service/app.slice/waybar.service\n")
+            self.assertFalse(barfit.in_card(fh.name))
+        finally:
+            os.unlink(fh.name)
+        self.assertFalse(barfit.in_card("/nonexistent/cgroup"))
+        mons = [{"name": "eDP-1", "width": 1920, "height": 1080, "scale": 1, "transform": 0}]
+        with mock.patch.object(barfit, "in_card", lambda: True):
+            self.assertFalse(barfit.narrow("eDP-1", mons))   # the card has the room
+        with mock.patch.object(barfit, "in_card", lambda: False):
+            self.assertTrue(barfit.narrow("eDP-1", mons))
+
     def test_meters(self):
         """barfit.vbars: 4 segments of 25%, any load lights the first."""
         self.assertEqual([barfit.lit(v) for v in (0, 1, 25, 26, 50, 74, 75, 76, 100, 250, "x")],

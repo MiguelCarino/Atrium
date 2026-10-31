@@ -295,6 +295,21 @@ class DockCard(unittest.TestCase):
         rows = [n for g, v in card.items() if g.startswith("group/grid-") for n in v["modules"]]
         self.assertIn("custom/keybinds#battery", rows + card["group/card"]["modules"])
 
+    def test_bar_off_tray_ends_the_last_pill_line(self):
+        new = bs.toolbox_variant(NAMED_TOOLBOX, METER_BAR, skip={"custom/power"}, first=bs.METERS, then=("tray",))
+        card = bs.parse(new)
+        self.assertNotIn("tray", card["group/card"]["modules"])
+        last = [g for g in card["group/card"]["modules"] if g.startswith("group/pills-")][-1]
+        self.assertEqual(card[last]["modules"][-1], "tray")
+        self.assertEqual(card["tray"], bs.parse(NAMED_TOOLBOX)["tray"])          # its own block, as it was
+        grid = bs.parse(bs.grid_variant(new))
+        self.assertEqual(grid["group/card"]["modules"][-1], "group/grid-1")      # no tray row
+        # No pills: the tray stays a row of its own.
+        none = bs.toolbox_variant(NAMED_TOOLBOX, BAR, skip={"ext/workspaces", "custom/day", "custom/clock",
+                                                            "custom/weather", "custom/cpu", "custom/power"},
+                                  then=("tray",))
+        self.assertEqual(none, NAMED_TOOLBOX)
+
     def test_meters_line_follows_hide(self):
         hidden = METER_BAR.replace('"custom/gpu",', '// hidden: "custom/gpu",', 1)
         lines = bs.card_lines(hidden, skip=set(), first=bs.METERS)
@@ -328,7 +343,7 @@ class DockCard(unittest.TestCase):
         self.assertEqual(name, "tb-nobar")
         self.assertEqual(card["group/pills-1"]["modules"], ["custom/cpu"])      # the meters first
         self.assertEqual(card["group/pills-2"]["modules"], ["ext/workspaces", "hyprland/language", "custom/day",
-                                                            "custom/clock", "custom/weather"])
+                                                            "custom/clock", "custom/weather", "tray"])
         self.assertIn("custom/keybinds#mic", card["group/card"]["modules"])
         self.assertNotIn("group/pills-3", card)                                 # the taskbar has the power pill
 
@@ -506,11 +521,12 @@ class Destinations(unittest.TestCase):
         self.assertEqual(bs.where_of("custom/mic", True, dict(off, layout="dock", taken=["custom/mic"])), "dock")
 
     def test_card_lines_cut_long_sides(self):
-        many = BAR.replace('"custom/cpu",', "".join(f'"custom/p{i}",\n        ' for i in range(9)) + '"custom/cpu",')
+        extra = bs.PILLS_PER_LINE - 3                     # 6 pills on the bar already, the toolbox never: 2 over
+        many = BAR.replace('"custom/cpu",', "".join(f'"custom/p{i}",\n        ' for i in range(extra)) + '"custom/cpu",')
         lines = bs.card_lines(many, skip={"custom/power"})
-        self.assertEqual([len(n) for _g, n in lines], [bs.PILLS_PER_LINE, 14 - bs.PILLS_PER_LINE])   # 14 pills
+        self.assertEqual([len(n) for _g, n in lines], [bs.PILLS_PER_LINE, 2])
         self.assertEqual([g for g, _n in lines], ["group/pills-1", "group/pills-2"])
-        self.assertEqual(lines[1][1][-2:], ["custom/p8", "custom/cpu"])            # the toolbox pill never
+        self.assertEqual(lines[1][1][-2:], [f"custom/p{extra - 1}", "custom/cpu"])  # the toolbox pill never
 
     def test_destinations(self):
         d = self.page.destinations

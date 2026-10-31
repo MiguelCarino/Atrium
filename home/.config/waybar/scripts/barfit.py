@@ -19,6 +19,11 @@ output in WAYBAR_OUTPUT_NAME, and a bar that moves to another screen is a
 new bar with new scripts, so asking once at the start is enough. Without it
 (a script run by hand), the primary (screens.py). Without Hyprland, not
 narrow: the bar as it always was.
+
+Never in the toolbox card (in_card): its pills (the top bar's, with the top
+bar off: bar-settings.py card_lines) have the card's width to themselves and
+nothing to keep centred, so they say everything there. The card's scripts
+run in waybar-toolbox.service's cgroup, which is how they know.
 """
 import os
 import sys
@@ -46,7 +51,21 @@ def width(output=None, mons=None):
     return None
 
 
+CARD_UNIT = "/waybar-toolbox.service"
+
+
+def in_card(cgroup_path="/proc/self/cgroup"):
+    """Whether this runs under the toolbox waybar (its cgroup)."""
+    try:
+        with open(cgroup_path) as fh:
+            return any(line.rstrip().endswith(CARD_UNIT) for line in fh)
+    except OSError:
+        return False
+
+
 def narrow(output=None, mons=None):
+    if in_card():
+        return False
     w = width(output, mons)
     return w is not None and w < NARROW_BELOW
 
