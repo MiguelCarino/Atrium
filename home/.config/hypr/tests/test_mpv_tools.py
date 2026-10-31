@@ -21,6 +21,9 @@ mpv_pip = helpers.import_script("mpv-pip.py")
 CONFIG = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SCRIPTS = os.path.join(CONFIG, "mpv", "scripts")
 BASE = os.path.join(CONFIG, "themes", "mpv-base.conf")
+# The mpv scripts are not part of the desktop sync (~/.config/mpv is not
+# synced): on a machine without them, the tests that run them are skipped.
+needs_scripts = unittest.skipUnless(os.path.isdir(SCRIPTS), f"no mpv scripts in {SCRIPTS}")
 
 DP1 = {"id": 1, "name": "DP-1", "x": 0, "y": 0, "width": 3440, "height": 1440, "scale": 1, "transform": 0,
        "focused": True}
@@ -210,6 +213,7 @@ function out(...) local t = {} for i, v in ipairs({...}) do t[i] = tostring(v) e
     return res.stdout.splitlines()
 
 
+@needs_scripts
 class SleepTimer(unittest.TestCase):
     LOAD = f"props['keep-open'], props['keep-open-pause'], props.pause = 'no', 'yes', false\n" \
            f"T = dofile('{SCRIPTS}/sleep-timer.lua')\n"
@@ -255,6 +259,7 @@ handlers['key:cycle']() out(props['user-data/sleep-timer/mode'])
         self.assertEqual(lines, ["false off", "off", "Sleep timer: done (already paused)", "15"])
 
 
+@needs_scripts
 class SubTools(unittest.TestCase):
     def test_shown_flag(self):
         lines = run_lua(self, f"dofile('{SCRIPTS}/sub-tools.lua')\n" + """
@@ -287,6 +292,7 @@ m('user-data/osc/margins', nil) out(props['sub-margin-y'])
         self.assertEqual(lines, ["82", "34", "50", "50", "50"])
 
 
+@needs_scripts
 class WindowPipLua(unittest.TestCase):
     LOAD = f"props.dwidth, props.dheight = 1920, 1080\ndofile('{SCRIPTS}/window-pip.lua')\n" \
            "local function answer(text, status) local a = table.remove(asyncs, 1)\n" \
@@ -373,7 +379,7 @@ class ControlsRow(unittest.TestCase):
         for c in delays:
             self.assertEqual(disp[c], "user-data/sub-tools/shown")
         # The owners named are the script files' names (mpv: '-' -> '_').
-        for f in ("sleep-timer.lua", "window-pip.lua", "sub-tools.lua"):
+        for f in () if not os.path.isdir(SCRIPTS) else ("sleep-timer.lua", "window-pip.lua", "sub-tools.lua"):
             self.assertTrue(os.path.exists(os.path.join(SCRIPTS, f)), f)
 
     def test_order_ends_with_pip_then_fullscreen(self):
