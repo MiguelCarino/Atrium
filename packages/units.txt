@@ -18,6 +18,7 @@ hypr-guard.service
 hypridle.service
 hyprpaper.service
 hyprpolkitagent.service
+island.service
 launcher.service
 mako.service
 osd.service
