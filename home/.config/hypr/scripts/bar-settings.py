@@ -83,8 +83,10 @@ from ~/.config/waybar/config. So hide / show / move here decide the card's
 pills as they do the bar's; `status` says where each pill is (where_of). Made again at every toolbox start
 (toolbox-config-path), so hide / show / move here still decide what is in it;
 any problem making it, and the toolbox starts from config-toolbox itself.
-The card's Microphone row (custom/keybinds#mic, hidden in config-toolbox) is shown
-in that copy too. bar_signals.py pokes a pill in the toolbox waybar too once
+The card's Microphone and Battery rows (custom/keybinds#mic and #battery,
+hidden in config-toolbox; OFF_ROWS) are shown in that copy too, the bar's
+battery pill left out for that row (OFF_SKIP), and the CPU, GPU and disk
+meters (METERS) are the first line of the bar's pills, on their own. bar_signals.py pokes a pill in the toolbox waybar too once
 it is there.
 
 While the dock or the taskbar runs, with the bar on as well, the keyboard
@@ -118,6 +120,13 @@ GRID_TOOLBOX = os.path.join(WAYBAR, "generated", "config-toolbox-grid")
 GRID_COLUMNS = 2
 GRID_WIDE = ("tray",)
 MIC_ROW = "custom/keybinds#mic"            # the card's Microphone row, shown with the bar off
+BATTERY_ROW = "custom/keybinds#battery"    # its Battery row (time left), shown with the bar off
+OFF_ROWS = (MIC_ROW, BATTERY_ROW)
+# With the bar off: the pills the Battery row stands in for (the card's
+# battery pill, a meter only), and the meters that get a line of their own,
+# first among the bar's pills.
+OFF_SKIP = ("battery",)
+METERS = ("custom/cpu", "custom/gpu", "custom/disk")
 STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hypr")
 
 SIDES = ("modules-left", "modules-center", "modules-right")
@@ -175,6 +184,8 @@ MODULES = {
     # The toolbox card's rows.
     "custom/keybinds#mic": ("\uf130", "Microphone",
                       "level and mute, lit while an app listens; shown by itself while the top bar is off"),
+    "custom/keybinds#battery": ("\uf240", "Battery",
+                      "the charge and the time left; shown by itself while the top bar is off"),
     "custom/settings": ("", "Settings", "this window (SUPER+I works without it)"),
     "custom/fsstate": ("", "Game mode", "split fullscreen: the app or the window thinks it is fullscreen"),
     "custom/nightlight": ("", "Night light", "warmer screens; same as SUPER+N"),
@@ -662,15 +673,18 @@ def bar_wanted():
         return True
 
 
-def card_lines(bar_text, skip, only=None):
+def card_lines(bar_text, skip, only=None, first=()):
     """[(group, [pills])]: the bar's shown pills for the card, in the bar's
     order, a line per side cut at PILLS_PER_LINE; skip (the taskbar's) and
-    CARD_NEVER left out, and with only just those."""
+    CARD_NEVER left out, and with only just those. The shown ones of first
+    (METERS) make a line of their own ahead of the rest, in the bar's order."""
     lists = lists_of(bar_text)
-    lines = []
+    wanted = [it["name"] for side in SIDES for it in lists.get(side) or [] if it["shown"]
+              and it["name"] not in skip and it["name"] not in CARD_NEVER and (only is None or it["name"] in only)]
+    head = [n for n in wanted if n in first]
+    lines = [head] if head else []
     for side in SIDES:
-        names = [it["name"] for it in lists.get(side) or [] if it["shown"] and it["name"] not in skip
-                 and it["name"] not in CARD_NEVER and (only is None or it["name"] in only)]
+        names = [it["name"] for it in lists.get(side) or [] if it["name"] in wanted and it["name"] not in head]
         lines += [names[i:i + PILLS_PER_LINE] for i in range(0, len(names), PILLS_PER_LINE)]
     return [(f"group/pills-{n}", names) for n, names in enumerate(lines, 1)]
 
@@ -709,7 +723,7 @@ def where_of(name, shown, view):
     return "bar"
 
 
-def toolbox_variant(text, bar_text, skip, only=None):
+def toolbox_variant(text, bar_text, skip, only=None, first=()):
     """The toolbox's text with the bar's pills added (card_lines): their
     rows first in the card, the groups and each pill's settings block (as
     the bar has it, comments and all) right after the "name" line, so every
@@ -718,7 +732,7 @@ def toolbox_variant(text, bar_text, skip, only=None):
     Checked like an edit: anything else that would differ is a ValueError;
     with no pill to add it is the text itself."""
     bar = parse(bar_text)
-    rows = card_lines(bar_text, skip, only)
+    rows = card_lines(bar_text, skip, only, first)
     if not rows:
         return text
     bar_lines = bar_text.split("\n")
@@ -773,13 +787,16 @@ def card_pills():
         return ()
 
 
-def show_mic_row(text):
-    """The toolbox's text with its Microphone row shown (the bar is off);
-    as it is when the row is already shown or gone from the card."""
-    try:
-        return set_shown(text, MIC_ROW, True, toolbox=True)
-    except ValueError:
-        return text
+def show_off_rows(text, rows=OFF_ROWS):
+    """The toolbox's text with its Microphone and Battery rows (OFF_ROWS)
+    shown (the bar is off); each as it is when already shown or gone from
+    the card."""
+    for name in rows:
+        try:
+            text = set_shown(text, name, True, toolbox=True)
+        except ValueError:
+            pass
+    return text
 
 
 def grid_variant(text):
@@ -836,7 +853,7 @@ def grid_variant(text):
 def toolbox_config_path():
     """The file the toolbox starts from (toolbox-main.sh), written fresh, the
     card always a grid (grid_variant): with the top bar off NOBAR_TOOLBOX,
-    the bar's pills and the Microphone row added; with the bar on but the
+    the bar's pills (the meters first) and the Microphone and Battery rows added; with the bar on but the
     dock or taskbar running DOCK_TOOLBOX, the keyboard layout added
     (CARD_PILLS); else GRID_TOOLBOX. Never raises: whatever goes wrong, the
     toolbox starts from TOOLBOX, the card a column."""
@@ -847,9 +864,10 @@ def toolbox_config_path():
     try:
         text = read(TOOLBOX)
         if off:
-            text = show_mic_row(text)
-        if off or card:
-            text = toolbox_variant(text, read(BAR), taken - card, only=None if off else card)
+            text = show_off_rows(text)
+            text = toolbox_variant(text, read(BAR), (taken - card) | set(OFF_SKIP), first=METERS)
+        elif card:
+            text = toolbox_variant(text, read(BAR), taken - card, only=card)
         text = grid_variant(text)
         os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = f"{path}.{os.getpid()}.tmp"

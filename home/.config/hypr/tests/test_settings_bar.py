@@ -252,6 +252,11 @@ class ToolboxVariant(unittest.TestCase):
 
 LANG_BAR = BAR.replace('"ext/workspaces",', '"ext/workspaces",\n        "hyprland/language",', 1)
 MIC_TOOLBOX = NAMED_TOOLBOX.replace('"custom/awake",', '"custom/awake",\n            // hidden: "custom/keybinds#mic",', 1)
+BATT_TOOLBOX = MIC_TOOLBOX.replace('// hidden: "custom/keybinds#mic",',
+                                   '// hidden: "custom/keybinds#mic",\n            // hidden: "custom/keybinds#battery",', 1)
+# The bar with the meters and the battery pill, on a laptop.
+METER_BAR = LANG_BAR.replace('"custom/cpu",', '"custom/drives",\n        "custom/cpu",\n        "custom/gpu",\n'
+                             '        "custom/disk",\n        "battery",', 1)
 
 
 class DockCard(unittest.TestCase):
@@ -266,9 +271,37 @@ class DockCard(unittest.TestCase):
 
     def test_mic_row_is_shown(self):
         self.assertNotIn("custom/keybinds#mic", bs.parse(MIC_TOOLBOX)["group/card"]["modules"])
-        shown = bs.show_mic_row(MIC_TOOLBOX)
+        shown = bs.show_off_rows(MIC_TOOLBOX)
         self.assertIn("custom/keybinds#mic", bs.parse(shown)["group/card"]["modules"])
-        self.assertEqual(bs.show_mic_row(NAMED_TOOLBOX), NAMED_TOOLBOX)      # no row: as it is
+        self.assertEqual(bs.show_off_rows(NAMED_TOOLBOX), NAMED_TOOLBOX)      # no row: as it is
+
+    def test_battery_row_is_shown_too(self):
+        modules = bs.parse(bs.show_off_rows(BATT_TOOLBOX))["group/card"]["modules"]
+        self.assertIn("custom/keybinds#mic", modules)
+        self.assertIn("custom/keybinds#battery", modules)
+
+    def test_bar_off_meters_first_and_no_battery_pill(self):
+        with mock.patch.object(bs, "bar_wanted", lambda: False), \
+                mock.patch.object(bs, "taken_by_taskbar", lambda: ["custom/power"]), \
+                mock.patch.object(bs, "card_pills", lambda: ("hyprland/language",)), \
+                mock.patch.object(bs, "read", lambda p: BATT_TOOLBOX if p == bs.TOOLBOX else METER_BAR), \
+                mock.patch.object(bs, "NOBAR_TOOLBOX", os.path.join(helpers.SCRATCH, "tb-nobar")):
+            with open(bs.toolbox_config_path()) as handle:
+                card = bs.parse(handle.read())
+        self.assertEqual(card["group/card"]["modules"][0], "group/pills-1")
+        self.assertEqual(card["group/pills-1"]["modules"], ["custom/cpu", "custom/gpu", "custom/disk"])
+        pills = [n for g, v in card.items() if g.startswith("group/pills-") for n in v["modules"]]
+        self.assertNotIn("battery", pills)                                       # the Battery row has it
+        self.assertEqual(pills.count("custom/cpu"), 1)
+        self.assertIn("custom/drives", pills)
+        rows = [n for g, v in card.items() if g.startswith("group/grid-") for n in v["modules"]]
+        self.assertIn("custom/keybinds#battery", rows + card["group/card"]["modules"])
+
+    def test_meters_line_follows_hide(self):
+        hidden = METER_BAR.replace('"custom/gpu",', '// hidden: "custom/gpu",', 1)
+        lines = bs.card_lines(hidden, skip=set(), first=bs.METERS)
+        self.assertEqual(lines[0][1], ["custom/cpu", "custom/disk"])
+        self.assertEqual(bs.card_lines(BAR, skip={"custom/cpu"}, first=bs.METERS)[0][1], ["ext/workspaces"])
 
     def paths(self, wanted, taken, card=("hyprland/language",)):
         out = {}
@@ -295,9 +328,10 @@ class DockCard(unittest.TestCase):
         self.assertNotIn("custom/keybinds#mic", card["group/card"]["modules"])
         name, card = self.paths(False, ["hyprland/language", "custom/power"])    # bar off
         self.assertEqual(name, "tb-nobar")
-        self.assertEqual(card["group/pills-1"]["modules"], ["ext/workspaces", "hyprland/language"])
+        self.assertEqual(card["group/pills-1"]["modules"], ["custom/cpu"])      # the meters first
+        self.assertEqual(card["group/pills-2"]["modules"], ["ext/workspaces", "hyprland/language"])
         self.assertIn("custom/keybinds#mic", card["group/card"]["modules"])
-        self.assertEqual(card["group/pills-3"]["modules"], ["custom/cpu"])      # the taskbar has the power pill
+        self.assertNotIn("group/pills-4", card)                                 # the taskbar has the power pill
 
 
 class Grid(unittest.TestCase):
@@ -316,7 +350,7 @@ class Grid(unittest.TestCase):
         card = bs.parse(bs.grid_variant(text))
         self.assertEqual(card["group/card"]["modules"], ["group/pills-1", "group/grid-1", "tray"])
         self.assertEqual(card["group/grid-1"]["modules"], ["custom/settings", "custom/awake"])  # mic hidden
-        shown = bs.parse(bs.grid_variant(bs.show_mic_row(MIC_TOOLBOX)))
+        shown = bs.parse(bs.grid_variant(bs.show_off_rows(MIC_TOOLBOX)))
         self.assertEqual(shown["group/card"]["modules"], ["group/grid-1", "custom/keybinds#mic", "tray"])
 
     def test_nothing_to_pair(self):
@@ -366,6 +400,73 @@ class MicRow(unittest.TestCase):
         card = dict((it["name"], it["shown"]) for it in bs.lists_of(toolbox, True)["card"])
         self.assertIs(card.get("custom/keybinds#mic"), False)          # hidden as shipped
         self.assertIn("mic_row.py watch", bs.parse(toolbox)["custom/keybinds#mic"]["exec"])
+
+
+class BatteryRow(unittest.TestCase):
+    """scripts/battery_row.py: the card's Battery row, with the time left."""
+    @classmethod
+    def setUpClass(cls):
+        cls.m = load(os.path.join(WAYBAR_SCRIPTS, "battery_row.py"), "battery_row")
+
+    UPOWER = """\
+  native-path:          BAT0
+  power supply:         yes
+  battery
+    present:             yes
+    state:               discharging
+    energy-rate:         9.1 W
+    percentage:          64%
+    time to empty:       2.3 hours
+"""
+
+    def test_from_upower(self):
+        self.assertEqual(self.m.from_upower(self.UPOWER), {"pct": 64, "state": "discharging", "hours": 2.3})
+        charging = self.UPOWER.replace("discharging", "charging").replace("time to empty:       2.3 hours",
+                                                                          "time to full:        40.0 minutes")
+        got = self.m.from_upower(charging)
+        self.assertEqual(got["state"], "charging")
+        self.assertAlmostEqual(got["hours"], 40 / 60)
+        self.assertIsNone(self.m.from_upower(self.UPOWER.replace("present:             yes",
+                                                                 "present:             no")))
+        self.assertIsNone(self.m.from_upower(""))
+
+    def test_from_sysfs(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            self.assertIsNone(self.m.from_sysfs(root))
+            bat = os.path.join(root, "BAT0")
+            os.makedirs(bat)
+            for key, value in (("capacity", "50"), ("status", "Discharging"), ("energy_now", "25000000"),
+                               ("energy_full", "50000000"), ("power_now", "10000000")):
+                with open(os.path.join(bat, key), "w") as fh:
+                    fh.write(value + "\n")
+            self.assertEqual(self.m.from_sysfs(root), {"pct": 50, "state": "discharging", "hours": 2.5})
+
+    def test_row(self):
+        plain = lambda r: r["text"].replace("\u200c", "")
+        down = self.m.row({"pct": 64, "state": "discharging", "hours": 2.25})
+        self.assertIn("Battery 64% · 2h 15m left", plain(down))
+        self.assertEqual(down["class"], "on")
+        self.assertNotIn("Battery", down["text"])                    # no Font Awesome ligature
+        self.assertEqual(self.m.row({"pct": 20, "state": "discharging", "hours": 0.5})["class"], "warning")
+        self.assertEqual(self.m.row({"pct": 8, "state": "discharging", "hours": None})["class"], "critical")
+        up = self.m.row({"pct": 70, "state": "charging", "hours": 40 / 60})
+        self.assertIn("full in 40m", up["text"])
+        self.assertEqual(up["class"], "charging")
+        full = self.m.row({"pct": 100, "state": "fully-charged", "hours": None})
+        self.assertTrue(plain(full).endswith("Battery 100%"))                     # the charge alone
+        self.assertIn("full", full["tooltip"])
+        self.assertEqual(self.m.row(None)["text"], "")                # no battery: waybar hides the row
+
+    def test_card_row_and_config(self):
+        self.assertIn("custom/keybinds#battery", bs.MODULES)
+        with open(bs.TOOLBOX) as handle:
+            toolbox = handle.read()
+        card = dict((it["name"], it["shown"]) for it in bs.lists_of(toolbox, True)["card"])
+        self.assertIs(card.get("custom/keybinds#battery"), False)      # hidden as shipped
+        block = bs.parse(toolbox)["custom/keybinds#battery"]
+        self.assertIn("battery_row.py", block["exec"])
+        self.assertIn("settings.py power", block["on-click"])
 
 
 TASKBAR_VIEW = {"enabled": True, "layout": "taskbar", "top_bar": True,

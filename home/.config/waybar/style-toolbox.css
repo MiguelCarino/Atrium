@@ -73,3 +73,16 @@
 #custom-keybinds.mic.none {
     color: @text-dim;
 }
+
+/* The Battery row (scripts/battery_row.py): the bar's battery colours. */
+#custom-keybinds.battery.charging {
+    color: @green;
+}
+
+#custom-keybinds.battery.warning {
+    color: @yellow;
+}
+
+#custom-keybinds.battery.critical {
+    color: @red;
+}

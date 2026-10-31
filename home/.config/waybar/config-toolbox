@@ -52,9 +52,11 @@
             "custom/fsstate",
             "custom/nightlight",
             "custom/awake",
-            // The microphone row: shown by bar-settings.py while the top bar is
-            // off (toolbox-config-path); show it here to keep it for good.
+            // The microphone and battery rows: shown by bar-settings.py while
+            // the top bar is off (toolbox-config-path); show them here to keep
+            // them for good.
             // hidden: "custom/keybinds#mic",
+            // hidden: "custom/keybinds#battery",
             "custom/display",
             "custom/keybinds",
             "tray"
@@ -143,6 +145,19 @@
         "on-scroll-up": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SOURCE@ 5%+",
         "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SOURCE@ 5%-",
         "on-click-right": "$HOME/.config/waybar/scripts/toolbox.sh hide; pavucontrol -t 4"
+    },
+
+    // The Battery row: the charge and the time left (or to full), from
+    // UPower (scripts/battery_row.py says how). No text without a battery,
+    // so waybar hides the row there. Click: Settings > Power & lock. Named
+    // keybinds#battery for the plain row's look, as keybinds#mic above.
+    "custom/keybinds#battery": {
+        "exec": "$HOME/.config/waybar/scripts/battery_row.py",
+        "return-type": "json",
+        "interval": 30,
+        "format": "{}",
+        "align": 0,
+        "on-click": "$HOME/.config/waybar/scripts/toolbox.sh hide; $HOME/.config/hypr/scripts/settings.py power"
     },
 
     // Display: HDR, screen filter, animation preset, wallpaper theme -- the
