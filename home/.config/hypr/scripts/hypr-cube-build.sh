@@ -52,10 +52,13 @@ fi
 # CMonitor::activeWorkspaceID() is gone). Upstream has no 0.57 port yet, so
 # scripts/hypr-cube-hl057.patch ports upstream + hypr-cube.patch; it goes on
 # top only when the installed Hyprland is 0.57 or newer, and a 0.56 build is
-# still exactly upstream + hypr-cube.patch. It needs hypr-cube.patch under it:
-# plain upstream has no 0.57 build here.
+# still exactly upstream + hypr-cube.patch. Without hypr-cube.patch (a machine
+# that builds plain upstream), scripts/hypr-cube-hl057-plain.patch is the same
+# port for plain upstream, applied on the same 0.57-or-newer condition. Neither
+# is in the repo: like hypr-cube.patch, they are not ours to publish.
 PATCH=$HOME/.config/hypr/scripts/hypr-cube.patch
 PORT=$HOME/.config/hypr/scripts/hypr-cube-hl057.patch
+PLAINPORT=$HOME/.config/hypr/scripts/hypr-cube-hl057-plain.patch
 hlver=$(rpm -q --qf '%{version}' hyprland 2>/dev/null) || hlver=999  # not an rpm: the newest headers get fetched
 hl057=0
 [[ $(printf '%s\n' 0.57.0 "$hlver" | sort -V | head -1) == 0.57.0 ]] && hl057=1
@@ -80,10 +83,19 @@ if [[ -f $PATCH ]]; then
         fi
     fi
     patched=1
+elif [[ -f $PLAINPORT ]]; then
+    # Plain upstream: only the port, and only for 0.57+ (a --keep checkout can
+    # carry it from an earlier build, so take it off for an older Hyprland).
+    if applied "$PLAINPORT"; then
+        ((hl057)) || git -C "$SRC" apply -R "$PLAINPORT"
+    elif ((hl057)); then
+        git -C "$SRC" apply "$PLAINPORT" || patchfail "$PLAINPORT"
+    fi
 fi
-if ((hl057)) && ! { [[ -f $PATCH && -f $PORT ]] && applied "$PORT"; }; then
+ported() { [[ -f $1 ]] && applied "$1"; }
+if ((hl057)) && ! { [[ -f $PATCH ]] && ported "$PORT"; } && ! { [[ ! -f $PATCH ]] && ported "$PLAINPORT"; }; then
     # Not fatal: a later upstream may have its own port.
-    echo "hypr-cube: building plain upstream against Hyprland $hlver; as of upstream 0f33587 that needs scripts/hypr-cube-hl057.patch (on top of scripts/hypr-cube.patch)" >&2
+    echo "hypr-cube: building plain upstream against Hyprland $hlver; as of upstream 0f33587 that needs scripts/hypr-cube-hl057.patch (on top of scripts/hypr-cube.patch) or scripts/hypr-cube-hl057-plain.patch" >&2
 fi
 
 # Headers: the -devel packages matching the installed runtime versions,

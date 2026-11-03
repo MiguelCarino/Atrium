@@ -61,6 +61,7 @@ PERSONAL=(
     # (all rights reserved). The build works without it (plain upstream).
     '--exclude=/scripts/hypr-cube.patch'
     '--exclude=/scripts/hypr-cube-hl057.patch'   # the same: its Hyprland 0.57 port, on top of it
+    '--exclude=/scripts/hypr-cube-hl057-plain.patch'   # the same port, for plain upstream
 )
 
 # Generated or rebuildable (install.sh renders them).
