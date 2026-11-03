@@ -644,7 +644,8 @@ class Page:
         elif place == "":
             text = "wttr.in guesses it from your internet address"
         else:
-            text = f"wttr.in is asked about \"{place}\" every half hour"
+            text = (f"wttr.in is asked about \"{place}\" every half hour "
+                    "(Open-Meteo, when wttr.in does not answer)")
         self.weather_sub.set_text(text)
         al = loc.get("alerts")
         if al:

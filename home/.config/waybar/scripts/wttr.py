@@ -13,8 +13,11 @@ Every run also saves wttr.in's full answer to $XDG_RUNTIME_DIR, which is what
 the forecast panel (weather_panel.py, the pill's left-click) reads -- so
 opening the panel costs no second request.
 
-wttr.in resets connections fairly often; a failed fetch serves the last good
-pill marked stale rather than blanking the module. It also books a retry
+wttr.in resets connections fairly often, and is sometimes gone for hours
+(refused, from some networks for good): then the same place is asked of
+Open-Meteo instead (openmeteo.py), its answer rewritten in wttr.in's shape
+and marked "_source": "open-meteo". Only when both fail does the pill serve
+the last good one marked stale rather than blanking the module. It also books a retry
 (retry_after: 1, 2, then every 5 min, RETRY_S) as a transient systemd timer
 that redraws the pill (bar_signals.py "weather") -- the module's own
 interval is 30 min, so a fetch that failed at boot, before the network was
@@ -233,13 +236,30 @@ def book_retry(delay):
         pass
 
 
-def fetch():
+def fetch_wttr():
     """wttr.in's answer for LOCATION, stamped with it (see the docstring)."""
     import requests             # only the network path needs it
-    weather = requests.get(URL, timeout=10).json()
-    if isinstance(weather, dict):
-        weather["_location"] = LOCATION
+    reply = requests.get(URL, timeout=10)
+    reply.raise_for_status()
+    weather = reply.json()
+    if not isinstance(weather, dict) or not weather.get("current_condition"):
+        raise ValueError("wttr.in gave no current conditions")
+    weather["_location"] = LOCATION
     return weather
+
+
+def fetch():
+    """wttr.in's answer, or Open-Meteo's in its shape (openmeteo.py) when
+    wttr.in does not answer -- refused, timed out, rate-limited, an error
+    page. Both failing raises, naming both."""
+    try:
+        return fetch_wttr()
+    except Exception as first:
+        try:
+            import openmeteo
+            return openmeteo.fetch(LOCATION)
+        except Exception as second:
+            raise RuntimeError(f"wttr.in: {first}; Open-Meteo: {second}") from second
 
 
 def is_for_here(weather):
