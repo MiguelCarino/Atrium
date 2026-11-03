@@ -1,23 +1,28 @@
 #!/usr/bin/env bash
 # Run once per login (lua/autostart.lua). Rebuilds any plugin that Hyprland
-# refused to load -- which after a Hyprland update is all of them, since a
-# plugin only loads into the exact version it was built against -- then
-# reloads the config so lua/cube.lua and lua/overview.lua load the new .so.
+# refused to load, or that was built against a different Hyprland package or
+# library than the ones installed now, then reloads the config so lua/cube.lua
+# and lua/overview.lua load the new .so.
 #
-# The signal is the real one: the .so is missing, or it exists but is not in
-# `hyprctl plugin list`. No version stamp to drift out of sync with manual
-# builds.
+# Two signals. The .so is missing or not in `hyprctl plugin list` (a new
+# Hyprland version refuses it). Or its <name>.so.built stamp, written by the
+# build script (so manual builds keep it in sync too), differs from
+# scripts/plugin-stamp: Hyprland rebuilt at the same version against new
+# aquamarine / hyprgraphics / hyprutils still loads the old .so, which then
+# crashes or freezes the compositor (2026-11-02: the overview on an empty
+# workspace froze the session after 0.57.0-1 -> 0.57.0-2). A .so with no
+# stamp counts as stale.
 #
 # Builds use --keep: the checkout already carries the local patch, and a
 # rebuild against the new headers is what an update needs. Pulling upstream
 # at login could leave the patch not applying and nothing built; do that by
 # hand (hypr-cube-build.sh / hyprview-build.sh with no argument).
 #
-# A failed build notifies once per Hyprland version: it leaves
-# <name>.so.failed holding that version, and later logins on the same
-# Hyprland skip the plugin quietly (plain upstream hypr-cube has no build for
+# A failed build notifies once per Hyprland build: it leaves <name>.so.failed
+# holding the stamp it failed against, and later logins on the same packages
+# skip the plugin quietly (plain upstream hypr-cube has no build for
 # a new Hyprland until upstream ports it -- one notification, not one per
-# login). A Hyprland update tries again; so does running the build script by
+# login). A Hyprland or library update tries again; so does running the build script by
 # hand, which a success clears.
 #   journalctl --user -t hypr-plugins     the build output
 set -uo pipefail
@@ -33,24 +38,28 @@ plugins=(
 )
 
 loaded=$(hyprctl plugin list 2>/dev/null)
-hlver=$(rpm -q --qf '%{version}-%{release}' hyprland 2>/dev/null)
+stamp=$("$dir/plugin-stamp")
 rebuilt=()
 failed=()
 for p in "${plugins[@]}"; do
     read -r name so script <<<"$p"
     if [[ -f $lib/$so ]] && grep -q "^Plugin $name by" <<<"$loaded"; then
-        continue
+        # Loaded; current only if built against these very packages.
+        [[ -n $stamp && $(cat "$lib/$so.built" 2>/dev/null) == "$stamp" ]] && continue
+        why="It was built against an older Hyprland or its libraries"
+    else
+        why="It did not load into Hyprland $(rpm -q --qf '%{version}' hyprland)"
     fi
-    if [[ -n $hlver && $(cat "$lib/$so.failed" 2>/dev/null) == "$hlver" ]]; then
-        continue    # failed on this very Hyprland already; notified then
+    if [[ -n $stamp && $(cat "$lib/$so.failed" 2>/dev/null) == "$stamp" ]]; then
+        continue    # failed on these very packages already; notified then
     fi
-    "$notify" -a Hyprland "Rebuilding $name" "It did not load into Hyprland $(rpm -q --qf '%{version}' hyprland); about a minute."
+    "$notify" -a Hyprland "Rebuilding $name" "$why; about a minute."
     if "$dir/$script" --keep 2>&1 | systemd-cat -t hypr-plugins; [[ ${PIPESTATUS[0]} -eq 0 ]]; then
         rebuilt+=("$name")
         rm -f "$lib/$so.failed"
     else
         failed+=("$name")
-        [[ -n $hlver ]] && mkdir -p "$lib" && printf '%s\n' "$hlver" > "$lib/$so.failed"
+        [[ -n $stamp ]] && mkdir -p "$lib" && printf '%s\n' "$stamp" > "$lib/$so.failed"
     fi
 done
 

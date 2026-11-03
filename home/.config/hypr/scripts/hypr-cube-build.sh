@@ -108,9 +108,14 @@ done
 for r in "$work"/*.rpm; do
     ( cd "$work" && rpm2cpio "$r" | cpio -idm --quiet )
 done
-sed -i "s|^prefix=/usr/include$|prefix=$work/usr/include|; s|^prefix=/usr$|prefix=$work/usr|" \
+sed -i "s|^prefix=/usr/include$|prefix=$work/usr/include|; s|^prefix=/usr$|prefix=$work/usr|; /^Requires.private:/d" \
     "$work"/usr/share/pkgconfig/*.pc "$work"/usr/lib64/pkgconfig/*.pc
 export PKG_CONFIG_PATH=$work/usr/share/pkgconfig:$work/usr/lib64/pkgconfig
+# One missing Requires makes pkg-config print no flags at all, and the build
+# then fails on the first Hyprland header; say which package it was instead.
+pkg-config --cflags hyprland >/dev/null 2>"$work/pc.err" ||
+    { echo "hypr-cube: Hyprland's headers need a -devel this script does not fetch:" >&2
+      sed 's/^/  /' "$work/pc.err" >&2; exit 1; }
 
 rm -f "$SRC/hypr-cube.so"
 make -C "$SRC" all 2>&1 | grep -E 'error' || true
@@ -121,5 +126,6 @@ mkdir -p "${OUT%/*}"
 cp "$SRC/hypr-cube.so" "$OUT.new"
 mv -f "$OUT.new" "$OUT"
 rm -f "$OUT.failed"   # plugins-check.sh: built, so try it again at login
+"$HOME/.config/hypr/scripts/plugin-stamp" > "$OUT.built"   # plugins-check.sh: what it was built against
 if (( patched )); then touch "$OUT.patched"; else rm -f "$OUT.patched"; fi
 echo "hypr-cube: built $(git -C "$SRC" log -1 --format=%h) against Hyprland $(rpm -q --qf '%{version}' hyprland) -> $OUT"

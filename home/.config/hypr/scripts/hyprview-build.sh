@@ -102,10 +102,18 @@ for r in "$work"/*.rpm; do
 done
 
 # The .pc files say prefix=/usr; point them at the unpacked tree. hyprland.pc
-# is the odd one out with prefix=/usr/include.
-sed -i "s|^prefix=/usr/include$|prefix=$work/usr/include|; s|^prefix=/usr$|prefix=$work/usr|" \
+# is the odd one out with prefix=/usr/include. Requires.private goes: it only
+# matters for static linking, yet pkg-config walks it for --cflags too, and
+# hyprgraphics 0.6.0 lists a dozen image libraries there (libjpeg, libwebp,
+# librsvg, libjxl, libheif...) whose headers nothing here includes.
+sed -i "s|^prefix=/usr/include$|prefix=$work/usr/include|; s|^prefix=/usr$|prefix=$work/usr|; /^Requires.private:/d" \
     "$work"/usr/share/pkgconfig/*.pc "$work"/usr/lib64/pkgconfig/*.pc
 export PKG_CONFIG_PATH=$work/usr/share/pkgconfig:$work/usr/lib64/pkgconfig
+# One missing Requires makes pkg-config print no flags at all, and the build
+# then fails on the first Hyprland header; say which package it was instead.
+pkg-config --cflags hyprland >/dev/null 2>"$work/pc.err" ||
+    { echo "hyprview: Hyprland's headers need a -devel this script does not fetch:" >&2
+      sed 's/^/  /' "$work/pc.err" >&2; exit 1; }
 
 make -C "$SRC/src" clean >/dev/null
 make -C "$SRC/src" all -j"$(nproc)" 2>&1 | grep -E 'error' || true
@@ -117,5 +125,6 @@ mkdir -p "${OUT%/*}"
 cp "$SRC/build/hyprview.so" "$OUT.new"
 mv -f "$OUT.new" "$OUT"
 rm -f "$OUT.failed"   # plugins-check.sh: built, so try it again at login
+"$HOME/.config/hypr/scripts/plugin-stamp" > "$OUT.built"   # plugins-check.sh: what it was built against
 echo "hyprview: built $(git -C "$SRC" log -1 --format=%h) against Hyprland $(rpm -q --qf '%{version}' hyprland) -> $OUT"
 echo "Log out and back in (or reload Hyprland) to load it."

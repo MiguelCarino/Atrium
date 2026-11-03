@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# What a Hyprland plugin is built against: the exact Hyprland package and the
+# libraries whose headers and types it compiles in, one NEVRA per line.
+# hypr-cube-build.sh and hyprview-build.sh write this next to the .so as
+# <name>.so.built; plugins-check.sh rebuilds a plugin whose stamp differs
+# from this, even when it still loads.
+#
+# The load check alone is not enough: Hyprland only refuses a plugin built
+# for a different Hyprland *version*. A rebuild of the same version against
+# new libraries (0.57.0-1 -> 0.57.0-2 with aquamarine 0.16, hyprgraphics 0.6)
+# loads the old .so fine, and the struct layouts it was compiled with are
+# wrong -- a crash or a frozen compositor the first time it reaches the
+# changed code.
+rpm -q hyprland aquamarine hyprgraphics hyprutils hyprlang hyprcursor hyprwire 2>/dev/null
