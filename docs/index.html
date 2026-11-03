@@ -74,6 +74,8 @@
     .gallery a:hover, .gallery a:focus-visible { border-color: var(--accent); transform: translateY(-2px); outline: none; }
     .gallery img { display: block; width: 100%; height: auto; }
     .gallery figcaption { margin-top: 8px; font-family: var(--mono); font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: .08em; color: var(--text-sec); }
+    .layout-switch { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+    :root[data-carino-theme="color"] .layout-switch .toggle-btn.active { color: var(--ct-on-accent); }
     .note { margin-top: 14px; color: var(--text-muted); font-size: var(--fs-sm); }
     .themes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
     .themes span { font-family: var(--mono); font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--text-muted); }
@@ -183,20 +185,25 @@
 <section aria-labelledby="h-themes">
     <div class="sec-head"><h2 id="h-themes" data-i18n>Themes</h2></div>
     <p class="sec-lede" data-i18n>One click in Settings restyles the bar, windows, terminal, notifications, wallpaper and sounds together.</p>
-    <div class="gallery">
-        <figure><a href="themes/cyberpunk.webp" target="_blank" rel="noopener"><img src="themes/cyberpunk.webp" alt="Cyberpunk" width="960" height="600" loading="lazy" decoding="async"></a><figcaption>Cyberpunk</figcaption></figure>
-        <figure><a href="themes/orchard.webp" target="_blank" rel="noopener"><img src="themes/orchard.webp" alt="Orchard" width="960" height="600" loading="lazy" decoding="async"></a><figcaption>Orchard</figcaption></figure>
-        <figure><a href="themes/orchard-dark.webp" target="_blank" rel="noopener"><img src="themes/orchard-dark.webp" alt="Orchard Dark" width="960" height="600" loading="lazy" decoding="async"></a><figcaption>Orchard Dark</figcaption></figure>
-        <figure><a href="themes/moe.webp" target="_blank" rel="noopener"><img src="themes/moe.webp" alt="Moe" width="960" height="600" loading="lazy" decoding="async"></a><figcaption>Moe</figcaption></figure>
-        <figure><a href="themes/lofi.webp" target="_blank" rel="noopener"><img src="themes/lofi.webp" alt="Lo-fi" width="960" height="600" loading="lazy" decoding="async"></a><figcaption>Lo-fi</figcaption></figure>
-        <figure><a href="themes/luna.webp" target="_blank" rel="noopener"><img src="themes/luna.webp" alt="Luna" width="960" height="600" loading="lazy" decoding="async"></a><figcaption>Luna</figcaption></figure>
-        <figure><a href="themes/aero.webp" target="_blank" rel="noopener"><img src="themes/aero.webp" alt="Aero" width="960" height="600" loading="lazy" decoding="async"></a><figcaption>Aero</figcaption></figure>
-        <figure><a href="themes/win95.webp" target="_blank" rel="noopener"><img src="themes/win95.webp" alt="Win95" width="960" height="600" loading="lazy" decoding="async"></a><figcaption>Win95</figcaption></figure>
-        <figure><a href="themes/matrix.webp" target="_blank" rel="noopener"><img src="themes/matrix.webp" alt="Matrix" width="960" height="600" loading="lazy" decoding="async"></a><figcaption>Matrix</figcaption></figure>
-        <figure><a href="themes/orbit.webp" target="_blank" rel="noopener"><img src="themes/orbit.webp" alt="Orbit" width="960" height="600" loading="lazy" decoding="async"></a><figcaption>Orbit</figcaption></figure>
-        <figure><a href="themes/seasons.webp" target="_blank" rel="noopener"><img src="themes/seasons.webp" alt="Seasons" width="960" height="600" loading="lazy" decoding="async"></a><figcaption>Seasons</figcaption></figure>
+    <div class="layout-switch" role="group">
+        <button type="button" class="toggle-btn active" data-layout="bar" aria-pressed="true" data-i18n>Top bar</button>
+        <button type="button" class="toggle-btn" data-layout="dock" aria-pressed="false" data-i18n>Top bar + dock</button>
+        <button type="button" class="toggle-btn" data-layout="taskbar" aria-pressed="false" data-i18n>Taskbar</button>
     </div>
-    <p class="note" data-i18n>Previews drawn from each theme's own wallpaper, colours and fonts.</p>
+    <div class="gallery">
+        <figure data-theme-shot="cyberpunk"><a href="themes/cyberpunk-bar.webp" target="_blank" rel="noopener"><img src="themes/thumb/cyberpunk-bar.webp" alt="Cyberpunk theme, top bar" width="960" height="540" loading="lazy" decoding="async"></a><figcaption>Cyberpunk</figcaption></figure>
+        <figure data-theme-shot="orchard"><a href="themes/orchard-bar.webp" target="_blank" rel="noopener"><img src="themes/thumb/orchard-bar.webp" alt="Orchard theme, top bar" width="960" height="540" loading="lazy" decoding="async"></a><figcaption>Orchard</figcaption></figure>
+        <figure data-theme-shot="orchard-dark"><a href="themes/orchard-dark-bar.webp" target="_blank" rel="noopener"><img src="themes/thumb/orchard-dark-bar.webp" alt="Orchard Dark theme, top bar" width="960" height="540" loading="lazy" decoding="async"></a><figcaption>Orchard Dark</figcaption></figure>
+        <figure data-theme-shot="moe"><a href="themes/moe-bar.webp" target="_blank" rel="noopener"><img src="themes/thumb/moe-bar.webp" alt="Moe theme, top bar" width="960" height="540" loading="lazy" decoding="async"></a><figcaption>Moe</figcaption></figure>
+        <figure data-theme-shot="lofi"><a href="themes/lofi-bar.webp" target="_blank" rel="noopener"><img src="themes/thumb/lofi-bar.webp" alt="Lo-fi theme, top bar" width="960" height="540" loading="lazy" decoding="async"></a><figcaption>Lo-fi</figcaption></figure>
+        <figure data-theme-shot="luna"><a href="themes/luna-bar.webp" target="_blank" rel="noopener"><img src="themes/thumb/luna-bar.webp" alt="Luna theme, top bar" width="960" height="540" loading="lazy" decoding="async"></a><figcaption>Luna</figcaption></figure>
+        <figure data-theme-shot="aero"><a href="themes/aero-bar.webp" target="_blank" rel="noopener"><img src="themes/thumb/aero-bar.webp" alt="Aero theme, top bar" width="960" height="540" loading="lazy" decoding="async"></a><figcaption>Aero</figcaption></figure>
+        <figure data-theme-shot="win95"><a href="themes/win95-bar.webp" target="_blank" rel="noopener"><img src="themes/thumb/win95-bar.webp" alt="Win95 theme, top bar" width="960" height="540" loading="lazy" decoding="async"></a><figcaption>Win95</figcaption></figure>
+        <figure data-theme-shot="matrix"><a href="themes/matrix-bar.webp" target="_blank" rel="noopener"><img src="themes/thumb/matrix-bar.webp" alt="Matrix theme, top bar" width="960" height="540" loading="lazy" decoding="async"></a><figcaption>Matrix</figcaption></figure>
+        <figure data-theme-shot="orbit"><a href="themes/orbit-bar.webp" target="_blank" rel="noopener"><img src="themes/thumb/orbit-bar.webp" alt="Orbit theme, top bar" width="960" height="540" loading="lazy" decoding="async"></a><figcaption>Orbit</figcaption></figure>
+        <figure data-theme-shot="seasons"><a href="themes/seasons-bar.webp" target="_blank" rel="noopener"><img src="themes/thumb/seasons-bar.webp" alt="Seasons theme, top bar" width="960" height="540" loading="lazy" decoding="async"></a><figcaption>Seasons</figcaption></figure>
+    </div>
+    <p class="note" data-i18n>Screenshots from a 1920×1080 laptop, in each of the three layouts: the top bar alone, the top bar with the dock, or the taskbar without a top bar.</p>
 </section>
 
 <section id="install" aria-labelledby="h-install">
@@ -249,6 +256,24 @@
   <p><a href="https://github.com/MiguelCarino/Atrium/commits/main" target="_blank" rel="noopener" data-i18n>Changelog</a> · <a href="https://github.com/MiguelCarino/Atrium#readme" target="_blank" rel="noopener" data-i18n>Docs</a> · <a href="https://github.com/MiguelCarino/Atrium/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n>Licence</a></p>
 </div>
 
+<script>
+  // The theme gallery's layout switch: the same themes with the top bar, the dock or the taskbar.
+  (() => {
+    const names = { bar: 'top bar', dock: 'top bar and dock', taskbar: 'taskbar' };
+    document.querySelectorAll('.layout-switch .toggle-btn').forEach((b) => b.addEventListener('click', () => {
+      const l = b.dataset.layout;
+      document.querySelectorAll('.layout-switch .toggle-btn').forEach((o) => {
+        o.classList.toggle('active', o === b); o.setAttribute('aria-pressed', String(o === b));
+      });
+      document.querySelectorAll('[data-theme-shot]').forEach((f) => {
+        const k = f.dataset.themeShot, img = f.querySelector('img');
+        f.querySelector('a').href = `themes/${k}-${l}.webp`;
+        img.src = `themes/thumb/${k}-${l}.webp`;
+        img.alt = `${f.querySelector('figcaption').textContent} theme, ${names[l]}`;
+      });
+    }));
+  })();
+</script>
 <script>
   // The copy buttons: copy the command next to them, then say so for a moment.
   document.addEventListener('click', (e) => {
