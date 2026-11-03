@@ -1,0 +1,433 @@
+#!/usr/bin/python3 -I
+"""charge-limit -- stop the laptop's battery charging at a set percentage.
+
+A lithium battery kept at 100 % on the charger wears out fastest: high
+voltage plus warmth. Most of the time this laptop sits plugged in, and its
+battery was at 57 % of its design capacity after 255 cycles. Stopping the
+charge at 80 % (or 60 %) costs some runtime off the charger and buys a lot of
+battery life. The kernel exposes the firmware's switch for it as
+/sys/class/power_supply/<battery>/charge_control_end_threshold (asus-wmi on
+this ASUS, thinkpad_acpi, dell, huawei, lg, msi-ec, framework, ...): a
+percentage the firmware stops charging at. Writing it needs root.
+
+    charge-limit apply     at boot and after every resume (charge-limit.service):
+                           write the saved limit again
+    charge-limit set N     save N (50-100) as the limit and write it now
+                           (charge-limit@N.service; the session's way in)
+
+The saved limit is one integer in /etc/atrium/charge-limit. Why a file of
+our own and not "the firmware remembers": on a lot of firmware (ASUS among
+them) the threshold is lost at every boot, and on some after a suspend as
+well, so it is written again each time. No saved file: nothing is written,
+the firmware's own default (charge to full) stays -- installing this changes
+nothing until a limit is chosen.
+
+Firmware that takes only fixed values. Some firmware accepts only a few
+percentages -- LG and Toshiba 80 / 100, several ASUS models 60 / 80 / 100
+(what MyASUS offers: Maximum lifespan / Balanced / Full capacity). Where
+the choices come from, first match wins:
+
+  * /etc/atrium/charge-limit-choices, written by hand or learned (below):
+    "60 80 100" -- only those; "any" -- any value (an opt-out, e.g. for an
+    ASUS whose firmware is known to take 75).
+  * An ASUS whose switch is asus-wmi's (DMI vendor ASUSTeK and the asus-nb-wmi
+    / asus-wmi platform driver bound): 60 / 80 / 100, without asking the
+    firmware. Asking cannot work there: asus-wmi's sysfs file reads back the
+    value the driver cached at the last write, not what the firmware uses,
+    and a lot of ASUS firmware answers "done" to a value it then ignores --
+    so 70 would read back as 70 while the battery still charges to full.
+    60 / 80 / 100 are the values every ASUS with the switch honours.
+  * Otherwise any value, until a `set` shows otherwise: a write the driver
+    refuses or that reads back different is tried again (RETRIES, a second
+    apart -- the embedded controller can be busy for a moment, EIO), and
+    only when it is still refused are FIXED_CANDIDATES tried. Fixed values
+    are only concluded with evidence: the candidates work AND a value
+    between them (70 between 60 and 80) does not. When that in-between value
+    works too, the firmware takes a range with a floor above the request
+    (Dell: 55-100) -- the lowest value it takes is found and used, and
+    nothing is written to the choices file. Learned fixed values are saved
+    in the choices file, and requests are snapped to the nearest one (the
+    lower on a tie, since the point is sparing the battery), up front from
+    then on.
+
+`apply` (boot, resume) never learns anything and never rewrites the saved
+limit or the choices: right after resume or early at boot a write failing
+is far more likely the embedded controller not being ready than the
+firmware's rules, so it retries for a few seconds and then gives up (exit
+1, the saved limit kept for the next try). A saved limit with no battery
+switch to write it to (the battery swapped, the driver not loaded) is
+logged and is not a failure: there is nothing to apply it to.
+
+Two-battery machines (some ThinkPads): every system battery that has the
+switch gets the same limit -- when a probe ends on another value than the
+first battery took, all of them are written again. An empty bay (present
+0) is not a battery. Where the firmware also has a start threshold
+(charge_control_start_threshold: charging resumes below it), the kernel
+refuses an end at or below it, so a start in the way goes to END - START_GAP
+-- and back again when the end goes up: the start the battery had before
+this touched it is kept in /etc/atrium/charge-limit-start ("BAT0 96 75": the
+original, then what was written), so lifting the limit back to 100 on a
+ThinkPad (start 96 / end 100 out of the box) restores 96 rather than leaving
+it charging only below 75. When the start was changed by something else
+since (TLP, a BIOS tool: it no longer reads what was written), that new
+value counts as the original.
+
+Why this design for the session's access (least privilege). The session
+must be able to change the limit without a password, but nothing more. A
+setuid helper or a sudoers line would hand it a root process with an
+environment it controls; pkexec plus a policy runs this script as root with
+arguments the session chooses. Instead the session asks systemd to START
+charge-limit@N.service, and one polkit rule (50-atrium-charge-limit.rules)
+allows exactly that: the verb "start", a unit named charge-limit@ followed
+by 50-100, from the active local session. systemd then runs this script
+with a clean environment, in the unit's sandbox, with N as its only input --
+which is checked again here (digits only, 50-100) in case the rule is ever
+loosened. There is nothing else this can be made to do: no path, no other
+attribute, no other unit.
+
+Only the standard library; no imports from the user's files (this runs as
+root). Paths are function arguments (the tests pass a fake sysfs tree and
+/etc folder), never environment variables.
+"""
+import fcntl
+import os
+import re
+import sys
+import time
+
+POWER_SUPPLY = "/sys/class/power_supply"
+CONF_DIR = "/etc/atrium"
+DMI_VENDOR = "/sys/class/dmi/id/sys_vendor"
+PLATFORM_DRIVERS = "/sys/bus/platform/drivers"
+ASUS_DRIVERS = ("asus-nb-wmi", "asus-wmi")
+LIMIT_FILE = "charge-limit"             # in CONF_DIR: the saved limit, one integer
+CHOICES_FILE = "charge-limit-choices"   # in CONF_DIR: "60 80 100" (fixed values) or "any"
+STARTS_FILE = "charge-limit-start"      # in CONF_DIR: "BAT0 96 75" -- a start threshold this moved
+END = "charge_control_end_threshold"
+START = "charge_control_start_threshold"
+LOW, HIGH = 50, 100     # below 50 % the laptop is too often nearly empty off the charger
+FIXED_CANDIDATES = (60, 80, 100)        # what fixed-value firmware takes (ASUS; LG / Toshiba: 80, 100)
+ASUS_CHOICES = (60, 80, 100)            # every ASUS with the switch honours these (see above)
+START_GAP = 5           # a start threshold that is in the way goes this far below the end
+BOOT_WAIT_S = 30        # apply: the battery's attribute can appear late (asus-wmi loads after it)
+SET_TRIES = 3           # set: a refused write is tried this often, RETRY_S apart, before probing
+APPLY_TRIES = 5         # apply: right after resume the embedded controller may need a few seconds
+RETRY_S = 1
+
+
+def log(msg):
+    print(f"charge-limit: {msg}", flush=True)
+
+
+def parse_limit(text):
+    """TEXT as a limit (an int in LOW..HIGH) or None. Digits only: no sign,
+    no space, no "0x" -- the instance name of charge-limit@N.service lands
+    here as is."""
+    if not isinstance(text, str) or not re.fullmatch(r"[0-9]{1,3}", text):
+        return None
+    value = int(text)
+    return value if LOW <= value <= HIGH else None
+
+
+def snap(value, choices):
+    """VALUE when CHOICES allows it (or there are none), else the nearest
+    choice; on a tie the lower one (the battery's sake)."""
+    if not choices or value in choices:
+        return value
+    return min(choices, key=lambda c: (abs(c - value), c))
+
+
+def _read(path):
+    try:
+        with open(path) as handle:
+            return handle.read().strip()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def _read_int(path):
+    text = _read(path)
+    try:
+        return int(text) if text is not None else None
+    except ValueError:
+        return None
+
+
+def batteries(root=POWER_SUPPLY):
+    """The system batteries with a charge limit switch: [folder], by name.
+    A wireless mouse's battery (scope Device) is not one, nor an empty bay
+    (present 0) -- the same rule as power_state's."""
+    try:
+        names = sorted(os.listdir(root))
+    except OSError:
+        return []
+    out = []
+    for name in names:
+        folder = os.path.join(root, name)
+        if _read(os.path.join(folder, "type")) != "Battery":
+            continue
+        if _read(os.path.join(folder, "scope")) == "Device":
+            continue
+        if _read(os.path.join(folder, "present")) == "0":
+            continue
+        if os.path.exists(os.path.join(folder, END)):
+            out.append(folder)
+    return out
+
+
+def write_threshold(folder, value, name=END):
+    """Write VALUE to the battery's NAME attribute: True when the firmware
+    honours it (the write succeeds and it reads back as VALUE)."""
+    try:
+        with open(os.path.join(folder, name), "w") as handle:
+            handle.write(f"{value}\n")
+    except OSError:
+        return False
+    return _read_int(os.path.join(folder, name)) == value
+
+
+def asus_wmi(vendor_file=None, drivers_dir=None):
+    """Is this an ASUS whose battery switch is asus-wmi's? (Its readback is
+    the driver's cache, so fixed values cannot be detected: see above.)
+    The paths default to the module's constants, read at call time."""
+    vendor = _read(vendor_file or DMI_VENDOR) or ""
+    drivers_dir = drivers_dir or PLATFORM_DRIVERS
+    return vendor.startswith("ASUSTeK") and any(
+        os.path.isdir(os.path.join(drivers_dir, name)) for name in ASUS_DRIVERS)
+
+
+def read_choices(conf_dir=CONF_DIR):
+    """The fixed values in the choices file ([] when there are none, or it
+    says "any")."""
+    text = _read(os.path.join(conf_dir, CHOICES_FILE)) or ""
+    return sorted({parse_limit(word) for word in text.split()} - {None})
+
+
+def choices_for(conf_dir=CONF_DIR):
+    """The values this machine's firmware takes, [] for any: the choices
+    file ("any" opts out), else ASUS_CHOICES on an asus-wmi ASUS, else any."""
+    text = _read(os.path.join(conf_dir, CHOICES_FILE)) or ""
+    if text.split() == ["any"]:
+        return []
+    return read_choices(conf_dir) or (list(ASUS_CHOICES) if asus_wmi() else [])
+
+
+def _write_file(path, text):
+    """Write PATH whole (a temporary file renamed over it), mode 0644: the
+    session reads it to show what is saved."""
+    tmp = f"{path}.tmp"
+    with open(tmp, "w") as handle:
+        handle.write(text)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, path)
+
+
+# -- the start threshold ------------------------------------------------------
+def original_starts(folders, conf_dir=CONF_DIR):
+    """{folder: the start threshold the battery had before this moved it},
+    for the batteries that have one. A record whose "written" no longer
+    matches the battery is stale (something else set it since): the
+    battery's own value counts then."""
+    records = {}
+    for line in (_read(os.path.join(conf_dir, STARTS_FILE)) or "").splitlines():
+        words = line.split()
+        if len(words) == 3 and all(w.isdigit() for w in words[1:]):
+            records[words[0]] = (int(words[1]), int(words[2]))
+    out = {}
+    for folder in folders:
+        now = _read_int(os.path.join(folder, START))
+        if now is None:
+            continue
+        original, written = records.get(os.path.basename(folder), (now, now))
+        out[folder] = original if written == now else now
+    return out
+
+
+def save_starts(starts, conf_dir=CONF_DIR):
+    """Keep the originals of the starts that now differ from them (and
+    drop the rest): what original_starts reads next time."""
+    lines = []
+    for folder, original in sorted(starts.items()):
+        now = _read_int(os.path.join(folder, START))
+        if now is not None and now != original:
+            lines.append(f"{os.path.basename(folder)} {original} {now}\n")
+    path = os.path.join(conf_dir, STARTS_FILE)
+    if lines:
+        if _read(path) != "".join(lines).strip():
+            _write_file(path, "".join(lines))
+    elif os.path.exists(path):
+        os.remove(path)
+
+
+def _start_for(end, original):
+    """The start threshold that goes with END: the original when it is
+    below END (ThinkPad 96 with the limit off at 100), else END - START_GAP."""
+    return original if original < end else max(0, end - START_GAP)
+
+
+def write_end(folder, end, original_start=None, tries=1, sleep=time.sleep):
+    """Write END (with the start threshold that goes with it, when the
+    battery has one), trying TRIES times. True when honoured. A start that
+    has to go down goes first (the kernel refuses an end at or below it);
+    one that may go up again goes after."""
+    start_path = os.path.join(folder, START)
+    want = _start_for(end, original_start) if original_start is not None else None
+    if want is not None and (_read_int(start_path) or 0) > want:
+        write_threshold(folder, want, START)
+    ok = False
+    for attempt in range(tries):
+        if attempt:
+            sleep(RETRY_S)
+        if write_threshold(folder, end):
+            ok = True
+            break
+    if want is not None and _read_int(start_path) != want:
+        write_threshold(folder, want, START)
+    return ok
+
+
+# -- learning what the firmware takes (set only) -------------------------------
+def probe(folder, value, original_start=None):
+    """VALUE was refused (retried): what does this firmware take?
+
+        ("fixed", [60, 80, 100])  only FIXED_CANDIDATES (some of them), and a
+                                  value between two that work does not
+        ("range", floor)          the candidates and the in-between value
+                                  work: a range whose floor (the lowest it
+                                  takes, found by bisection) is above VALUE;
+                                  floor is VALUE when VALUE is not below the
+                                  candidates (a fluke: tried again by the caller)
+        (None, None)              none of them, or only 100 (no limit)
+
+    Candidates go lowest first and the in-between test before the last
+    write, which is always a value that worked (or 100), so the battery is
+    never left at a low limit nobody chose."""
+    one = lambda v: write_end(folder, v, original_start)  # noqa: E731
+    found = [c for c in sorted(FIXED_CANDIDATES) if one(c)]
+    if not found:
+        return None, None
+    between = [(a + b) // 2 for a, b in zip(found, found[1:])] or [found[0] - 10]
+    test = next((v for v in between if v not in FIXED_CANDIDATES and LOW <= v), None)
+    if test is None or not one(test):
+        one(found[-1])
+        # Only 100 honoured is no limit at all, not a choice to offer.
+        return ("fixed", found) if len(found) > 1 else (None, None)
+    lo, hi = value, min(found + [test])
+    if lo >= hi:
+        return "range", value
+    while hi - lo > 1:
+        mid = (lo + hi) // 2
+        if one(mid):
+            hi = mid
+        else:
+            lo = mid
+    return "range", hi
+
+
+def _locked(conf_dir):
+    """An exclusive lock on CONF_DIR itself (nothing extra in /etc): a boot
+    apply racing a click in Settings runs one at a time."""
+    os.makedirs(conf_dir, exist_ok=True)
+    lock = os.open(conf_dir, os.O_RDONLY | os.O_DIRECTORY)
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    return lock
+
+
+def set_limit(value, root=POWER_SUPPLY, conf_dir=CONF_DIR, sleep=time.sleep):
+    """Write VALUE (already validated) to every battery and save what was
+    used. Returns the limit in effect, or None when nothing honoured it."""
+    folders = batteries(root)
+    if not folders:
+        log(f"no battery here has {END}; nothing to do")
+        return None
+    lock = _locked(conf_dir)
+    try:
+        choices = choices_for(conf_dir)
+        target = snap(value, choices)
+        starts = original_starts(folders, conf_dir)
+        failed = [f for f in folders if not write_end(f, target, starts.get(f), SET_TRIES, sleep)]
+        if failed and not choices:
+            # Refused even after retrying, and nothing known about this
+            # firmware yet: find out on the first battery that refused.
+            kind, found = probe(failed[0], value, starts.get(failed[0]))
+            if kind == "fixed":
+                choices = found
+                _write_file(os.path.join(conf_dir, CHOICES_FILE), " ".join(map(str, found)) + "\n")
+                target = snap(value, found)
+            elif kind == "range":
+                if found != value:
+                    log(f"{value}% is below this firmware's minimum; using {found}%")
+                target = found
+            else:
+                log(f"{os.path.basename(failed[0])}: the firmware honours none of {value}, "
+                    f"{', '.join(map(str, FIXED_CANDIDATES))}")
+            if kind:
+                # Every battery again, so all of them end on the same value.
+                failed = [f for f in folders if not write_end(f, target, starts.get(f), SET_TRIES, sleep)]
+        for folder in failed:
+            write_end(folder, HIGH, starts.get(folder))     # not left at whatever was tried last
+        save_starts(starts, conf_dir)
+        if len(failed) == len(folders):
+            return None
+        for folder in failed:
+            log(f"{os.path.basename(folder)}: the firmware did not take {target}%")
+        _write_file(os.path.join(conf_dir, LIMIT_FILE), f"{target}\n")
+        note = ""
+        if target != value:
+            takes = " ".join(map(str, choices)) if choices else f"{target}-{HIGH}"
+            note = f" (asked {value}; this firmware takes {takes})"
+        log(f"charging stops at {target}%{note}")
+        return target
+    finally:
+        os.close(lock)
+
+
+def apply(root=POWER_SUPPLY, conf_dir=CONF_DIR, wait_s=BOOT_WAIT_S, sleep=time.sleep):
+    """Write the saved limit again (boot, resume). No saved limit: nothing
+    to do. The battery's switch may not exist yet this early at boot (the
+    vendor driver hooks into the battery after it appears): wait up to
+    WAIT_S for it. Never probes, never rewrites the saved limit or the
+    choices (see above); a refused write is retried APPLY_TRIES times."""
+    saved = parse_limit(_read(os.path.join(conf_dir, LIMIT_FILE)) or "")
+    if saved is None:
+        log("no limit saved; the firmware's own (charge to full) stays")
+        return 0
+    waited = 0
+    while not batteries(root) and waited < wait_s:
+        sleep(1)
+        waited += 1
+    folders = batteries(root)
+    if not folders:
+        log(f"a limit of {saved}% is saved, but no battery here has {END}; nothing to apply it to")
+        return 0
+    lock = _locked(conf_dir)
+    try:
+        target = snap(saved, choices_for(conf_dir))
+        starts = original_starts(folders, conf_dir)
+        failed = [f for f in folders if not write_end(f, target, starts.get(f), APPLY_TRIES, sleep)]
+        save_starts(starts, conf_dir)
+    finally:
+        os.close(lock)
+    for folder in failed:
+        log(f"{os.path.basename(folder)}: the firmware did not take {target}% (tried {APPLY_TRIES} times)")
+    if failed:
+        return 1
+    log(f"charging stops at {target}%")
+    return 0
+
+
+def main(argv, root=POWER_SUPPLY, conf_dir=CONF_DIR, sleep=time.sleep):
+    if argv[:1] == ["apply"] and len(argv) == 1:
+        return apply(root, conf_dir, sleep=sleep)
+    if argv[:1] == ["set"] and len(argv) == 2:
+        value = parse_limit(argv[1])
+        if value is None:
+            log(f"not a limit: {argv[1]!r} (a whole number, {LOW}-{HIGH})")
+            return 2
+        return 0 if set_limit(value, root, conf_dir, sleep) is not None else 1
+    log("usage: charge-limit apply | set N   (N: 50-100)")
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

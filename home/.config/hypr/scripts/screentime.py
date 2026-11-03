@@ -24,7 +24,8 @@ HOW, cheaply -- one long-running process, no fork per event: it follows
 Hyprland's event socket (socket2) for activewindow lines only, takes
 "idle on|off" words on a datagram socket ($XDG_RUNTIME_DIR/screentime.sock),
 and wakes every TICK_S to credit the time, look whether hyprlock is up (a
-read of /proc) and ring a due reminder. The day is written every FLUSH_S, at
+read of /proc) and ring a due reminder -- every TICK_BATTERY_S on battery
+(tick_s, below). The day is written every FLUSH_S, at
 midnight and on exit, to $XDG_STATE_HOME/hypr/screentime/YYYY-MM-DD.json:
 
     {"date": "2026-10-28", "active_s": 21600, "apps": {"firefox": 9000, ...},
@@ -63,6 +64,9 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import power_state  # noqa: E402  (period(): the tick backs off on battery)
 HOME = os.path.expanduser("~")
 CONF = os.environ.get("HYPR_SCREENTIME_CONF") or os.path.join(
     os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "hypr", "screentime.conf")
@@ -78,6 +82,16 @@ APP = "Screen time"
 
 TICK_S = 30
 MAX_GAP_S = 120             # a longer silence between ticks is a suspend, not screen time
+# On battery (or with the battery saver on) the tick comes every
+# TICK_BATTERY_S. What a tick does is book-keeping: the focus changes and
+# the idle words are events and are credited to the second at any pace; a
+# tick only adds up the time since the last one (the same total, in fewer
+# steps), walks /proc for hyprlock and rings a due reminder. So a break or
+# 20-20-20 reminder may come up to a minute and a half late instead of half
+# a minute, and a lock with no idle before it is seen up to 90 s late (the
+# idle listener takes the minute before it back anyway). It stays well under
+# MAX_GAP_S, so a battery tick is never mistaken for a suspend.
+TICK_BATTERY_S = 90
 FLUSH_S = 300
 IDLE_LAG = 60               # hypridle's listener timeout (idle-settings.py writes the same number)
 EYES_EVERY_S = 20 * 60
@@ -478,6 +492,11 @@ def notify_reminder(kind, conf):
         return None
 
 
+def tick_s():
+    """The tick's gap now: TICK_S, or TICK_BATTERY_S on battery."""
+    return power_state.period(TICK_S, TICK_BATTERY_S)
+
+
 def serve():
     conf = load_conf()
     if conf["count"] != "on":
@@ -512,7 +531,7 @@ def serve():
     while not stop:
         watch = [ctrl] + ([events] if events else []) + ([reminder.stdout] if reminder else [])
         try:
-            ready, _, _ = select.select(watch, [], [], TICK_S)
+            ready, _, _ = select.select(watch, [], [], tick_s())
         except InterruptedError:
             ready = []
         now = time.time()
@@ -610,7 +629,8 @@ def status(today=None):
     return {"conf": conf, "today": {"date": day["date"], "active_s": round(day["active_s"]), "hours": day["hours"],
                                     "apps": top_apps(day), "text": hm(day["active_s"])},
             "week": week(days, today), "live": read_live(), "service": service or "unknown",
-            "idle_source": idle_source(read_text(HYPRIDLE)), "conf_path": CONF, "folder": STATE_DIR}
+            "idle_source": idle_source(read_text(HYPRIDLE)), "conf_path": CONF, "folder": STATE_DIR,
+            "tick_s": tick_s()}
 
 
 def status_text(data):

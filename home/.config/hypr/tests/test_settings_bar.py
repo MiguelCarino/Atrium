@@ -18,7 +18,10 @@ bs = helpers.import_script("bar-settings.py")
 # live one (the paths of the configs are mocked test by test).
 bs.CARD_CSS = os.path.join(helpers.SCRATCH, "toolbox-lines.css")
 
-WAYBAR_SCRIPTS = os.path.expanduser("~/.config/waybar/scripts")
+# The copy under test (this checkout's waybar/ beside hypr/), not the installed
+# ~/.config/waybar: a change here must be tested before it is installed.
+WAYBAR = os.path.join(os.path.dirname(os.path.dirname(helpers.SCRIPTS)), "waybar")
+WAYBAR_SCRIPTS = os.path.join(WAYBAR, "scripts")
 
 
 def load(path, name):
@@ -524,7 +527,8 @@ class BatteryRow(unittest.TestCase):
 """
 
     def test_from_upower(self):
-        self.assertEqual(self.m.from_upower(self.UPOWER), {"pct": 64, "state": "discharging", "hours": 2.3})
+        self.assertEqual(self.m.from_upower(self.UPOWER),
+                         {"pct": 64, "state": "discharging", "hours": 2.3, "watts": 9.1})
         charging = self.UPOWER.replace("discharging", "charging").replace("time to empty:       2.3 hours",
                                                                           "time to full:        40.0 minutes")
         got = self.m.from_upower(charging)
@@ -544,7 +548,8 @@ class BatteryRow(unittest.TestCase):
                                ("energy_full", "50000000"), ("power_now", "10000000")):
                 with open(os.path.join(bat, key), "w") as fh:
                     fh.write(value + "\n")
-            self.assertEqual(self.m.from_sysfs(root), {"pct": 50, "state": "discharging", "hours": 2.5})
+            self.assertEqual(self.m.from_sysfs(root),
+                             {"pct": 50, "state": "discharging", "hours": 2.5, "watts": 10.0})
 
     def test_row(self):
         plain = lambda r: r["text"].replace("\u200c", "")
@@ -565,13 +570,13 @@ class BatteryRow(unittest.TestCase):
 
     def test_card_row_and_config(self):
         self.assertIn("custom/keybinds#battery", bs.MODULES)
-        with open(bs.TOOLBOX) as handle:
+        with open(os.path.join(WAYBAR, "config-toolbox")) as handle:
             toolbox = handle.read()
         card = dict((it["name"], it["shown"]) for it in bs.lists_of(toolbox, True)["card"])
         self.assertIs(card.get("custom/keybinds#battery"), False)      # hidden as shipped
         block = bs.parse(toolbox)["custom/keybinds#battery"]
         self.assertIn("battery_row.py", block["exec"])
-        self.assertIn("settings.py power", block["on-click"])
+        self.assertIn("settings.py battery", block["on-click"])
 
 
 

@@ -117,6 +117,12 @@
     color: @red;
 }
 
+/* The battery saver on (a second class; the leaf leads the row). Warning and
+   critical keep their colour: they say more. */
+#custom-keybinds.battery.saver.on {
+    color: @green;
+}
+
 /* With the top bar off the tray ends the last pill line (bar-settings.py
    OFF_TAIL): a pill's height there, not a row's. */
 #pills-1 #tray, #pills-2 #tray, #pills-3 #tray, #pills-4 #tray,

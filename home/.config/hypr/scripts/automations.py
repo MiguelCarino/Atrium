@@ -16,6 +16,9 @@
     automations.py catalog                JSON: the triggers and actions (Settings)
     automations.py event NAME             tell the daemon NAME happened (hypridle's
                                           idle-start / idle-end listener)
+    automations.py event battery-low [PERCENT]
+                                          power-watch.py's warning; PERCENT, or
+                                          AUTOMATION_PERCENT from its environment
 
 RULE is a rule's id or its name. The rules live in ~/.config/hypr/automations.json,
 human-editable:
@@ -61,6 +64,53 @@ poll where there are none, and nothing at all for a kind no enabled rule uses:
                            matches one project, left out: any)
     focus-start / -end     a focus block begins / ends (focus-guard.py runs
                            `automations.py event focus-start|focus-end`)
+    power-unplugged / power-plugged   the charger goes / comes (power-watch.py
+                           runs `automations.py event power-unplugged|power-plugged`
+                           off the kernel's power_supply uevents)
+    battery-low            power-watch.py's low-battery warning: it runs
+                           `automations.py event battery-low` with
+                           AUTOMATION_PERCENT set to a warn_at percentage
+                           (20, 10 and 5 unless changed in Settings > Battery)
+                           -- one event per warning, each warn_at value warned
+                           once per discharge. When one check passes several
+                           at once (a resume from suspend at 4 %, an unplug at
+                           3 %), only the LOWEST arrives: one event, 5, not
+                           20, 10 and 5. So a rule without "below" fires once
+                           per warning, not once per warn_at value, and a rule
+                           per level ("below": 20 notify, "below": 5 suspend)
+                           still works because "below" is "at or under": both
+                           fire on that one 5.
+                           "below" (a percent) picks which warnings: the rule
+                           fires on the FIRST warning at or under it in a
+                           discharge and not again until the next one --
+                           "below": 15 fires at the 10 % warning, once, not at
+                           10 and again at 5. The compared percentage is the
+                           warning's (a warn_at value), not the battery's exact
+                           level: unplugging at 15 % gives the 20 % warning.
+                           A warning the rule could not act on (its cooldown,
+                           or its last run still going) does not use it up.
+                           AUTOMATION_PERCENT reaches shell actions too.
+                           A discharge, for "below": from power-unplugged to
+                           power-plugged. The memory of which rules fired is
+                           in automations-state.json (the runtime dir, as
+                           power-watch's own power-state.json), so a restart
+                           of this daemon mid-discharge does not fire a rule
+                           twice; at start it is kept only while power-state.json
+                           still says on battery with that warning warned (so
+                           a plug-in missed while this daemon was down still
+                           starts afresh). power-watch starts each event as its
+                           own `automations.py event` process, so the
+                           power-unplugged and the battery-low of the same
+                           check can arrive either way round: power-unplugged
+                           forgets only what fired more than UNPLUG_GRACE_S
+                           before it. A plug-in shorter than about a second can
+                           still be missed.
+
+The power triggers and the battery-saver action are offered (in `catalog`,
+so Settings and the plain-words model) only on a machine with a battery
+(power_state.has_battery()): a desktop PC's pickers stay as they were. A
+rule using them still checks out anywhere -- a rules file copied from the
+laptop does not break on the desktop; its rules just never fire there.
 
 They fire on a CHANGE only: a game already running, a network already joined
 when the daemon starts is the starting point, not an event. A time that
@@ -98,6 +148,19 @@ Actions (sibling scripts do the work; this only calls them):
                         Background tasks)
     focus N|off         focus-guard.py start N (a focus block of N minutes, 1-240;
                         "focus" alone: the usual length) or stop ("off")
+    battery-saver on|off   battery-saver.py on|off (the battery saver: Settings >
+                        Battery); its own automatic switching (saver_auto_at,
+                        saver_on_unplug) is the simpler way for "on when
+                        unplugged" -- this is for anything else, e.g. on when
+                        Wi-Fi leaves the office network. A rule is not you:
+                        when battery-saver.py takes a reason (its REASONS has
+                        "rule") this passes `--why rule`, so plugging in undoes
+                        a rule's "on" as it does saver_auto_at's, a rule's "on"
+                        never turns an automatic saver into a manual one, and
+                        a rule's "off" is not a "no" that holds off
+                        saver_auto_at. An older battery-saver.py gets the bare
+                        `on|off` (its "manual": it then stays on after the
+                        plug-in until switched off).
 
 Three rules are built in and ship on: "dnd-digest" (when Do Not Disturb
 turns off, a digest of what arrived meanwhile -- notify-digest.py), switched
@@ -139,6 +202,7 @@ WAYBAR = os.path.expanduser("~/.config/waybar/scripts")
 
 COOLDOWN_S = 10         # a rule's default wait before it may fire again
 ECHO_S = 3              # after its actions end, a rule ignores what they caused
+UNPLUG_GRACE_S = 5      # battery-low marks this new may be the unplug's own check (see the top)
 STORM_MAX, STORM_S = 5, 120
 RELEASE_S = 3           # the last game window closing: wait for the next one
 RESCAN_S = 30           # Proton can set the class after mapping: no event for that
@@ -179,10 +243,18 @@ EVENTS = {
     "context-leave": ({"name": "text"}, "you leave a project{name? called}"),
     "focus-start": ({}, "a focus block begins"),
     "focus-end": ({}, "a focus block ends"),
+    "power-unplugged": ({}, "the charger is unplugged"),
+    "power-plugged": ({}, "the charger is plugged in"),
+    "battery-low": ({"below": "percent"}, "the battery runs low{below? at or under}"),
 }
+# Only offered where there is a battery (see the top); accepted everywhere.
+POWER_EVENTS = ("power-unplugged", "power-plugged", "battery-low")
+POWER_ACTIONS = ("battery-saver",)
 REQUIRED = {"app-open": ("class",), "app-close": ("class",), "time": ("at",)}
 # The events that only arrive as `automations.py event NAME` (no options).
-POKED = ("idle-start", "idle-end", "presence-away", "presence-back", "focus-start", "focus-end")
+# battery-low also takes its percentage (`event battery-low 20`, or AUTOMATION_PERCENT).
+POKED = ("idle-start", "idle-end", "presence-away", "presence-back", "focus-start", "focus-end",
+         "power-unplugged", "power-plugged", "battery-low")
 
 # action -> (value kind, words). Kinds: None (no value), on-off, on-off-auto, text, two, theme, name.
 ACTIONS = {
@@ -202,6 +274,7 @@ ACTIONS = {
     "journal": (None, "write today's journal entry"),
     "task": ("name", "run the background task “{value}”"),
     "focus": ("text", "focus block: {value} (minutes, or off)"),
+    "battery-saver": ("on-off", "turn the battery saver {value}"),
 }
 FOCUS_VALUE = re.compile(r"(?:focus\s*)?(\d{1,3})?\s*(?:m|min|mins|minutes|minutos)?$|off|stop|end", re.I)
 
@@ -224,15 +297,49 @@ DOC = [
 
 def doc_lines():
     """The "_doc" at the top of automations.json: DOC, and what can go in a rule."""
-    events = ", ".join(e + (f" ({', '.join(o)})" if o else "") for e, (o, _) in EVENTS.items())
+    events = ", ".join(e + (f" ({', '.join(EVENTS[e][0])})" if EVENTS[e][0] else "") for e in offered(EVENTS))
     actions = ", ".join(a + {None: "", "on-off": " on|off", "on-off-auto": " on|off|auto", "two": " \"CARD PROFILE\"",
-                             "theme": " NAME", "name": " NAME"}.get(kind, " TEXT")
-                        for a, (kind, _) in ACTIONS.items())
+                             "theme": " NAME", "name": " NAME"}.get(ACTIONS[a][0], " TEXT")
+                        for a in offered(ACTIONS))
     return DOC + [f"Events (options): {events}.", f"Actions (value): {actions}."]
 
 
 def log(text):
     print(f"automations: {text}", flush=True)
+
+
+def has_battery():
+    """Does this machine have a battery of its own (power_state.py: sysfs,
+    no fork)? False when power_state.py cannot be read: the power triggers
+    are an extra, never a reason for the rules to break."""
+    try:
+        import power_state
+        return power_state.has_battery()
+    except Exception:
+        return False
+
+
+def saver_takes_reason(path):
+    """Does this battery-saver.py take `--why rule` (its REASONS has "rule")?
+    Read from the file rather than imported: importing it would run its
+    module code in this daemon and keep the first copy for good, while the
+    script can be updated under a running daemon. A bare `on|off` is what
+    an older one understands (anything more and it refuses), so no answer
+    means no."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+    except OSError:
+        return False
+    m = re.search(r"^REASONS\s*=\s*\(([^)]*)\)", text, re.M)
+    return bool(m) and re.search(r"[\"']rule[\"']", m.group(1)) is not None
+
+
+def offered(names):
+    """`names` (EVENTS or ACTIONS keys) as the pickers and the model see
+    them: the power ones only where there is a battery."""
+    battery = has_battery()
+    return [n for n in names if battery or n not in POWER_EVENTS + POWER_ACTIONS]
 
 
 def _module(name, filename, folder=HERE):
@@ -280,6 +387,8 @@ def days_text(digits):
 
 def check_option(kind, value):
     """The option's value, tidied; ValueError says why not."""
+    if kind == "percent":
+        return check_percent(value)
     if not isinstance(value, str) or not value.strip():
         raise ValueError("must be non-empty text")
     value = value.strip()
@@ -297,6 +406,19 @@ def check_option(kind, value):
         value = f"{int(m.group(1)):02d}:{m.group(2)}"
     elif kind == "days":
         value = ",".join(DAY_NAMES[int(d)] for d in parse_days(value))
+    return value
+
+
+def check_percent(value):
+    """1-100 as an int, from 20, "20" or "20 %" (the Settings entry is text;
+    the file keeps a number, which is what a hand edit would write)."""
+    if isinstance(value, bool):
+        raise ValueError("is a percent, 1 to 100")
+    if isinstance(value, str):
+        text = value.strip().removesuffix("%").strip()
+        value = int(text) if text.isdigit() else None
+    if not isinstance(value, int) or not 1 <= value <= 100:
+        raise ValueError("is a percent, 1 to 100")
     return value
 
 
@@ -505,10 +627,12 @@ def describe_when(when):
         value = when.get(key)
         if key == "days":
             value = days_text(parse_days(value)) if value else ""
+        elif EVENTS[when["event"]][0].get(key) == "percent" and value:
+            value = f"{value}%"
         if joiner is None:
             return str(value or "\u2026")
         return f" {joiner} {value}" if value else ""
-    return re.sub(r"\{(\w+)(?:\? (\w+))?\}", fill, words)
+    return re.sub(r"\{(\w+)(?:\? ([\w ]+))?\}", fill, words)
 
 
 def describe_action(act):
@@ -605,6 +729,11 @@ def action_argv(act):
         if minutes and not 1 <= int(minutes) <= 240:
             return None, "focus minutes go from 1 to 240"
         return [sys.executable, path, "start"] + ([minutes] if minutes else []), "wait"
+    if name == "battery-saver":
+        path = os.path.join(HERE, "battery-saver.py")
+        if not os.path.exists(path):
+            return None, "battery-saver.py is not there (the battery saver)"
+        return [sys.executable, path, value] + (["--why", "rule"] if saver_takes_reason(path) else []), "wait"
     if name == "task":
         path = os.path.join(HERE, "tasks.py")
         if not os.path.exists(path):
@@ -682,6 +811,13 @@ def matches(rule, event, facts):
         return not when.get("ssid") or when["ssid"].casefold() == facts.get("ssid", "").casefold()
     if event in ("context-enter", "context-leave"):
         return not when.get("name") or when["name"].casefold() == facts.get("name", "").casefold()
+    if event == "battery-low":
+        # The warning's percentage at or under "below"; once per discharge is
+        # the Engine's (it remembers what fired since the charger was in).
+        if "below" not in when:
+            return True
+        percent = facts.get("percent")
+        return isinstance(percent, int) and percent <= when["below"]
     if event == "time":
         if facts.get("at") != when["at"]:
             return False
@@ -702,6 +838,9 @@ class Engine:
         self.paused = {}            # id -> why
         self.echo_until = {}        # id -> its own actions' echo ends (inf while they run)
         self.fired_at = {}          # id -> epoch, for `list`
+        self.low_fired = {}         # battery-low rules with "below" that fired this discharge -> clock
+        self.low_last = None        # the last battery-low percentage seen this discharge
+        self.low_at = None          # ...and when (clock)
 
     def set_rules(self, rules):
         self.rules = rules
@@ -709,13 +848,58 @@ class Engine:
     def needs(self):
         return {r["when"]["event"] for r in self.rules if r["enabled"]}
 
+    def new_discharge(self, event, facts):
+        """Keep the battery-low memory for "below" (see the top). The
+        charger back (power-plugged) ends a discharge; power-unplugged starts
+        one, which also covers a plug-in this daemon never heard of
+        (power-watch restarted while plugged in sends no power-plugged, but
+        it does send the unplug). The unplug forgets only what is older than
+        UNPLUG_GRACE_S: a battery-low from the same check may have got here
+        first. A warning higher than the last one is NOT taken as a new
+        discharge: adding a warn_at value in Settings > Battery mid-discharge
+        sends exactly that (10 warned, 15 added -> battery-low 15)."""
+        if event == "power-plugged":
+            self.low_fired.clear()
+            self.low_last = self.low_at = None
+        elif event == "power-unplugged":
+            since = self.clock() - UNPLUG_GRACE_S
+            self.low_fired = {rid: at for rid, at in self.low_fired.items() if at >= since}
+            if self.low_at is None or self.low_at < since:
+                self.low_last = self.low_at = None
+        elif event == "battery-low" and isinstance(facts.get("percent"), int):
+            self.low_last, self.low_at = facts["percent"], self.clock()
+
+    def low_state(self):
+        """The battery-low memory, for automations-state.json."""
+        return {"fired": sorted(self.low_fired), "last": self.low_last}
+
+    def restore_low(self, saved, power):
+        """After a restart: SAVED is low_state() as the last daemon wrote it,
+        POWER power-watch's power-state.json. Kept only while power-watch
+        says the same discharge goes on -- on battery, with that last warning
+        among the ones it warned (it empties the list when it sees the
+        charger) -- else a discharge ended while this daemon was down."""
+        if not isinstance(saved, dict) or not isinstance(power, dict) or power.get("on_battery") is not True:
+            return
+        last, warned = saved.get("last"), power.get("warned")
+        if not isinstance(last, int) or isinstance(last, bool) or not isinstance(warned, list) or last not in warned:
+            return
+        fired = saved.get("fired")
+        self.low_fired = {rid: float("-inf") for rid in (fired if isinstance(fired, list) else [])
+                          if isinstance(rid, str)}
+        self.low_last, self.low_at = last, float("-inf")
+
     def emit(self, event, **facts):
         fired = []
         now = self.clock()
+        self.new_discharge(event, facts)
         for rule in self.rules:
             rid = rule["id"]
             if not rule["enabled"] or rid in self.paused or not matches(rule, event, facts):
                 continue
+            once = event == "battery-low" and "below" in rule["when"]
+            if once and rid in self.low_fired:
+                continue            # fired at an earlier warning of this discharge
             if now < self.echo_until.get(rid, 0):
                 log(f"{rid}: not fired by its own actions ({event})")
                 continue
@@ -732,6 +916,8 @@ class Engine:
                        "which looks like a loop. Settings > Automations turns it back on.")
                 continue
             stamps.append(now)
+            if once:
+                self.low_fired[rid] = now
             self.last[rid] = now
             self.echo_until[rid] = float("inf")
             self.fired_at[rid] = time.time()
@@ -749,6 +935,16 @@ class Engine:
     def resume(self, rid):
         self.paused.pop(rid, None)
         self.recent.pop(rid, None)
+
+
+def read_json(path):
+    """A JSON object from PATH, {} when it is missing, unreadable or not one."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def notify(summary, body):
@@ -1001,7 +1197,7 @@ class Daemon:
 
     def write_state(self):
         state = {"pid": os.getpid(), "fired": self.engine.fired_at, "paused": self.engine.paused,
-                 "watching": sorted(self.engine.needs()),
+                 "watching": sorted(self.engine.needs()), "battery_low": self.engine.low_state(),
                  "broken": [{"rule": l, "problems": p} for l, p in self.bad]}
         try:
             tmp = STATE + ".tmp"
@@ -1140,6 +1336,17 @@ class Daemon:
         for line in lines:
             self.windows.event(line.decode("utf-8", "replace"))
 
+    def restore_low(self, state=None, power=None):
+        """The battery-low memory the last daemon wrote (STATE), checked
+        against power-watch's power-state.json (Engine.restore_low)."""
+        if power is None:
+            try:
+                import power_state
+                power = power_state.POWER_STATE
+            except Exception:
+                return              # no power_state.py: no battery-low events either
+        self.engine.restore_low(read_json(state or STATE).get("battery_low"), read_json(power))
+
     def control(self, msg):
         word, _, arg = msg.partition(" ")
         if word == "reload":
@@ -1148,8 +1355,13 @@ class Daemon:
         elif word == "resume":
             self.engine.resume(arg)
             self.write_state()
+        elif word == "event" and arg.split(" ", 1)[0] == "battery-low":
+            self.engine.emit("battery-low", **percent_fact(arg.partition(" ")[2]))
+            self.write_state()      # the battery-low memory, for a restart (see the top)
         elif word == "event" and arg in POKED:
             self.engine.emit(arg)
+            if arg in ("power-plugged", "power-unplugged"):
+                self.write_state()
         elif word == "event" and arg.split(" ", 1)[0] in ("context-enter", "context-leave"):
             event, _, name = arg.partition(" ")
             self.engine.emit(event, name=name)
@@ -1163,6 +1375,7 @@ class Daemon:
         ctl = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
         ctl.bind(CTL_SOCK)
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+        self.restore_low()          # before reload() writes the state file over it
         self.reload(force=True)
         self.sync_sources()
         self.tick()
@@ -1184,6 +1397,17 @@ class Daemon:
             self.reload()
             self.sync_sources()
             self.tick()
+
+
+def percent_fact(text):
+    """{"percent": N} from a battery-low poke's "N" (power-watch.py's
+    AUTOMATION_PERCENT, carried over the socket), {} when there is none or
+    it is not a percent: such a warning still fires the rules without
+    "below", and none of those with it."""
+    try:
+        return {"percent": check_percent(text)}
+    except ValueError:
+        return {}
 
 
 def poke(msg):
@@ -1225,10 +1449,10 @@ SCHEMA = {
 def catalog():
     """The events and actions with their options, for the model and Settings."""
     return {
-        "events": [{"event": e, "options": list(opts), "required": list(REQUIRED.get(e, ())),
-                    "words": describe_when({"event": e})} for e, (opts, _) in EVENTS.items()],
-        "actions": [{"action": a, "value": kind, "words": words.replace("{value}", "…")}
-                    for a, (kind, words) in ACTIONS.items()],
+        "events": [{"event": e, "options": list(EVENTS[e][0]), "required": list(REQUIRED.get(e, ())),
+                    "words": describe_when({"event": e})} for e in offered(EVENTS)],
+        "actions": [{"action": a, "value": ACTIONS[a][0], "words": ACTIONS[a][1].replace("{value}", "…")}
+                    for a in offered(ACTIONS)],
         "themes": theme_names(),
     }
 
@@ -1244,7 +1468,9 @@ def model_prompt(text):
     actions = "\n".join(f"  {a['action']} (value: {kinds[a['value']]}): {a['words']}" for a in cat["actions"])
     return (f"Events (\"when\": {{\"event\": NAME, ...options}}). Options: class is a regular expression for "
             f"the window class, lowercase app names like firefox, steam, kitty, org.gnome.nautilus; at is HH:MM "
-            f"24 h; days is like mon,tue or weekdays / weekends:\n{events}\n\n"
+            f"24 h; days is like mon,tue or weekdays / weekends"
+            + ("; below is a battery percent as a number, like 20" if "battery-low" in offered(EVENTS) else "")
+            + f":\n{events}\n\n"
             f"Actions (\"do\": [{{\"action\": NAME, \"value\": ...}}], at most {MAX_ACTIONS}):\n{actions}\n\n"
             "Answer with {\"name\": a short title, \"when\": {...}, \"do\": [...]}.\n"
             "Example: \"when I open steam turn on do not disturb\" -> "
@@ -1412,9 +1638,15 @@ def main(argv):
         if args[0] in ("context-enter", "context-leave") and len(args) > 1:
             poke(f"event {args[0]} {' '.join(args[1:])}")
             return 0
+        if args[0] == "battery-low":
+            # power-watch.py hands the percentage over in the environment;
+            # the daemon only gets the poke's text, so it travels in that.
+            text = args[1] if len(args) > 1 else os.environ.get("AUTOMATION_PERCENT", "")
+            poke("event battery-low" + (f" {percent_fact(text)['percent']}" if percent_fact(text) else ""))
+            return 0
         if args[0] not in POKED:
-            return ("automations: event is idle-start, idle-end, presence-away, presence-back, "
-                    "focus-start, focus-end, or context-enter|context-leave NAME")
+            return (f"automations: event is {', '.join(POKED)} (battery-low [PERCENT]), "
+                    "or context-enter|context-leave NAME")
         poke("event " + args[0])
     else:
         print(__doc__.split("\n\n")[1])

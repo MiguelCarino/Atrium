@@ -1,0 +1,23 @@
+// 50-atrium-charge-limit.rules -- see /usr/local/libexec/charge-limit for what and why.
+//
+// Lets the person at the laptop (the active, local session -- not an ssh
+// login, not a session switched away from) change the battery's charge
+// limit without a password, and nothing else: starting one systemd unit,
+// charge-limit@N.service with N from 50 to 100. Not stop, not restart, not
+// enable, no other unit; the instance must be exactly those digits, so no
+// escaped path or second argument can ride along. systemd then runs the
+// root helper in its sandbox with N as its only input (which it checks
+// again). Anything this rule does not match falls through to the defaults
+// (an administrator password).
+polkit.addRule(function (action, subject) {
+    if (action.id !== "org.freedesktop.systemd1.manage-units") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    var unit = action.lookup("unit") || "";
+    if (action.lookup("verb") === "start" &&
+        /^charge-limit@(5[0-9]|[6-9][0-9]|100)\.service$/.test(unit) &&
+        subject.local && subject.active) {
+        return polkit.Result.YES;
+    }
+    return polkit.Result.NOT_HANDLED;
+});

@@ -11,6 +11,16 @@ wallpaper" section says when); not meant to be run by hand, but it can be:
     SIGUSR2  play again
     SIGTERM  quit
 
+When it holds still is the slideshow's decision, not this player's: it
+pauses it while the screen is locked or off and -- to save the battery --
+while the laptop runs on battery or the battery saver is on
+(power_state.frugal(); wallpaper-slideshow.py's "Moving wallpaper" section).
+One owner for SIGUSR1 / SIGUSR2 on purpose: a player pausing itself as well
+would be resumed by an unlock while still on battery. Paused, it costs
+nothing but its memory: GStreamer's PAUSED stops the decoder and the sink
+keeps the last frame, and React's timer below is removed until it plays
+again -- no wake-up every REACT_S, which on battery is the point.
+
 Reactions (React below), every REACT_S while playing, never while paused --
 and gamemode stops these processes altogether (wallpaper-slideshow.py):
   * speed follows the CPU: SPEED_IDLE at rest up to SPEED_BUSY under full
@@ -175,7 +185,21 @@ class React:
         self.last = cpu_times()
         self.speed = 1.0
         self.applied = None
-        GLib.timeout_add_seconds(REACT_S, self.tick)
+        self.source = None
+        self.resume()
+
+    def resume(self):
+        """The REACT_S timer on (playing). timeout_add_seconds, not
+        timeout_add: GLib batches second-granularity timers across the
+        session, so this wakes with everyone else's."""
+        if self.source is None:
+            self.source = GLib.timeout_add_seconds(REACT_S, self.tick)
+
+    def suspend(self):
+        """The timer off (paused): nothing to react to on a still frame."""
+        if self.source is not None:
+            GLib.source_remove(self.source)
+            self.source = None
 
     def targets(self):
         total, idle = cpu_times()
@@ -276,6 +300,10 @@ class Motion:
     def state(self, st):
         self.playing = st == Gst.State.PLAYING
         self.pipe.set_state(st)
+        if self.playing:
+            self.react.resume()
+        else:
+            self.react.suspend()
 
     def apply(self, speed, brightness, saturation, hue):
         shown = getattr(self, "shown", None)

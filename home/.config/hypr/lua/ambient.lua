@@ -17,7 +17,8 @@
 -- A reload starts a fresh Lua state with the preset (display.lua applies it
 -- at load), so ambient.py watches Hyprland's configreloaded event and
 -- display.conf (display.py re-applies the preset on any display change) and
--- evals this again. Never in gamemode: animations.enabled == false is
+-- evals this again. Never while the battery saver is on (it stills every
+-- leaf; lua/batterysaver.lua re-runs this when it goes off). Never in gamemode: animations.enabled == false is
 -- gamemode's switch (lua/gamemode.lua), and this never sets it either way.
 -- The curves are lua/display.lua's (easeOutQuint, easeInOut, linear), which
 -- are defined at every load before anything can call this; so is its
@@ -73,6 +74,10 @@ end
 
 function M.apply()
     if not hl.get_config("animations.enabled") then return end     -- gamemode: hands off
+    -- The battery saver stills every leaf (lua/batterysaver.lua); a calm
+    -- level would switch them back on. Its own apply() resets applied= and
+    -- calls this again when it goes off, so the level comes back then.
+    if require("lua.batterysaver").active() then return end
     local level = M.wanted()
     if level == 0 then
         if M.applied ~= 0 then

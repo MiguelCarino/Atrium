@@ -122,6 +122,7 @@ NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (ma
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import desk_common  # noqa: E402  (notify: the notification, through scripts/notify)
+import power_state  # noqa: E402  (period(): the tick backs off on battery)
 SELF = os.path.abspath(__file__)
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
 STATE_HOME = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
@@ -142,6 +143,15 @@ TAG = "focus-dim"
 PARK = "special:focusguard"
 
 TICK_S = 5
+# On battery (or with the battery saver on), and only while no focus block
+# runs, the tick comes every TICK_BATTERY_S. Outside a block it is the
+# noticing: a /proc walk for hyprlock, the context file, the switch, and
+# whether to offer a block -- an offer a few seconds later is the same
+# offer. Inside a block it stays TICK_S whatever the power: the tick is what
+# ends the block on time and what sees it cancelled from timers.json, and
+# the dimmed windows coming back late would be seen. Focus changes are
+# events at any pace (Hyprland's socket), so the switch counting is exact.
+TICK_BATTERY_S = 15
 HYPR_EVENTS = ("activewindow", "activewindowv2", "openwindow", "windowtitlev2", "closewindow",
                "configreloaded")       # what Daemon.event reads (through hyprbus, only these wake it)
 DWELL_S = 2.0               # a window has the focus this long before it counts
@@ -1169,7 +1179,7 @@ class Daemon:
         now = self.clock()
         out = {"watching": watch_on(), "block": None, "numbers": self.numbers(now),
                "quiet": self.quiet_reason(now) if not self.block else "in a focus block",
-               "last_offer": self.last_offer}
+               "last_offer": self.last_offer, "tick_s": tick_s(self)}
         if self.block:
             out["block"] = {"start": self.block["start"], "due": self.block["due"], "quiet": self.block["quiet"],
                             "dimmed": len(self.block["tagged"]), "waiting": len(self.block["parked"])}
@@ -1211,6 +1221,14 @@ def sample_card(kind, delay_s):
             "left_min": 18, "delay_s": delay_s, "sample": True}
 
 
+def tick_s(daemon):
+    """The tick's gap now: TICK_S during a focus block (its end is due on
+    time), else power_state.period(TICK_S, TICK_BATTERY_S)."""
+    if daemon.block:
+        return TICK_S
+    return power_state.period(TICK_S, TICK_BATTERY_S)
+
+
 def serve():
     """The loop: Hyprland's events, focus-guard.sock, the card's stdout, the
     notification threads' inbox, SIGTERM / SIGUSR1 (reload) and the tick."""
@@ -1248,7 +1266,9 @@ def serve():
             if hypr_sock is None:
                 hypr_sock, buf = s.connect_events(HYPR_EVENTS), b""
             now = daemon.clock()
-            waits = [next_tick - now, 2.0 if hypr_sock is None else TICK_S]
+            pace = tick_s(daemon)
+            next_tick = min(next_tick, now + pace)     # a block begun since: its pace at once
+            waits = [next_tick - now, 2.0 if hypr_sock is None else pace]
             if daemon.pending:
                 waits.append(daemon.pending[0] + DWELL_S - now)
             if daemon.waiting and not daemon.overlay:
@@ -1289,7 +1309,7 @@ def serve():
             now = daemon.clock()
             daemon.settle(now)
             if now >= next_tick:
-                next_tick = now + TICK_S
+                next_tick = now + tick_s(daemon)
                 daemon.tick(now)
             daemon.maybe_card()
     finally:

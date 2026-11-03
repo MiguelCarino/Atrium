@@ -347,6 +347,11 @@ for f in "$REPO"/home/.config/autostart/*.desktop; do
     f=${f##*/}
     [[ -e /etc/xdg/autostart/$f || -e $HOME/.config/autostart/$f ]] || keep+=("--exclude=/.config/autostart/$f")
 done
+# hypridle.conf holds your idle timings (Settings > Power & lock writes it):
+# a reinstall keeps yours, as desktop.conf is kept. A first install gets the
+# shipped one (every timing "never"), and idle-settings.py init below gives
+# a laptop its defaults on top of it.
+[[ -e $HOME/.config/hypr/hypridle.conf ]] && keep+=("--exclude=/.config/hypr/hypridle.conf")
 backed=0
 for p in "${paths[@]}"; do
     [[ -e $HOME/$p ]] || continue
@@ -363,6 +368,11 @@ for p in "${paths[@]}"; do
 done
 (( backed )) && note "your previous files are in $BACKUP"
 run rsync -a "${keep[@]}" "$REPO/home/" "$HOME/"
+# A laptop's first install: dim, lock, screens off and sleep timings instead
+# of "never" (idle-settings.py says when it decides: once, and never over a
+# machine already in use). Safe to run on every install; a desktop is left
+# as it is.
+run python3 "$HOME/.config/hypr/scripts/idle-settings.py" init
 # The few files that need an absolute path carry @HOME@ in the repo.
 (( DRY )) || grep -rlF '@HOME@' "$HOME/.config/qt5ct" "$HOME/.config/qt6ct" 2>/dev/null |
     xargs -r sed -i "s|@HOME@|$HOME|g"
@@ -404,6 +414,15 @@ fi
 # powers it up late) is bound again, and its I2C controller is reset when it
 # locks up. The script checks for one and does nothing else.
 run sudo "$REPO/system/touchpad-reprobe/install.sh"
+# A laptop battery that can stop charging short of full (a firmware switch,
+# charge_control_end_threshold): the root side that writes the chosen limit
+# at boot and after resume, and lets Settings > Battery change it without a
+# password. Installing it changes nothing until a limit is chosen. The
+# script checks for such a battery itself too (type Battery, not a mouse's);
+# the glob here only spares a desktop the sudo call (a password prompt).
+if compgen -G '/sys/class/power_supply/*/charge_control_end_threshold' >/dev/null; then
+    run sudo "$REPO/system/charge-limit/install.sh"
+fi
 # The desktop that was here (GNOME, Plasma, COSMIC, ...): offered for
 # removal, so what is left is a Hyprland desktop and nothing else. Safe order:
 # the desktop's packages are all in already (step 2); they and the system's

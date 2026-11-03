@@ -4,7 +4,8 @@ colour matrix (CTM) per screen.
 
     screen-color.py status                     JSON: every screen, what is set
     screen-color.py set <screen|all> <key> <value> [<key> <value> ...]
-        brightness  20-100    %, in software (the backlight is not touched)
+        brightness  20-100    %: the backlight on a screen that has one (the
+                              laptop's own panel), in software everywhere else
         warmth      1000-6500 K; 6500 is neutral, lower is warmer
         saturation  0-100     %; a colour matrix can take colour away, not add it
         red / green / blue  50-100   % gain, to make different screens match
@@ -13,7 +14,8 @@ colour matrix (CTM) per screen.
     screen-color.py night <K>|off              the night light (nightlight.sh)
     screen-color.py apply                      send the matrices again (after a mode change)
     screen-color.py dim <percent>|off          dim every screen to <percent> of what it is set
-                                               to, for now only (hypridle's dim listener)
+                                               to, for now only (hypridle's dim listener);
+                                               off puts the backlight back where it was
     screen-color.py daemon                     holds the matrices (screen-color.service)
 
 <screen> is a connector name (DP-1, HDMI-A-1) and is matched without case.
@@ -36,9 +38,63 @@ the commands write it and send the daemon SIGUSR1.
 `dim` is deliberately NOT in that file: it is the idle dim (hypridle.conf,
 written by idle-settings.py), a multiplier over everything above that lasts
 only until the next input. It lives in $XDG_RUNTIME_DIR/screen-color-dim,
-which logging out empties, so a dim that never got its "dim off" (hypridle
-killed mid-idle) cannot follow you into the next session or overwrite the
-brightness you chose.
+which logging out empties, so a matrix dim that never got its "dim off"
+(hypridle killed mid-idle) cannot follow you into the next session or
+overwrite the brightness you chose. The backlight's part of the dim is
+another matter (below): the kernel keeps a dimmed level across a logout,
+and systemd-backlight even carries it over a reboot.
+
+The backlight (backlight.py has the details: which screen, the curve, how
+it is written without root). On a screen with a kernel backlight -- a
+laptop's eDP panel -- "brightness" is the backlight and its matrix keeps
+brightness 100 %: a matrix only darkens the picture, the backlight behind it
+is what costs power. So for that screen brightness is never stored here;
+it is read back from sysfs each time, and the Fn keys, another tool or the
+firmware moving it are simply what it is now. Its warmth, saturation and
+gains stay in the matrix, as on every other screen. The commands write the
+backlight themselves (the daemon only holds matrices), so brightness keeps
+working while the daemon is down. "all" moves the backlight and the
+software default alike; reset leaves the backlight alone (it resets the
+colour, and a reset to 100 % would be a blinding and battery-costly
+surprise).
+
+The idle dim on such a screen turns the backlight down too: `dim N` keeps
+the level it found (and the one it set) in
+$XDG_STATE_HOME/hypr/screen-color-dim-backlight.json and sets N % of it on
+the same perceptual curve as the keys (so "dim 40" looks alike on the panel
+and on an external monitor's matrix), never below the backlight's floor.
+`dim off` puts back exactly that level -- unless the backlight was moved
+while dimmed (the firmware, another tool), and then the new level stands:
+it is the one somebody chose last. A brightness key pressed to wake a
+dimmed panel is that same input ending the idle, so its `set` and
+hypridle's `dim off` run at once; both hold backlight.locked() for their
+read-modify-write, and the key steps from the level before the dim (while
+the panel is still at the level the dim set): "undim, then one step", in
+whichever order the two get the lock.
+
+That record lives in the state folder, not the runtime one, because the
+backlight outlives the session: log out (or lose Hyprland or hypridle)
+while dimmed and the kernel keeps the dimmed level, which systemd-backlight
+then saves at shutdown and restores at boot. So the daemon, starting a
+session with no runtime dim file (nobody is dimmed in a session that just
+began), puts back a recorded level whose backlight still reads what the
+dim set, and drops the record either way.
+
+A panel whose backlight cannot be written at all (backlight.py's
+unwritable mark: no udev rule, logind refusing, no brightnessctl) falls
+back to what it had before: software brightness and the matrix dim, so the
+keys and the idle dim still do something. Its own saved software
+brightness is moved into the backlight the next time a write works.
+
+Migration: a software brightness saved for a screen before it was driven
+by its backlight (this file's own brightness, or the "all" default it
+inherited) becomes the backlight level once, so the screen does not jump
+to full brightness the day this changed; the screen's name then goes into
+the file's "hardware" list and it is never done again. Only once the write
+worked (or nothing needed writing): a failed one -- logind refusing a
+session that is not active yet when the daemon starts -- leaves the saved
+brightness where it is for the next command to try again, rather than
+losing it. A desktop has no backlight and nothing here changes for it.
 """
 import json
 import math
@@ -51,11 +107,14 @@ import subprocess
 import sys
 import time
 
+import backlight
+
 STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
                      "hypr", "screen-color.json")
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
 PIDFILE = os.path.join(RUNTIME, "screen-color.pid")
 DIMFILE = os.path.join(RUNTIME, "screen-color-dim")
+BACKLIGHT_DIM = os.path.join(os.path.dirname(STATE), "screen-color-dim-backlight.json")
 UNIT = "screen-color.service"
 
 NEUTRAL = {"brightness": 100, "warmth": 6500, "saturation": 100, "red": 100, "green": 100, "blue": 100}
@@ -227,10 +286,14 @@ class Client:
             return
         done = []
         dim = dim_factor()
+        lit = backlight.driven()        # an unwritable backlight: software, as before
         for out in self.outputs.values():
             if out["name"]:
                 s = settings_for(data, out["name"])
-                s["brightness"] *= dim
+                if out["name"] in lit:
+                    s["brightness"] = 100       # the backlight does brightness and dim
+                else:
+                    s["brightness"] *= dim
                 values = matrix(s, data.get("night", 0))
                 self.send(self.ctm, 0, u32(out["id"]) +
                           b"".join(struct.pack("=i", round(v * 256)) for v in values))
@@ -254,6 +317,9 @@ def daemon():
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     with open(PIDFILE, "w") as handle:
         handle.write(str(os.getpid()))
+    with backlight.locked():
+        recover_dim()               # a dimmed backlight left over from the last session
+        migrate(load())             # before the first matrix drops a backlit screen's dimming
     try:
         while True:
             ready, _, _ = select.select([client.sock, reload_r], [], [])
@@ -304,6 +370,7 @@ def poke():
 def resolve(data, target):
     """The screen names a target means: one connector, or "all"."""
     names = [m["name"] for m in monitors()]
+    names += [n for n in backlight.screens() if n not in names and target.lower() != "all"]
     if target.lower() == "all":
         return ["*"] + sorted(set(names) | (set(data["screens"]) - {"*"}))
     for name in names + list(data["screens"]):
@@ -312,10 +379,53 @@ def resolve(data, target):
     sys.exit(f"screen-color: no screen called {target!r} (screens: {', '.join(names)})")
 
 
+def migrate(data, lit=None):
+    """Once per backlit screen: the software brightness it had (its own or
+    the "all" default's) becomes its backlight level, and its own saved
+    brightness goes -- and again whenever a screen in "hardware" has an own
+    brightness saved (kept while its backlight could not be written). Only
+    when the write worked; otherwise it stays for the next try. Saves (and
+    returns True) only when it did something, so a desktop's file is never
+    rewritten. The caller holds backlight.locked()."""
+    lit = backlight.driven(retry=True) if lit is None else lit
+    done = set(data.get("hardware", []))
+    todo = [name for name in sorted(lit)
+            if name not in done or "brightness" in data["screens"].get(name, {})]
+    changed = False
+    for name in todo:
+        level = settings_for(data, name)["brightness"]
+        if level != 100 and backlight.set_percent(lit[name], level) is None:
+            print(f"screen-color: could not move {name}'s brightness ({level} %) to its backlight "
+                  f"({lit[name]}); it stays in software for now", file=sys.stderr)
+            continue
+        own = data["screens"].get(name)
+        if own is not None:
+            own.pop("brightness", None)
+            if not own:
+                data["screens"].pop(name)
+        done.add(name)
+        changed = True
+    if changed:
+        data["hardware"] = sorted(done)
+        save(data)
+    return changed
+
+
 def set_values(target, pairs):
-    data = load()
     if len(pairs) % 2:
         sys.exit("screen-color: give <key> <value> pairs")
+    with backlight.locked():        # against a `dim off` (or another key) at the same moment
+        _set_values(target, pairs)
+
+
+def _set_values(target, pairs):
+    data = load()
+    # A brightness moved off a panel that was in software (unwritable until
+    # now) changes its matrix; a first migration does not (the daemon's
+    # matrix already left that screen's brightness to the backlight).
+    fallback = backlight.unwritable()
+    software = migrate(data, backlight.driven(retry=True)) and bool(fallback)
+    lit = backlight.driven(retry=True)      # without what migrate just failed to write
     names = resolve(data, target)
     for key, value in zip(pairs[::2], pairs[1::2]):
         key = ALIASES.get(key.lower(), key.lower())
@@ -326,18 +436,131 @@ def set_values(target, pairs):
             number = int(float(value))
         except ValueError:
             sys.exit(f"screen-color: {value!r} is not a number")
+        # Every screen steps from where it was before this key: read first,
+        # since "*" comes first and a screen without its own value inherits
+        # it -- reading as we go stepped those screens twice.
+        before = {name: settings_for(data, name)[key] for name in names}
         for name in names:
-            now = settings_for(data, name)[key]
-            new = now + number if value[0] in "+-" else number
+            relative = value[0] in "+-"
+            if key == "brightness" and name in lit:
+                if set_backlight(name, lit[name], number, relative):
+                    continue
+                # nothing could write it: this press goes to the matrix instead
+            new = before[name] + number if relative else number
             data["screens"].setdefault(name, {})[key] = max(lo, min(hi, new))
+            software = True
     for name in names:          # keep the file to what differs from neutral
         own = {k: v for k, v in data["screens"].get(name, {}).items() if v != NEUTRAL[k]}
         if own or (name != "*" and data["screens"].get("*")):
             data["screens"][name] = own
         else:
             data["screens"].pop(name, None)
-    save(data)
-    poke()
+    if software:            # a backlight-only change has no matrix to send
+        save(data)
+        poke()
+
+
+def set_backlight(name, dev, number, relative):
+    """One screen's brightness on its backlight; False when it could not be
+    read or written (the caller falls back to software). Waking a dimmed
+    panel with a key -- the backlight still at what the dim set -- steps
+    from the level before the dim, and the dim record goes: the key undid
+    the dim, so `dim off` has nothing left to restore."""
+    current, top = backlight.level(dev)
+    if top is None:
+        print(f"screen-color: cannot read {name}'s backlight ({dev}) in sysfs", file=sys.stderr)
+        return False
+    base = current
+    rec = dim_saved().get(dev)
+    if isinstance(rec, dict) and rec.get("set") == current and isinstance(rec.get("saved"), int):
+        base = rec["saved"]
+    target = backlight.to_percent(base, top) + number if relative else number
+    if backlight.set_percent(dev, target, step=number if relative else 0, base=base) is None:
+        print(f"screen-color: could not set {name}'s backlight ({dev}): no writable sysfs file, "
+              "logind refused and no brightnessctl -- software brightness instead", file=sys.stderr)
+        return False
+    forget_dim(dev)
+    return True
+
+
+def dim_saved():
+    """{device: {"saved": raw before the dim, "set": raw the dim wrote}}."""
+    try:
+        with open(BACKLIGHT_DIM) as handle:
+            data = json.load(handle)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_dim(saved):
+    if not saved:
+        try:
+            os.remove(BACKLIGHT_DIM)
+        except OSError:
+            pass
+        return
+    os.makedirs(os.path.dirname(BACKLIGHT_DIM), exist_ok=True)
+    tmp = BACKLIGHT_DIM + ".tmp"
+    with open(tmp, "w") as handle:
+        json.dump(saved, handle)
+    os.replace(tmp, BACKLIGHT_DIM)
+
+
+def forget_dim(dev):
+    """Brightness set by hand while dimmed is the new level: `dim off` must
+    not put the old one back over it."""
+    saved = dim_saved()
+    if saved.pop(dev, None) is not None:
+        save_dim(saved)
+
+
+def dim_backlights(percent, lit=None):
+    """The idle dim on the backlit screens (see the docstring): percent None
+    is `dim off`. Reads sysfs only when there is something to do. A restore
+    that could not be written keeps its record (the only copy of the level
+    before the dim); a dim that could not be written records nothing, and
+    the screen's matrix dims it instead (backlight.driven() leaves it out).
+    The caller holds backlight.locked()."""
+    saved = dim_saved()
+    if percent is None:
+        failed = {}
+        for dev, rec in saved.items():
+            try:
+                before, written = int(rec["saved"]), int(rec["set"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if backlight.level(dev)[0] == written and before != written:     # untouched while dimmed
+                if not backlight.write(dev, before):
+                    print(f"screen-color: could not put {dev}'s backlight back to {before}", file=sys.stderr)
+                    failed[dev] = rec
+        save_dim(failed)
+        return
+    lit = backlight.driven(retry=True) if lit is None else lit
+    for dev in lit.values():
+        rec = saved.get(dev)
+        before = rec.get("saved") if isinstance(rec, dict) else None
+        current, top = backlight.level(dev)
+        if top is None:
+            continue
+        if before is None or current != rec.get("set"):
+            before = current            # first dim, or moved by hand since the last one
+        target = min(before, max(backlight.min_raw(top), round(before * (percent / 100) ** backlight.GAMMA)))
+        if target != current and not backlight.write(dev, target):
+            print(f"screen-color: could not dim {dev}'s backlight; the matrix dims it", file=sys.stderr)
+            saved.pop(dev, None)
+            continue
+        saved[dev] = {"saved": before, "set": target}
+    save_dim(saved)
+
+
+def recover_dim():
+    """At the daemon's start: a backlight dim record with no runtime dim
+    file is left over from an earlier session (see the docstring). Put the
+    level back where the backlight still reads what the dim set; drop the
+    rest. The caller holds backlight.locked()."""
+    if not os.path.exists(DIMFILE) and os.path.exists(BACKLIGHT_DIM):
+        dim_backlights(None)
 
 
 def set_dim(value):
@@ -345,11 +568,15 @@ def set_dim(value):
     of its own brightness. Only pokes the daemon when something changed, so
     hypridle's on-resume `dim off` after every idle stretch costs nothing."""
     before = dim_factor()
+    migrated = False
     if value in ("off", "100"):
         try:
             os.remove(DIMFILE)
         except OSError:
             pass
+        if os.path.exists(BACKLIGHT_DIM):
+            with backlight.locked():
+                dim_backlights(None)
     else:
         try:
             percent = max(5, min(100, int(float(value))))
@@ -358,7 +585,12 @@ def set_dim(value):
         os.makedirs(RUNTIME, exist_ok=True)
         with open(DIMFILE, "w") as handle:
             handle.write(str(percent))
-    if dim_factor() != before:
+        if backlight.screens():
+            with backlight.locked():
+                fallback = backlight.unwritable()
+                migrated = migrate(load()) and bool(fallback)
+                dim_backlights(percent)
+    if migrated or dim_factor() != before:
         poke()
 
 
@@ -369,11 +601,23 @@ def status():
 def status_data():
     """What `status` prints, as a dict (desktopctl.py imports this)."""
     data = load()
+    lit = backlight.driven()
     screens = []
     for m in monitors():
         s = settings_for(data, m["name"])
+        hardware = m["name"] in lit
+        if hardware:
+            # the brightness is the backlight's, read now; "neutral" is about
+            # the matrix, which a backlit screen's brightness is not part of
+            level = backlight.percent(lit[m["name"]])
+            s["brightness"] = 100
+            neutral = s == NEUTRAL
+            s["brightness"] = 100 if level is None else level
+        else:
+            neutral = s == NEUTRAL
         screens.append({"name": m["name"], "description": m.get("description", ""),
-                        **s, "neutral": s == NEUTRAL})
+                        **s, "neutral": neutral, "hardware": hardware,
+                        **({"backlight": lit[m["name"]]} if hardware else {})})
     alive = False
     try:
         with open(PIDFILE) as handle:
@@ -382,7 +626,11 @@ def status_data():
     except (OSError, ValueError):
         pass
     return {"screens": screens, "all": settings_for(data, "*"), "night": data["night"],
-            "dim": round(dim_factor() * 100), "running": alive, "ranges": RANGES}
+            "dim": round(dim_factor() * 100), "running": alive, "ranges": RANGES,
+            "hardware": sorted(lit), "backlight": backlight.status_data() if backlight.screens() else {},
+            "unwritable": sorted(backlight.unwritable()),
+            "dimmed_from": {dev: rec.get("saved") for dev, rec in dim_saved().items()
+                            if isinstance(rec, dict)}}
 
 
 def main():

@@ -26,6 +26,9 @@ cell-broadcast alerts come first, and every alarm card says so.
                                          Regionalschlüssel
     jp_pref=                             (Japan) your prefecture, e.g. 東京都
     preventive=notify                    SASMEX "Moderado": notify | alarm | off
+    battery_poll=off                     on: the early warnings poll every 15 s
+                                         instead of every 3-5 s while on battery
+                                         (BATTERY POLLING below; off as shipped)
 
 What each kind does:
     alarm    red card on every screen (over games), the siren looping with the
@@ -46,6 +49,21 @@ $XDG_RUNTIME_DIR/emergency-alerts-live.json (tmpfs, at most every
 LIVE_EVERY_S), which `status` merges in. A failing source is logged (and
 its error saved) only after FAIL_AFTER failures in a row: one SASMEX
 timeout in thousands of polls is not news.
+
+BATTERY POLLING (battery_poll). The rest of the desktop backs off on battery
+(power_state.py); this does not, unless you say so. An early warning is worth
+its seconds: SASMEX sounds roughly 60 s before strong shaking reaches Mexico
+City from the Guerrero coast -- far less for a quake nearer to you -- and it
+is polled every 3 s so that at most 3 of them are lost. Polling every 15 s
+loses up to 15 (7.5 on average): a quarter of the warning in the best case,
+all of it for a near quake. What that saves is small -- one HTTPS request
+on a kept-alive connection every 3 s, no fork, a few mW -- so the setting is
+off, and the early warnings (SASMEX, NAAD, P2PQuake: the sources polled
+every 5 s or less) keep their pace on battery. battery_poll=on is for a
+laptop where those mW matter more to you (on battery, or with the battery
+saver on): those sources then poll every BATTERY_POLL_S. The other sources
+already poll every minute or more and are never changed. On mains power
+battery_poll changes nothing.
 """
 import datetime
 import http.client
@@ -64,6 +82,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import desk_common  # noqa: E402  (notify: the notification, through scripts/notify)
+import power_state  # noqa: E402  (period(): battery_poll's back-off)
 CONF = os.path.expanduser("~/.config/hypr/emergency.conf")
 STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"),
                      "hypr", "emergency-alerts.json")
@@ -71,6 +90,7 @@ SIREN = os.path.expanduser("~/.config/hypr/sounds/quake-alarm.wav")
 LIVE = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}",
                     "emergency-alerts-live.json")
 LIVE_EVERY_S = 15           # last_ok to LIVE at most this often per source
+BATTERY_POLL_S = 15         # battery_poll=on: a fast source's gap on battery
 FAIL_AFTER = 3              # failures in a row before one is logged and saved
 STALE_S = 180               # older than this when first seen: history, not news
 ALARM_S = 90
@@ -78,7 +98,8 @@ ALARM_VOLUME = 0.8
 S_WAVE_KMS = 3.5
 UA = "emergency-alerts.py (personal desktop; backup to official alerting)"
 DEFAULTS = {"lat": "", "lon": "", "country": "", "lang": "en", "sources": "",
-            "meteoalarm_region": "", "nina_ars": "", "jp_pref": "", "preventive": "notify"}
+            "meteoalarm_region": "", "nina_ars": "", "jp_pref": "", "preventive": "notify",
+            "battery_poll": "off"}
 SPANISH = ("MX", "ES", "AR", "CL", "CO", "PE", "EC", "VE", "BO", "UY", "PY", "GT", "HN", "SV", "NI",
            "CR", "PA", "CU", "DO")
 
@@ -691,6 +712,20 @@ def act(alert, conf):
         notify(alert["headline"], alert["text"], "normal")
 
 
+def battery_poll_on(conf):
+    return str(conf.get("battery_poll", "off")).strip().lower() in ("on", "true", "yes", "1")
+
+
+def poll_gap(every, conf):
+    """The gap after a poll of a source that polls EVERY seconds: EVERY,
+    unless battery_poll is on, the source is a fast one (under
+    BATTERY_POLL_S) and power_state says to go easy -- then BATTERY_POLL_S.
+    Asked after every poll, so plugging in brings the 3 s back at once."""
+    if not battery_poll_on(conf) or every >= BATTERY_POLL_S:
+        return every
+    return power_state.period(every, BATTERY_POLL_S)
+
+
 def poller(name, conf):
     _, _, _, every, _, fetch = SOURCES[name]
     http = Http()
@@ -726,7 +761,7 @@ def poller(name, conf):
                 saved_error = save
             if log:
                 print(f"emergency-alerts: {name}: {error} ({fails} in a row)", flush=True)
-        time.sleep(every)
+        time.sleep(poll_gap(every, conf))
 
 
 def daemon():
@@ -901,7 +936,8 @@ def main(argv):
             e = state.get(s, {})
             ok = live.get(s) or e.get("last_ok")      # last_ok: the runtime file now (old state: the state's)
             out[s] = {"last_ok_s_ago": round(time.time() - ok) if ok else None,
-                      "error": e.get("error") or None, "last_alert": e.get("last_alert")}
+                      "error": e.get("error") or None, "last_alert": e.get("last_alert"),
+                      "every_s": poll_gap(SOURCES[s][3], conf)}
         print(json.dumps(out, ensure_ascii=False, indent=1))
     elif cmd == "test":
         lat, lon = float(conf["lat"]), float(conf["lon"])

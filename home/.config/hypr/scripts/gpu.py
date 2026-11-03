@@ -20,7 +20,7 @@ pill, its sensors panel, llm-gpu.py and record.sh all come here).
                                (CSV, MiB / W / %; "N/A" for what the card
                                does not say) every SECONDS (5) until killed
                                -- the bar's GPU pill reads this (gpu_usage.sh
-                               watch). The card the screens are on
+                               watch); SECONDS x 3 on battery (stream_gap). The card the screens are on
                                (display_card), or an offload card while
                                something runs on it: which is "offload" then,
                                else "display"; maker is nvidia | amd | intel |
@@ -854,6 +854,24 @@ def _csv(card, util, which="display"):
                                      card["power"], card["fan"])] + [which, card.get("vendor") or "other"])
 
 
+STREAM_BATTERY_X = 3     # the stream's gap on battery: this many times SECONDS
+
+
+def stream_gap(seconds):
+    """The gap after each line: SECONDS, or SECONDS x STREAM_BATTERY_X while
+    power_state says to go easy (unplugged, or the battery saver on). The
+    pill is a glance and each line is a full read of the card -- NVML, the
+    fdinfo of the processes for the offload check -- so on battery 15 s
+    instead of 5. Asked again after every line: plugging in brings 5 s back
+    within one gap. The sensors panel's graphs (gpu_usage.sh's 60 samples)
+    then span 15 min instead of 5, with the gaps between samples longer."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import power_state
+    return power_state.period(seconds, seconds * STREAM_BATTERY_X)
+
+
 def stream(seconds=5.0):
     cards = gpus()
     card = display_card(cards)
@@ -880,7 +898,7 @@ def stream(seconds=5.0):
             print(line, flush=True)
         except BrokenPipeError:
             return 0
-        time.sleep(seconds)
+        time.sleep(stream_gap(seconds))
 
 
 def summary_line(g):

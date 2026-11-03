@@ -7,7 +7,10 @@ launcher and the keys the same way.
 
     window-look.py status              JSON: every key with yours, the theme's,
                                        what is in effect, and what Hyprland
-                                       reports live (and whether gamemode is on)
+                                       reports live (and whether gamemode or
+                                       the battery saver is on: the keys each
+                                       one holds say held_by_gamemode /
+                                       held_by_saver)
     window-look.py get <key>           the value in effect, one line
     window-look.py set <key> <value>   yours from now on (checked and clamped;
                                        the theme's own value = no override)
@@ -127,6 +130,9 @@ KEYS = {
                          "label": "Floating windows snap to edges and each other", "default": "no"},
 }
 TRUE, FALSE = ("yes", "on", "true", "1"), ("no", "off", "false", "0")
+# What the battery saver turns off while it is on (lua/batterysaver.lua): the
+# page shows these as held by it, not as "not in effect yet".
+SAVER_HOLDS = ("blur", "shadow")
 
 
 # -- values (pure: no files, no Hyprland) ------------------------------------
@@ -230,8 +236,9 @@ def live_value(key, reply):
     return ""
 
 
-def rows(state, conf, live=None, gamemode=False):
-    """status's "keys" list: one dict per key, in KEYS order."""
+def rows(state, conf, live=None, gamemode=False, saver=False):
+    """status's "keys" list: one dict per key, in KEYS order. SAVER: the
+    battery saver is on (its held keys say so, held_by_saver)."""
     mine = overrides(state)
     out = []
     for key, spec in KEYS.items():
@@ -243,7 +250,8 @@ def rows(state, conf, live=None, gamemode=False):
                "from": "theme" if conf.get("hypr." + key, "") else "default",
                "value": mine.get(key, theirs),
                "live": (live or {}).get(key, ""),
-               "held_by_gamemode": bool(gamemode and spec.get("strip"))}
+               "held_by_gamemode": bool(gamemode and spec.get("strip")),
+               "held_by_saver": bool(saver and key in SAVER_HOLDS)}
         for field in ("lo", "hi", "unit", "choices"):
             if field in spec:
                 row[field] = spec[field]
@@ -263,6 +271,16 @@ def getoption(option):
         return json.loads(out)
     except (OSError, subprocess.SubprocessError, ValueError):
         return None
+
+
+def saver_on():
+    """The battery saver's state file says on (power_state.saver_active():
+    one small file read). False when power_state.py is not there."""
+    try:
+        import power_state
+    except ImportError:
+        return False
+    return power_state.saver_active()
 
 
 def live_values():
@@ -551,8 +569,9 @@ def print_workspaces(data):
 def status_data():
     conf = theme_conf()
     gm = gamemode_on()
+    saver = saver_on()
     return {"theme": conf.get("id", ""), "theme_label": conf.get("name") or conf.get("id", ""),
-            "gamemode": gm, "keys": rows(display.read_state(), conf, live_values(), gm)}
+            "gamemode": gm, "saver": saver, "keys": rows(display.read_state(), conf, live_values(), gm, saver)}
 
 
 def cmd_set(key, value):

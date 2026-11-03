@@ -1,0 +1,18 @@
+# The charger and the battery: plugged / unplugged and low-battery events for
+# automations, the low-battery warnings, the battery saver's auto switch and
+# $XDG_RUNTIME_DIR/power-state.json -- ~/.config/hypr/scripts/power-watch.py
+# (its docstring has the details). Sleeps on udev's power_supply events; on a
+# machine without a battery it does nothing but sleep.
+[Unit]
+Description=Charger and battery watch (power events, low-battery warnings)
+PartOf=graphical-session.target
+After=graphical-session.target mako.service
+
+[Service]
+ExecCondition=/usr/lib/systemd/systemd-xdg-autostart-condition "Hyprland" ""
+ExecStart=/usr/bin/python3 %h/.config/hypr/scripts/power-watch.py daemon
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

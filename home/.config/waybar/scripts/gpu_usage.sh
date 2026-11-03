@@ -45,9 +45,11 @@ theme_color() {
 GPU_PY=${GPU_PY:-$HOME/.config/hypr/scripts/gpu.py}   # the tests point it at a stand-in
 
 # History for the sensors panel, watch mode only -- see cpu_usage.sh. One
-# "epoch usage temp vram% power" line per sample, last five minutes.
+# "epoch usage temp vram% power" line per sample: the last five minutes, or
+# fifteen on battery / with the battery saver on (gpu.py stream then samples
+# every 15 s: power_state.period()).
 HIST_FILE=
-HIST_MAX=60             # 60 x 5s = the last five minutes
+HIST_MAX=60             # 60 x 5 s = five minutes (60 x 15 s on battery = fifteen)
 hist=()
 
 # On a narrow screen: two meters, load and VRAM -- see cpu_usage.sh.

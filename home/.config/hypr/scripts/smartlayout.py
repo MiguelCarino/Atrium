@@ -27,7 +27,7 @@ screen a workspace lives on.
 
 How it learns (Tracker): every window is refreshed from `clients` on each
 event that can move it and every POLL_S (floating moves and resizes send no
-event). A placement counts once it has stayed MIN_STAY_S unchanged, and each
+event) -- POLL_BATTERY_S on battery (Tracker.poll_s). A placement counts once it has stayed MIN_STAY_S unchanged, and each
 window has ONE vote: when it settles somewhere else, its vote moves there.
 So an app you always drag to workspace 5 gets its votes on 5, not on the
 workspace it opened on. Pairings: two settled tiled windows of different
@@ -80,6 +80,7 @@ import desklog  # noqa: E402
 import privacy_settings  # noqa: E402  (the private apps)
 import sessions  # noqa: E402  (hypr_json, hypr_eval, lua_str, TRANSIENT_*, GAME_RE)
 import hyprbus  # noqa: E402  (Hyprland's events: the shared relay, or socket2 directly)
+import power_state  # noqa: E402  (period(): the refresh backs off on battery)
 
 HOME = os.path.expanduser("~")
 NOTIFY = os.path.expanduser("~/.config/hypr/scripts/notify")  # notify-send with the theme's mascot (mascot_notify.py)
@@ -92,6 +93,15 @@ MIN_STAY_S = 30         # a placement counts once it has stayed this long
 FIGHT_S = 60            # moved this soon after being placed: a vote against
 OWN_S = 2.5             # what we dispatch ourselves in this time is not the user
 POLL_S = 5
+# On battery (or with the battery saver on) the periodic refresh -- a
+# `clients` and a `monitors` request to Hyprland, and a walk over every
+# window -- comes every 15 s. It only exists for what sends no event, a
+# floating window dragged or resized, and those only count once they have
+# stayed MIN_STAY_S (30 s): a 15 s look still sees them settle, and a drag
+# within FIGHT_S of a placement is still caught (up to 15 s later, inside
+# the 60 s). Placing a new window is event-driven (openwindow) at any pace,
+# so nothing anyone sees changes.
+POLL_BATTERY_S = 15
 SIDE_FIX_S = 0.5        # a placed tiled window gets its side this long after
 MIN_CONF = 0.6
 MAX_PLACES = 8          # placements kept per app (the least used go)
@@ -618,12 +628,16 @@ class Tracker:
                     self.dispatch(swap_lua(addr, side))
                     if addr in self.windows:
                         self.windows[addr]["own_until"] = self.clock() + OWN_S
-        if now - self.last_refresh >= POLL_S:
+        if now - self.last_refresh >= self.poll_s():
             self.refresh(clients, monitors)
+
+    def poll_s(self):
+        """The periodic refresh's gap now: POLL_S, POLL_BATTERY_S on battery."""
+        return power_state.period(POLL_S, POLL_BATTERY_S)
 
     def wait(self):
         now = self.clock()
-        nxt = min([t for t, _a, _s in self.later] + [self.last_refresh + POLL_S])
+        nxt = min([t for t, _a, _s in self.later] + [self.last_refresh + self.poll_s()])
         return max(0.05, nxt - now)
 
 
@@ -806,7 +820,7 @@ def status():
              for k, p in data["pairs"].items()]
     pairs.sort(key=lambda p: -p["count"])
     return {"settings": s, "apps": apps, "pairs": pairs, "min_stay_s": MIN_STAY_S, "min_conf": MIN_CONF,
-            "store": STORE}
+            "store": STORE, "poll_s": power_state.period(POLL_S, POLL_BATTERY_S)}
 
 
 def human(data):

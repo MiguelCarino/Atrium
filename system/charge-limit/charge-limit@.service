@@ -1,0 +1,29 @@
+# charge-limit@.service -- see /usr/local/libexec/charge-limit for what and why.
+# The session's way to change the limit: `systemctl start charge-limit@80.service`
+# (charge-limit.py set 80). The polkit rule 50-atrium-charge-limit.rules lets
+# the active local session start this template -- and only with 50..100 as
+# the instance -- without a password; the script checks the number again.
+# Each start runs once and ends (no RemainAfterExit), so it can be started
+# again with the same number. Not enabled: started on demand only.
+[Unit]
+Description=Set the battery charge limit to %i%%
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/charge-limit set %i
+ConfigurationDirectory=atrium
+ConfigurationDirectoryMode=0755
+UMask=0022
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+PrivateDevices=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+# Root owns both the sysfs attribute and /etc/atrium, so no capability is
+# needed to write them: the whole set is dropped.
+CapabilityBoundingSet=

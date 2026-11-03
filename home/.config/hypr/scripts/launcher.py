@@ -235,8 +235,9 @@ alarms switch (an alarm 10 min before each event in your calendars).
 Settings (no prefix): "volume 40" / "vol up" / "vol -5" / "volume mute", "mic off",
 "output hdmi" (which device plays the sound), "brightness 70" / "brillo" /
 "dim", "warmth 4000", "saturation 50" -- all screens, or one: "dim dp-2",
-"brightness hdmi 60", "warmth lg 5000" (screen-color.py, in software; the
-night light's warmth comes on top), "rate" / "rate dp-2 120" (refresh
+"brightness hdmi 60", "warmth lg 5000" (screen-color.py: brightness is the
+laptop panel's own backlight, every other screen's in software; the night
+light's warmth comes on top), "rate" / "rate dp-2 120" (refresh
 rates), "accent #ff8800" (your own accent colour), "bluetooth on", "wifi off"
 (network-settings.py, the Network page's backend: Bluetooth off is an rfkill
 block too, so it stays off after a reboot). "volume 130" goes past 100 only
@@ -252,7 +253,8 @@ sources, so a new page is found with no restart. "settings" alone lists
 every page, "settings <words>" only those; in > mode they follow the
 commands. Among the commands, the pages' backends: copy / save the system
 report, over-amplification on / off, window blur / shadows / dimming and
-the tiling layout, airplane mode, Keep awake, the power profile, quiet
+the tiling layout, airplane mode, Keep awake, the power profile, the
+battery saver and the charge limit (on a laptop only: BATTERY_ONLY), quiet
 hours, the clock's 12 / 24 hours, the default browser and terminal, the
 magnifier and the other accessibility switches, loading the bar's changes,
 password / printers / online accounts.
@@ -471,6 +473,8 @@ LOOK = os.path.join(HYPR, "window-look.py")
 SYSINFO = os.path.join(HYPR, "system-info.py")
 DEFAULT_APPS = os.path.join(HYPR, "default-apps.py")
 IDLE = os.path.join(HYPR, "idle-settings.py")
+SAVER = os.path.join(HYPR, "battery-saver.py")
+CHARGE = os.path.join(HYPR, "charge-limit.py")
 A11Y = os.path.join(HYPR, "accessibility.py")
 ACCOUNTS = os.path.join(HYPR, "accounts.py")
 SESSIONS = os.path.join(HYPR, "sessions.py")
@@ -718,6 +722,21 @@ COMMANDS = [
      told("Power profile", [IDLE, "profile", key], [IDLE, "profile"]))
     for key, label in (("performance", "performance"), ("balanced", "balanced"), ("power-saver", "power saver"))
 ] + [
+    # Laptops only (BATTERY_ONLY, command_items). Their JSON goes to
+    # /dev/null: told() then shows the second command's words, or the error
+    # line both scripts print on stderr when a switch fails.
+    ("Battery saver: on", "blur, animations and the moving wallpaper off, the power saver profile",
+     "battery-low", told("Battery saver", ["sh", "-c", f"{shlex.quote(SAVER)} on >/dev/null"],
+                         ["echo", "on (Settings > Battery)"])),
+    ("Battery saver: off", "the full look and your power profile again", "battery-full",
+     told("Battery saver", ["sh", "-c", f"{shlex.quote(SAVER)} off >/dev/null"], ["echo", "off"])),
+] + [
+    (f"Charge limit: {label}", "stop charging there (Settings > Battery)", "battery-good",
+     told("Charge limit", ["sh", "-c", f"{shlex.quote(CHARGE)} set {n} >/dev/null"],
+          ["echo", f"charging stops at {n} % (or the nearest the firmware takes)" if n < 100
+           else "charging goes to full again"]))
+    for n, label in ((80, "80 %"), (100, "full (100 %)"))
+] + [
     ("Check for updates", "the updates pill checks now (dnf, flatpak)", "system-software-update",
      [os.path.join(HYPR, "software-updates.py"), "check"]),
     ("Next keyboard layout", "(Super+Space by default)", "input-keyboard",
@@ -768,6 +787,9 @@ COMMANDS = [
      "utilities-terminal", lambda: claude_tui()),
 ]
 CLAUDE_ONLY = ("Claude Code session",)      # COMMANDS offered only with the claude CLI
+# COMMANDS offered only on a machine with a battery of its own (a desktop sees
+# none of them: power_state.has_battery(), a few sysfs reads per opening).
+BATTERY_ONLY = ("Battery saver: on", "Battery saver: off", "Charge limit: 80 %", "Charge limit: full (100 %)")
 CHAT_COMMANDS = ("LLM chat",) + CLAUDE_ONLY  # found by "chat", "llm", "ai" too
 
 
@@ -937,13 +959,26 @@ def copy(text):
         pass
 
 
+def has_battery():
+    """power_state.has_battery(), False when power_state.py is missing (an
+    older checkout): the battery commands are then not offered."""
+    try:
+        import power_state
+    except ImportError:
+        return False
+    return power_state.has_battery()
+
+
 def command_items():
     claude = claude_cli() is not None
+    battery = has_battery()
     return [Item(name, sub, icon, argv, extra=("chat llm ai" if name in CHAT_COMMANDS else "")
                  + (" claude" if name in CLAUDE_ONLY else ""))
-            if callable(argv) else Item(name, sub, icon, (lambda a=argv: spawn(a)), extra=" ".join(argv[:2]))
+            if callable(argv) else Item(name, sub, icon, (lambda a=argv: spawn(a)),
+                                        extra=" ".join(argv[:2]) + (" battery" if name in BATTERY_ONLY else ""))
             for name, sub, icon, argv in COMMANDS
-            if claude or name not in CLAUDE_ONLY] + model_commands() + mascot_commands()
+            if (claude or name not in CLAUDE_ONLY) and (battery or name not in BATTERY_ONLY)] \
+        + model_commands() + mascot_commands()
 
 
 # -- calculator: arithmetic only, through the AST, never eval() --------------
@@ -3930,7 +3965,7 @@ SETTINGS_ICONS = {"screens": "video-display", "theme": "preferences-desktop-them
                   "input": "input-keyboard", "devices": "drive-removable-media", "alerts": "dialog-warning",
                   "privacy": "preferences-system-privacy", "startup": "system-run",
                   "notifications": "preferences-system-notifications", "system": "utilities-system-monitor",
-                  "power": "preferences-system-power", "region": "preferences-system-time",
+                  "power": "preferences-system-power", "battery": "battery", "region": "preferences-system-time",
                   "updates": "system-software-update", "about": "help-about",
                   "accessibility": "preferences-desktop-accessibility",
                   "wallpaper": "preferences-desktop-wallpaper", "shortcuts": "input-keyboard",

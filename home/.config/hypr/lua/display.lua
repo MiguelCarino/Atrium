@@ -26,6 +26,20 @@
 ---@module 'hl'
 
 local S = require("lua.shared")
+-- The battery saver (lua/batterysaver.lua, scripts/battery-saver.py): while
+-- it is on, apply() lays the theme down without blur or shadows and with
+-- every animation leaf disabled. Asked at every apply, so a reload, a theme
+-- switch or gamemode OFF keep the saver's look for as long as it is on.
+local saver = require("lua.batterysaver")
+-- lua/settings.lua's own blur and shadow switches, read once here, before
+-- anything below changes them (this file is loaded right after settings).
+-- They are what the look falls back to when no theme says (no themes folder,
+-- a theme.conf without hypr.blur / hypr.shadow): without them, the battery
+-- saver going off would leave blur and shadows off until the next reload,
+-- since a theme key that says nothing leaves the option as it is -- and the
+-- saver left it off.
+local base_blur   = hl.get_config("decoration.blur.enabled")
+local base_shadow = hl.get_config("decoration.shadow.enabled")
 
 local M = {}
 
@@ -266,6 +280,16 @@ function M.expand(list)
     return out
 end
 
+-- Every leaf disabled: nothing moves, nothing fades -- the battery saver's
+-- motion (lua/batterysaver.lua says why this and not animations.enabled,
+-- which is gamemode's switch). Speed and curve are given anyway, so a leaf
+-- switched back on by hand has sane values rather than none.
+function M.still()
+    for _, node in ipairs(LEAVES) do
+        hl.animation({ leaf = node[1], enabled = false, speed = 1, bezier = "linear" })
+    end
+end
+
 function M.preset(name)
     return PRESETS[name] and name or "smooth"
 end
@@ -408,7 +432,7 @@ end
 local function apply_animations(name)
     name = M.preset(name)
     current_anim = name
-    M.animate(PRESETS[name])
+    if saver.active() then M.still() else M.animate(PRESETS[name]) end
     apply_layer_rules(name)
     apply_orientation(name)
 end
@@ -510,6 +534,13 @@ local function flag(v)
     return v == "yes" or v == "on" or v == "true" or v == "1"
 end
 
+-- The theme's switch for blur / shadow, else settings.lua's (see base_blur).
+local function switch(v, base)
+    local f = flag(v)
+    if f == nil then return base end
+    return f
+end
+
 local function apply_look(t)
     local gamemode = not hl.get_config("animations.enabled")
     local general = { col = {
@@ -527,7 +558,7 @@ local function apply_look(t)
         general.border_size  = tonumber(t["hypr.border_size"])
         decoration.rounding  = tonumber(t["hypr.rounding"])
         decoration.blur = {
-            enabled           = flag(t["hypr.blur"]),
+            enabled           = switch(t["hypr.blur"], base_blur),
             size              = tonumber(t["hypr.blur_size"]),
             passes            = tonumber(t["hypr.blur_passes"]),
             brightness        = tonumber(t["hypr.blur_brightness"]),
@@ -536,12 +567,40 @@ local function apply_look(t)
             vibrancy_darkness = tonumber(t["hypr.blur_vibrancy_darkness"]),
             noise             = tonumber(t["hypr.blur_noise"]),
         }
-        decoration.shadow.enabled      = flag(t["hypr.shadow"])
+        decoration.shadow.enabled      = switch(t["hypr.shadow"], base_shadow)
         decoration.shadow.range        = tonumber(t["hypr.shadow_range"])
         decoration.shadow.render_power = tonumber(t["hypr.shadow_render_power"])
         -- "x y" -> { x, y }, the vec2 shape lua/settings.lua sets it in.
         local ox, oy = (t["hypr.shadow_offset"] or "0 0"):match("^%s*(%-?[%d%.]+)%s+(%-?[%d%.]+)%s*$")
         decoration.shadow.offset = { tonumber(ox) or 0, tonumber(oy) or 0 }
+        -- The battery saver: the theme's blur and shadow values stay set
+        -- (so turning it off is this same apply with the file saying off),
+        -- only switched off.
+        if saver.active() then
+            decoration.blur.enabled   = false
+            decoration.shadow.enabled = false
+        end
+    else
+        -- In gamemode the five options are gamemode's -- except that the
+        -- saver may still switch blur and shadows OFF (gamemode only ever
+        -- switches them off too, so the two cannot fight; capture.conf's
+        -- gamemode_blur=off keeps blur for a recording, and the saver must
+        -- not then leave it burning the battery). With the saver off, they
+        -- come back only where gamemode did not strip them; where it did,
+        -- gamemode OFF's reload brings them back.
+        local G = package.loaded["lua.gamemode"]
+        local strips = function(what) return not G or not G.strips or G.strips(what) end
+        if saver.active() then
+            decoration.blur   = { enabled = false }
+            decoration.shadow.enabled = false
+        else
+            if not strips("blur") then
+                decoration.blur = { enabled = switch(t["hypr.blur"], base_blur) }
+            end
+            if not strips("shadow") then
+                decoration.shadow.enabled = switch(t["hypr.shadow"], base_shadow)
+            end
+        end
     end
     hl.config({ general = general, decoration = decoration })
 end

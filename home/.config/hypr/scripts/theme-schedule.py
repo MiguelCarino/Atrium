@@ -157,7 +157,12 @@ def game_running():
 
 
 AMBIENT_LIVE = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}", "ambient.json")
-AMBIENT_FRESH_S = 120       # ambient.py rewrites it every 30 s while its daemon runs
+# ambient.py rewrites it every 30 s while its daemon runs, every 90 s on
+# battery (ambient.TICK_BATTERY_S; its heartbeat keeps the gap near that even
+# after a failed pass): three battery ticks of margin, so one slow pass never
+# hands the theme back to the schedule. A daemon that died is noticed within
+# this long.
+AMBIENT_FRESH_S = 270
 
 
 def ambient_owns_theme():

@@ -1695,14 +1695,28 @@ class QuickDisplay:
                                      lambda key, value: self.act(SCREEN_COLOR, "set", "all", key, str(value)))
             self.bright_box.pack_start(self.brightness.widget, False, False, 0)
             self.bright_box.show_all()
-        if self.brightness and screens.get("all"):
-            self.brightness.show(screens["all"]["brightness"])
+        level = all_brightness(screens)
+        if self.brightness and level is not None:
+            self.brightness.show(level)
         if "mode" in night:
             self.night.set([("auto", "Schedule"), ("on", "On"), ("off", "Off")], night["mode"])
         if st:
             fill_combo(self.filters, [("", "Off")] + [(f["name"], f["label"]) for f in st.get("filters", [])],
                        st.get("filter", ""))
         self.updating = False
+
+
+def all_brightness(screens):
+    """What the "all screens" brightness slider shows, from screen-color.py's
+    status: the laptop panel's own backlight level when a screen is driven
+    by one ("hardware": the built-in panel, screen-color.py + backlight.py),
+    else the software default ("all"). The software default alone went
+    stale on a laptop: the Fn keys and the panel's own slider move the
+    backlight, never "all". None before a status has come."""
+    for screen in (screens or {}).get("screens") or []:
+        if screen.get("hardware") and screen.get("brightness") is not None:
+            return screen["brightness"]
+    return ((screens or {}).get("all") or {}).get("brightness")
 
 
 class Display(panelui.Panel):

@@ -23,6 +23,7 @@ launcher.service
 mako.service
 osd.service
 phone-handoff.service
+power-watch.service
 printing.service
 railguard.service
 screen-color.service

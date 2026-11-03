@@ -11,14 +11,20 @@ without a battery it prints no text, and waybar hides the row.
 The row: the battery glyph (the taskbar's, dock.py BATTERY_GLYPHS, with the
 bolt while charging), the charge and the time ("Battery" only without one): "2h 15m left"
 running down, "full in 40m" charging, "plugged in" on the cable held short
-of full, the charge alone when full. Short, as the row shares a line of the
-card's grid.
+of full, the charge alone when full -- and, running down, the draw in watts
+("9.1 W": what the laptop is spending now, the number that says whether
+closing that browser tab is worth it). Short, as the row shares a line of the
+card's grid; the tooltip has the long form.
 Class "charging", "full", "warning" (25 %) or "critical" (12 %) as the bar's
-battery pill. Click: Settings > Power & lock.
+battery pill. With the battery saver on (battery-saver.py's state file,
+$XDG_RUNTIME_DIR/battery-saver.json: read, nothing started) a leaf leads the
+row and "saver" is a second class, so the theme can mark it, and the tooltip
+says why it is on. Click: Settings > Battery.
 
-The time comes from UPower (`upower -i`), which averages the draw over the
-last minutes; sysfs (energy / power, or charge / current) is the fallback,
-whose instant draw jumps with every burst of load.
+The time and the draw come from UPower (`upower -i`: "time to empty",
+"energy-rate"), which averages over the last minutes; sysfs (energy / power,
+or charge / current with voltage) is the fallback, whose instant draw jumps
+with every burst of load.
 """
 import json
 import os
@@ -29,6 +35,11 @@ import sys
 POWER_SUPPLY = "/sys/class/power_supply"
 GLYPHS = ("", "", "", "", "")   # Font Awesome empty .. full
 BOLT = ""
+LEAF = ""                     # the battery saver is on (Font Awesome leaf)
+SAVER_STATE = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}",
+                           "battery-saver.json")      # power_state.SAVER_STATE
+WHY = {"manual": "turned on by you", "auto": "on by itself: the battery ran low",
+       "unplug": "on by itself: unplugged", "rule": "on by an automation"}
 # "battery" is a Font Awesome icon name: in a theme whose font stack reaches
 # Font Awesome first its ligature drew the word as the icon (mic_row.py WORD).
 WORD = "‌".join("Battery")
@@ -44,9 +55,27 @@ def duration(hours):
     return f"{h}h {m:02d}m" if h else f"{max(1, m)}m"
 
 
+def watts_text(watts):
+    """10.84 -> "11 W", 6.18 -> "6.2 W"; None for no reading (or 0: a
+    battery that has just settled reports no rate for a moment)."""
+    if not watts or watts <= 0:
+        return None
+    return f"{watts:.1f} W" if watts < 10 else f"{watts:.0f} W"
+
+
+def saver(path=None):
+    """The battery saver's state: {"why": ...} while it is on, else None."""
+    try:
+        with open(path or SAVER_STATE) as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) and data.get("active") is True else None
+
+
 def from_upower(text):
-    """`upower -i <battery>` -> {"pct", "state", "hours"} or None (no
-    battery, not present)."""
+    """`upower -i <battery>` -> {"pct", "state", "hours", "watts"} or None
+    (no battery, not present)."""
     fields = {}
     for line in (text or "").splitlines():
         m = re.match(r"\s*([a-z][a-z -]*?):\s+(.*\S)\s*$", line)
@@ -65,7 +94,11 @@ def from_upower(text):
         value = float(m.group(1).replace(",", "."))
         unit = m.group(2)
         hours = value / 60 if unit.startswith("minute") else value / 3600 if unit.startswith("second") else value
-    return {"pct": pct, "state": state, "hours": hours}
+    watts = None
+    m = re.match(r"([0-9.,]+)\s*W", fields.get("energy-rate", ""))
+    if m:
+        watts = abs(float(m.group(1).replace(",", ".")))
+    return {"pct": pct, "state": state, "hours": hours, "watts": watts}
 
 
 def from_sysfs(root=POWER_SUPPLY):
@@ -96,6 +129,12 @@ def from_sysfs(root=POWER_SUPPLY):
         now, full, rate = num(d, "energy_now"), num(d, "energy_full"), num(d, "power_now")
         if now is None:
             now, full, rate = num(d, "charge_now"), num(d, "charge_full"), num(d, "current_now")
+        watts = None
+        power = num(d, "power_now")
+        if power is not None:
+            watts = abs(power) / 1e6
+        elif num(d, "current_now") is not None and num(d, "voltage_now") is not None:
+            watts = abs(num(d, "current_now")) * num(d, "voltage_now") / 1e12
         hours = None
         if now is not None and rate:
             rate = abs(rate)
@@ -103,13 +142,13 @@ def from_sysfs(root=POWER_SUPPLY):
                 hours = now / rate
             elif state == "charging" and full:
                 hours = max(0.0, full - now) / rate
-        return {"pct": int(pct), "state": state, "hours": hours}
+        return {"pct": int(pct), "state": state, "hours": hours, "watts": watts}
     return None
 
 
-def row(got):
+def row(got, saving=None):
     """from_upower / from_sysfs -> the row's JSON (a dict); no text without
-    a battery."""
+    a battery. SAVING: saver() -- the battery saver's state while it is on."""
     if got is None:
         return {"text": "", "tooltip": "", "class": "none"}
     pct = max(0, min(100, got["pct"]))
@@ -126,11 +165,23 @@ def row(got):
         when, cls = None, "full"
     else:
         when, cls = "plugged in", "full"
-    tip = f"Battery {pct}% · {when or 'full'}\nclick: Power & lock settings"
+    draw = watts_text(got.get("watts"))
+    tip = [f"Battery {pct}% · {when or 'full'}"]
+    if draw:
+        tip.append(f"{'Drawing' if state == 'discharging' else 'Charging at'} {draw}")
+    if saving:
+        tip.append("Battery saver " + WHY.get(saving.get("why"), "on"))
+    tip.append("click: Battery settings")
+    # The draw only while running down, where it is the battery's own: on
+    # the charger it is the charge rate, which the tooltip has.
+    if when and draw and state == "discharging":
+        when = f"{when} · {draw}"
+    if saving:
+        glyph = f"{LEAF} {glyph}"
     # With a time the glyph says "battery" alone: the word made the row wider
     # than its column in the card's grid.
     text = f"{glyph}   {pct}% · {when}" if when else f"{glyph}   {WORD} {pct}%"
-    return {"text": text, "tooltip": tip, "class": cls}
+    return {"text": text, "tooltip": "\n".join(tip), "class": [cls, "saver"] if saving else cls}
 
 
 def probe():
@@ -146,7 +197,9 @@ def probe():
         got = None
     if got is None or (got["hours"] is None and got["state"] in ("charging", "discharging")):
         got = from_sysfs() or got
-    return json.dumps(row(got))
+    elif got is not None and got.get("watts") is None:
+        got["watts"] = (from_sysfs() or {}).get("watts")
+    return json.dumps(row(got, saver()))
 
 
 def main():

@@ -354,7 +354,10 @@ class Page:
         notes = []
         if data.get("gamemode"):
             notes.insert(0, "Gamemode is on: effects are off until it ends (ALT+SHIFT+G).")
-        off = [r for r in data["keys"] if r["live"] and r["live"] != r["value"] and not r["held_by_gamemode"]]
+        if data.get("saver"):
+            notes.insert(0, "Battery saver is on: blur and shadows are off until it ends (Settings > Battery).")
+        off = [r for r in data["keys"] if r["live"] and r["live"] != r["value"] and not r["held_by_gamemode"]
+               and not r.get("held_by_saver")]
         if off:
             notes.append("Not in effect yet: " + ", ".join(r["label"].lower() for r in off)
                          + "  ·  Apply again puts yours back.")

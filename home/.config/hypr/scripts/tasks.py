@@ -150,6 +150,10 @@ import urllib.parse
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import file_wake  # noqa: E402  (the loop's sleep ends at a poke or an edit of tasks.json)
+import power_state  # noqa: E402  (period(): the loop backs off on battery)
 NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 HOME = os.path.expanduser("~")
 CONFIG = os.path.expanduser("~/.config/hypr/tasks.json")
@@ -162,6 +166,7 @@ SETTINGS_PY = os.path.join(HERE, "settings.py")
 APP, ICON, BAR_ICON = "Tasks", "system-run", "\uf0ae"
 
 TICK_S = 2                  # the daemon's loop: pokes, files, processes, what is due
+TICK_BATTERY_S = 5          # ... on battery / with the battery saver on (tick_s)
 UNIT_POLL_S = 15            # a unit's state, between ticks
 GAMEMODE_S = 20             # how long the gamemode answer is believed
 ALERT_GAP_S = 60            # a watcher alerts at most this often
@@ -860,14 +865,20 @@ def get_state(tid):
 
 
 def update_state(tid, **changes):
-    """Merge changes into the task's state (None removes a key); returns it."""
+    """Merge changes into the task's state (None removes a key); returns it.
+    Nothing is written when nothing changes: a watcher says "watching" again
+    and again (a unit that is not there, at every poll) and the disk need not
+    hear it each time -- a laptop's SSD wakes for every write."""
     with _lock():
         st = get_state(tid)
+        before = dict(st)
         for key, value in changes.items():
             if value is None:
                 st.pop(key, None)
             else:
                 st[key] = value
+        if st == before and os.path.exists(path_for(tid, "json")):
+            return st
         tmp = path_for(tid, f"json.{os.getpid()}.tmp")
         with open(tmp, "w") as handle:
             json.dump(st, handle)
@@ -1691,6 +1702,21 @@ def foreground_job(window_pid):
 
 
 # -- the daemon --------------------------------------------------------------------------------
+# The pace. Each tick reads the watched files' sizes, /proc for the watched
+# processes, every task's state file (what is due) and -- every UNIT_POLL_S --
+# forks a `systemctl show` per watched unit; all of it is small, and 2 s kept
+# "tell me when it ends" prompt. On battery (power_state: unplugged, or the
+# saver on) it is TICK_BATTERY_S: a watched build's end, a new line in a
+# watched log or a due "every 30m" job is noticed up to 5 s later instead of
+# 2 s -- nothing anyone waits on. What a person does wait on does not slow
+# down: Run / Stop from Settings or the CLI is a file in tasks-poke/, and an
+# edit of tasks.json (a new task) is a rename beside it; an inotify watch on
+# both ends the sleep at once (file_wake.py), at either pace.
+def tick_s():
+    """The loop's sleep, asked again after every tick."""
+    return power_state.period(TICK_S, TICK_BATTERY_S)
+
+
 class Daemon:
     def __init__(self):
         self.jobs = queue.Queue()
@@ -1703,6 +1729,7 @@ class Daemon:
         self.game = (0, False)
         self.written = None
         self.stop = False
+        self.pace = TICK_S          # the loop's sleep now (tick_s())
 
     # -- reading
     def reload(self):
@@ -1733,7 +1760,8 @@ class Daemon:
 
     def write_state(self):
         data = {"pid": os.getpid(), "running": sorted(self.running), "busy": self.busy,
-                "queued": sorted(self.queued), "gamemode": self.game[1], "enabled": self.conf["enabled"]}
+                "queued": sorted(self.queued), "gamemode": self.game[1], "enabled": self.conf["enabled"],
+                "tick_s": self.pace}
         if data == self.written and os.path.exists(DAEMON_STATE):
             return
         self.written = data
@@ -1749,6 +1777,7 @@ class Daemon:
     def run(self):
         signal.signal(signal.SIGTERM, lambda *_: setattr(self, "stop", True))
         os.makedirs(POKES, exist_ok=True)
+        waker = file_wake.Watch({POKES: None, os.path.dirname(CONFIG): {os.path.basename(CONFIG)}})
         self.reload()
         self.recover()
         threading.Thread(target=self.work, daemon=True).start()
@@ -1766,7 +1795,9 @@ class Daemon:
                 self.write_state()
             except Exception as err:        # one bad tick must not end the daemon
                 log(f"tick: {err!r}")
-            time.sleep(TICK_S)
+            self.pace = tick_s()
+            waker.wait(self.pace)
+        waker.close()
         for tid, (proc, _, _) in list(self.running.items()):
             log(f"{tid}: its command (pid {proc.pid}) ends with the service")
         try:

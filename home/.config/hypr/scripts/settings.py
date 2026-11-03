@@ -48,6 +48,8 @@ a tab the same as a page:
               Keyboard & mouse   | Shortcuts
               Devices            USB drives, phone | Machines
     SYSTEM    Notifications      | Emergency alerts
+              Battery            charge, saver, warnings, charge limit
+                                 (a laptop only: PAGE "needs": "battery")
               Privacy, Power & lock, Storage, Users & sharing, Date & region
               Startup & automations   | Automations, Background tasks
               Updates & maintenance   | Maintenance, Health
@@ -139,7 +141,9 @@ def discover():
     """[(meta, factory)] for every page: the built-in three and each
     settings_pages module with a PAGE. A module that fails to import is
     reported on stderr and left out -- one broken page must not take the
-    window with it."""
+    window with it. A page for hardware this machine lacks (PAGE "needs",
+    _catalog.present()) is left out too, as the search and the launcher
+    leave it out."""
     found = [(m, lambda k=m["id"]: DisplayPage(k)) for m in BUILTIN]
     for info in pkgutil.iter_modules(settings_pages.__path__):
         if info.name.startswith("_") or info.name == "common":
@@ -150,6 +154,8 @@ def discover():
             print(f"settings: page {info.name} failed to load: {type(exc).__name__}: {exc}", file=sys.stderr)
             continue
         if isinstance(getattr(mod, "PAGE", None), dict) and hasattr(mod, "Page"):
+            if not _catalog.present(mod.PAGE):      # Battery on a desktop (PAGE "needs")
+                continue
             found.append((mod.PAGE, mod.Page))
     by_id = {m["id"]: (m, f) for m, f in found}
     return [by_id[m["id"]] for m in _catalog.arrange([m for m, _ in found])]

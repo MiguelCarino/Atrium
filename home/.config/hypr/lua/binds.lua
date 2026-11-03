@@ -856,6 +856,17 @@ hl.bind("SUPER+ALT+L", hl.dsp.exec_cmd("pidof hypridle >/dev/null && loginctl lo
 -- panel, so a mis-press only ever opens a menu (press again to close it).
 hl.bind("SUPER+Escape", hl.dsp.exec_cmd("~/.config/waybar/scripts/panel.py toggle power --at bar-right"),
     { description = "Session: Power menu" })
+-- The battery saver (scripts/battery-saver.py: blur, shadows and animations
+-- off, the moving wallpaper paused, the power saver profile). By hand, so it
+-- stays until you press again -- plugging in only undoes one that came on by
+-- itself. The notification says which way it went (the script prints JSON,
+-- and its state file is what lua/batterysaver.lua reads too). On a desktop
+-- it works the same: a quieter, cheaper desktop is not only a battery thing.
+hl.bind("SUPER+SHIFT+B", hl.dsp.exec_cmd([[~/.config/hypr/scripts/battery-saver.py toggle >/dev/null; ]]
+    .. [[~/.config/hypr/scripts/notify -a Battery "Battery saver" ]]
+    .. [["$(grep -qE '"active": *true' "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/battery-saver.json" && ]]
+    .. [[echo 'on: blur, animations and the moving wallpaper off' || echo off)"]]),
+    { description = "Session: Battery saver on / off" })
 -- Railguard's panic key (scripts/railguard.py): the desktop is crawling, end
 -- the one process to blame -- the biggest when RAM is short, else the busiest.
 -- Never the compositor, a terminal, a shell or an agent session. Three

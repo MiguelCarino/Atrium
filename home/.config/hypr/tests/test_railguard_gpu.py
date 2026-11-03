@@ -85,7 +85,7 @@ class CheckVram(unittest.TestCase):
         self.cfg = mock.patch.dict(rg.CFG, {"spare_games": True, "never_kill": [], "kill_first": [],
                                             "vram_pct": 97.0, "vram_s": 12, "notify": False})
         self.cfg.start()
-        self.state = {"psi": 0, "vram": 99, "quiet": 0.0}      # full for long enough already
+        self.state = {"psi": 0, "vram": 99, "vram_n": 9, "quiet": 0.0}  # full for long enough already
         self.patches = [mock.patch.object(rg, "term_then_kill"), mock.patch.object(rg, "record"),
                         mock.patch.object(rg, "notify")]
         self.kill, self.record, self.notify = (p.start() for p in self.patches)

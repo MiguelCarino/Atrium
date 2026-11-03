@@ -46,6 +46,9 @@ PERSONAL=(
     '--exclude=/lua/hosts/*.lua'        # this machine's screens (monitors-capture.py writes it)
     '--exclude=/contexts.json'          # their projects
     '--exclude=/desktop.conf'           # their folders
+    '--exclude=/hypridle.conf'          # their idle timings: the shipped one stays all "never"
+                                        # (idle-settings.py init picks a laptop's on first run;
+                                        # test_idle_battery checks the shipped file)
     '--exclude=/workhours.conf*'        # their employer's hours (.off: switched off)
     '--exclude=/emergency.conf'         # where they live (alerts)
     '--exclude=/region.conf'            # their weather place, clock

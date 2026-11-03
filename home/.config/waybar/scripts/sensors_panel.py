@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Sensors panel — what the CPU and GPU pills open.
 
-Small live graphs of the last five minutes, one device per panel, in two
+Small live graphs of the last five minutes (fifteen on battery or with the
+battery saver on, when the pills sample every 15 s), one device per panel, in two
 columns: the graphs and readings on the left, the processes on the right.
 
     CPU   load, temperature, RAM          + top processes by CPU
@@ -67,7 +68,7 @@ GREEN = themecolors.rgb("gpu", "#39ff14")
 
 GRAPH_W, GRAPH_H = 230, 30   # Graph's default (weather and network panels)
 # The CPU/GPU panels use a compact graph: a sparkline's job is the shape of
-# the last five minutes, which reads fine at this size, and the panel opens
+# the last five minutes (fifteen on battery), which reads fine at this size, and the panel opens
 # under a pill where a tall card covers a lot of whatever is below.
 COMPACT_W, COMPACT_H = 160, 16
 PROC_ROWS = 4               # the CPU's "TOP CPU" list, in its own column

@@ -7,13 +7,16 @@ or brightness changes.
     osd.py show volume|mic|brightness [value] [screen] [--on <screen>]
                                           show it; without a value the daemon
                                           reads the real one (wpctl /
-                                          screen-color's settings); --on puts
+                                          the backlight / screen-color's
+                                          settings); --on puts
                                           it on that screen instead of the
                                           focused one
     osd.py vol up|down|mute               change the volume, then show it
     osd.py mic mute                       mute / unmute the microphone, then show it
-    osd.py bright up|down [screen]        software brightness (screen-color.py)
-                                          of one screen or all, then show it
+    osd.py bright up|down [screen]        brightness (screen-color.py: the
+                                          backlight of a laptop's own panel,
+                                          software elsewhere) of one screen or
+                                          all, then show it
 
 The key binds call the change commands, so one press is one process: the
 client half is stdlib only (no GTK) and hands the daemon one datagram on
@@ -25,6 +28,20 @@ the theme), on a layer surface called waybar-osd -- lua/rules.lua's
 waybar-glass rule frosts it like the panels. One window, reused: repeated
 presses move the bar and push the hide back; it moves to whichever screen
 has the focus at the press. Clicks go through it.
+
+The brightness it shows is the backlight's own level, read back from sysfs
+(backlight.py), whenever the screen in question has one: the screen named,
+or -- for the "all screens" keys -- the focused one. So a level changed by
+the firmware's Fn keys or another tool shows as it really is. On every
+other screen (and on a desktop, which has no backlight) it is
+screen-color's saved software brightness, as before -- and so is it on a
+panel whose backlight could not be written (backlight.driven() leaves it
+out), since screen-color then dims that one in software too.
+
+One `hyprctl monitors -j` per press, whatever it shows: the same answer
+places the pill and, for the "all screens" keys, names the focused screen
+whose brightness it shows. A held key repeats ~25 times a second, and
+asking twice would double the forks for nothing.
 """
 import json
 import os
@@ -118,9 +135,41 @@ def read_volume(target):
     return (round(float(m[1]) * 100), bool(m[2])) if m else (None, False)
 
 
-def read_brightness(screen):
-    """screen-color.py's brightness for one screen (or "all"), from its file
-    -- the same merge as its settings_for(), without starting python again."""
+def hypr_monitors():
+    """`hyprctl monitors -j` as a list ([] when it cannot be asked)."""
+    try:
+        out = subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, text=True, timeout=2).stdout
+        mons = json.loads(out)
+        return mons if isinstance(mons, list) else []
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return []
+
+
+def focused_screen(mons=None):
+    """The focused screen's connector name, or None; from `mons` (one
+    hypr_monitors() answer) when given, so nothing is asked twice."""
+    mons = hypr_monitors() if mons is None else mons
+    return next((m.get("name") for m in mons if isinstance(m, dict) and m.get("focused")), None)
+
+
+def read_brightness(screen, mons=None):
+    """The brightness to show for one screen (or None: "all").
+
+    A screen with a kernel backlight (backlight.py) shows the backlight's
+    level, read now -- for "all" that is the focused screen (from `mons`
+    when the caller already asked hyprctl), when it is the backlit one.
+    Otherwise screen-color.py's software brightness from its file: the same
+    merge as its settings_for(), without starting python again. The
+    backlight is looked up first only when this machine has one, so a
+    desktop asks hyprctl nothing more than it used to."""
+    import backlight
+    lit = backlight.driven()
+    if lit:
+        target = screen or focused_screen(mons)
+        dev = next((d for n, d in lit.items() if target and n.lower() == target.lower()), None)
+        level = backlight.percent(dev) if dev else None
+        if level is not None:
+            return level
     try:
         with open(SCREEN_STATE) as handle:
             screens = json.load(handle).get("screens", {})
@@ -133,18 +182,18 @@ def read_brightness(screen):
     return value
 
 
-def screen_origin(name=None):
-    """Where the pill goes: screen `name`, else the focused one."""
+def screen_origin(name=None, mons=None):
+    """Where the pill goes: screen `name`, else the focused one; from
+    `mons` when the caller already has hypr_monitors()'s answer."""
+    mons = hypr_monitors() if mons is None else mons
     try:
-        out = subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, text=True, timeout=2).stdout
-        mons = json.loads(out)
         for m in mons:
             if (m["name"] == name) if name else m.get("focused"):
                 return m["x"], m["y"]
         for m in mons:
             if m.get("focused"):
                 return m["x"], m["y"]
-    except (OSError, subprocess.SubprocessError, ValueError):
+    except (KeyError, TypeError, AttributeError):
         pass
     return None
 
@@ -212,6 +261,9 @@ def daemon():
             kind = msg.get("kind")
             screen = msg.get("screen")
             muted = False
+            if kind not in ("volume", "mic", "brightness"):
+                return
+            mons = hypr_monitors()          # once: the pill's place and the focused screen
             if kind in ("volume", "mic"):
                 value, muted = read_volume("@DEFAULT_AUDIO_SINK@" if kind == "volume" else "@DEFAULT_AUDIO_SOURCE@")
                 value = msg.get("value", value)
@@ -220,7 +272,7 @@ def daemon():
                 title = "Volume" if kind == "volume" else "Microphone"
                 icon = ICONS[f"{kind}-muted" if muted else kind]
             elif kind == "brightness":
-                value = msg.get("value", read_brightness(screen))
+                value = msg["value"] if "value" in msg else read_brightness(screen, mons)
                 title = f"{screen} brightness" if screen else "Brightness"
                 icon = ICONS["brightness"]
             else:
@@ -235,7 +287,7 @@ def daemon():
             self.value.set_text("muted" if muted else f"{value}%")
             # One screen's brightness shows on that screen; the rest on the
             # focused one ("on" picks one by hand).
-            origin = screen_origin(msg.get("on") or (screen if kind == "brightness" else None))
+            origin = screen_origin(msg.get("on") or (screen if kind == "brightness" else None), mons)
             if origin != self.origin:
                 # A layer surface changes screen only while unmapped.
                 display = Gdk.Display.get_default()

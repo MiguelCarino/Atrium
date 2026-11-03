@@ -149,9 +149,10 @@
         "on-click-right": "$HOME/.config/waybar/scripts/toolbox.sh hide; pavucontrol -t 4"
     },
 
-    // The Battery row: the charge and the time left (or to full), from
-    // UPower (scripts/battery_row.py says how). No text without a battery,
-    // so waybar hides the row there. Click: Settings > Power & lock. Named
+    // The Battery row: the charge, the time left (or to full) and the draw,
+    // from UPower, with a leaf while the battery saver is on
+    // (scripts/battery_row.py says how). No text without a battery, so
+    // waybar hides the row there. Click: Settings > Battery. Named
     // keybinds#battery for the plain row's look, as keybinds#mic above.
     "custom/keybinds#battery": {
         "exec": "$HOME/.config/waybar/scripts/battery_row.py",
@@ -159,7 +160,7 @@
         "interval": 30,
         "format": "{}",
         "align": 0,
-        "on-click": "$HOME/.config/waybar/scripts/toolbox.sh hide; $HOME/.config/hypr/scripts/settings.py power"
+        "on-click": "$HOME/.config/waybar/scripts/toolbox.sh hide; $HOME/.config/hypr/scripts/settings.py battery"
     },
 
     // Display: HDR, screen filter, animation preset, wallpaper theme -- the

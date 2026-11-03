@@ -286,9 +286,12 @@ class PlainWords(unittest.TestCase):
         self.assertIn("connection refused", why)
 
     def test_prompt_names_every_event_and_action(self):
+        # Every one offered here: the power ones only with a battery
+        # (helpers.py makes this a desktop; test_automations_power.py has the laptop).
         prompt = A.model_prompt("anything")
-        for name in list(A.EVENTS) + list(A.ACTIONS):
+        for name in A.offered(A.EVENTS) + A.offered(A.ACTIONS):
             self.assertIn(name, prompt)
+        self.assertEqual(len(A.offered(A.EVENTS)), len(A.EVENTS) - len(A.POWER_EVENTS))
 
 
 class Actions(unittest.TestCase):

@@ -42,7 +42,7 @@ The layers (each one alone already helps):
     railguard.py stop-agents        end every command the agents started;
                                     the sessions stay
 
-THE DAEMON, once a second (the GPU every 3 s):
+THE DAEMON, once a second (the GPU every 3 s; every 9 s on battery):
 
     RAM       MemAvailable under ram_free_pct of RAM while swap is
               swap_used_pct full (or there is none), or memory "full"
@@ -75,6 +75,26 @@ WHO GOES FIRST -- each candidate's size is weighed:
           never_kill list, anything not yours
 
 After acting it waits 10 s before acting again.
+
+ON BATTERY (power_state.py: unplugged, or the battery saver on) only the GPU
+half backs off, to every GPU_BATTERY_S. The RAM watch stays at once a
+second, on purpose: RAM goes from fine to a frozen desktop in a few seconds
+(a 24-thread link step, a model loaded twice), and a freeze costs a reboot
+and every agent session's context -- a laptop on battery is no less worth
+saving. It is also nearly free: /proc/meminfo and /proc/pressure/memory are
+two reads of kernel memory, nothing forked, and stall_s is counted in those
+1 s ticks. The GPU query is the part with a cost (NVML, or a walk of the
+fdinfo of every process when acting), and VRAM fills more slowly and only
+stutters the desktop rather than freezing it; vram_s is counted in seconds,
+so the sustained-full rule means the same at either pace (it acts on the
+first sample at or past vram_s: 12-15 s at 3 s, 18 s at 9 s). One thing a
+slower pace must not do is act on a single reading: at 9 s a sample, any
+vram_s from 4 to 9 would be met by the first full one, and a brief spike (a
+model loading) would cost a process. So it also takes as many full readings
+in a row as the 3 s pace would have needed, up to two -- min(2, vram_s / 3
+rounded up): on mains nothing changes (vram_s 3 still acts on one reading,
+as it always did; 4 and up needed two anyway), on battery vram_s 4-9 waits
+for the second reading.
 
 SETTINGS ($XDG_STATE_HOME/hypr/railguard.json, every key optional):
 
@@ -112,6 +132,9 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import power_state  # noqa: E402  (period(): the GPU check backs off on battery)
 STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hypr")
 SETTINGS_FILE = os.path.join(STATE_DIR, "railguard.json")
 HISTORY_FILE = os.path.join(STATE_DIR, "railguard-history.jsonl")
@@ -136,8 +159,9 @@ RANGES = {"ram_free_pct": (1, 20), "swap_used_pct": (0, 100), "stall_pct": (10, 
           "agent_command_gb": (1, 64), "agents_gb": (2, 64), "heavy_gb": (2, 64),
           "agents_threads": (1, 64), "heavy_threads": (1, 64)}
 
-TICK = 1.0
-GPU_EVERY = 3                 # ticks
+TICK = 1.0                    # the RAM watch: never longer (ON BATTERY above says why)
+GPU_EVERY = 3                 # seconds between GPU checks, on mains power
+GPU_BATTERY_S = 9             # ... and on battery / with the battery saver on
 COOLDOWN = 10.0
 AGENT_WEIGHT = 2.0            # agents.slice / heavy.slice look this much bigger
 SESSION_WEIGHT = 0.5          # session.slice ones this much smaller
@@ -501,12 +525,31 @@ def check_ram(state, now):
     state["quiet"], state["psi"] = now + COOLDOWN, 0
 
 
-def check_vram(state):
+def gpu_every():
+    """Seconds until the next GPU check: GPU_EVERY, or GPU_BATTERY_S while
+    power_state says to go easy. Asked again after every check, so plugging
+    in brings the 3 s pace back at the next one."""
+    return power_state.period(GPU_EVERY, GPU_BATTERY_S)
+
+
+def vram_readings(vram_s):
+    """Full readings in a row the VRAM rule needs before it acts: as many as
+    the 3 s pace needed, but at most two (see ON BATTERY above)."""
+    return min(2, max(1, -(-int(vram_s) // GPU_EVERY)))
+
+
+def check_vram(state, every=GPU_EVERY):
+    """One GPU sample, EVERY seconds after the last: state["vram"] is how
+    long (seconds) the card has been full, so vram_s means the same whatever
+    the pace, and state["vram_n"] how many readings in a row it was."""
     card = gpu_card()
     g = gpu_memory(card)
     vram_pct = 100.0 * g[0] / g[1] if g else 0.0
-    state["vram"] = state["vram"] + 1 if vram_pct >= CFG["vram_pct"] else 0
-    if state["vram"] * GPU_EVERY < CFG["vram_s"] or time.time() < state["quiet"]:
+    full = vram_pct >= CFG["vram_pct"]
+    state["vram"] = state["vram"] + every if full else 0
+    state["vram_n"] = state.get("vram_n", 0) + 1 if full else 0
+    if state["vram"] < CFG["vram_s"] or state["vram_n"] < vram_readings(CFG["vram_s"]) \
+            or time.time() < state["quiet"]:
         return
     cands = [(mib, proc_info(pid)) for pid, mib in gpu_processes(card).items()]
     cands = [(mib, p) for mib, p in cands if p]
@@ -533,21 +576,20 @@ def check_vram(state):
         notify("Railguard: GPU memory is full",
                f"VRAM {vram_pct:.0f}% full; no compute process it may end is "
                "listed. railguard.py status shows them.")
-    state["quiet"], state["vram"] = max(state["quiet"], time.time() + quiet), 0
+    state["quiet"], state["vram"], state["vram_n"] = max(state["quiet"], time.time() + quiet), 0, 0
 
 
 def daemon():
     load_settings()
     mtime = 0.0
-    state = {"psi": 0, "vram": 0, "quiet": 0.0}
-    tick = 0
+    state = {"psi": 0, "vram": 0, "vram_n": 0, "quiet": 0.0}
+    gpu_next, gpu_gap = None, GPU_EVERY      # monotonic time of the next GPU check, and its pace
     card = gpu_card()
     gpu_ok = card is not None
     log("watching" + (f"; VRAM of {card['name']} ({card['source']})" if gpu_ok
                       else "; no graphics card that reports its memory: VRAM not watched"))
     while True:
         time.sleep(TICK)
-        tick += 1
         try:
             m = os.stat(SETTINGS_FILE).st_mtime
         except OSError:
@@ -558,8 +600,14 @@ def daemon():
             log("settings: " + json.dumps({k: CFG[k] for k in SETTINGS if k not in LIMITS}))
         if CFG["ram"]:
             check_ram(state, time.time())
-        if gpu_ok and CFG["vram"] and tick % GPU_EVERY == 0:
-            check_vram(state)
+        if gpu_ok and CFG["vram"]:
+            now = time.monotonic()
+            if gpu_next is None:
+                gpu_next = now + GPU_EVERY      # the first look a few seconds in, as before
+            elif now >= gpu_next:
+                check_vram(state, gpu_gap)
+                gpu_gap = gpu_every()
+                gpu_next = now + gpu_gap
 
 
 # --- limits --------------------------------------------------------------------
@@ -643,6 +691,8 @@ def snapshot():
           "running": subprocess.run(["systemctl", "--user", "is-active", "railguard.service"],
                                     capture_output=True, text=True).stdout.strip() == "active",
           "settings": CFG, "history": history(20),
+          # the watch's pace now: RAM always 1 s; the GPU slower on battery
+          "pace_s": {"ram": TICK, "gpu": gpu_every()},
           "slices": {s: slice_info(s) for s in ("session.slice", "app.slice", "agents.slice",
                                                 "heavy.slice", "background.slice")}}
     card = gpu_card()

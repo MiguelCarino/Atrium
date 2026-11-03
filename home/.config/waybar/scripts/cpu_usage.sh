@@ -4,8 +4,11 @@
 # since-boot average, not current load). Zero forks on the hot path.
 #
 #     cpu_usage.sh          one line, then exit -- for manual runs
-#     cpu_usage.sh watch    one line every 5s, forever -- for a module with
-#                           no "interval", which waybar reads continuously
+#     cpu_usage.sh watch    one line every 5s (15s on battery), forever -- for
+#                           a module with no "interval", which waybar reads
+#                           continuously
+#     cpu_usage.sh period   the gap watch mode would wait now, in seconds
+#                           (5 or 15): for checking the battery back-off
 #
 # Watch mode exists because respawning bash every few seconds costs more than
 # the measurement it performs. It also lets the previous /proc/stat sample stay
@@ -74,7 +77,7 @@ NARROW=
 # write, and keeping it here means the graphs are already full the moment the
 # panel opens instead of starting from nothing.
 HIST_FILE=
-HIST_MAX=60             # 60 x 5s = the last five minutes
+HIST_MAX=60             # 60 x 5 s = five minutes (60 x 15 s on battery = fifteen)
 POWER_FILE=/run/cpu-power/watts
 hist=()
 
@@ -83,6 +86,77 @@ record() {
     hist+=("$*")
     ((${#hist[@]} > HIST_MAX)) && hist=("${hist[@]:1}")
     printf '%s\n' "${hist[@]}" > "$HIST_FILE"
+}
+
+# --- The pace: 5 s, or 15 s on battery ----------------------------------------
+# On battery (or with the battery saver on) the pill is still a glance, and a
+# sample every 15 s instead of 5 is two thirds fewer wake-ups of this bash
+# for the life of the bar; the usage is a delta, so it still averages the
+# whole gap. The question is power_state.py's frugal() -- on_battery() or
+# saver_active() -- asked the cheap way a bash loop can: no python3 (that is
+# a fork and 20 ms of CPU, more than the sample itself), only builtin reads.
+# On battery is read from sysfs itself, with power_state.on_battery()'s rule:
+# a system battery (type Battery, scope not Device, present) says
+# Discharging AND no Mains supply is online. Not from power-watch.py's
+# power-state.json: that file is written only on a charger uevent, so a
+# power-watch that stopped or crashed while unplugged would leave this pill
+# at 15 s for the rest of the session while gpu.py, which reads sysfs, went
+# back to 5 s beside it. The sysfs reads are a handful of tiny files per
+# sample -- kernel memory, no disk, no fork. The saver has no sysfs side:
+# battery-saver.py's battery-saver.json ("active": true, $XDG_RUNTIME_DIR,
+# gone at logout) is the state itself, as for power_state.saver_active().
+# No battery (a desktop): 5 s, exactly as before. The sensors panel's graphs
+# (HIST_MAX samples) then span 15 minutes instead of five.
+PERIOD_S=5
+PERIOD_BATTERY_S=15
+RUNTIME=${XDG_RUNTIME_DIR:-/tmp}
+POWER_SUPPLY=${ATRIUM_POWER_SUPPLY:-/sys/class/power_supply}
+
+# json_true <file> <key>: does FILE hold "KEY": true? Builtins only.
+json_true() {
+    local text=
+    [[ -r $1 ]] || return 1
+    IFS= read -r -d '' text < "$1"
+    [[ $text =~ \"$2\"[[:space:]]*:[[:space:]]*true ]]
+}
+
+# sysfs_word <file> <var>: FILE's first line into var, empty when unreadable.
+sysfs_word() {
+    local word=
+    [[ -r $1 ]] && read -r word < "$1" 2>/dev/null
+    printf -v "$2" '%s' "$word"
+}
+
+# on_battery: power_state.on_battery(), from sysfs with builtins.
+on_battery() {
+    local d kind scope present status online discharging=0
+    for d in "$POWER_SUPPLY"/*/; do
+        sysfs_word "${d}type" kind
+        case $kind in
+            Mains)
+                sysfs_word "${d}online" online
+                [[ $online == 1 ]] && return 1      # a charger: not on battery
+                ;;
+            Battery)
+                sysfs_word "${d}scope" scope
+                [[ $scope == Device ]] && continue  # a mouse's, a pad's
+                sysfs_word "${d}present" present
+                [[ $present == 0 ]] && continue     # an empty bay
+                sysfs_word "${d}status" status
+                [[ $status == Discharging ]] && discharging=1
+                ;;
+        esac
+    done
+    ((discharging))
+}
+
+# period <var>: the gap to wait now, into var (no fork).
+period() {
+    if on_battery || json_true "$RUNTIME/battery-saver.json" active; then
+        printf -v "$1" '%s' "$PERIOD_BATTERY_S"
+    else
+        printf -v "$1" '%s' "$PERIOD_S"
+    fi
 }
 
 # --- CPU usage: delta of /proc/stat against the previous sample ---------------
@@ -200,6 +274,12 @@ emit() {
     record "$EPOCHSECONDS $usage $temp $mem_pct${watts:+ $watts}"
 }
 
+if [[ $1 == period ]]; then
+    period gap
+    printf '%s\n' "$gap"
+    exit 0
+fi
+
 if [[ $1 == watch ]]; then
     NARROW=$("$(dirname "$0")/barfit.py" narrow 2>/dev/null)
     mkdir -p "${XDG_RUNTIME_DIR:-/tmp}/waybar-sensors"
@@ -226,8 +306,9 @@ if [[ $1 == watch ]]; then
     emit
     while :; do
         # 5 s, was 2 s: the pill is a glance. The usage is a delta, so it
-        # still averages the whole gap.
-        nap 5
+        # still averages the whole gap. 15 s on battery (period, above).
+        period gap
+        nap "$gap"
         sample_cpu
         emit
     done

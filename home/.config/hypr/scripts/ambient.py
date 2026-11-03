@@ -141,6 +141,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import desk_common  # noqa: E402  (run: a command with a timeout)
+import file_wake  # noqa: E402  (a focus round starting or ending: a pass at once)
+import power_state  # noqa: E402  (period(): the passes back off on battery)
 NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 SELF = os.path.abspath(__file__)
 HOME = os.path.expanduser("~")
@@ -170,6 +172,35 @@ UNIT = "ambient.service"
 APP = "Ambient"
 
 TICK_S = 30
+# On battery (or with the battery saver on) a pass comes every
+# TICK_BATTERY_S. A pass is the costly part of this service -- makoctl and
+# hyprctl forked for Do Not Disturb and gamemode, playerctl when music
+# matters, a /proc walk for hyprlock -- and what it follows moves slowly: the
+# part of the day, the weather (wttr.py refreshes every 30 min), presence.
+# The one input that is a moment you would notice, a focus round starting
+# or ending, does not wait for the pass: an inotify watch on timers.json
+# (file_wake.py) runs one at once when the round's state changes, at any
+# pace -- quicker than the 30 s it used to wait on mains. The one you would
+# hear, gamemode's hold stopping a soundscape, has a watch of its own while
+# a soundscape plays: gamemode.lua writes $XDG_RUNTIME_DIR/hypr-gamemode-auto
+# when a Steam game turns gamemode on, and that change runs a pass at once
+# (gamemode OFF is a reload, which the event socket already answers). Only
+# while a soundscape plays, because that folder is busy -- a dozen waybar
+# and daemon files are rewritten there -- and with nothing playing the hold
+# has nothing audible to stop. What can still lag (by up to 90 s instead of
+# 30): Do Not Disturb counting as focus (dnd_focus), gamemode switched on by
+# the key with no game open (no file is written then) over a soundscape,
+# the lock counting as away -- you are not looking at the veil then, and a
+# game's start already stops the animations itself.
+TICK_BATTERY_S = 90
+# theme-schedule.py trusts ambient.json's theme pick only while it is fresh
+# (its AMBIENT_FRESH_S, 120 s). A pass rewrites it, but a pass can fail
+# (nothing written) or be slow (makoctl / hyprctl / bridge timeouts), and at
+# TICK_BATTERY_S that left 30 s of margin or none. So the file also gets a
+# heartbeat -- the last pass's contents with a new time -- when a pass fails
+# and when a wait ends more than LIVE_HEARTBEAT_S after the last write: the
+# schedule never takes the theme back from a daemon that is still running.
+LIVE_HEARTBEAT_S = 60
 WEATHER_STALE_S = 3 * 3600      # wttr.py refreshes every 30 min; older than this = no weather
 PRESENCE_STALE_S = 120
 HTTP_TIMEOUT_S = 4
@@ -1300,6 +1331,11 @@ def write_live(data):
         pass
 
 
+def tick_s():
+    """The gap between passes now: TICK_S, or TICK_BATTERY_S on battery."""
+    return power_state.period(TICK_S, TICK_BATTERY_S)
+
+
 def serve():
     write_file(PIDFILE, f"{os.getpid()}\n")
     applier = Applier()
@@ -1311,8 +1347,15 @@ def serve():
     signal.signal(signal.SIGTERM, lambda *_: flags.update(stop=True))
     signal.signal(signal.SIGINT, lambda *_: flags.update(stop=True))
     events, buf = hypr_events(), b""
+    # timers.json is only written by rename, and its folder is busy
+    # (activity.jsonl): renames and removals only (file_wake.RENAMED).
+    focus_watch = file_wake.Watch({os.path.dirname(TIMERS_STATE): {os.path.basename(TIMERS_STATE)}},
+                                  masks={os.path.dirname(TIMERS_STATE): file_wake.RENAMED})
+    game_watch = None               # only while a soundscape plays (see TICK_BATTERY_S)
+    live = {}                       # the last write_live, for the heartbeat
     display_mtime = None
     last_errors = set()
+    inputs = {}
     log("started")
     while not flags["stop"]:
         values = read_settings()
@@ -1337,12 +1380,26 @@ def serve():
                 if err not in last_errors:      # an unpaired bridge: once, not every pass
                     log(err)
             last_errors = set(applier.errors)
-            write_live({"time": time.time(), "inputs": inputs, "plan": p, "lines": describe(p),
-                        "errors": applier.errors[-5:], "hold": inputs["gamemode"]})
+            live = {"time": time.time(), "inputs": inputs, "plan": p, "lines": describe(p),
+                    "errors": applier.errors[-5:], "hold": inputs["gamemode"]}
+            write_live(live)
         except Exception as exc:  # noqa: BLE001 -- one bad pass must not end the service
             log(redact(f"pass failed: {exc!r}"))
-        fds = [wake_r] + ([events] if events else [])
-        deadline = time.monotonic() + TICK_S
+            if live:
+                live = dict(live, time=time.time())
+                write_live(live)        # still running: keep the pick fresh
+        if applier.sound_key and game_watch is None:
+            game_watch = file_wake.Watch({RUNTIME: {"hypr-gamemode-auto"}})
+        elif not applier.sound_key and game_watch is not None:
+            game_watch.close()
+            game_watch = None
+
+        def wait_fds():
+            return [wake_r] + ([events] if events else []) \
+                + ([focus_watch.fileno()] if focus_watch.ok else []) \
+                + ([game_watch.fileno()] if game_watch is not None and game_watch.ok else [])
+        fds = wait_fds()
+        deadline = time.monotonic() + tick_s()
         while not flags["stop"]:
             left = deadline - time.monotonic()
             if left <= 0:
@@ -1354,6 +1411,14 @@ def serve():
             if wake_r in ready:
                 os.read(wake_r, 512)
                 break                   # a poke (SIGUSR1) or a stop: a pass now
+            if focus_watch.ok and focus_watch.fileno() in ready and focus_watch.drain() \
+                    and focus_running() != bool(inputs.get("focus")):
+                break                   # a focus round began or ended: a pass now
+            if game_watch is not None and game_watch.ok and game_watch.fileno() in ready \
+                    and game_watch.drain():
+                break                   # a game turned gamemode on: the hold, now
+            if not focus_watch.ok or (game_watch is not None and not game_watch.ok):
+                fds = wait_fds()        # a watch went dead (file_wake closed it): drop its fd
             if events in ready:
                 try:
                     chunk = events.recv(65536)
@@ -1361,7 +1426,7 @@ def serve():
                     chunk = b""         # Hyprland went away: reconnect below
                 if not chunk:
                     events = None
-                    fds = [wake_r]
+                    fds = wait_fds()    # keep the file watches: only the socket is gone
                     continue
                 buf += chunk
                 lines = buf.split(b"\n")
@@ -1369,8 +1434,14 @@ def serve():
                 if any(line.startswith(b"configreloaded>>") for line in lines):
                     applier.applied.pop("animations", None)   # a reload: fresh Lua, our calm is gone
                     break
+        if live and time.time() - live["time"] > LIVE_HEARTBEAT_S:
+            live = dict(live, time=time.time())
+            write_live(live)            # before a pass that may fail or be slow
         if events is None:
             events = hypr_events()
+    focus_watch.close()
+    if game_watch is not None:
+        game_watch.close()
     applier.reset()
     for line in applier.done:
         log(line)
@@ -1438,7 +1509,7 @@ def status_data(now=None):
     except Exception:  # noqa: BLE001
         themes = []
     return {"settings": values, "service": service_state(), "inputs": inputs, "plan": p, "lines": describe(p),
-            "live": _json(LIVE), "themes": themes,
+            "live": _json(LIVE), "themes": themes, "tick_s": tick_s(),
             "paired": {"hue": bool(secrets.get("hue_user")), "ha": bool(secrets.get("ha_token"))},
             "sounds": {k: os.path.exists(sound_path(k)) for k in SOUND_KINDS},
             "tools": {"ffmpeg": bool(shutil.which("ffmpeg")), "mpv": bool(shutil.which("mpv")),

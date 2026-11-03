@@ -102,8 +102,10 @@ class ReadingSources(unittest.TestCase):
 
     def test_real_pages_are_literal_and_have_keywords(self):
         """Every page in settings_pages/ is readable from source (the launcher
-        depends on it) and declares keywords; ids are unique."""
-        pages = C.read_pages()
+        depends on it) and declares keywords; ids are unique. everything=True:
+        the Battery page ("needs": "battery") is left out otherwise, as on
+        any machine without a battery -- which helpers.py makes this one."""
+        pages = C.read_pages(everything=True)
         folder = os.path.join(helpers.SCRIPTS, "settings_pages")
         files = [n for n in os.listdir(folder) if n.endswith(".py") and not n.startswith("_") and n != "common.py"]
         self.assertEqual(len(pages), len(files) + len(C.BUILTIN))

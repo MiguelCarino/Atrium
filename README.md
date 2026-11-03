@@ -41,6 +41,18 @@ What works less well without some of it:
   have no model to ask and say so. Everything else -- the desktop, themes,
   voice typing, spoken replies, the camera features, recording, Railguard --
   works without it.
+- **No battery** (a desktop PC): nothing of the laptop side shows -- no
+  Settings > Battery page, no battery triggers in Automations, no battery
+  saver -- and the idle timings stay "never" until you pick some.
+
+On a laptop, Settings > Battery has the charge, health and draw, the battery
+saver (power-saver profile, no blur, shadows or animations, still wallpaper;
+SUPER+SHIFT+B, or by itself when low or unplugged), the low-battery warnings
+and a charge limit (60-100 %, where the firmware has the switch; its root side
+is `system/charge-limit/install.sh`, which `install.sh` runs). The brightness
+keys and the idle dim move the built-in panel's real backlight, a first
+install gets idle timings that dim, lock, blank and sleep, and the
+background daemons check less often while on battery.
 
 ## Install
 
@@ -96,7 +108,7 @@ memory (any vendor) next to what is already on it.
 | `home/.config/{mako,wofi,uwsm,autostart,systemd/user,qt5ct,qt6ct}` | notifications, launcher, session, services, Qt colours |
 | `home/.local/share/nautilus-python/extensions/` | Files (Nautilus): Open in Terminal, Open in Text Editor, Set as Wallpaper, Ask the Local Model, Copy Path / URI, and a Git column with emblems; the logic is `scripts/nautilus_actions.py`. Loads when Nautilus starts (`nautilus -q` closes it) |
 | `packages/` | Fedora packages, repositories, the services install.sh enables |
-| `system/` | the root-side pieces (cpu-power, railguard's SysRq keys, the greetd login screen, a hybrid laptop's NVIDIA power saving, a touchpad re-probe at boot and a watchdog for its I2C bus) |
+| `system/` | the root-side pieces (cpu-power, railguard's SysRq keys, the greetd login screen, a hybrid laptop's NVIDIA power saving, a touchpad re-probe at boot and a watchdog for its I2C bus, a laptop battery's charge limit) |
 | `install.sh`, `uninstall.sh` | set it up; put back what it replaced |
 | `extras/` | the smart features' models |
 
@@ -110,6 +122,7 @@ own dotfiles:
 | `~/.config/hypr/lua/hosts/<hostname>.lua` | this machine's screens (`monitors-capture.py` writes it) |
 | `~/.config/hypr/desktop.conf` | your folders: projects, dotfiles repo |
 | `~/.config/hypr/contexts.json` | your project contexts |
+| `~/.config/hypr/hypridle.conf` | your idle timings (Settings > Power & lock); the shipped one is all "never", and a reinstall keeps yours |
 | `~/.config/hypr/workhours.conf` | work hours, an optional feature that is off until you set it up (Settings > Timers & alarms): a bar badge with the time left in your working day, and a git hook that keeps work time and your own projects apart |
 | `~/.config/hypr/region.conf`, `emergency.conf` | your weather place and where alerts are for (both start from your time zone's city) |
 | `~/.config/hypr/folder-access.json` | the folders you let the AI features read |

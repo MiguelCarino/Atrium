@@ -21,6 +21,18 @@ finds Power & screen lock). Case, accents and hyphens do not count ("wifi"
 is "Wi-Fi", "sonido" is "sónido"). A word in the title counts most, then a
 keyword, then the group / id, so "sound" puts the Sound page before
 Notifications (whose keywords say "notification sound").
+
+Pages for hardware this machine lacks. A PAGE may say "needs": <what>
+(NEEDS below; today only "battery", Settings > Battery). read_pages() leaves
+such a page out when the machine does not have it, so on a desktop the
+Battery page is in neither the sidebar, the search, `settings.py --list`
+nor the launcher -- the same answer everywhere, since all of them read the
+pages through here (settings.py's discover() asks present() too). The check
+is power_state.has_battery(): a few sysfs reads, no process, cheap enough
+for the launcher to ask each time it opens; a wireless mouse's battery does
+not count. A "needs" this file does not know shows the page: a typo must not
+make a page vanish. read_pages(everything=True) lists every page regardless
+(the tests' "every file is a readable page" check).
 """
 import ast
 import os
@@ -53,6 +65,33 @@ BUILTIN = [
                   "colour blindness", "color blind", "protanopia", "deuteranopia", "tritanopia",
                   "animations", "animaciones", "snappy", "smooth", "fancy", "calm", "spring", "motion"]},
 ]
+
+
+# What a PAGE's "needs" can name: a function answering "does this machine have
+# it" (asked each time the pages are read; see the module docstring).
+def _has_battery():
+    try:
+        if os.path.dirname(HERE) not in sys.path:
+            sys.path.insert(0, os.path.dirname(HERE))     # scripts/, power_state.py's folder
+        import power_state
+    except ImportError:
+        return False
+    return power_state.has_battery()
+
+
+NEEDS = {"battery": _has_battery}
+
+
+def present(meta):
+    """Is the hardware a page needs here (True for a page that needs none,
+    and for a "needs" not in NEEDS)."""
+    check = NEEDS.get((meta or {}).get("needs"))
+    if check is None:
+        return True
+    try:
+        return bool(check())
+    except OSError:
+        return False
 
 
 # -- words ------------------------------------------------------------------------------
@@ -201,10 +240,11 @@ def page_of(source):
     return None
 
 
-def read_pages(folder=HERE, builtin=True):
-    """Every page's PAGE, in sidebar order (each page's tabs after it). A file
-    is read again only when it has changed (the launcher asks every time it
-    opens)."""
+def read_pages(folder=HERE, builtin=True, everything=False):
+    """Every page's PAGE, in sidebar order (each page's tabs after it), less
+    the ones for hardware this machine lacks (present(); everything=True
+    keeps them). A file is read again only when it has changed (the
+    launcher asks every time it opens)."""
     pages = list(BUILTIN) if builtin else []
     try:
         names = sorted(os.listdir(folder))
@@ -222,7 +262,7 @@ def read_pages(folder=HERE, builtin=True):
                     cached = _CACHE[path] = (mtime, page_of(handle.read()))
         except OSError:
             continue
-        if cached[1]:
+        if cached[1] and (everything or present(cached[1])):
             pages.append(cached[1])
     return arrange(pages)
 

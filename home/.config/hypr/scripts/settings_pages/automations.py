@@ -15,7 +15,12 @@ Top to bottom:
                     never a cloud model) -> a preview, in words and as JSON
                     -> Save or Discard. Nothing is saved before Save.
     PICK ONE        the same without a model: one event and its option, one
-                    action and its value, a name -> Add.
+                    action and its value, a name -> Add. On a laptop the
+                    list has the charger and the battery too (unplugged,
+                    plugged in, "the battery runs low at or under N%") and
+                    the battery saver as an action; `automations.py
+                    catalog` leaves them out on a machine without a battery,
+                    so a desktop's pickers are as they were.
 
 Every control runs automations.py (list --json, enable, disable, delete,
 add, add-from-text, test) in a thread and redraws from what it reports; the
@@ -34,7 +39,8 @@ from gi.repository import GLib, Gtk, Pango  # noqa: F401,E402  (after common: it
 PAGE = {"id": "automations", "title": "Automations", "icon": "", "group": "System", "order": 65, "parent": "startup", "tab": "Automations",
         "keywords": ["rules", "when", "trigger", "if this then that", "ifttt", "automatic", "automate",
                      "routines", "scenes", "on connect", "headphones", "wifi", "game starts", "app opens",
-                     "schedule", "digest", "automatizaciones", "reglas"]}
+                     "schedule", "digest", "automatizaciones", "reglas",
+                     "unplugged", "charger", "low battery", "on battery", "desenchufado"]}
 
 AUTOMATIONS = os.path.join(HYPR, "automations.py")  # noqa: F405
 RULES_FILE = os.path.expanduser("~/.config/hypr/automations.json")
@@ -44,6 +50,7 @@ BOLT, WARN, PAUSE, PEN = "", "", "", ""
 OPTION_HINTS = {"class": "app class, e.g. steam or firefox", "name": "screen name, optional (DP-1, HDMI)",
                 "device": "output name, optional (headphones, HDMI)", "ssid": "network name, optional",
                 "at": "HH:MM", "days": "days, optional (weekdays, mon,wed)",
+                "below": "percent, optional (20): once, at the first warning at or under it",
                 # by event, where its option means something else than above
                 "context-enter": "project name, optional (atlas)", "context-leave": "project name, optional"}
 VALUE_HINTS = {"text": "", "two": "CARD PROFILE", "name": "session name"}
@@ -51,7 +58,8 @@ ACTION_HINTS = {"sound-output": "part of its name: headphones, HDMI", "notify": 
                 "shell": "a shell command", "open": "an app: firefox, org.gnome.Nautilus",
                 "context": "a project context's name, or leave",
                 "task": "a background task's id (Settings > Background tasks)",
-                "focus": "minutes (25), or off to end the block"}
+                "focus": "minutes (25), or off to end the block",
+                "battery-saver": "on, or off"}
 
 
 # -- words (pure: tests/test_automations.py) ------------------------------------------------
@@ -90,6 +98,14 @@ def picked_rule(name, event, option_key, option, action, value):
     if value.strip():
         act["value"] = value.strip()
     return {"name": name.strip() or "My rule", "enabled": True, "when": when, "do": [act]}
+
+
+def event_label(e):
+    """The "When" picker's line for a catalog event: its words, with the
+    required option's gap named ("[app] opens", "it is [time]"). The
+    battery's percent is optional, so "the battery runs low" says nothing
+    of it and the entry beside it asks."""
+    return e["words"].replace("…", "[app]" if e["event"].startswith("app") else "[time]")
 
 
 def call(*cmd, timeout=60):
@@ -262,8 +278,7 @@ class Page:
     # -- pickers -----------------------------------------------------------------------
     def fill_pickers(self):
         for e in self.catalog["events"]:
-            self.event.append(e["event"], e["words"].replace("…", "[app]" if e["event"].startswith("app")
-                                                             else "[time]"))
+            self.event.append(e["event"], event_label(e))
         for a in self.catalog["actions"]:
             self.action.append(a["action"], a["words"])
         self.event.set_active_id("app-open")

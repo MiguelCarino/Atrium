@@ -326,6 +326,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import notify_source  # noqa: E402  (variants, app_keys, installed_apps, go_argv)
+import power_state  # noqa: E402  (period(): the polls back off on battery)
 
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
 STATE_DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "hypr")
@@ -398,12 +399,14 @@ SUBMAP_RESET = ["hyprctl", "eval", 'hl.dispatch(hl.dsp.submap("reset"))']
 TILE_NAMES = tuple(t for k in DOCK_TILE_ORDER for t in (("time", "date") if k == "clock" else (k,)))
 STATUS_TILES = ("weather", "notifications", "battery", "media", "network", "sound")   # fed by set_status
 LANGUAGE_S = 15               # the language tile asks fcitx5 again (it sends no event)
+LANGUAGE_BATTERY_S = 60       # ... on battery / with the battery saver on (language_s)
 BADGE_MAX = 99
 WEATHER_S = 1800              # the top bar's weather interval: wttr.in turns away eager clients
 WEATHER_RETRY_S = 300         # after a stale answer (no network yet at login, say)
 STATUS_RESTART_S = 5          # a watcher that died (network.py, pactl) starts again after
 VOLUME_STEP = "5%"
 NOTIFY_S = 30                 # the bar's notifications interval; SIGUSR2 is the signal
+NOTIFY_BATTERY_S = 60         # ... on battery / with the battery saver on (notify_s)
 BATTERY_S = 30                # the bar's battery interval
 POWER_SUPPLY = "/sys/class/power_supply"
 WAYBAR_SCRIPTS = os.path.expanduser("~/.config/waybar/scripts")
@@ -1465,6 +1468,23 @@ def battery_text(capacity, status):
              else "critical" if pct <= 12 else "warning" if pct <= 25 else "")
     words = {"Charging": "charging", "Full": "full", "Not charging": "plugged in"}.get(status, "on battery")
     return f"{glyph} {pct}%", f"Battery {pct}% · {words}", state
+
+
+# The two polls that back off on battery (or with the battery saver on),
+# asked again each time one is armed. The language tile's poll forks three
+# processes (hyprctl devices, hyprctl getoption, fcitx5-remote) for an answer
+# that changes when you switch it: a keyboard layout switch is an event
+# (activelayout, answered at once at any pace), so the poll only catches
+# fcitx5's input method -- a minute late on battery at most. The
+# notifications' count and the apps' badges run notifications.py; a new one
+# arrives as SIGUSR2 (poll_now) at any pace, so the poll is only the net
+# under that.
+def language_s():
+    return power_state.period(LANGUAGE_S, LANGUAGE_BATTERY_S)
+
+
+def notify_s():
+    return power_state.period(NOTIFY_S, NOTIFY_BATTERY_S)
 
 
 def read_battery(root=POWER_SUPPLY):
@@ -3912,7 +3932,7 @@ def daemon():
                 self.run_text(["hyprctl", "getoption", "input:kb_layout", "-j"], on_option)
             self.run_text(["hyprctl", "devices", "-j"], on_devices)
             if again:
-                self.ids["language"] = GLib.timeout_add_seconds(LANGUAGE_S, self.fetch_language)
+                self.ids["language"] = GLib.timeout_add_seconds(language_s(), self.fetch_language)
             return False
 
         def badges_wanted(self):
@@ -3940,7 +3960,7 @@ def daemon():
                     self.unread = [u for u in got if isinstance(u, list) and len(u) == 2]
                     self.render()
             self.run_text([NOTIFICATIONS_PY, "unread"], done)
-            self.ids["badges"] = GLib.timeout_add_seconds(NOTIFY_S, self.fetch_badges)
+            self.ids["badges"] = GLib.timeout_add_seconds(notify_s(), self.fetch_badges)
             return False
 
         def open_files(self, item, uris):
@@ -4527,7 +4547,7 @@ def daemon():
             self.run_text([NOTIFICATIONS_PY], lambda out: self.set_status(
                 "notifications", pill_state((out.strip().splitlines() or [""])[-1])))
             if "notifications" in self.status_wanted():
-                self.ids["notifications"] = GLib.timeout_add_seconds(NOTIFY_S, self.fetch_notifications)
+                self.ids["notifications"] = GLib.timeout_add_seconds(notify_s(), self.fetch_notifications)
             return False
 
         def read_battery(self):

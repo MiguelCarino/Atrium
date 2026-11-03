@@ -106,6 +106,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 import desk_common  # noqa: E402  (hypr_request: hyprctl over the socket)
+import power_state  # noqa: E402  (period(): the tick backs off on battery)
 NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
 SELF = os.path.abspath(__file__)
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
@@ -120,6 +121,24 @@ TIMERS = os.path.join(HERE, "timers.py")
 NOTIFY_SETTINGS = os.path.join(HERE, "notify-settings.py")
 
 TICK_S = 15                 # lock / sleep / context / the focused repo again
+# On battery (or with the battery saver on) the tick comes every
+# TICK_BATTERY_S: each one walks /proc for hyprlock, and every card it can
+# offer is a soft one (a commit, a meeting, a context) that is the same card
+# half a minute later. The one card that is about a moment -- "welcome back"
+# after the lock -- does not wait for it. While the tick has seen you locked
+# or away it keeps TICK_S (the screen is locked: the /proc walk costs nothing
+# you would miss), and a window event from Hyprland (the focus coming back
+# as the lock goes) pulls the tick in at once (at most every NUDGE_S). The
+# commonest laptop case is the lid: hypridle locks and suspends within a
+# second or two, before any tick has seen the lock, and the monotonic clock
+# the tick runs on stands still while asleep -- so after the resume the
+# next tick could still be 45 s away. An event that comes after a sleep
+# (slept_offset() grew past SLEPT_S since the last tick: two clock reads, no
+# fork) pulls the tick in as well, and that tick sees the sleep and says
+# welcome back.
+TICK_BATTERY_S = 45
+SLEPT_S = 60                # Daemon.check_away's "slept" threshold
+NUDGE_S = 2
 DWELL_S = 2.0               # a window has the focus this long before it counts
 REPO_RECHECK_S = 120        # the focused repo's state, again, while it keeps the focus
 REPO_REST_S = 2 * 3600      # the same repo is not offered again this soon (unless committed between)
@@ -753,7 +772,7 @@ class Daemon:
         back (a resume card, if you were away long enough)."""
         offset = slept_offset()
         slept, self.offset = offset - self.offset, offset
-        if slept > 60 and self.away_from is None:
+        if slept > SLEPT_S and self.away_from is None:
             self.away_from = now - slept
             self.before_away = self.focus
         locked = process_running("hyprlock")
@@ -951,7 +970,8 @@ class Daemon:
         return {"showing": self.strip[1]["kind"] if self.strip else None,
                 "pending": sorted({c["kind"] for c in self.pending.values()}),
                 "quiet": self.quiet_reason(), "snooze_until": self.snooze_until,
-                "locked": self.locked, "fullscreen": self.fullscreen, "sharing": self.sharing}
+                "locked": self.locked, "fullscreen": self.fullscreen, "sharing": self.sharing,
+                "tick_s": tick_s()}
 
     def request(self, msg):
         """One message on suggest.sock -> the reply."""
@@ -1014,13 +1034,13 @@ def serve():
     if isinstance(win, dict) and ADDRESS.match(win.get("address") or ""):
         daemon.dwell = (win["address"], 0.0)       # the window focused now, looked at first
     log("watching (kinds on: " + (", ".join(sorted(kinds_on(daemon.values))) or "none") + ")")
-    hypr, buf, next_tick = None, b"", 0.0
+    hypr, buf, next_tick, nudged = None, b"", 0.0, 0.0
     try:
         while not flags["stop"]:
             if hypr is None:
                 hypr, buf = connect_events(), b""
             now = daemon.clock()
-            waits = [next_tick - now, 2.0 if hypr is None else TICK_S]
+            waits = [next_tick - now, 2.0 if hypr is None else tick_s(daemon)]
             if daemon.dwell:
                 waits.append(daemon.dwell[1] + DWELL_S - now)
             if daemon.pending and not daemon.strip:
@@ -1052,6 +1072,8 @@ def serve():
                     *lines, buf = buf.split(b"\n")
                     for line in lines:
                         daemon.event(line.decode("utf-8", "replace"))
+                    next_tick, nudged = nudge(daemon, bool(lines), now, next_tick, nudged,
+                                              slept_offset() - daemon.offset)
             if server in ready:
                 handle_client(server, daemon)
             if daemon.strip and daemon.strip[0].stdout in ready:
@@ -1059,8 +1081,8 @@ def serve():
             now = daemon.clock()
             daemon.settle_focus(now)
             if now >= next_tick:
-                next_tick = now + TICK_S
                 daemon.tick(now)
+                next_tick = now + tick_s(daemon)        # after: the tick may have seen the lock
             daemon.maybe_show()
     finally:
         daemon.hide("stopping")
@@ -1071,6 +1093,26 @@ def serve():
 
 
 HYPR_EVENTS = ("activewindowv2", "fullscreen", "screencast")     # what Daemon.event reads
+
+
+def tick_s(daemon=None):
+    """The tick's gap now: TICK_S, or TICK_BATTERY_S on battery -- but TICK_S
+    while DAEMON has seen you locked or away (see TICK_BATTERY_S)."""
+    if daemon is not None and (daemon.locked or daemon.away_from is not None):
+        return TICK_S
+    return power_state.period(TICK_S, TICK_BATTERY_S)
+
+
+def nudge(daemon, events, now, next_tick, nudged, slept=0.0):
+    """(next_tick, nudged) after Hyprland's events came in -- pure, for the
+    tests. While locked or away, or after a sleep the tick has not seen yet
+    (SLEPT: seconds asleep since the last tick), an event means you may be
+    back: the tick is due now (at most every NUDGE_S), so the resume card
+    does not wait out a long battery tick."""
+    back = daemon.locked or daemon.away_from is not None or slept > SLEPT_S
+    if events and back and now - nudged >= NUDGE_S:
+        return min(next_tick, now), now
+    return next_tick, nudged
 
 
 def connect_events(names=HYPR_EVENTS):

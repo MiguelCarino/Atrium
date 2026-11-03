@@ -10,6 +10,15 @@ can never disagree about what "Log out" runs. Here every one of them takes two
 clicks, Lock and Suspend too: a settings window is somewhere you click around,
 and a stray click should not put the computer to sleep. POWER_PANEL_DRYRUN=1
 turns them into notifications, as in the panel.
+
+On a laptop (status' power.has_battery) two more things show, and a desktop
+sees neither. One is "Use laptop defaults" (idle-settings.py laptop-defaults),
+for a laptop set up before the first-run defaults existed, or one whose
+timings were changed and should go back. The other is ON BATTERY: a shorter
+dim, screens off and suspend for when the charger is out. "Same as plugged
+in" (0) is the default, so nothing changes until you pick one. hypridle
+cannot switch timings, so each of these is a listener that checks the power
+supply when it fires (idle-settings.py's docstring has how).
 """
 from gi.repository import GLib, Gtk  # noqa: F401
 
@@ -27,7 +36,7 @@ PAGE = {"id": "power", "title": "Power & lock", "icon": "", "group": "System"
         "keywords": ["idle", "dim", "lock", "screen lock", "lock screen", "screens off", "timeout", "suspend",
                      "sleep", "keep awake", "caffeine", "power profile", "performance", "power saver",
                      "balanced", "power button", "lid", "log out", "restart", "reboot", "shut down", "apagar",
-                     "session"]}
+                     "session", "battery", "on battery", "laptop", "laptop defaults", "unplugged", "charger"]}
 
 IDLE = os.path.join(HYPR, "idle-settings.py")
 SCREEN_COLOR = os.path.join(HYPR, "screen-color.py")
@@ -41,6 +50,16 @@ TIMINGS = [
     ("screens_off", "", "Turn the screens off", "screens off after this long idle",
      [0, 300, 600, 900, 1800, 3600]),
     ("suspend", "", "Suspend", "sleep after this long idle", [0, 1800, 3600, 7200, 10800]),
+]
+# The same, on battery only (0: as when plugged in). Shorter choices than the
+# rows above: the point is to save the battery sooner.
+# (key, the plugged-in key it shortens, icon, title, choices in seconds); the
+# icons are the plugged-in rows' own.
+_ICON = {key: icon for key, icon, *_rest in TIMINGS}
+BATTERY_TIMINGS = [
+    ("battery_dim", "dim", _ICON["dim"], "Dim on battery", [0, 30, 60, 120, 300]),
+    ("battery_screens_off", "screens_off", _ICON["screens_off"], "Screens off on battery", [0, 60, 120, 300, 600]),
+    ("battery_suspend", "suspend", _ICON["suspend"], "Suspend on battery", [0, 300, 600, 900, 1800]),
 ]
 AFTER_LOCK = [0, 10, 30, 60, 300]
 GRACE = [0, 3, 5, 10, 30]
@@ -105,6 +124,29 @@ def nvidia_state(value):
     return None if value in ("", "not-found") else value
 
 
+def battery_sub(own, plugged):
+    """The sub line of an ON BATTERY row: what happens on battery, next to
+    what happens plugged in (OWN and PLUGGED in seconds, 0 = never)."""
+    if not own:
+        return f"as when plugged in: {dur(plugged).lower() if plugged else 'never'}"
+    if plugged and own >= plugged:
+        return f"after {dur(own)} -- not sooner than plugged in ({dur(plugged)}), so it changes nothing"
+    return f"after {dur(own)} on battery, {dur(plugged).lower() if plugged else 'never'} plugged in"
+
+
+def laptop_text(defaults, v, on_battery=False):
+    """The line above "Use laptop defaults": what it sets, or that it is
+    what is set already."""
+    names = (("dim", "dim"), ("lock", "lock"), ("screens_off", "screens off"), ("suspend", "suspend"))
+    what = ", ".join(f"{name} {dur(defaults[key])}" for key, name in names if key in defaults)
+    if defaults.get("lock_before_sleep"):
+        what += ", lock before sleep"
+    now = " (on battery now)" if on_battery else ""
+    if defaults and all(v.get(key) == value for key, value in defaults.items()):
+        return f"Laptop defaults are what is set{now}: {what}."
+    return f"Laptop defaults{now}: {what}."
+
+
 class Page:
     def __init__(self):
         self.widget = page_box()
@@ -127,9 +169,34 @@ class Page:
             if key == "dim":
                 self.dim_level = self.make_chips(lambda k: self.set("dim_level", k))
                 w.pack_start(self.dim_level.widget, False, False, 0)
+        # Laptops only (show() hides it on a desktop).
+        self.laptop = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.laptop_sub = dp.label("", "ctl-sub")
+        self.laptop_sub.set_line_wrap(True)
+        self.laptop.pack_start(self.laptop_sub, False, False, 0)
+        self.laptop.pack_start(links_row(link("Use laptop defaults", lambda: self.do(IDLE, "laptop-defaults"))),
+                               False, False, 0)
+        w.pack_start(self.laptop, False, False, 0)
         self.problems = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         w.pack_start(self.problems, False, False, 0)
         w.pack_start(sep(), False, False, 0)
+
+        # ON BATTERY: laptops only, like the button above.
+        self.battery = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.battery.pack_start(heading("ON BATTERY"), False, False, 0)
+        for key, _same, icon, title, _opts in BATTERY_TIMINGS:
+            grid, self.subs[key] = row(icon, title, "")
+            self.battery.pack_start(grid, False, False, 0)
+            self.chips[key] = self.make_chips(lambda k, key=key: self.set(key, f"{k}s" if k != "0" else "never"))
+            self.battery.pack_start(self.chips[key].widget, False, False, 0)
+        self.battery.pack_start(sep(), False, False, 0)
+        w.pack_start(self.battery, False, False, 0)
+        # Hidden until a status says "laptop": the window's show_all() would
+        # otherwise draw both on a desktop until the first answer, and for
+        # good when idle-settings.py does not answer (show() returns early).
+        for box in (self.laptop, self.battery):
+            box.set_no_show_all(True)
+            box.hide()
 
         w.pack_start(heading("SCREEN LOCK"), False, False, 0)
         grid, self.after_sub = row("", "Screens off after locking",
@@ -306,13 +373,22 @@ class Page:
             self.subs[key].set_text(sub)
         self.dim_level.set([(str(n), f"to {n} %") for n in sorted(set(DIM_LEVEL) | {v["dim_level"]})],
                            str(v["dim_level"]))
-        self.dim_level.widget.set_visible(bool(v["dim"]))
+        self.dim_level.widget.set_visible(bool(v["dim"]) or bool(v.get("battery_dim")))
         if v["dim"]:
             self.subs["dim"].set_text(f"down to {v['dim_level']} % brightness until any input")
             if not data.get("dim_ready"):
                 self.subs["dim"].set_text(self.subs["dim"].get_text() + "  ·  works from the next login")
         if v["lock"] and v["screens_off"] and v["off_after_lock"] and v["screens_off"] == v["lock"] + v["off_after_lock"]:
             self.subs["screens_off"].set_text(f"{dur(v['off_after_lock'])} after the idle lock, moving with it")
+        power = data.get("power") or {}
+        laptop = bool(power.get("has_battery"))
+        for key, same, _icon, _title, opts in BATTERY_TIMINGS:
+            self.chips[key].set([(k, "Same as plugged in" if k == "0" else text)
+                                 for k, text in choices(opts, v.get(key, 0))], str(v.get(key, 0)))
+            self.subs[key].set_text(battery_sub(v.get(key, 0), v[same]))
+        if laptop:
+            self.laptop_sub.set_text(laptop_text(data.get("laptop_defaults") or {}, v,
+                                                 bool(power.get("on_battery"))))
         clear(self.problems)
         for p in data["problems"]:
             lab = dp.label(f"!  {p[0].upper()}{p[1:]}.", "ctl-sub")
@@ -336,8 +412,9 @@ class Page:
         pw_sub = self.switches["password_on_wake"][2]
         # Lives in the screens-off listener: with that at Never the switch
         # has nothing to change (same reasoning as the grace chips).
-        self.switches["password_on_wake"][0].set_sensitive(bool(v["screens_off"]) or v["password_on_wake"])
-        if not v["screens_off"]:
+        self.switches["password_on_wake"][0].set_sensitive(
+            bool(v["screens_off"] or v.get("battery_screens_off")) or v["password_on_wake"])
+        if not (v["screens_off"] or v.get("battery_screens_off")):
             pw_sub = "needs \"Turn the screens off\" set to a time"
         elif v["lock"] and v["lock"] <= v["screens_off"]:
             pw_sub += "  ·  already locked by then"
@@ -418,7 +495,14 @@ class Page:
         self.sleep_more.set_text("  ·  ".join(filter(None, [nv, f"the suspend key: "
                                                                 f"{lg.get('HandleSuspendKey') or '?'}"])))
         self.widget.show_all()
-        self.dim_level.widget.set_visible(bool(v["dim"]))
+        for box in (self.laptop, self.battery):
+            if laptop:
+                # show_all() stops at a no-show-all box, itself included:
+                # its rows are shown one by one.
+                for child in box.get_children():
+                    child.show_all()
+            box.set_visible(laptop)
+        self.dim_level.widget.set_visible(bool(v["dim"]) or bool(v.get("battery_dim")))
         if not prof["profiles"]:
             self.profile.widget.hide()
         self.updating = False

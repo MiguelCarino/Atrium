@@ -1,0 +1,35 @@
+# charge-limit.service -- see /usr/local/libexec/charge-limit for what and why.
+# Writes the saved charge limit (/etc/atrium/charge-limit) at boot and again
+# after every suspend / hibernate: a lot of firmware forgets it. Being
+# WantedBy= the sleep targets and After= them is what makes it run on the
+# way back up: those targets are only reached once the machine has resumed.
+[Unit]
+Description=Stop the battery charging at the saved limit
+After=multi-user.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/charge-limit apply
+# /etc/atrium writable (created if missing, 0755); the rest of the system
+# read-only. /sys stays writable under ProtectSystem=strict: the threshold
+# is a sysfs file, so ProtectKernelTunables (which would make it read-only)
+# is deliberately not set.
+ConfigurationDirectory=atrium
+ConfigurationDirectoryMode=0755
+UMask=0022
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+PrivateDevices=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+# Root owns both the sysfs attribute and /etc/atrium, so no capability is
+# needed to write them: the whole set is dropped.
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target

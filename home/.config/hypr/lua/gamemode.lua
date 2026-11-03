@@ -117,9 +117,14 @@ local tearing_rule = hl.window_rule({
 tearing_rule:set_enabled(gamemode_is_on())
 -- Both options go back to off explicitly at every load rather than trusting
 -- the reload to reset options the config never sets: tearing or scanout
--- left on after gamemode OFF would follow you onto the desktop.
+-- left on after gamemode OFF would follow you onto the desktop. The one
+-- exception is the battery saver (lua/batterysaver.lua): while it is on,
+-- scanout is 1 (any fullscreen window, a video above all) -- read from its
+-- state file here, so gamemode OFF (a reload) lands on the saver's value
+-- instead of switching it off under the saver.
 if not gamemode_is_on() then
-    hl.config({ general = { allow_tearing = false }, render = { direct_scanout = 0 } })
+    hl.config({ general = { allow_tearing = false },
+                render  = { direct_scanout = require("lua.batterysaver").scanout() } })
 end
 
 local function refresh_rules()
@@ -308,8 +313,13 @@ end)
 -- scripts/automations.py's "gamemode on|off" action. It behaves like the key
 -- (switching while a game is open is a decision: the auto hook backs off for
 -- that game session), but does nothing when gamemode is already that way.
+-- strips(what): does gamemode take WHAT ("blur", "shadow", ...) away while it
+-- is on (capture.conf's gamemode_<what>)? lua/display.lua asks it when the
+-- battery saver goes off mid-game: blur and shadows come back only where
+-- gamemode did not strip them -- else the game keeps its stripped look.
 return {
     is_on = gamemode_is_on,
+    strips = function(what) return capture_on("gamemode_" .. what) end,
     set = function(on, why)
         if on == gamemode_is_on() then return end
         if on then gamemode_on(why) else gamemode_off(why) end

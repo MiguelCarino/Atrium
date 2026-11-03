@@ -57,7 +57,8 @@ the lab", "focus", "stopwatch") and the bar's countdown pill (custom/timers).
                         file, so the clock card shows them after reopening;
                         reset clears them)
     timers.py list
-    timers.py bar [watch]      JSON for waybar (watch: a line on each change)
+    timers.py bar [watch]      JSON for waybar (watch: a line on each change; it wakes
+                               each second only while the pill counts -- bar_wait)
     timers.py click-right      the bar's right click: pause / resume the stopwatch
     timers.py restore          at login (timers.service): arm again what a
                                reboot dropped -- repeating alarms always, the
@@ -1469,9 +1470,19 @@ def describe(t, now):
 
 
 def bar_line():
+    return bar_state()["line"]
+
+
+def bar_state(now=None):
+    """The bar's line, and what bar_wait needs to know about it: {"line",
+    "counting" (the pill shows a number that changes every second: a
+    countdown within the day, a running stopwatch, a shown pill whose
+    tooltip counts down -- or something rings),
+    "next_change" (epoch when a timer still more than a day away enters the
+    day and so the pill, or None)}."""
     items = running()
     sw = stopwatch()
-    now = time.time()
+    now = time.time() if now is None else now
     rings = ringing()
     lines = [f"{ICONS['alarm']}  ringing  {r['label'] or NAMES.get(r['kind'], 'alarm')}" for r in rings]
     lines += [f"{ICONS[t['kind']]}  {'paused' if t.get('paused') else clock(t['due'] - now)}  {describe(t, now)}"
@@ -1497,20 +1508,59 @@ def bar_line():
         text, cls = "", "idle"
     tip = "\n".join(lines + ["", "click: the list (cancel, start)  ·  right click: pause / resume the stopwatch"]) \
         if lines else ""
-    return json.dumps({"text": text, "class": cls, "tooltip": tip})
+    later = [t["due"] - 86400 for t in items if not t.get("paused") and t["due"] - 86400 > now]
+    return {"line": json.dumps({"text": text, "class": cls, "tooltip": tip}),
+            # (a shown pill's tooltip counts down the far ones too)
+            "counting": bool(rings or soon or (sw and sw[1]) or (text and any(not t.get("paused") for t in items))),
+            "next_change": min(later) if later else None}
 
 
-def bar(watch):
+# The bar's watch used to wake on every second all day, to redraw a pill that
+# is hidden (empty text) most of the time. Now it counts in seconds only
+# while the pill counts in seconds; otherwise nothing it shows changes by
+# itself, so it sleeps until the next minute (a safety net: a ringing process
+# that died, the day's focus rounds at midnight), until a timer more than a
+# day away comes within the day, or until timers.json or a ring file changes
+# -- an inotify watch on their folders, so "timer 5m" from the launcher shows
+# at once, as before. Without inotify it keeps the old once a second. On
+# mains or battery alike: an idle pill has nothing to redraw either way.
+BAR_IDLE_S = 60
+
+
+def bar_wait(state, now, watched):
+    """Seconds the bar's watch may sleep -- pure, for the tests. STATE is
+    bar_state()'s; WATCHED: an inotify watch will cut the sleep short."""
+    to_second = 1.0 - now % 1.0 + 0.02             # on the second, like the clock
+    if state["counting"] or not watched:
+        return to_second
+    wait = BAR_IDLE_S - now % BAR_IDLE_S + 0.02     # on the minute
+    if state.get("next_change") is not None:
+        wait = min(wait, state["next_change"] - now + 0.02)
+    return max(0.05, wait)
+
+
+def bar(watch, watcher=None):
     if not watch:
         print(bar_line(), flush=True)
         return
+    if watcher is None:
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        import file_wake
+        # The state folder is busy (activity.jsonl is appended there on every
+        # change of focus) and timers.json is only ever written by rename
+        # (save()), so that folder is watched for renames and removals only
+        # -- RENAMED: an append next door never wakes the bar. The ring
+        # folder is ours and quiet: everything in it counts.
+        watcher = file_wake.Watch({os.path.dirname(STATE): {os.path.basename(STATE)}, RING_DIR: None},
+                                  masks={os.path.dirname(STATE): file_wake.RENAMED})
     last = None
     while True:
-        line = bar_line()
-        if line != last:
-            print(line, flush=True)
-            last = line
-        time.sleep(1.0 - time.time() % 1.0 + 0.02)     # on the second, like the clock
+        state = bar_state()
+        if state["line"] != last:
+            print(state["line"], flush=True)
+            last = state["line"]
+        watcher.wait(bar_wait(state, time.time(), watcher.ok))
 
 
 def status():

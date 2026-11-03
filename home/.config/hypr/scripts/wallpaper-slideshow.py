@@ -63,7 +63,7 @@ is one `hyprctl hyprpaper wallpaper` call, every INTERVAL at most.
                                        counts as covered right now
   wallpaper-slideshow.py motion [on|off|toggle]
                                        the moving wallpaper's switch (below);
-                                       prints {"video": ..., "on": ...}
+                                       prints {"video": ..., "on": ..., "paused": why}
   wallpaper-slideshow.py settings      everything Settings > Wallpaper shows,
                                        as JSON: the options below, the set,
                                        and per monitor its folder, how many
@@ -117,6 +117,17 @@ the cost on every monitor all the time, with one exception:
                                  PAUSED (SIGUSR1; SIGUSR2 plays it again on
                                  unlock): nobody can see it, and the frozen
                                  frame comes back instantly;
+  * on battery, or the battery saver on (power_state.frugal()) ->
+                                 PAUSED the same way: the frame on screen
+                                 stays as a still, the decoder and the
+                                 per-frame recomposite stop -- about the
+                                 most a wallpaper can cost a laptop. A player
+                                 that is not running is not started then
+                                 (hyprpaper's still is on screen anyway);
+                                 it plays again within POLL seconds (plus
+                                 frugal()'s 10 s cache) of the charger or
+                                 the saver going off. A desktop PC is never
+                                 on battery, so for it only the saver counts;
   * other theme / switch off  -> stopped.
 Checked every POLL seconds with the coverage above, so a change takes up to
 5 s. The players are this daemon's: it stops them when it exits (SIGTERM
@@ -166,6 +177,7 @@ try:
 except ImportError:
     theme = None
 import screens  # noqa: E402  (scripts/screens.py: which screen is the primary)
+import power_state  # noqa: E402  (scripts/power_state.py: on battery / battery saver, no forks)
 
 
 def theme_output():
@@ -450,6 +462,19 @@ def gamemode():
         return False
 
 
+def frugal_why():
+    """Why the moving wallpaper should hold still for the power's sake:
+    "battery saver", "on battery", or "" (play). frugal() first: it is
+    cached, so on mains with the saver off -- nearly always -- this costs a
+    clock read per poll; only when it says yes are the two causes told
+    apart (one small file, a few sysfs reads)."""
+    if not power_state.frugal():
+        return ""
+    if power_state.saver_active():
+        return "battery saver"
+    return "on battery" if power_state.on_battery() else ""
+
+
 MOTION_PLAYER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wallpaper-motion.py")
 
 
@@ -531,6 +556,9 @@ class Motion:
         want = bool(name) and motion_on() and not gamemode()
         unseen = self.unseen() if self.procs else {}
         why = "gamemode" if name and motion_on() else "off"
+        # On battery / saver: running players pause like unseen ones (the
+        # frame stays, nothing decodes); new ones are not started.
+        power = frugal_why() if want else ""
         for output, (covered, _) in cov.items():
             path = os.path.join(folder(output), name) if name else ""
             entry = self.procs.get(output)
@@ -542,11 +570,14 @@ class Motion:
                     self.stop(output, why)
                 continue
             if not entry:
+                if power:
+                    continue
                 # The first pause waits a poll: a signal this soon could beat
                 # the player's handlers (it ignores them until it has them).
                 self.start(output, path)
                 continue
-            self.pause(output, output in unseen, unseen.get(output, ""))
+            held = unseen.get(output) or power
+            self.pause(output, bool(held), held)
         for output in list(self.procs):
             if output not in cov:
                 self.stop(output, "monitor gone")
@@ -905,8 +936,10 @@ def main():
             print(f"{output:10} {'PAUSED' if covered else 'RUNS':6} {reason:40} "
                   f"{n} images, showing {shown}")
         print("daemon:", daemon_pid() or "not running")
+        power = frugal_why()
         print("moving wallpaper:", video_name() or "none in this theme",
-              "| switch", "on" if motion_on() else "off", "| gamemode" if gamemode() else "")
+              "| switch", "on" if motion_on() else "off", "| gamemode" if gamemode() else "",
+              f"| paused: {power}" if power else "")
         return
 
     if args.command == "motion":
@@ -919,7 +952,9 @@ def main():
             theme.write_state(state)
         elif args.output:
             sys.exit("motion: on, off or toggle")
-        print(json.dumps({"video": video_name(), "on": motion_on()}))
+        # paused: "on battery" / "battery saver" while the power holds it
+        # still (the switch stays as you left it), "" otherwise.
+        print(json.dumps({"video": video_name(), "on": motion_on(), "paused": frugal_why()}))
         return
 
     if args.command == "next":
