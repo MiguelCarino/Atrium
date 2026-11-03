@@ -1871,7 +1871,7 @@ def weather_items(text, places, webs):
     page = "https://open-meteo.com/en/docs?" + urllib.parse.urlencode({
         "latitude": lat, "longitude": lon, "timezone": "auto",
         "hourly": "temperature_2m,precipitation_probability,weather_code",
-        "daily": "temperature_2m_max,temperature_2m_min"})
+        "daily": "temperature_2m_max,temperature_2m_min"}) + "#api_response"   # straight to the chart
     run = (lambda: open_in(webs[0], page)) if webs else None
     try:
         now = data["current_condition"][0]
