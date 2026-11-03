@@ -49,8 +49,9 @@ Modes, by the first character typed:
               * weather: "weather paris", "clima toluca", "tokyo forecast" --
                 now, and the next two days, from wttr.in (what the bar's
                 pill uses) for the place's coordinates; asked only when one
-                of those words is typed, in the background; Enter opens the
-                full forecast;
+                of those words is typed, in the background (Open-Meteo when
+                wttr.in fails); Enter opens Open-Meteo's forecast page for
+                the place;
               * dates: "today + 90 days", "dec 24 - 2 weeks", "hoy + 3 meses",
                 "days until dec 24", "days since 2020-01-01", "days between
                 1 jan and 1 mar", "week 42", "week", a date ("2026-12-24",
@@ -1864,7 +1865,13 @@ def weather_items(text, places, webs):
                 return [Item(f"Weather in {name}", "wttr.in and Open-Meteo did not answer -- try again in a moment",
                              "weather-severe-alert")]
         _WEATHER[label] = (time.time(), data)
-    page = "https://wttr.in/" + urllib.parse.quote(f"{name}, {country}")
+    # Enter: Open-Meteo's forecast page for the coordinates (its chart of
+    # the next days), not wttr.in's -- wttr.in goes away for hours, and its
+    # page with it.
+    page = "https://open-meteo.com/en/docs?" + urllib.parse.urlencode({
+        "latitude": lat, "longitude": lon, "timezone": "auto",
+        "hourly": "temperature_2m,precipitation_probability,weather_code",
+        "daily": "temperature_2m_max,temperature_2m_min"})
     run = (lambda: open_in(webs[0], page)) if webs else None
     try:
         now = data["current_condition"][0]
