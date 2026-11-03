@@ -455,8 +455,11 @@ else
     warn "(sudo dnf install papirus-icon-theme papirus-icon-theme-dark, then $HYPR/make-icon-theme.py --all);"
     warn "the themes use Adwaita's icons meanwhile"
 fi
-for maker in make-aero-wallpaper make-win95-wallpaper make-matrix-wallpaper make-moe-wallpaper \
-             make-lofi-wallpaper make-luna-wallpaper make-seasons-wallpaper \
+# Each writes ~/Pictures/Wallpapers/<screen>/ for every connected screen
+# (screens.py; from the kernel's connectors when Hyprland is not running).
+# make-wallpaper is cyberpunk's skyline set and hyprpaper.conf's first picture.
+for maker in make-wallpaper make-aero-wallpaper make-win95-wallpaper make-matrix-wallpaper \
+             make-moe-wallpaper make-lofi-wallpaper make-luna-wallpaper make-seasons-wallpaper \
              make-orchard-wallpaper; do
     run python3 "$HYPR/$maker.py" --all
 done

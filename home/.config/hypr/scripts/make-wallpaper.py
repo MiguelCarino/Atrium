@@ -19,9 +19,9 @@ cyberpunk/theme.conf) is this picture at seeds 2-5, rendered once per monitor
 at that monitor's own size (as `screens.py` prints it: "pixels"), so the
 screens change together:
 
-    for s in 2 3 4 5; do
+    make-wallpaper.py --all     # = for each screen (screens.sizes) and s in 2-5:
         make-wallpaper.py --seed $s -W <width> -H <height> -o ~/Pictures/Wallpapers/<OUTPUT>/skyline-seed$s.png
-    done        # once per screen
+                                # and the default output above, at the primary's size
 
 DESIGN CONSTRAINTS (why it looks the way it does):
   * It sits behind translucent, blurred windows and a 36px waybar at the top.
@@ -352,10 +352,36 @@ def render(W, H, seed):
     return s
 
 
+SKYLINE_SEEDS = (2, 3, 4, 5)        # the cyberpunk theme's set (see the top)
+WALLDIR = os.path.expanduser("~/Pictures/Wallpapers")
+
+
+def write(width, height, seed, output):
+    """Render to output: beside it first, then renamed over it. The default
+    output is the live wallpaper hyprpaper reads (at login, or on a repaint)
+    at any moment, and a half-written PNG there would leave the screen blank.
+    os.replace is atomic within one filesystem, and a failed write leaves the
+    old image intact."""
+    os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
+    tmp = output + ".tmp"
+    try:
+        render(width, height, seed).write_to_png(tmp)
+        os.replace(tmp, output)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+    print(output)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--all", action="store_true",
+                    help="the skyline set (seeds 2-5) for every screen's folder, and the default output")
     ap.add_argument("-o", "--output",
-                    default=os.path.expanduser("~/Pictures/Wallpapers/dp1-ultrawide.png"))
+                    default=os.path.join(WALLDIR, "dp1-ultrawide.png"))
     # Any aspect ratio: the design space is 1440 units tall and as wide as
     # the aspect asks, scaled uniformly (see DESIGN CONSTRAINTS).
     ap.add_argument("-W", "--width", type=int,
@@ -365,30 +391,21 @@ def main():
                     help="output height (see -W)")
     ap.add_argument("--seed", type=int, default=2077)
     a = ap.parse_args()
-    if not (a.width and a.height):
+    if a.all or not (a.width and a.height):
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        import screens      # scripts/screens.py: the primary screen's size
+        import screens      # scripts/screens.py: the screens and their sizes
+    if a.all:
+        # One image at a time, as the other makers: the box may be shared.
+        for mon, (w, h) in screens.sizes().items():
+            for seed in SKYLINE_SEEDS:
+                write(w, h, seed, os.path.join(WALLDIR, mon, f"skyline-seed{seed}.png"))
+        a.width, a.height = screens.primary_size()
+    elif not (a.width and a.height):
         a.width, a.height = screens.primary_size()
     # cairo's own message for this is "invalid matrix (not invertible)".
     if a.width <= 0 or a.height <= 0:
         ap.error("width/height must be positive")
-    os.makedirs(os.path.dirname(os.path.abspath(a.output)), exist_ok=True)
-    # Write beside the target and rename over it: the default output is the
-    # live wallpaper hyprpaper reads (at login, or on a repaint) at any moment,
-    # and a half-written PNG there would leave the screen blank. os.replace is atomic
-    # within one filesystem, and a failed write leaves the old image intact.
-    tmp = a.output + ".tmp"
-    try:
-        render(a.width, a.height, a.seed).write_to_png(tmp)
-        os.replace(tmp, a.output)
-    except BaseException:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        raise
-    print(a.output)
-
+    write(a.width, a.height, a.seed, a.output)
 
 if __name__ == "__main__":
     main()

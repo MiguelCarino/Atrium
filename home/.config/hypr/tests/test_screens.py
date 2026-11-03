@@ -127,6 +127,67 @@ class Sizes(unittest.TestCase):
         self.assertEqual(screens.primary_size(), (1920, 1080))
 
 
+def fake_drm(root, connectors):
+    """A /sys/class/drm look-alike: {"card1-eDP-1": ("connected", "2880x1800\\n1920x1200")}."""
+    for entry, (status, modes) in connectors.items():
+        os.makedirs(os.path.join(root, entry))
+        with open(os.path.join(root, entry, "status"), "w") as handle:
+            handle.write(status + "\n")
+        with open(os.path.join(root, entry, "modes"), "w") as handle:
+            handle.write(modes + "\n")
+
+
+class Drm(unittest.TestCase):
+    """install.sh runs the wallpaper makers without Hyprland: the kernel's
+    connectors name the folders, not FALLBACK_NAME (no monitor is called
+    "default", so the slideshow never found those pictures)."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        fake_drm(self.root, {
+            "card1-eDP-1": ("connected", "2880x1800\n1920x1200"),
+            "card1-DP-1": ("connected", "3440x1440"),
+            "card1-HDMI-A-1": ("disconnected", ""),
+            "card0": ("connected", "1x1"),           # the card itself, not a connector
+        })
+        os.makedirs(os.path.join(self.root, "renderD128"))
+
+    def test_connected_screens_at_their_preferred_mode(self):
+        self.assertEqual(screens.drm_screens(self.root), {"eDP-1": (2880, 1800), "DP-1": (3440, 1440)})
+
+    def test_no_such_folder(self):
+        self.assertEqual(screens.drm_screens(os.path.join(self.root, "missing")), {})
+
+    def test_sizes_without_hyprland_names_the_real_screens(self):
+        with mock.patch.dict(os.environ, {screens.DRM_ENV: self.root}):
+            got = screens.sizes()          # live: Hyprland unreachable (helpers.py)
+        self.assertEqual(got, {"DP-1": (3440, 1440), "eDP-1": (2880, 1800)})   # host file's DP-1 first
+        self.assertNotIn(screens.FALLBACK_NAME, got)
+
+    def test_canned_monitors_never_read_the_kernel(self):
+        with mock.patch.dict(os.environ, {screens.DRM_ENV: self.root}):
+            self.assertEqual(screens.sizes(mons=[], profile=NONE, state={}),
+                             {screens.FALLBACK_NAME: screens.FALLBACK_SIZE})
+
+
+class WallpaperFolder(unittest.TestCase):
+    def setUp(self):
+        self.walldir = tempfile.mkdtemp()
+
+    def test_own_folder_first(self):
+        os.makedirs(os.path.join(self.walldir, "eDP-1"))
+        os.makedirs(os.path.join(self.walldir, screens.FALLBACK_NAME))
+        self.assertEqual(screens.wallpaper_folder(self.walldir, "eDP-1"), os.path.join(self.walldir, "eDP-1"))
+
+    def test_default_folder_when_the_screen_has_none(self):
+        os.makedirs(os.path.join(self.walldir, screens.FALLBACK_NAME))
+        self.assertEqual(screens.wallpaper_folder(self.walldir, "eDP-1"),
+                         os.path.join(self.walldir, screens.FALLBACK_NAME))
+
+    def test_neither(self):
+        self.assertEqual(screens.wallpaper_folder(self.walldir, "eDP-1"), os.path.join(self.walldir, "eDP-1"))
+
+
 class Hdr(unittest.TestCase):
     def test_from_the_host_file_only(self):
         self.assertEqual(screens.hdr_capable(HOST), ["DP-1"])

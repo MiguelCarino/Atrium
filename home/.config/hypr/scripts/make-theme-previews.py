@@ -242,7 +242,7 @@ def hex_rgba(text, default=(0, 0, 0, 255)):
 def wallpaper(name, output=None, walldir=None):
     """The theme's first still for the screen (by file name), or None."""
     prefix = T.load(name, user=False).get("wallpaper_prefix", "")
-    folder = os.path.join(walldir or WALLDIR, output or screens.primary())
+    folder = screens.wallpaper_folder(walldir or WALLDIR, output or screens.primary())
     try:
         names = sorted(os.listdir(folder))
     except OSError:

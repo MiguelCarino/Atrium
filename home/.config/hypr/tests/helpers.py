@@ -43,6 +43,9 @@ os.environ["HYPR_FOLDER_ACCESS_NO_PROMPT"] = "1"
 # this machine's, so primary / order / HDR are the same wherever this runs.
 os.environ["HYPR_HOST_FILE"] = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                             "fixtures", "host-three-screens.lua")
+# ... and no kernel connectors (screens.drm_screens): a folder that is not
+# there, so the fallbacks without Hyprland never read this machine's /sys.
+os.environ["HYPR_DRM_DIR"] = os.path.join(SCRATCH, "no-drm")
 # Claude Code: a stand-in `claude` that does nothing (exit 1), so the tests
 # of the Claude backend find one whether or not this machine has it, and no
 # test can reach the real one. The no-claude tests set HYPR_CLAUDE_CLI=none

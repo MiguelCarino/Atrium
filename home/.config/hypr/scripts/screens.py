@@ -39,9 +39,14 @@ are read here with a pattern, not run: keep each on one line as above.
                  there is no HDR switch (lua/monitors.lua agrees).
   outputs()      the live screens (hyprctl monitors -j) in order(), each with
                  its sizes worked out (see there).
-  sizes()        {name: (W, H)} for rendering one picture per screen, with
-                 FALLBACK_SIZE for the primary when Hyprland is not there;
+  sizes()        {name: (W, H)} for rendering one picture per screen. Without
+                 Hyprland (install.sh, run from GNOME or a TTY): the screens
+                 the kernel says are connected (/sys/class/drm), at their
+                 preferred mode, under the connector names Hyprland will
+                 give them -> FALLBACK_SIZE for the primary -> FALLBACK_NAME;
                  primary_size() just the primary's (a renderer's -W / -H).
+  wallpaper_folder()  a screen's folder of pictures, or FALLBACK_NAME's when
+                 it has none (pictures rendered before the screen had a name).
 
 The live parts ask hyprctl once per call (a ~5 ms round trip); nothing here
 caches them, so a long-running caller sees a screen plugged in later.
@@ -68,6 +73,11 @@ STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.
 # A picture for "a screen" when nothing says which: the commonest desktop size.
 FALLBACK_SIZE = (1920, 1080)
 FALLBACK_NAME = "default"      # the folder sizes() names when no screen has one
+# The kernel's connectors (card1-eDP-1/status, .../modes): what sizes() asks
+# when Hyprland is not running. HYPR_DRM_DIR points it elsewhere (the tests).
+DRM_ENV = "HYPR_DRM_DIR"
+DRM = "/sys/class/drm"
+MODE = re.compile(r"^(\d+)x(\d+)")
 
 
 # -- the host file -------------------------------------------------------------
@@ -215,16 +225,62 @@ def outputs(mons=None, profile=None):
     return [describe(m) for m in mons]
 
 
+def drm_screens(root=None):
+    """{name: (W, H)} of the connected screens as the kernel sees them, at
+    the preferred mode (the first line of modes), named as Hyprland names
+    them: card1-eDP-1 -> eDP-1. Sizes are the panel's pixels: a scale or a
+    rotation is Hyprland's, unknown here. {} when there is no such folder."""
+    root = root or os.environ.get(DRM_ENV) or DRM
+    found = {}
+    try:
+        entries = sorted(os.listdir(root))
+    except OSError:
+        return found
+    for entry in entries:
+        card, dash, name = entry.partition("-")
+        if not (dash and card.startswith("card") and card[4:].isdigit() and name):
+            continue
+        try:
+            with open(os.path.join(root, entry, "status"), encoding="utf-8") as handle:
+                if handle.read().strip() != "connected":
+                    continue
+            with open(os.path.join(root, entry, "modes"), encoding="utf-8") as handle:
+                m = MODE.match(handle.readline().strip())
+        except OSError:
+            continue
+        if m and name not in found:
+            found[name] = (int(m.group(1)), int(m.group(2)))
+    return found
+
+
 def sizes(logical=False, mons=None, profile=None, state=None):
     """{name: (W, H)} for one picture per live screen: pixels (a still), or
-    logical=True (a video a player window shows). Without Hyprland:
-    FALLBACK_SIZE for the primary (or FALLBACK_NAME when nothing names one),
-    so a renderer always has one screen to draw for."""
+    logical=True (a video a player window shows). Without Hyprland (asked
+    live, mons=None): the kernel's connected screens (drm_screens), so a
+    picture rendered at install time lands in the folder the slideshow will
+    read; then FALLBACK_SIZE for the primary (or FALLBACK_NAME when nothing
+    names one), so a renderer always has one screen to draw for."""
     found = {o["name"]: (o["logical"] if logical else o["pixels"])
              for o in outputs(mons, profile) if not o["disabled"]}
     if found:
         return found
+    if mons is None:
+        drm = drm_screens()
+        if drm:
+            rank = {name: i for i, name in enumerate(order([], profile))}
+            return dict(sorted(drm.items(), key=lambda kv: rank.get(kv[0], len(rank))))
     return {primary(state, [] if mons is None else mons, profile) or FALLBACK_NAME: FALLBACK_SIZE}
+
+
+def wallpaper_folder(walldir, output):
+    """<walldir>/<output>, or <walldir>/FALLBACK_NAME when the screen has no
+    folder and that one exists: pictures rendered while no screen had a name
+    (an install before drm_screens) still show."""
+    own = os.path.join(walldir, output)
+    fallback = os.path.join(walldir, FALLBACK_NAME)
+    if output and not os.path.isdir(own) and os.path.isdir(fallback):
+        return fallback
+    return own
 
 
 def primary_size(logical=False):

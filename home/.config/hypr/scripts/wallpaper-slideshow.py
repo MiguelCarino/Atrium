@@ -17,8 +17,9 @@ Images
                                          prints each one's "pixels".
 Drop images in (png, jpg, webp, jxl; symlinks are fine) and they join the
 rotation at the next change -- the folder is re-read every time. A monitor
-with no folder, or an empty one, is left alone (hyprpaper.conf still paints
-it). hyprpaper scales each image to cover the output and centre-crops it.
+with no folder of its own uses ~/Pictures/Wallpapers/default/ (what the
+makers wrote when no screen had a name), if there is one; with neither, or
+an empty one, it is left alone (hyprpaper.conf still paints it). hyprpaper scales each image to cover the output and centre-crops it.
 
 Covered = paused
 ----------------
@@ -304,8 +305,14 @@ def coverage():
 
 
 # ----------------------------------------------------------------- hyprpaper --
+def folder(output):
+    """The monitor's folder of pictures; the "default" one when it has none
+    (screens.wallpaper_folder: rendered before the screen had a name)."""
+    return screens.wallpaper_folder(WALLDIR, output)
+
+
 def images(output):
-    d = os.path.join(WALLDIR, output)
+    d = folder(output)
     try:
         names = sorted(os.listdir(d))
     except OSError:
@@ -318,7 +325,7 @@ def images(output):
 
 def all_images(output):
     """Every picture in the monitor's folder, in the set or not."""
-    d = os.path.join(WALLDIR, output)
+    d = folder(output)
     try:
         names = sorted(os.listdir(d))
     except OSError:
@@ -328,9 +335,11 @@ def all_images(output):
 
 
 def outputs_known(state=None):
-    """Monitors with a folder of their own, plus any the state remembers."""
+    """Monitors with a folder of their own, plus any the state remembers
+    (not the "default" folder: no monitor is called that)."""
     try:
-        found = {n for n in os.listdir(WALLDIR) if os.path.isdir(os.path.join(WALLDIR, n))}
+        found = {n for n in os.listdir(WALLDIR) if os.path.isdir(os.path.join(WALLDIR, n))
+                 and n != screens.FALLBACK_NAME}
     except OSError:
         found = set()
     return sorted(found | set(state or {}))
@@ -523,7 +532,7 @@ class Motion:
         unseen = self.unseen() if self.procs else {}
         why = "gamemode" if name and motion_on() else "off"
         for output, (covered, _) in cov.items():
-            path = os.path.join(WALLDIR, output, name) if name else ""
+            path = os.path.join(folder(output), name) if name else ""
             entry = self.procs.get(output)
             if entry and (entry[0].poll() is not None or entry[1] != path):
                 self.stop(output, "exited" if entry[0].poll() is not None else "new video")
@@ -638,7 +647,7 @@ class Slideshow:
 
     def show_name(self, outputs, name, why):
         for output in outputs:
-            path = os.path.join(WALLDIR, output, name)
+            path = os.path.join(folder(output), name)
             if not os.path.isfile(path):
                 path = self.pick(output)        # that monitor has no such file
             if path and path != self.current.get(output):
@@ -790,8 +799,8 @@ def settings_json():
         every = all_images(output)
         current = state.get(output, "")
         outputs[output] = {
-            "folder": os.path.join(WALLDIR, output),
-            "exists": os.path.isdir(os.path.join(WALLDIR, output)),
+            "folder": folder(output),
+            "exists": os.path.isdir(folder(output)),
             "pictures": len(every),
             "in_set": len(images(output)),
             "current": current if current and os.path.exists(current) else "",
