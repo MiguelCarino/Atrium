@@ -57,6 +57,7 @@ PERSONAL=(
     '--exclude=/lmstudio.service.d/'    # this machine's LLM limits (llm-limits.py writes them)
     '--exclude=/agents.slice.d/'        # this machine's memory limits (railguard.py writes them)
     '--exclude=/heavy.slice.d/'
+    '--exclude=/cerberus.service'      # Cerberus's own unit (`cerberus install-service` writes it), not the desktop's
     # Not ours to publish: a patch to hypr-cube, which has no licence yet
     # (all rights reserved). The build works without it (plain upstream).
     '--exclude=/scripts/hypr-cube.patch'
@@ -100,7 +101,7 @@ keep_autostart() {
 write_units() {
     local wants=$HOME/.config/systemd/user
     find "$wants" -mindepth 2 -maxdepth 2 -path '*.wants/*' -printf '%f\n' |
-        grep -vE '^(dotfiles-backup|carino-traffic|dock)\.' | sort -u > "$REPO/packages/units.txt.new"
+        grep -vE '^(dotfiles-backup|carino-traffic|dock|cerberus)\.' | sort -u > "$REPO/packages/units.txt.new"
     {
         echo "# User units install.sh enables (sync.sh writes this from the maintainer's"
         echo "# install). Features that ship OFF are not here; Settings turns them on."
