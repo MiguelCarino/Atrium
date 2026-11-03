@@ -2041,6 +2041,9 @@ def daemon():
             self.label.set_width_chars(1)
             self.count = Gtk.Label()
             cls(self.count, "dock-count")
+            # A pill the height of its digits, not the button's: filling it,
+            # the themes' badge colours drew a full-height block.
+            self.count.set_valign(Gtk.Align.CENTER)
             if taskbar:
                 box.pack_start(self.image, False, False, 0)
                 box.pack_start(self.label, True, True, 0)
@@ -2495,6 +2498,9 @@ def daemon():
                 if self.engine.cfg["tray"] and self.main:
                     self.tray_box = Gtk.Box(spacing=0)
                     cls(self.tray_box, "dock-tray")
+                    # dock-tray-empty while no app has an icon in it
+                    # (update_tray): a theme's well is not drawn round nothing.
+                    cls(self.tray_box, "dock-tray-empty")
                     self.frame.pack_end(self.tray_box, False, False, 0)
                 if wanted & set(PRIVACY_KEYS):      # what is in use, left of the tray
                     self.frame.pack_end(self.make_privacy(), False, False, 0)
@@ -2824,6 +2830,7 @@ def daemon():
                     b.show_all()
                 b.refresh(tray.items[key])
                 self.tray_box.reorder_child(b, i)
+            cls(self.tray_box, "dock-tray-empty", not keys)
 
         # -- where it is, and the pointer ------------------------------------------------------
         def learn_rect(self):

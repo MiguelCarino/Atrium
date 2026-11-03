@@ -201,6 +201,13 @@ button.dock-start:hover {
     border-right: 1px solid @o-rule;
 }
 
+/* No tray icons (dock.py's dock-tray-empty): one rule, not two an empty
+   box's width apart. */
+.dock-tray.dock-tray-empty {
+    padding: 0px;
+    border-right: none;
+}
+
 .dock-time {
     font-family: "JetBrains Mono", "IBM Plex Mono", monospace;
     color: @o-readout;

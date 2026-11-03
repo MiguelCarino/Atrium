@@ -74,6 +74,14 @@ python3 "$HERE/panel.py" close-all 2>/dev/null || true
 #    and it also takes the module scripts' grandchildren with it -- escalates
 #    to SIGKILL after 3 s (TimeoutStopSec), then starts a fresh one.
 #    9>&- keeps the lock fd away from systemctl (harmless, but tidy).
+#    reset-failed first: StartLimitBurst (5 starts in 30 s, both units) is
+#    there to stop a crash loop, but every restart asked for here counts
+#    too -- a theme switch is one, each Dock & taskbar change another -- so
+#    clicking through a few themes hit the limit, the restart was refused
+#    ("start-limit-hit") and the toolbox, the taskbar's tray with it, stayed
+#    down. Clearing the counter for a deliberate restart keeps the crash-loop
+#    guard for crashes only.
+systemctl --user reset-failed waybar.service waybar-toolbox.service 9>&- 2>/dev/null || true
 if ! systemctl --user restart waybar.service waybar-toolbox.service 9>&-; then
     note "systemctl --user restart waybar failed. See: journalctl --user -u waybar" critical
     exit 1

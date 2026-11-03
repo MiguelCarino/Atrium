@@ -197,6 +197,26 @@ button.dock-clock {
                 inset 0 -1px @w-hi;
 }
 
+/* The status buttons (weather, network, sound, battery) are tray icons too:
+   inside the sunken box, between its left edge (the tray) and the clock,
+   on its top and bottom lines -- not loose on the bar's face with the well
+   round the toolbox and the clock only. The bell stays outside, right of
+   the clock, a button of its own. */
+#dock.dock-layout-taskbar button.dock-status:not(.dock-notifications) {
+    margin: 2px 0px;
+    padding: 0px 5px;
+    border: none;
+    border-radius: 0px;
+    background-color: @w-face;
+    background-image: none;
+    box-shadow: inset 0 1px @w-shadow,
+                inset 0 -1px @w-hi;
+}
+
+#dock.dock-layout-taskbar button.dock-status:not(.dock-notifications):hover {
+    background-color: transparent;
+}
+
 #dock.dock-layout-taskbar button.dock-toolbox {
     padding: 0px 4px;
     box-shadow: inset 0 1px @w-shadow,

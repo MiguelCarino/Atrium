@@ -240,6 +240,15 @@ button.dock-start:active {
                 inset 0 -1px alpha(@a-gloss, 0.08);
 }
 
+/* No app has a tray icon: no glass well round nothing (dock.py's
+   dock-tray-empty), only a sliver of space before the status icons. */
+.dock-tray.dock-tray-empty {
+    margin: 0px 0px 0px 4px;
+    padding: 0px;
+    background-color: transparent;
+    box-shadow: none;
+}
+
 button.dock-tray-item,
 #dock.dock-layout-taskbar button.dock-toolbox,
 button.dock-clock {
