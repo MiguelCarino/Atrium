@@ -65,6 +65,7 @@ button.dock-card {
 
 #dock.dock-layout-taskbar button.dock-item,
 button.dock-start,
+button.dock-ws,
 button.dock-tray-item,
 #dock.dock-layout-taskbar button.dock-toolbox,
 button.dock-clock {
@@ -180,6 +181,22 @@ button.dock-start {
     background-image: linear-gradient(to bottom, alpha(@m-rim, 0.75) 0%, alpha(@m-rim, 0.12) 50%,
                                       alpha(@m-rim, 0.00) 51%);
     box-shadow: 0 2px 5px @m-shade;
+}
+
+/* The workspace in front (after the start button): a round pill in the
+   start button's sakura and rim, its digit in the start word's colour --
+   not the base's square in the pale accent, where white hardly showed. */
+button.dock-ws {
+    padding: 0 11px;
+    border: 1px solid @m-rim;
+    background-color: alpha(@m-sakura, 0.70);
+    background-image: linear-gradient(to bottom, alpha(@m-rim, 0.55) 0%, alpha(@m-rim, 0.08) 50%,
+                                      alpha(@m-rim, 0.00) 51%);
+    color: @text;
+}
+
+button.dock-ws:hover {
+    background-color: alpha(@m-sakura, 0.90);
 }
 
 .dock-start-glyph,
