@@ -1835,7 +1835,7 @@ def wants_weather(text):
 
 
 def weather_items(text, places, webs):
-    """Called from the slow-search thread: one wttr.in request, at most."""
+    """Called from the slow-search thread: one wttr.in request, at most (Open-Meteo when it fails)."""
     m = WEATHER_RE.fullmatch(text.strip())
     if not m or places is None:
         return []
@@ -1854,8 +1854,15 @@ def weather_items(text, places, webs):
             with urllib.request.urlopen(req, timeout=6) as answer:
                 data = json.load(answer)
         except (OSError, ValueError):
-            return [Item(f"Weather in {name}", "wttr.in did not answer -- try again in a moment",
-                         "weather-severe-alert")]
+            # wttr.in is down (see waybar/scripts/openmeteo.py): the same
+            # place from Open-Meteo, in wttr.in's shape. The coordinates are
+            # the places list's, so no lookup.
+            try:
+                import openmeteo
+                data = openmeteo.fetch(f"{lat},{lon}")
+            except Exception:  # noqa: BLE001 -- any failure: say so, as before
+                return [Item(f"Weather in {name}", "wttr.in and Open-Meteo did not answer -- try again in a moment",
+                             "weather-severe-alert")]
         _WEATHER[label] = (time.time(), data)
     page = "https://wttr.in/" + urllib.parse.quote(f"{name}, {country}")
     run = (lambda: open_in(webs[0], page)) if webs else None
