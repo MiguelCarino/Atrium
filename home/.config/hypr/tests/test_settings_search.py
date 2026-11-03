@@ -169,14 +169,19 @@ class LauncherSettings(unittest.TestCase):
 
     def test_backend_commands_exist(self):
         """Every script the commands list runs (the Settings backends among
-        them, also inside a told() shell line) exists and is executable."""
+        them, also inside a told() shell line) exists and is executable.
+        The commands name the installed scripts (L.HYPR, ~/.config/hypr/
+        scripts); each is checked in the copy under test (helpers.SCRIPTS),
+        so this holds run from the repo as from ~/.config -- matching on
+        helpers.SCRIPTS alone found nothing in a checkout elsewhere."""
         found = 0
         for name, _sub, _icon, argv in L.COMMANDS:
             if not isinstance(argv, list):
                 continue
-            for path in re.findall(re.escape(helpers.SCRIPTS) + r"/[\w.-]+\.(?:py|sh)", " ".join(argv)):
+            for path in re.findall(re.escape(L.HYPR) + r"/([\w.-]+\.(?:py|sh))", " ".join(argv)):
                 found += 1
-                self.assertTrue(os.access(path, os.X_OK), f"{name}: {path}")
+                here = os.path.join(helpers.SCRIPTS, path)
+                self.assertTrue(os.access(here, os.X_OK), f"{name}: {here}")
         self.assertGreater(found, 20)
 
     def test_accessibility_and_backend_entries(self):
