@@ -115,7 +115,17 @@
   <link rel="stylesheet" href="carino-theme.css">
 </head>
 <body>
-<script src="carino-navbar.js" data-app="Atrium" data-repo="Atrium" data-license="GPL-3.0-or-later" defer></script> <!-- self-injects at the top of <body> and loads carino-clock.js from this same site -->
+<!-- Key words: the navbar shows them, translated, under its Language tab. -->
+<ul data-carino-words hidden>
+  <li>Themes</li>
+  <li>Install</li>
+  <li>First steps</li>
+  <li>Top bar</li>
+  <li>Taskbar</li>
+  <li>The whole desktop</li>
+</ul>
+
+<script src="carino-navbar.js" data-app="Atrium" data-repo="Atrium" data-license="GPL-3.0-or-later" data-changelog="https://github.com/MiguelCarino/Atrium/commits/main" defer></script> <!-- self-injects at the top of <body> and loads carino-clock.js from this same site -->
 <script src="carino-theme.js" data-mark="logo.svg" data-mark-color="logo-color.svg" defer></script>
 <script src="carino-lang.js" defer></script>
 <script src="i18n.js" defer></script> <!-- after the fleet lang script, so CarinoLang is resolved before applyI18n runs on DOMContentLoaded -->
@@ -245,15 +255,17 @@
         <dt><span class="kbd">SUPER</span> + <span class="kbd">CTRL</span> + <span class="kbd">I</span></dt><dd data-i18n>Smart desktop: every smart feature, and what may use your camera, microphone, screen and clipboard.</dd>
         <dt><span class="kbd">SUPER</span> + <span class="kbd">F1</span></dt><dd data-i18n>Every shortcut.</dd>
     </dl>
-    <p class="privacy-line" style="margin-top:26px" data-i18n>Runs on your own machine. Nothing leaves it unless you turn on a feature that says it does.</p>
 </section>
 
 </main>
 
 <div data-carino-about hidden>
+  <p data-i18n>Runs on your own machine. Nothing leaves it unless you turn on a feature that says it does.</p>
   <p data-i18n>Fedora is a trademark of Red Hat, Inc. Atrium is not affiliated with or endorsed by the Fedora Project, Red Hat or the Hyprland project.</p>
-  <p data-i18n>The themes evoke eras of desktop design; they include no Microsoft or Apple artwork, fonts or sounds. The Orbit wallpaper is an Apollo 8 photograph by NASA.</p>
-  <p><a href="https://github.com/MiguelCarino/Atrium/commits/main" target="_blank" rel="noopener" data-i18n>Changelog</a> · <a href="https://github.com/MiguelCarino/Atrium#readme" target="_blank" rel="noopener" data-i18n>Docs</a> · <a href="https://github.com/MiguelCarino/Atrium/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n>Licence</a></p>
+  <p data-i18n>The themes evoke eras of desktop design; they include no Microsoft or Apple artwork, fonts or sounds.</p>
+</div>
+<div data-carino-licence hidden>
+  <p data-i18n>The Orbit wallpaper is an Apollo 8 photograph by NASA.</p>
 </div>
 
 <script>
