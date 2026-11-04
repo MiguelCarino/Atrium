@@ -178,6 +178,7 @@ PROTECTED = {
     "hypridle", "hyprlock", "mako", "pipewire", "pipewire-pulse",
     "wireplumber", "dbus-broker", "dbus-daemon", "systemd", "uwsm",
     "xdg-desktop-portal", "xdg-desktop-portal-hyprland", "gnome-keyring-d",
+    "oo7-daemon",
     "bash", "zsh", "fish", "sh", "tmux: server", "sshd-session",
 }
 UID = os.getuid()

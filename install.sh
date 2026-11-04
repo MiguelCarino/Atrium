@@ -132,6 +132,7 @@ DE_PACKAGES=(gnome-shell gnome-session gnome-session-wayland-session gnome-initi
 # preview still lists one. Names, and a pattern for the families.
 PROTECT=(sudo polkit firewalld xdg-desktop-portal xdg-desktop-portal-gtk xdg-desktop-portal-hyprland
          gvfs gvfs-mtp gvfs-smb gvfs-gphoto2 gvfs-fuse gnome-keyring gnome-keyring-pam
+         oo7-daemon pam_oo7 oo7-portal
          xdg-user-dirs xdg-utils adwaita-icon-theme hicolor-icon-theme dejavu-sans-fonts
          dejavu-sans-mono-fonts google-noto-sans-fonts google-noto-color-emoji-fonts
          default-fonts-core-sans mesa-dri-drivers mesa-vulkan-drivers akmod-nvidia
@@ -275,6 +276,16 @@ fi
 
 step "2/8  packages"
 mapfile -t pkgs < <(list "$REPO/packages/dnf.txt")
+# The secret service (org.freedesktop.secrets), by release. Fedora 45 replaced
+# gnome-keyring with oo7 (oo7-daemon obsoletes gnome-keyring < 51); 51 is
+# still in its repos, but installing it next to oo7 would put two daemons on
+# the same bus name. Hyprland starts oo7 itself (graphical-session-pre.target.d/
+# secret-service.conf): GNOME's session did that, nothing else does.
+if [[ $fedora =~ ^[0-9]+$ ]] && (( fedora >= 45 )); then
+    pkgs+=(oo7-daemon pam_oo7)
+else
+    pkgs+=(gnome-keyring gnome-keyring-pam)
+fi
 # Every edition comes with Fedora's ffmpeg-free; rpmfusion's ffmpeg conflicts
 # with it and dnf then refuses the whole list. rpmfusion's way is a swap.
 if rpm -q ffmpeg-free >/dev/null 2>&1 && { (( DRY )) || rpm -q rpmfusion-free-release >/dev/null 2>&1; }; then

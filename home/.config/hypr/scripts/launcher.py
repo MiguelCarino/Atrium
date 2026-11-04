@@ -432,6 +432,12 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gdk, Gio, GLib, Gtk, GtkLayerShell, Pango  # noqa: E402
+try:                                   # GLib 2.86+ (Fedora 45): DesktopAppInfo moved to GioUnix
+    gi.require_version("GioUnix", "2.0")
+    from gi.repository import GioUnix  # noqa: E402
+    DesktopAppInfo = GioUnix.DesktopAppInfo
+except (ImportError, ValueError, AttributeError):
+    DesktopAppInfo = Gio.DesktopAppInfo
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NOTIFY = os.path.join(HERE, "notify")  # notify-send with the theme's mascot (mascot_notify.py)
@@ -4469,7 +4475,7 @@ def desktop_app(desktop_id):
     TypeError "constructor returned NULL" for one that is not installed,
     instead of giving None.)"""
     try:
-        return Gio.DesktopAppInfo.new(desktop_id)
+        return DesktopAppInfo.new(desktop_id)
     except (TypeError, GLib.Error):
         return None
 

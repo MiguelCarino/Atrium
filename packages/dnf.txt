@@ -82,9 +82,9 @@ python3-cryptography
 python3-cups
 
 # The secret service the scripts keep keys in (secret-tool): KDE Plasma uses
-# KWallet instead, and it goes when Plasma is removed (install.sh step 5)
-gnome-keyring
-gnome-keyring-pam
+# KWallet instead, and it goes when Plasma is removed (install.sh step 5).
+# The daemon itself is not listed: install.sh adds it by release --
+# gnome-keyring on Fedora 44, oo7 on 45+ (which replaced it there).
 libsecret
 
 # Tools the scripts call

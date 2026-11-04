@@ -12,6 +12,7 @@
 --   wallpaper-slideshow  workspace-tint    ~/.config/systemd/user/*.service
 --   cliphist@text  cliphist@image          (cliphist@.service, one per type)
 --   hyprpolkitagent                        Fedora's unit, enabled
+--   oo7-daemon (Fedora 45+)                pulled in by graphical-session-pre.target
 --
 -- uwsm starts them through graphical-session.target, so each one is restarted
 -- if it crashes, logs to the journal (`journalctl --user -u waybar`) and is
@@ -39,6 +40,8 @@
 --                        Firefox/Thunderbird draw notifications as tiled windows
 --   cliphist@*           records the clipboard for SUPER+V
 --   hyprpolkitagent      password prompts for GUI apps needing admin rights
+--   oo7-daemon           the keyring (org.freedesktop.secrets) on Fedora 45+;
+--                        GNOME's session used to start it, nothing else does
 --
 -- The plain "Hyprland" session (not uwsm-managed) never reaches
 -- graphical-session.target, so there the same programs are started from here
@@ -56,6 +59,10 @@ local fallback_daemons = {
     "wl-paste --type image --watch cliphist store",
     "mako",
     "systemctl --user start hyprpolkitagent",
+    -- Fedora 45's secret service (graphical-session-pre.target.d/
+    -- secret-service.conf under uwsm); on 44 the unit does not exist and
+    -- pam_gnome_keyring starts gnome-keyring as before
+    "systemctl --user start oo7-daemon",
 }
 
 hl.on("hyprland.start", function()

@@ -28,7 +28,8 @@ PROTECTED = {"Hyprland", "Xwayland", "waybar", "waybar-toolbox", "pipewire",
              "wireplumber", "pipewire-pulse", "systemd", "systemd-journald",
              "systemd-resolved", "NetworkManager", "dbus-broker", "hyprpaper", "mako",
              "hypridle", "hyprpolkitagent", "xdg-desktop-portal",
-             "xdg-desktop-portal-hyprland", "gnome-keyring-daemon", "wayland-wm"}
+             "xdg-desktop-portal-hyprland", "gnome-keyring-daemon", "oo7-daemon",
+             "wayland-wm"}
 
 
 def label(text, cls, xalign=0.0):

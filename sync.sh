@@ -34,6 +34,7 @@ PATHS=(
     .config/qt6ct/
     .config/kdeglobals
     .config/cliphist/
+    .config/xdg-desktop-portal/hyprland-portals.conf   # adds the Secret portal (oo7 / gnome-keyring)
     .local/share/fonts/         # the themes' fonts
     .local/share/nautilus-python/extensions/atrium_files.py   # Files: right-click items, Git column (only ours: other extensions there stay yours)
     .config/fontconfig/conf.d/60-w95fa-pixels.conf
