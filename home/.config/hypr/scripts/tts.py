@@ -804,8 +804,14 @@ def in_venv(argv):
     except ImportError:
         pass
     if not os.access(VENV_PY, os.X_OK):
-        sys.exit("tts: Piper is not installed (python3 -m venv ~/.local/share/tts/venv && "
-                 "~/.local/share/tts/venv/bin/pip install piper-tts)")
+        sys.exit("tts: Piper is not installed (~/.config/hypr/scripts/venvs.py rebuild tts)")
+    # Already in the venv and still no Piper: the venv was built for another
+    # Python (a Fedora upgrade moves python3 on, 3.14 -> 3.15 in Fedora 45, and
+    # the old site-packages go dark). Re-running it would exec itself forever.
+    if os.path.realpath(sys.prefix) == os.path.realpath(os.path.dirname(os.path.dirname(VENV_PY))):
+        sys.exit("tts: the Piper venv has no Piper for Python "
+                 f"{sys.version_info.major}.{sys.version_info.minor} (built for another Python?); "
+                 "~/.config/hypr/scripts/venvs.py rebuild tts")
     os.execv(VENV_PY, [VENV_PY, THIS, *argv])
 
 

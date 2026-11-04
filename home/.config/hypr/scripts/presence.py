@@ -760,7 +760,7 @@ def human(data):
              "actions: " + ", ".join(f"{a} {s[a]}" for a in ACTIONS) + f"; away after {s['away_s']} s, "
              f"{s['fps']} fps, camera {s['camera']}"]
     if not all(data["installed"].values()):
-        lines.append(f"not installed: {DATA} (venv with opencv-python-headless, the YuNet model)")
+        lines.append(f"not installed: {DATA} (venv: scripts/venvs.py rebuild presence; the YuNet model)")
     if live:
         lines.append(f"now: {live['state']}, camera {'open' if live['camera'] else 'closed'}"
                      + (f" ({live['why']})" if live.get("why") else ""))

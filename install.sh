@@ -473,6 +473,10 @@ fi
 step "6/8  builds"
 run "$HYPR/hyprview-build.sh"
 run "$HYPR/hypr-cube-build.sh"
+# The speech, dictation and presence venvs: a re-run after a Fedora upgrade
+# rebuilds the ones built for the old Python (a fresh install has none; the
+# Settings pages say how to make them).
+run python3 "$HYPR/venvs.py" rebuild --stale
 # The themes' icon sets are built from Papirus: packages/dnf.txt installs it
 # (/usr/share/icons/Papirus); a copy of your own in ~/.local/share/icons is
 # used first. Chicago95, candy-icons and Sweet-Rainbow (win95's and

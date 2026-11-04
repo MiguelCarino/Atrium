@@ -93,4 +93,8 @@ hl.on("hyprland.start", function()
     -- After a Hyprland update the cube and overview plugins no longer load;
     -- this rebuilds whichever did not and reloads (see the script's header).
     hl.exec_cmd("~/.config/hypr/scripts/plugins-check.sh")
+
+    -- After a Fedora upgrade moves python3 on, the speech, dictation and
+    -- presence venvs no longer start: one notification says how to rebuild.
+    hl.exec_cmd("~/.config/hypr/scripts/venvs.py check")
 end)

@@ -224,7 +224,7 @@ class Page:
         self.updating = True
         self.engine_sub.set_text(engine_line(info))
         self.engine_more.set_text("Downloaded: " + (", ".join(info.get("models") or []) or "none")
-                                  + ". Lives in ~/.local/share/voice/venv (pip install faster-whisper there).")
+                                  + ". Lives in ~/.local/share/voice/venv (scripts/venvs.py rebuild voice makes it).")
         self.model.set([(m, m) for m in choices.get("model", [])], s["model"])
         self.model_note.set_text(f"{s['model']}: {notes.get(s['model'], '')}")
         self.cpu_model.set([(m, m) for m in choices.get("cpu_model", [])], s["cpu_model"])

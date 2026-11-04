@@ -80,6 +80,11 @@ python3-psutil
 luajit
 python3-cryptography
 python3-cups
+# ONNX Runtime for the speech and dictation venvs (Piper, and Whisper's voice
+# filter), which see it with --system-site-packages.
+# PyPI has no wheel for a new Python for months after Fedora ships it
+# (Fedora 45 moved to 3.15 with none); Fedora's build always matches python3.
+python3-onnxruntime
 
 # The secret service the scripts keep keys in (secret-tool): KDE Plasma uses
 # KWallet instead, and it goes when Plasma is removed (install.sh step 5).

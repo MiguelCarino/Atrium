@@ -353,6 +353,34 @@ class Selection(unittest.TestCase):
         self.assertTrue(stop.called)
 
 
+class VenvHandOff(unittest.TestCase):
+    """in_venv() hands the command to the venv's Python once, never again from
+    inside it: a venv built for an older Python (Fedora 45 moved 3.14 -> 3.15)
+    has no importable Piper, and re-exec'ing there looped forever."""
+    def setUp(self):
+        self.venv = tempfile.mkdtemp(dir=helpers.SCRATCH)
+        os.makedirs(os.path.join(self.venv, "bin"))
+        self.py = os.path.join(self.venv, "bin", "python")
+        shutil.copy(sys.executable, self.py)
+        self.addCleanup(shutil.rmtree, self.venv, True)
+        no_piper = mock.patch.dict(sys.modules, {"piper": None})   # import piper -> ImportError
+        no_piper.start()
+        self.addCleanup(no_piper.stop)
+
+    def test_outside_the_venv_execs_into_it(self):
+        with mock.patch.object(tts, "VENV_PY", self.py), mock.patch.object(tts.sys, "prefix", "/usr"), \
+                mock.patch.object(tts.os, "execv") as execv:
+            tts.in_venv(["status"])
+        self.assertEqual(execv.call_args[0][0], self.py)
+
+    def test_inside_the_venv_without_piper_stops(self):
+        with mock.patch.object(tts, "VENV_PY", self.py), mock.patch.object(tts.sys, "prefix", self.venv), \
+                mock.patch.object(tts.os, "execv", side_effect=AssertionError("must not re-exec")), \
+                self.assertRaises(SystemExit) as stop:
+            tts.in_venv(["status"])
+        self.assertIn("built for another Python", str(stop.exception))
+
+
 @unittest.skipUnless(os.access(tts.VENV_PY, os.X_OK) and tts.voice_for("es", dict(tts.DEFAULTS)),
                      "Piper venv or voices not installed")
 class RealSynthesis(unittest.TestCase):

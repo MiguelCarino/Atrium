@@ -97,8 +97,9 @@ class Page:
         w.pack_start(grid, False, False, 0)
         w.pack_start(links_row(link("Stop talking", self.stop)), False, False, 0)
         w.pack_start(details(note("Piper, on the CPU: nothing leaves this computer. It lives in "
-                                  "~/.local/share/tts/venv (python3 -m venv there, then pip install "
-                                  "piper-tts); voices download once from rhasspy/piper-voices.")),
+                                  "~/.local/share/tts/venv (made, or rebuilt after a Fedora upgrade, by "
+                                  "scripts/venvs.py rebuild tts); voices download once from "
+                                  "rhasspy/piper-voices.")),
                      False, False, 0)
 
         w.pack_start(sep(), False, False, 0)
