@@ -9,11 +9,20 @@ would make one."""
 import atexit
 import importlib.util
 import os
+import unittest
 import shutil
 import sys
 import tempfile
 
 SCRIPTS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
+
+# The Atrium checkout around these tests (home/.config/hypr/tests -> the repo),
+# or None when they run from a live install (~/.config/hypr/tests, as
+# sync.sh --commit runs them): the tests of repo-only files (install.sh,
+# packages/, system/) are skipped there.
+_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(SCRIPTS))))
+REPO = _REPO if os.path.isfile(os.path.join(_REPO, "install.sh")) else None
+needs_repo = unittest.skipUnless(REPO, "not in an Atrium checkout (no install.sh, packages/, system/)")
 SCRATCH = tempfile.mkdtemp(prefix="hypr-tests-")
 atexit.register(shutil.rmtree, SCRATCH, True)
 

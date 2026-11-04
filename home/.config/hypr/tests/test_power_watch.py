@@ -486,6 +486,8 @@ class Unit(unittest.TestCase):
             text = handle.read()
         self.assertIn("power-watch.py daemon", text)
         self.assertIn("WantedBy=graphical-session.target", text)
+        if not helpers.REPO:
+            return          # a live install has no packages/units.txt
         units = os.path.join(os.path.dirname(os.path.dirname(conf)), "packages", "units.txt")
         with open(units) as handle:
             self.assertIn("power-watch.service", handle.read().split())

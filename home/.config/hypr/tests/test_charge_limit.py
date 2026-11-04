@@ -40,6 +40,9 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(helpers.S
 SYSTEM = os.path.join(REPO, "system", "charge-limit")
 HELPER = os.path.join(SYSTEM, "charge-limit")
 
+if not os.path.isfile(HELPER):     # a live install: system/ is only in the checkout
+    raise unittest.SkipTest(f"no {HELPER}")
+
 ps = helpers.import_script("power_state.py", "power_state")
 cl = helpers.import_script("charge-limit.py")
 

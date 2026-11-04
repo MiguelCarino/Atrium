@@ -378,6 +378,7 @@ class Words(unittest.TestCase):
         self.assertIn("SASMEX earthquake early warning:", self.B.early_text(early))
         self.assertIn("lose up to 15 s", self.B.early_text(dict(early, battery_poll=True)))
 
+    @helpers.needs_repo
     def test_install_hint_matches_charge_limit(self):
         self.assertEqual(self.B.INSTALL, "sudo ./system/charge-limit/install.sh")
         self.assertTrue(os.access(os.path.join(REPO, "system", "charge-limit", "install.sh"), os.X_OK))
@@ -614,6 +615,7 @@ class WindowLook(unittest.TestCase):
         self.assertIn("Battery saver is on", text)
 
 
+@helpers.needs_repo
 class InstallAndSync(unittest.TestCase):
     def read(self, name):
         with open(os.path.join(REPO, name)) as handle:
