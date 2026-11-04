@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
 # Run once per login (lua/autostart.lua). Rebuilds any plugin that Hyprland
 # refused to load, or that was built against a different Hyprland package or
-# library than the ones installed now, then reloads the config so lua/cube.lua
-# and lua/overview.lua load the new .so.
+# library than the ones installed now, then loads the new .so into the running
+# Hyprland and reloads the config so lua/cube.lua and lua/overview.lua apply
+# their settings to it.
+#
+# The load is explicit (hyprctl plugin load): `hyprctl reload` alone does not
+# do it. Hyprland only loads a hl.plugin.load() path that is NEW to the config,
+# and the path was already there at login, when the old .so was refused -- so
+# after a Hyprland update (2026-11-03, Fedora 44 -> 45: 0.57.1) the rebuild
+# succeeded and the overview and cube stayed unloaded until the next login,
+# with "unknown config key 'plugin.hyprview...'" errors meanwhile. A stale .so
+# that did load is unloaded first; the new file is a new inode (cp + mv), so
+# the load maps it rather than the old one.
 #
 # Two signals. The .so is missing or not in `hyprctl plugin list` (a new
 # Hyprland version refuses it). Or its <name>.so.built stamp, written by the
@@ -43,10 +53,12 @@ rebuilt=()
 failed=()
 for p in "${plugins[@]}"; do
     read -r name so script <<<"$p"
+    was_loaded=0
     if [[ -f $lib/$so ]] && grep -q "^Plugin $name by" <<<"$loaded"; then
         # Loaded; current only if built against these very packages.
         [[ -n $stamp && $(cat "$lib/$so.built" 2>/dev/null) == "$stamp" ]] && continue
         why="It was built against an older Hyprland or its libraries"
+        was_loaded=1
     else
         why="It did not load into Hyprland $(rpm -q --qf '%{version}' hyprland)"
     fi
@@ -57,6 +69,8 @@ for p in "${plugins[@]}"; do
     if "$dir/$script" --keep 2>&1 | systemd-cat -t hypr-plugins; [[ ${PIPESTATUS[0]} -eq 0 ]]; then
         rebuilt+=("$name")
         rm -f "$lib/$so.failed"
+        ((was_loaded)) && hyprctl plugin unload "$lib/$so" >/dev/null
+        hyprctl plugin load "$lib/$so" >/dev/null
     else
         failed+=("$name")
         [[ -n $stamp ]] && mkdir -p "$lib" && printf '%s\n' "$stamp" > "$lib/$so.failed"
@@ -65,7 +79,17 @@ done
 
 if ((${#rebuilt[@]})); then
     hyprctl reload >/dev/null
-    "$notify" -a Hyprland "Plugins rebuilt" "${rebuilt[*]}"
+    loaded=$(hyprctl plugin list 2>/dev/null)
+    unloaded=()
+    for name in "${rebuilt[@]}"; do
+        grep -q "^Plugin $name by" <<<"$loaded" || unloaded+=("$name")
+    done
+    if ((${#unloaded[@]})); then
+        "$notify" -a Hyprland "Plugins rebuilt" \
+            "${rebuilt[*]}; ${unloaded[*]} loads at your next login"
+    else
+        "$notify" -a Hyprland "Plugins rebuilt" "${rebuilt[*]}"
+    fi
 fi
 if ((${#failed[@]})); then
     "$notify" -a Hyprland -u critical "Plugin rebuild failed" \

@@ -25,6 +25,7 @@ import filecmp
 import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -46,10 +47,18 @@ def config_files():
     return sorted(n for n in names if os.path.isfile(os.path.join(HYPR, n)))
 
 
+# "unknown config key 'plugin.hyprview.margin'": the plugin is not loaded,
+# not a broken config. It happens at the first login after every Hyprland
+# update (the old .so is refused until plugins-check.sh rebuilds and loads it),
+# and restoring last-good cannot fix it -- it only raised a critical "Restore
+# last working" toast for a config that was fine.
+PLUGIN_NOT_LOADED = re.compile(r"unknown config key 'plugin\.")
+
+
 def errors():
     try:
         out = subprocess.run(["hyprctl", "configerrors", "-j"], capture_output=True, text=True, timeout=5).stdout
-        return [e for e in json.loads(out or "[]") if e.strip()]
+        return [e for e in json.loads(out or "[]") if e.strip() and not PLUGIN_NOT_LOADED.search(e)]
     except (OSError, subprocess.SubprocessError, ValueError):
         return []
 
