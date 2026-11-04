@@ -632,6 +632,13 @@ class InstallAndSync(unittest.TestCase):
     def test_sync_never_ships_the_maintainers_timings(self):
         self.assertRegex(self.read("sync.sh"), r"'--exclude=/hypridle\.conf'")
 
+    def test_sync_keeps_the_shipped_timings(self):
+        # --delete-excluded would take the shipped file out of the repo
+        # without the protect rule (it did once: sync 2026-11-04).
+        text = self.read("sync.sh")
+        self.assertLess(text.index("'--filter=P /hypridle.conf'"), text.index("'--exclude=/hypridle.conf'"))
+        self.assertTrue(os.path.isfile(os.path.join(REPO, "home", ".config", "hypr", "hypridle.conf")))
+
 
 class AmbientMargin(unittest.TestCase):
     def test_theme_schedule_waits_three_battery_ticks(self):

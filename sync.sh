@@ -47,6 +47,7 @@ PERSONAL=(
     '--exclude=/lua/hosts/*.lua'        # this machine's screens (monitors-capture.py writes it)
     '--exclude=/contexts.json'          # their projects
     '--exclude=/desktop.conf'           # their folders
+    '--filter=P /hypridle.conf'         # ...but the repo's own copy is the shipped file: kept, never deleted
     '--exclude=/hypridle.conf'          # their idle timings: the shipped one stays all "never"
                                         # (idle-settings.py init picks a laptop's on first run;
                                         # test_idle_battery checks the shipped file)
