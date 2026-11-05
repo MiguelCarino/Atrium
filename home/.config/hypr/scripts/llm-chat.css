@@ -732,6 +732,182 @@ tooltip label {
     min-height: 1px;
 }
 
+/* --- the model manager (llm_manager.py: Ctrl+Shift+M) ----------------------
+   Its own window, window#llm-models, styled from the same palette names, so
+   every theme's colours reach it without rules of its own. Each model is a
+   card; the downloads going sit over both pages. */
+window#llm-models {
+    background-color: @surface;
+    background-image: none;
+    color: @text;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 11pt;
+}
+
+window#llm-models headerbar {
+    background-color: @surface-2;
+    background-image: none;
+    border-bottom: 1px solid @edge;
+    box-shadow: none;
+    color: @text;
+    min-height: 40px;
+}
+
+window#llm-models button {
+    background-color: @button-bg;
+    background-image: none;
+    border: 1px solid @edge;
+    border-radius: 6px;
+    color: @text;
+    box-shadow: none;
+    text-shadow: none;
+    -gtk-icon-shadow: none;
+    padding: 3px 12px;
+}
+
+window#llm-models button:hover {
+    background-color: @button-hover;
+}
+
+window#llm-models button:checked {
+    background-color: @button-hover;
+    border-color: @edge-lit;
+}
+
+window#llm-models button:disabled {
+    color: @text-dim;
+    opacity: 0.6;
+}
+
+window#llm-models button.suggested {
+    background-color: @send-bg;
+    color: @send-fg;
+    border-color: @send-bg;
+    font-weight: bold;
+}
+
+window#llm-models button.destructive:hover {
+    background-color: @stop-bg;
+    color: @stop-fg;
+}
+
+window#llm-models headerbar button.titlebutton {
+    padding: 2px;
+    border-radius: 6px;
+    min-width: 22px;
+    min-height: 22px;
+}
+
+window#llm-models stackswitcher button {
+    padding: 3px 18px;
+}
+
+window#llm-models entry {
+    background-color: @input-bg;
+    background-image: none;
+    border: 1px solid @input-edge;
+    border-radius: 6px;
+    color: @text;
+    caret-color: @caret;
+    box-shadow: none;
+    padding: 5px 8px;
+}
+
+window#llm-models entry:focus {
+    border-color: @input-line;
+}
+
+window#llm-models #model-rows,
+window#llm-models #search-bar,
+window#llm-models #manager-foot {
+    padding: 12px 14px;
+}
+
+window#llm-models #search-bar {
+    padding-bottom: 0;
+}
+
+window#llm-models #manager-foot {
+    border-top: 1px solid @edge;
+    background-color: @surface-2;
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+
+window#llm-models .model-card {
+    background-color: @assistant-bg;
+    border: 1px solid @assistant-edge;
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+window#llm-models .model-name {
+    font-weight: bold;
+}
+
+window#llm-models .model-mark {
+    color: @md-accent;
+    font-size: 9pt;
+}
+
+window#llm-models .dim {
+    color: @text-dim;
+}
+
+window#llm-models .small {
+    font-size: 9pt;
+}
+
+window#llm-models .warn {
+    color: @error-edge;
+}
+
+window#llm-models .variants {
+    border-top: 1px solid @edge;
+    margin-top: 6px;
+    padding-top: 6px;
+}
+
+window#llm-models .variant {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9.5pt;
+}
+
+window#llm-models #downloads {
+    background-color: @surface-2;
+    border-bottom: 1px solid @edge;
+    padding: 10px 14px;
+}
+
+window#llm-models progressbar trough {
+    background-color: @input-bg;
+    border: none;
+    border-radius: 3px;
+    min-height: 6px;
+}
+
+window#llm-models progressbar progress {
+    background-color: @send-bg;
+    background-image: none;
+    border: none;
+    border-radius: 3px;
+    min-height: 6px;
+}
+
+window#llm-models .download.done progressbar progress {
+    background-color: @done-bg;
+}
+
+window#llm-models .download.failed progressbar progress {
+    background-color: @bad-bg;
+}
+
+window#llm-models scrollbar slider {
+    background-color: @slider;
+    min-width: 6px;
+    border-radius: 3px;
+}
+
 /* Wallpaper accent (theme-from-wallpaper.py): redefines @cyan to the DP-1
    wallpaper's colour, or the theme's own accent=, or nothing for this neon.
    Near the end on purpose: GTK3 resolves a named colour by its final

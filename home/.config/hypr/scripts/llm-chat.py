@@ -103,6 +103,11 @@ Keys:
     Ctrl+M                the model picker (also the header's model button);
                           with a local model loaded, "Unload <model>" and
                           "Unload all local models" there
+    Ctrl+Shift+M          the model manager (llm_manager.py; "Manage models…"
+                          in the picker): the models on this PC -- use,
+                          make default, unload, delete -- and Hugging Face's
+                          GGUF models searched, a variant picked, downloaded
+                          with progress and Cancel
     Ctrl+J                the mascot menu: her mood now, what she reacts
                           to, which reactions she has, reduce motion
                           (mascot_mood.py's settings)
@@ -2733,6 +2738,10 @@ class Front(Gtk.Window):
         if ctrl and key == Gdk.KEY_n:
             self.new_session()
             return True
+        if ctrl and event.state & Gdk.ModifierType.SHIFT_MASK and key == Gdk.KEY_m \
+                and self.model_btn.get_sensitive():
+            self.open_manager()
+            return True
         if ctrl and key == Gdk.KEY_m and self.model_btn.get_sensitive():
             self.model_btn.set_active(True)
             return True
@@ -4405,8 +4414,12 @@ class Front(Gtk.Window):
         again = Gtk.ModelButton(text="Look for local models again")
         again.connect("clicked", lambda *_: self.refresh_models(say=True))
         box.pack_start(again, False, False, 0)
-        find = Gtk.ModelButton(text="Find and download models…")
-        find.set_tooltip_text("the launcher's ?get: GGUF models on Hugging Face, downloaded with lms get")
+        manage = Gtk.ModelButton(text="Manage models…   Ctrl+Shift+M")
+        manage.set_tooltip_text("the models on this PC: use, make default, unload, delete")
+        manage.connect("clicked", lambda *_: self.open_manager("installed"))
+        box.pack_start(manage, False, False, 0)
+        find = Gtk.ModelButton(text="Download models…")
+        find.set_tooltip_text("GGUF models on Hugging Face, downloaded with LM Studio (lms get)")
         find.connect("clicked", lambda *_: self.find_models())
         box.pack_start(find, False, False, 0)
         box.show_all()
@@ -4450,16 +4463,43 @@ class Front(Gtk.Window):
         self.note(f"default model: {self.choice.name}, in {short_path(llm_models.SETTINGS)}{extra}")
 
     def find_models(self):
-        """The launcher, "?get " typed: its model search and download. A
-        new download shows up here the next time this list opens (the
-        download refreshes the cache)."""
+        """The model manager on its Download page."""
+        self.open_manager("download")
+
+    def open_manager(self, page="installed"):
+        """The model manager (llm_manager.py), a window of its own over this
+        one: one at a time, raised and turned to `page` when already open."""
         self.model_pop.popdown()
+        if llm_models is None:
+            return
+        manager = getattr(self, "manager", None)
+        if manager is not None:
+            manager.show_page(page)
+            manager.present()
+            return
         try:
-            subprocess.Popen(["python3", os.path.join(HERE, "launcher.py"), "?get "],
-                             start_new_session=True, stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL)
-        except OSError as exc:
-            self.error(f"could not start the launcher: {exc}")
+            import llm_manager
+        except Exception as exc:  # noqa: BLE001 -- said, the chat goes on
+            self.error(f"the model manager could not start: {exc}")
+            return
+        self.manager = llm_manager.ModelManager(host=self, page=page)
+        self.manager.present()
+
+    def manager_closed(self):
+        self.manager = None
+        self.input.grab_focus()
+
+    def models_changed(self):
+        """The manager read the disk again (a download, a delete): the
+        picker and the button follow; a picked model deleted is said."""
+        if self.closing:
+            return
+        self.refresh_loaded()
+        if self.choice is not None and self.choice.local and \
+                all(m.ident != self.choice.ident for m in llm_models.local_models()):
+            self.note(f"{self.choice.name} is no longer on this PC: pick another model (Ctrl+M)")
+        if self.model_pop.get_visible():
+            self.fill_model_menu(refresh=False)
 
     def refresh_models(self, say=False):
         """lms ls again, in a thread (it may take seconds)."""

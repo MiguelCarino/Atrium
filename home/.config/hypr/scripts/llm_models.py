@@ -94,6 +94,8 @@ Blocking: run it in a thread.
                                    launcher's ?get; see get() below)
     llm_models.py select REPO      the same with lms's own variant picker,
                                    in a terminal (?get's Shift+Enter)
+    llm_models.py downloads        the downloads going (and just ended)
+    llm_models.py cancel REPO      stop one; lms removes the partial file
 
 No GTK here: the launcher imports this on every start.
 """
@@ -102,8 +104,10 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
+import threading
 import time
 
 HOME = os.path.expanduser("~")
@@ -663,6 +667,7 @@ def free_local():
 DL_DIR = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "llm-downloads")
 HF = "https://huggingface.co"
 DL_ICON = "folder-download"
+DL_KEEP = 3600              # s an ended download stays in downloads()
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[78]")
 _PROGRESS = re.compile(r"([\d.]+)%\s*\|\s*([\d.]+ ?[KMGT]?B) / ([\d.]+ ?[KMGT]?B)\s*\|\s*"
                        r"([\d.]+ ?[KMGT]?B/s)\s*\|\s*ETA ([\d:]+)")
@@ -741,22 +746,159 @@ def _clean(raw):
     return [line.strip(" ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏") for line in text.splitlines() if line.strip()]
 
 
+def _status_path(repo):
+    return _lock_path(repo)[:-len(".lock")] + ".json"
+
+
+def _write_status(repo, **fields):
+    """The download's state for the chat window's model manager, in DL_DIR
+    (a tmpfs: gone at logout): {"repo", "variant", "pid", "state": running |
+    done | failed | cancelled, "pct", "done", "total", "speed", "eta",
+    "message", "model", "time"}. Written whole, atomically."""
+    path = _status_path(repo)
+    try:
+        with open(path) as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        data = {}
+    data.update(fields, repo=repo, time=time.time())
+    try:
+        os.makedirs(DL_DIR, exist_ok=True)
+        tmp = f"{path}.{os.getpid()}.tmp"
+        with open(tmp, "w") as handle:
+            json.dump(data, handle)
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+def downloads(keep=DL_KEEP):
+    """[status dict] for the downloads going now and those that ended in
+    the last `keep` seconds, oldest first. One whose file still says
+    "running" but whose lock is free (its process killed) says "failed"."""
+    out = []
+    try:
+        names = [n for n in os.listdir(DL_DIR) if n.endswith(".json")]
+    except OSError:
+        return out
+    now = time.time()
+    for name in names:
+        try:
+            with open(os.path.join(DL_DIR, name)) as handle:
+                data = json.load(handle)
+        except (OSError, ValueError):
+            continue
+        if not isinstance(data, dict) or not data.get("repo"):
+            continue
+        if data.get("state") == "running" and not downloading(data["repo"]) or \
+                data.get("state") == "starting" and now - (data.get("time") or 0) > 30 \
+                and not downloading(data["repo"]):
+            data.update(state="failed", message="the download stopped")
+        if data.get("state") != "running" and now - (data.get("time") or 0) > keep:
+            continue
+        out.append(data)
+    out.sort(key=lambda d: d.get("started") or d.get("time") or 0)
+    return out
+
+
+def forget_download(repo):
+    """Take an ended download off the list (a running one stays)."""
+    if not downloading(repo):
+        try:
+            os.remove(_status_path(repo))
+        except OSError:
+            pass
+
+
+def cancel(repo):
+    """Stop the download of `repo`: SIGTERM to its `llm_models.py get`
+    process (from its status file, checked in /proc to really be that),
+    which asks lms to stop and to throw the partial file away. True when
+    a process was signalled."""
+    try:
+        with open(_status_path(repo)) as handle:
+            pid = int(json.load(handle).get("pid") or 0)
+        with open(f"/proc/{pid}/cmdline", "rb") as handle:
+            argv = handle.read().split(b"\0")
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+    if pid <= 1 or not any(a.endswith(b"llm_models.py") for a in argv) or b"get" not in argv \
+            or repo.encode() not in argv:
+        return False
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        return False
+    return True
+
+
+def spawn_get(repo, variant=""):
+    """`llm_models.py get REPO [VARIANT]` detached, in a systemd scope of its
+    own (as the launcher's in_scope: uwsm app, else systemd-run), so the
+    window that started it can close and the download goes on. False when
+    one of this repo is going already."""
+    if downloading(repo):
+        return False
+    argv = [sys.executable, os.path.abspath(__file__), "get", repo] + ([variant] if variant else [])
+    if shutil.which("uwsm"):
+        argv = ["uwsm", "app", "--"] + argv
+    elif shutil.which("systemd-run"):
+        argv = ["systemd-run", "--user", "--scope", "--quiet", "--"] + argv
+    _write_status(repo, variant=variant, state="starting", pct=0, message="starting…",
+                  started=time.time(), pid=0)
+    subprocess.Popen(argv, start_new_session=True, stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return True
+
+
 def get(repo, variant=""):
-    """The download, start to end (blocking: the launcher runs it as a
-    process of its own). 0 on success."""
+    """The download, start to end (blocking: the launcher and the chat's
+    model manager run it as a process of its own). 0 on success.
+
+    SIGTERM (cancel()) or SIGINT stops it: lms gets a SIGINT, which makes
+    it ask "Continue to download in the background? (Y/N)", and is told N
+    on its stdin -- it then cancels the job in LM Studio and removes the
+    partial file (lms 0.4, checked by hand)."""
     name = repo + (f" {variant}" if variant else "")
     lock = _take_lock(repo)
     if lock is None:
         _notify("Already downloading", f"{repo} is being downloaded already", icon="dialog-information")
         return 1
     spec = f"{HF}/{repo}" + (f"@{variant.lower()}" if variant else "")
+    _write_status(repo, variant=variant, state="running", pid=os.getpid(), pct=0, done="", total="",
+                  speed="", eta="", message="asking LM Studio…", model="", started=time.time())
     nid = _notify("Downloading " + name, "asking LM Studio…", value=0, sticky=True)
     refresh()
     before = {m.ident for m in local_models()}
-    tail, last, already = [], 0.0, False
+    tail, last, already, stopping = [], 0.0, False, []
+    proc = None
+
+    def stop(_sig, _frame):
+        if stopping or proc is None or proc.poll() is not None:
+            stopping.append(True)
+            return
+        stopping.append(True)
+        _write_status(repo, message="cancelling…")
+        try:
+            proc.send_signal(signal.SIGINT)
+        except OSError:
+            return
+
+        def answer():
+            try:
+                proc.stdin.write(b"N\n")
+                proc.stdin.flush()
+            except (OSError, ValueError):
+                pass
+        threading.Timer(0.8, answer).start()
+
+    old = {s: signal.signal(s, stop) for s in (signal.SIGTERM, signal.SIGINT)}
     try:
-        proc = subprocess.Popen([LMS, "get", spec, "-y", "--gguf"], stdin=subprocess.DEVNULL,
+        proc = subprocess.Popen([LMS, "get", spec, "-y", "--gguf"], stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if stopping:            # cancelled before lms was even started
+            stopping.clear()
+            stop(None, None)
         buf = b""
         while True:
             chunk = proc.stdout.read1(65536)
@@ -774,15 +916,29 @@ def get(repo, variant=""):
             if hit and time.monotonic() - last >= 1:
                 last = time.monotonic()
                 pct, done, total, speed, eta = hit.groups()
+                if not stopping:
+                    _write_status(repo, pct=float(pct), done=done, total=total, speed=speed, eta=eta,
+                                  message="")
                 nid = _notify("Downloading " + name, f"{float(pct):.0f} %  ·  {done} of {total}"
                               f"  ·  {speed}  ·  {eta} left", nid, float(pct), sticky=True)
         code = proc.wait()
     except (OSError, subprocess.SubprocessError) as exc:
         code, tail = 1, [str(exc)]
+    finally:
+        for s, handler in old.items():
+            signal.signal(s, handler)
+    if stopping:
+        _notify("Download cancelled: " + name, "the partial file was removed", nid, icon="dialog-information")
+        _write_status(repo, state="cancelled", message="cancelled")
+        refresh()
+        lock.close()
+        return 1
     if code:
         why = next((t for t in reversed(tail) if t.lower().startswith("error")), tail[-1] if tail else
                    f"lms exited with {code}")
         _notify("Download failed: " + repo, why[:300], nid, icon="dialog-error")
+        _write_status(repo, state="failed", message=why[:300])
+        lock.close()
         return 1
     refresh()
     after = local_models()
@@ -792,6 +948,8 @@ def get(repo, variant=""):
     _notify(("Already downloaded: " if already and not new else "Downloaded ") + name,
             (f"{model.label} · {model.detail}" if model else "in ~/.lmstudio/models") + use, nid,
             icon="emblem-default")
+    _write_status(repo, state="done", pct=100.0, model=model.name if model else "",
+                  message="already downloaded" if already and not new else "downloaded")
     lock.close()
     return 0
 
@@ -829,6 +987,13 @@ if __name__ == "__main__":
         except ValueError as exc:
             sys.exit(f"llm_models: {exc}")
         sys.exit(0)
+    if sys.argv[1:2] == ["downloads"]:
+        for d in downloads():
+            print(f"{d.get('state', '?'):9} {d.get('pct') or 0:5.1f} %  {d['repo']} {d.get('variant') or ''}"
+                  f"  {d.get('message') or ''}")
+        sys.exit(0)
+    if sys.argv[1:2] == ["cancel"] and len(sys.argv) == 3:
+        sys.exit(0 if cancel(sys.argv[2]) else f"llm_models: no download of {sys.argv[2]} going")
     if sys.argv[1:2] == ["refresh"]:
         print("ok" if refresh() else "lms ls failed")
     for m in all_models():

@@ -2496,23 +2496,15 @@ def refresh_models():
 # of its own). Asked HF_DELAY ms after typing stops, in a thread (the
 # Launcher's plan_hf), kept per query for the session in HF_CACHE; results()
 # only draws what is there.
-HF_API = "https://huggingface.co/api/models"
+# The Hugging Face search itself (the requests, the ranking, the variant
+# sizes, the fit against this machine) is llm_hub.py's, shared with the LLM
+# chat window's model manager.
+from llm_hub import (  # noqa: E402,F401
+    HF_API, HF_LIMIT, HF_PICKS, HF_SIZED, HF_EXPAND, HF_CACHE, DISK_SPARE, QUANTS, QUANT_RE, _HW,
+    ram_bytes, vram_bytes, hardware, quant_of, split_base, hf_get, hf_row, hf_rank, hf_search,
+    gb, count, fit)
 HF_DELAY = 500              # ms after the last key
-HF_LIMIT = 24               # repos asked for
-HF_PICKS = 6                # lmstudio-community repos asked for, alongside
-HF_SIZED = 6                # top repos whose file sizes are asked (one request each)
-HF_EXPAND = ("downloads", "likes", "lastModified", "tags", "gguf", "siblings")
-HF_CACHE = {}               # query -> {"rows": [...], "error": str} (rows: dicts, ranked)
 GET_WORDS = ("get", "download")
-DISK_SPARE = 10e9           # bytes left free after a download, or Enter asks first
-# The variant downloaded: the first of these the repo has (Q4_K_M: the usual
-# best size for the quality), and its bits per weight, to guess a size
-# before the real one is in.
-QUANTS = (("Q4_K_M", 4.85), ("Q4_K_S", 4.6), ("IQ4_XS", 4.3), ("Q4_0", 4.55), ("Q5_K_M", 5.7),
-          ("Q5_K_S", 5.55), ("Q6_K", 6.6), ("Q8_0", 8.5), ("Q3_K_L", 4.3), ("Q3_K_M", 3.9),
-          ("IQ3_M", 3.7), ("Q2_K", 3.0), ("BF16", 16.0), ("F16", 16.0))
-QUANT_RE = re.compile(r"(?:^|[-_.])(I?Q\d(?:_[A-Z0-9]{1,2})+|BF16|F16|F32)(?=$|[-_.])", re.I)
-_HW = {}                    # "vram", "ram": bytes, asked once (in the search thread)
 
 
 def hf_query(text):
@@ -2520,171 +2512,6 @@ def hf_query(text):
     that mode. `text` is all that followed the ?."""
     first, _, rest = text.strip().partition(" ")
     return rest.strip() if first.lower() in GET_WORDS else None
-
-
-def ram_bytes():
-    """MemTotal from /proc/meminfo, in bytes (32 GB if it cannot be read)."""
-    try:
-        with open("/proc/meminfo") as handle:
-            return int(handle.readline().split()[1]) * 1024
-    except (OSError, ValueError, IndexError):
-        return 32e9
-
-
-def vram_bytes(card, ram):
-    """The memory a model can be loaded into on the GPU, from gpu.py's
-    primary() card: its vram_total (MiB); no card, or an integrated one
-    (vram_total None, or an AMD APU's small carve-out with discrete False:
-    it shares the RAM) -> the RAM itself."""
-    card = card or {}
-    total = card.get("vram_total")
-    return total * 1024 ** 2 if total and card.get("discrete") is not False else ram
-
-
-def hardware():
-    """{"vram", "ram"} in bytes: gpu.py's main card (any maker; in-process,
-    nothing forked), /proc/meminfo. Blocking once (~50 ms): the search thread."""
-    if not _HW:
-        ram = ram_bytes()
-        try:
-            import gpu
-            card = gpu.primary()
-        except Exception:  # noqa: BLE001 -- no card info is the no-card answer
-            card = None
-        _HW.update(vram=vram_bytes(card, ram), ram=ram)
-    return _HW
-
-
-def quant_of(path):
-    """"Q4_K_M" for ".../Model-Q4_K_M-00001-of-00002.gguf", None for a file
-    that is no model's weights (mmproj, imatrix) or names no quantization."""
-    base = os.path.basename(path)
-    if not base.lower().endswith(".gguf") or re.search(r"mmproj|imatrix", base, re.I):
-        return None
-    hits = QUANT_RE.findall(split_base(base))
-    return hits[-1].upper() if hits else None
-
-
-def split_base(path):
-    """A file's name without .gguf and a split's "-00001-of-00003": one
-    name for all the parts of one file."""
-    return re.sub(r"-\d{5}-of-\d{5}$", "", os.path.basename(path)[:-5])
-
-
-def hf_get(url, timeout=8):
-    req = urllib.request.Request(url, headers={"User-Agent": "launcher.py (hyprland desktop)"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read())
-
-
-def hf_row(repo):
-    """One search answer, cut down to what an item needs."""
-    files = [s.get("rfilename", "") for s in repo.get("siblings") or []]
-    quants = {q for q in map(quant_of, files) if q}
-    variant = next((q for q, _ in QUANTS if q in quants), None)
-    params = (repo.get("gguf") or {}).get("total") or 0
-    if not params:              # "Qwen2.5-7B-Instruct-GGUF": the name's own count
-        hit = re.search(r"(?:^|[-_])(\d+(?:\.\d+)?)[Bb](?:[-_]|$)", repo["id"].split("/")[-1])
-        params = float(hit.group(1)) * 1e9 if hit else 0
-    bpw = dict(QUANTS).get(variant)
-    return {"id": repo["id"], "downloads": repo.get("downloads") or 0, "likes": repo.get("likes") or 0,
-            "modified": repo.get("lastModified") or "", "params": params, "variant": variant,
-            "guess": params * bpw / 8 if params and bpw else 0, "size": 0,
-            "moe": (re.search(r"[-_](A\d+(?:\.\d+)?B)(?:[-_]|$)", repo["id"], re.I) or [None, None])[1],
-            "pick": repo["id"].lower().startswith("lmstudio-community/"),
-            "gguf": any(f.lower().endswith(".gguf") for f in files)}
-
-
-def hf_rank(rows):
-    """Most downloaded first, a lmstudio-community repo counted as eight
-    times its downloads (LM Studio's own, tested quantizations of the
-    model), repos without a .gguf file or a known variant last."""
-    def weight(row):
-        return row["downloads"] * (8 if row["pick"] else 1) * (1 if row["gguf"] else 0.01) \
-            * (1 if row["variant"] else 0.2)
-    return sorted(rows, key=weight, reverse=True)
-
-
-def hf_search(query, on_update=lambda: None):
-    """Ask Hugging Face for `query` and fill HF_CACHE[query]; then the file
-    sizes of the top HF_SIZED (in parallel), on_update() after each phase.
-    Blocking (~0.2 s + ~0.2 s): a thread. Two requests for the search --
-    the most downloaded GGUF repos, and lmstudio-community's -- side by side."""
-    expand = "".join(f"&expand[]={e}" for e in HF_EXPAND)
-    base = f"{HF_API}?search={urllib.parse.quote(query)}&filter=gguf&sort=downloads{expand}"
-    answers, errors = {}, []
-
-    def ask(key, url):
-        try:
-            answers[key] = hf_get(url)
-        except (OSError, ValueError) as exc:
-            errors.append(str(getattr(exc, "reason", exc)))
-
-    threads = [threading.Thread(target=ask, args=("all", f"{base}&limit={HF_LIMIT}")),
-               threading.Thread(target=ask, args=("picks", f"{base}&limit={HF_PICKS}&author=lmstudio-community"))]
-    for t in threads:
-        t.start()
-    hardware()
-    for t in threads:
-        t.join()
-    if "all" not in answers:
-        HF_CACHE[query] = {"rows": [], "error": errors[0] if errors else "no answer"}
-        on_update()
-        return HF_CACHE[query]
-    seen, rows = set(), []
-    for repo in answers.get("picks", []) + answers["all"]:
-        if isinstance(repo, dict) and repo.get("id") and repo["id"] not in seen:
-            seen.add(repo["id"])
-            rows.append(hf_row(repo))
-    entry = HF_CACHE[query] = {"rows": hf_rank(rows), "error": ""}
-    on_update()
-
-    def size(row):
-        try:
-            tree = hf_get(f"{HF_API}/{row['id']}/tree/main?recursive=true")
-            sets = {}           # one file, or its split parts, per name: some repos have two
-            for f in tree:      # of a variant (with / without MTP, single / split)
-                if isinstance(f, dict) and f.get("type") == "file" and \
-                        quant_of(f.get("path", "")) == row["variant"]:
-                    key = os.path.dirname(f["path"]) + "/" + split_base(f["path"]) \
-                        + ("#split" if re.search(r"-\d{5}-of-\d{5}\.gguf$", f["path"]) else "")
-                    sets[key] = sets.get(key, 0) + (f.get("size") or 0)
-            row["size"] = max(sets.values(), default=0)    # the biggest: disk and VRAM erring safe
-        except (OSError, ValueError):
-            pass
-    threads = [threading.Thread(target=size, args=(row,)) for row in entry["rows"][:HF_SIZED]
-               if row["variant"]]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    if threads:
-        on_update()
-    return entry
-
-
-def gb(n):
-    return f"{n / 1e9:.1f} GB" if n >= 1e9 else f"{n / 1e6:.0f} MB"
-
-
-def count(n):
-    for size, unit in ((1e6, "M"), (1e3, "k")):
-        if n >= size:
-            return f"{n / size:.1f}".rstrip("0").rstrip(".") + unit
-    return str(n)
-
-
-def fit(size):
-    """vs this machine: the weights plus ~1.5 GB of context in VRAM, or
-    split with system RAM (half of it), or not at all."""
-    if not _HW:
-        ram = ram_bytes()
-    hw = _HW or {"vram": ram, "ram": ram}      # before hardware() has run: as if no card
-    if size + 1.5e9 <= hw["vram"]:
-        return "fits GPU"
-    if size <= hw["vram"] + hw["ram"] / 2:
-        return "partial offload"
-    return "too big"
 
 
 def start_download(repo, variant):
