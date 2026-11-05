@@ -4,7 +4,11 @@ window's model manager (llm_manager.py): the search, a repo's variants and
 their sizes, how one fits this machine; and the models already on disk,
 with a way to delete one. The download itself is llm_models.get (lms get).
 
-    hf_search(query)      the GGUF repos for some words, most downloaded
+    hf_search(query)      the GGUF repos for some words -- or for something
+                          pasted from Hugging Face (parse_ref: a page or file
+                          address, user/repo, hf.co/user/repo:Q4_K_M, an lms /
+                          llama-server / ollama line), that repo, or the GGUF
+                          versions of a model that has none -- most downloaded
                           first, LM Studio's own lmstudio-community
                           quantizations raised (two requests side by side),
                           then the file sizes of the top HF_SIZED; kept per
@@ -34,6 +38,7 @@ import re
 import shutil
 import sys
 import threading
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -112,11 +117,12 @@ def hf_get(url, timeout=8):
         return json.loads(resp.read())
 
 
-def hf_row(repo):
-    """One search answer, cut down to what an item needs."""
+def hf_row(repo, prefer=None):
+    """One search answer, cut down to what an item needs; its variant
+    `prefer` when it has that one (a pasted ":Q6_K")."""
     files = [s.get("rfilename", "") for s in repo.get("siblings") or []]
     quants = {q for q in map(quant_of, files) if q}
-    variant = next((q for q, _ in QUANTS if q in quants), None)
+    variant = prefer if prefer in quants else next((q for q, _ in QUANTS if q in quants), None)
     params = (repo.get("gguf") or {}).get("total") or 0
     if not params:              # "Qwen2.5-7B-Instruct-GGUF": the name's own count
         hit = re.search(r"(?:^|[-_])(\d+(?:\.\d+)?)[Bb](?:[-_]|$)", repo["id"].split("/")[-1])
@@ -144,7 +150,13 @@ def hf_search(query, on_update=lambda: None):
     """Ask Hugging Face for `query` and fill HF_CACHE[query]; then the file
     sizes of the top HF_SIZED (in parallel), on_update() after each phase.
     Blocking (~0.2 s + ~0.2 s): a thread. Two requests for the search --
-    the most downloaded GGUF repos, and lmstudio-community's -- side by side."""
+    the most downloaded GGUF repos, and lmstudio-community's -- side by side.
+    Something pasted from Hugging Face (parse_ref) is that repo instead.
+    The entry: {"rows", "error", "note": a line to show over them or "",
+    "ref": the repo id when the rows are a pasted repo itself, else None}."""
+    ref = parse_ref(query)
+    if ref is not None:
+        return _ref_search(query, ref, on_update)
     expand = "".join(f"&expand[]={e}" for e in HF_EXPAND)
     base = f"{HF_API}?search={urllib.parse.quote(query)}&filter=gguf&sort=downloads{expand}"
     answers, errors = {}, []
@@ -163,7 +175,7 @@ def hf_search(query, on_update=lambda: None):
     for t in threads:
         t.join()
     if "all" not in answers:
-        HF_CACHE[query] = {"rows": [], "error": errors[0] if errors else "no answer"}
+        HF_CACHE[query] = {"rows": [], "error": errors[0] if errors else "no answer", "note": "", "ref": None}
         on_update()
         return HF_CACHE[query]
     seen, rows = set(), []
@@ -171,9 +183,116 @@ def hf_search(query, on_update=lambda: None):
         if isinstance(repo, dict) and repo.get("id") and repo["id"] not in seen:
             seen.add(repo["id"])
             rows.append(hf_row(repo))
-    entry = HF_CACHE[query] = {"rows": hf_rank(rows), "error": ""}
+    entry = HF_CACHE[query] = {"rows": hf_rank(rows), "error": "", "note": "", "ref": None}
     on_update()
+    _sizes(entry, on_update)
+    return entry
 
+
+# -- something pasted from Hugging Face ---------------------------------------------
+# A page's address, a file's, "user/repo", "hf.co/user/repo:Q4_K_M" (Ollama's
+# "Use this model"), `lms get user/repo@q4_k_m`, `llama-server -hf
+# user/repo:Q4_K_M`: hf_search() takes that repo itself instead of searching
+# for the words -- the pasted variant first when it names one.
+_HOST = r"(?:https?://)?(?:www\.)?(?:huggingface\.co|hf\.co)/"
+_NAME = r"[A-Za-z0-9][\w.-]*"
+REF_URL = re.compile(_HOST + r"(?:(datasets|spaces)/)?(" + _NAME + r")/(" + _NAME + r")"
+                     r"(?:/(?:tree|blob|resolve)/[^/\s]+/([^\s?#]+))?(?:[:@]([\w.-]+))?")
+REF_BARE = re.compile(r"^(" + _NAME + r")/(" + _NAME + r")(?:[:@]([\w.-]+))?$")
+REF_VERBS = {"get", "pull", "run", "-hf", "--hf-repo", "--hf", "download", "clone"}
+NOT_OWNERS = {"models", "docs", "blog", "papers", "settings", "collections", "organizations", "api", "join",
+              "login", "pricing", "learn", "tasks", "new"}
+
+
+def _variant(tag):
+    """"q4_k_m" / "Q4_K_M" -> "Q4_K_M"; "latest" or anything no quantization -> None."""
+    hits = QUANT_RE.findall("-" + (tag or "") + "-")
+    return hits[-1].upper() if hits else None
+
+
+def parse_ref(text):
+    """{"kind": "model" | "dataset" | "space" | "search", "repo", "variant",
+    "words"} for text pasted from Hugging Face, or None for plain words."""
+    text = (text or "").strip()
+    if not text:
+        return None
+    search = re.search(_HOST + r"(?:models|search/full-text)\?(\S*)", text)
+    if search:
+        words = urllib.parse.parse_qs(search.group(1)).get("search", [""])[0].strip()
+        return {"kind": "search", "repo": None, "variant": None, "words": words} if words else None
+    hit = REF_URL.search(text)
+    if hit and hit.group(2).lower() not in NOT_OWNERS:
+        kind = {"datasets": "dataset", "spaces": "space"}.get(hit.group(1), "model")
+        repo = f"{hit.group(2)}/{hit.group(3)}"
+        variant = (quant_of(hit.group(4)) if hit.group(4) and hit.group(4).lower().endswith(".gguf")
+                   else None) or _variant(hit.group(5))
+        return {"kind": kind, "repo": repo, "variant": variant, "words": ""}
+    tokens = text.split()
+    for i, token in enumerate(tokens):
+        hit = REF_BARE.match(token.strip("'\"`"))
+        if hit and (len(tokens) == 1 or (i and tokens[i - 1].lower() in REF_VERBS)):
+            return {"kind": "model", "repo": f"{hit.group(1)}/{hit.group(2)}",
+                    "variant": _variant(hit.group(3)), "words": ""}
+    return None
+
+
+def _ref_search(query, ref, on_update):
+    """hf_search() for something pasted: the repo itself, or -- a model with
+    no GGUF file (the original safetensors one) -- the GGUF versions others
+    made of it (HF's base_model:quantized: filter), most downloaded first."""
+    if ref["kind"] == "search":
+        entry = dict(hf_search(ref["words"]))
+        entry["note"] = f"searched for “{ref['words']}”"
+        HF_CACHE[query] = entry
+        on_update()
+        return entry
+    repo = ref["repo"]
+    if ref["kind"] != "model":
+        entry = HF_CACHE[query] = {"rows": [], "error": "", "ref": None,
+                                   "note": f"{repo} is a Hugging Face {ref['kind']}, not a model: "
+                                           "there is nothing in it for LM Studio to download"}
+        on_update()
+        return entry
+    expand = "&".join(f"expand[]={e}" for e in HF_EXPAND)
+    hardware()
+    try:
+        info = hf_get(f"{HF_API}/{repo}?{expand}")
+    except urllib.error.HTTPError as exc:
+        why = (f"no model {repo} on Hugging Face (or it is private or gated)"
+               if exc.code in (401, 403, 404) else f"Hugging Face said {exc.code}")
+        entry = HF_CACHE[query] = {"rows": [], "error": why, "ref": None, "note": ""}
+        on_update()
+        return entry
+    except (OSError, ValueError) as exc:
+        entry = HF_CACHE[query] = {"rows": [], "error": str(getattr(exc, "reason", exc)), "ref": None,
+                                   "note": ""}
+        on_update()
+        return entry
+    row = hf_row(info, prefer=ref["variant"])
+    if row["gguf"]:
+        note = ""
+        if ref["variant"] and row["variant"] != ref["variant"]:
+            note = f"{row['id']} has no {ref['variant']}: Variants lists what it has"
+        entry = HF_CACHE[query] = {"rows": [row], "error": "", "ref": row["id"], "note": note}
+    else:
+        rows, error = [], ""
+        try:
+            found = hf_get(f"{HF_API}?filter=base_model:quantized:{urllib.parse.quote(row['id'])}"
+                           f"&filter=gguf&sort=downloads&limit={HF_LIMIT}&{expand}")
+            rows = hf_rank([hf_row(r) for r in found if isinstance(r, dict) and r.get("id")])
+        except (OSError, ValueError) as exc:
+            error = str(getattr(exc, "reason", exc))
+        note = (f"{row['id']} has no GGUF file, which LM Studio needs -- "
+                + ("these are GGUF versions of it" if rows else "and nobody has made a GGUF version of it yet"))
+        entry = HF_CACHE[query] = {"rows": rows, "error": error, "ref": None, "note": note}
+    on_update()
+    _sizes(entry, on_update)
+    return entry
+
+
+def _sizes(entry, on_update):
+    """The real size of each of the top HF_SIZED rows' variant (one tree
+    request each, in parallel), then on_update()."""
     def size(row):
         try:
             row["size"] = variant_sizes(repo_tree(row["id"])).get(row["variant"], 0)
@@ -187,7 +306,6 @@ def hf_search(query, on_update=lambda: None):
         t.join()
     if threads:
         on_update()
-    return entry
 
 
 def gb(n):

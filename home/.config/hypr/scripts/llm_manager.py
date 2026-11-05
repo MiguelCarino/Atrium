@@ -189,7 +189,8 @@ class ModelManager(Gtk.Window):
         page_dl = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         bar = Gtk.Box(spacing=8)
         bar.set_name("search-bar")
-        self.search = Gtk.SearchEntry(placeholder_text="Search Hugging Face: qwen coder, gemma, llama 8b…")
+        self.search = Gtk.SearchEntry(
+            placeholder_text="Search Hugging Face, or paste a model's page, user/repo, hf.co/…:Q4_K_M")
         self.search.connect("search-changed", self.on_search_changed)
         self.search.connect("activate", lambda *_: self.start_search(now=True))
         bar.pack_start(self.search, True, True, 0)
@@ -200,7 +201,9 @@ class ModelManager(Gtk.Window):
         scroll.add(self.result_list)
         page_dl.pack_start(scroll, True, True, 0)
         self.stack.add_titled(page_dl, "download", "Download")
-        self.show_hint("Type a model's name. GGUF models on Hugging Face, most downloaded first; "
+        self.show_hint("Type a model's name, or paste what you see on Hugging Face: the page's address, "
+                       "user/repo, a file's link, or a “Use this model” line (lms, llama.cpp, Ollama). "
+                       "GGUF models, most downloaded first; "
                        "LM Studio downloads them into ~/.lmstudio/models. Only the words you search "
                        "and the repos you open are sent.")
         header.show_all()
@@ -469,10 +472,15 @@ class ModelManager(Gtk.Window):
         if entry["error"]:
             self.show_hint(f"Hugging Face did not answer: {entry['error']}", ("warn",))
             return False
+        note = entry.get("note") or ""
         if not entry["rows"]:
-            self.show_hint(f"No GGUF models for “{query}”.")
+            self.show_hint(note or f"No GGUF models for “{query}”.")
             return False
         self.clear(self.result_list)
+        if note:
+            self.show_text(self.result_list, note, ("model-mark",))
+        if entry.get("ref"):
+            self.open_variants.add(entry["ref"])     # pasted: its variants at once
         have = llm_models.installed_repos()
         models = llm_models.local_models()
         free = llm_hub.disk_free()
@@ -532,11 +540,11 @@ class ModelManager(Gtk.Window):
         sub.get_style_context().add_class("variants")
         sub.set_no_show_all(True)
         box.pack_start(sub, False, False, 0)
-        more.connect("toggled", lambda b: self.toggle_variants(b, repo, sub))
+        more.connect("toggled", lambda b: self.toggle_variants(b, repo, sub, variant))
         if repo in self.open_variants:
             more.set_active(True)
 
-    def toggle_variants(self, toggle, repo, sub):
+    def toggle_variants(self, toggle, repo, sub, chosen=None):
         if not toggle.get_active():
             self.open_variants.discard(repo)
             sub.hide()
@@ -562,8 +570,8 @@ class ModelManager(Gtk.Window):
                 if free < v["size"] + llm_hub.DISK_SPARE:
                     text += f"   · only {gb(free)} free"
                 line.pack_start(label(text, ("variant",)), True, True, 0)
-                line.pack_end(button("Download", lambda v=v: self.download(repo, v["variant"])),
-                              False, False, 0)
+                line.pack_end(button("Download", lambda v=v: self.download(repo, v["variant"]),
+                                     ("suggested",) if v["variant"] == chosen else ()), False, False, 0)
                 sub.pack_start(line, False, False, 0)
             reveal(sub)
         in_thread(lambda: llm_hub.variants(repo), done)

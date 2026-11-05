@@ -47,6 +47,50 @@ class Variants(unittest.TestCase):
         self.assertEqual([v["best"] for v in out], [False, True, False])
 
 
+class Pasted(unittest.TestCase):
+    """What is copied off Hugging Face's pages: llm_hub.parse_ref."""
+    def ref(self, text):
+        out = llm_hub.parse_ref(text)
+        return out and (out["kind"], out["repo"], out["variant"])
+
+    def test_page_and_file_addresses(self):
+        self.assertEqual(self.ref("https://huggingface.co/unsloth/Qwen3-8B-GGUF"),
+                         ("model", "unsloth/Qwen3-8B-GGUF", None))
+        self.assertEqual(self.ref("https://huggingface.co/unsloth/Qwen3-8B-GGUF/tree/main"),
+                         ("model", "unsloth/Qwen3-8B-GGUF", None))
+        self.assertEqual(self.ref("huggingface.co/unsloth/Qwen3-8B-GGUF/blob/main/Qwen3-8B-Q6_K.gguf"),
+                         ("model", "unsloth/Qwen3-8B-GGUF", "Q6_K"))
+        self.assertEqual(self.ref("https://huggingface.co/a/B-GGUF/resolve/main/Q8/B-Q8_0-00001-of-00002.gguf?download=true"),
+                         ("model", "a/B-GGUF", "Q8_0"))
+
+    def test_use_this_model_lines(self):
+        self.assertEqual(self.ref("ollama run hf.co/bartowski/Qwen_Qwen3-8B-GGUF:Q4_K_M"),
+                         ("model", "bartowski/Qwen_Qwen3-8B-GGUF", "Q4_K_M"))
+        self.assertEqual(self.ref("llama-server -hf ggml-org/gemma-3-1b-it-GGUF:q8_0"),
+                         ("model", "ggml-org/gemma-3-1b-it-GGUF", "Q8_0"))
+        self.assertEqual(self.ref("lms get lmstudio-community/Qwen3-8B-GGUF@q4_k_m"),
+                         ("model", "lmstudio-community/Qwen3-8B-GGUF", "Q4_K_M"))
+        self.assertEqual(self.ref("unsloth/Qwen3-8B-GGUF:latest"), ("model", "unsloth/Qwen3-8B-GGUF", None))
+
+    def test_not_models(self):
+        self.assertEqual(self.ref("https://huggingface.co/datasets/HuggingFaceFW/fineweb"),
+                         ("dataset", "HuggingFaceFW/fineweb", None))
+        self.assertEqual(self.ref("https://huggingface.co/spaces/a/b")[0], "space")
+        self.assertIsNone(self.ref("huggingface.co/docs/hub"))
+        self.assertIsNone(self.ref("qwen coder"))
+        self.assertIsNone(self.ref("llama 3/8b instruct"))      # words with a slash are still words
+        self.assertIsNone(self.ref(""))
+
+    def test_search_page(self):
+        out = llm_hub.parse_ref("https://huggingface.co/models?search=gemma%203&library=gguf")
+        self.assertEqual((out["kind"], out["words"]), ("search", "gemma 3"))
+
+    def test_preferred_variant_only_when_present(self):
+        repo = {"id": "a/B-GGUF", "siblings": [{"rfilename": "B-Q4_K_M.gguf"}, {"rfilename": "B-Q6_K.gguf"}]}
+        self.assertEqual(llm_hub.hf_row(repo, prefer="Q6_K")["variant"], "Q6_K")
+        self.assertEqual(llm_hub.hf_row(repo, prefer="Q2_K")["variant"], "Q4_K_M")
+
+
 class Disk(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()

@@ -2595,8 +2595,8 @@ def get_items(query):
                      "dialog-warning", lambda: open_url(f"https://huggingface.co/models?search="
                                                         f"{urllib.parse.quote(query)}&library=gguf"))]
     if not entry["rows"]:
-        return [Item(f"No GGUF models for “{query}”", "Hugging Face has no GGUF repo with these words",
-                     "dialog-information")]
+        return [Item(f"No GGUF models for “{query}”", entry.get("note") or
+                     "Hugging Face has no GGUF repo with these words", "dialog-information")]
     have = llm_models.installed_repos()
     models = llm_models.local_models()
     try:
