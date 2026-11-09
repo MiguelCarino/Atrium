@@ -116,7 +116,10 @@ for dev in "${!pkgs[@]}"; do
         specs+=("$dev.x86_64")
     fi
 done
-( cd "$work" && dnf download -q "${specs[@]}" )
+# Again with --refresh when the cached metadata predates the update that
+# installed the runtime (see hyprview-build.sh).
+( cd "$work" && dnf download -q "${specs[@]}" 2>/dev/null ) ||
+    ( cd "$work" && dnf download -q --refresh "${specs[@]}" )
 for r in "$work"/*.rpm; do
     ( cd "$work" && rpm2cpio "$r" | cpio -idm --quiet )
 done

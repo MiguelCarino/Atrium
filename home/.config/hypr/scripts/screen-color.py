@@ -240,8 +240,12 @@ class Client:
 
     def read(self):
         """Handle what the compositor sent: True when a screen appeared (apply
-        again), None when the connection is gone."""
-        chunk = self.sock.recv(65536)
+        again), None when the connection is gone. Hyprland exiting usually
+        resets the socket rather than closing it, so a reset is "gone" too."""
+        try:
+            chunk = self.sock.recv(65536)
+        except (ConnectionResetError, BrokenPipeError):
+            return None
         if not chunk:
             return None
         self.buf += chunk
@@ -330,7 +334,11 @@ def daemon():
             if client.sock in ready:
                 changed = client.read()
                 if changed is None:
-                    sys.exit("screen-color: compositor went away")
+                    # The session ending, not a fault: exit 0 so systemd
+                    # neither marks the unit failed nor restarts it into a
+                    # compositor that is gone (the next session starts it).
+                    print("screen-color: compositor went away", file=sys.stderr)
+                    sys.exit(0)
                 apply |= changed
             if client.blocked:
                 sys.exit("screen-color: another colour client (hyprsunset?) holds the screens")

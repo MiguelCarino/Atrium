@@ -65,5 +65,26 @@ class Settings(unittest.TestCase):
         self.assertTrue(sc.STATE.startswith(helpers.SCRATCH))
 
 
+class CompositorGone(unittest.TestCase):
+    """Hyprland exiting resets the socket; that is "gone" (None), not a crash."""
+
+    def client(self, sock):
+        c = sc.Client.__new__(sc.Client)
+        c.sock, c.buf = sock, b""
+        return c
+
+    def test_reset_is_gone(self):
+        class Reset:
+            def recv(self, n):
+                raise ConnectionResetError(104, "Connection reset by peer")
+        self.assertIsNone(self.client(Reset()).read())
+
+    def test_close_is_gone(self):
+        class Closed:
+            def recv(self, n):
+                return b""
+        self.assertIsNone(self.client(Closed()).read())
+
+
 if __name__ == "__main__":
     unittest.main()

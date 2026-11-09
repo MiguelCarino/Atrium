@@ -87,11 +87,15 @@ declare -A pkgs=(
 )
 # The exact version-release first; a rebuild (0.15.1-2 installed, only the
 # -devel of 0.15.1-1 in the repos) has the same headers, so the same version
-# from another release will do.
+# from another release will do. Last, the exact one again with --refresh:
+# dnf's cached metadata can predate the update that installed the runtime
+# (2026-11-09: hyprcursor 0.1.14 installed, the cache still listed only
+# 0.1.13-devel, and the login rebuild failed until the cache was refreshed).
 for dev in "${!pkgs[@]}"; do
     if v=$(rpm -q --qf '%{version}-%{release}' "${pkgs[$dev]}" 2>/dev/null); then
         ( cd "$work" && dnf download -q "$dev-$v.x86_64" 2>/dev/null ) ||
-            ( cd "$work" && dnf download -q "$dev-${v%-*}" ) ||
+            ( cd "$work" && dnf download -q "$dev-${v%-*}" 2>/dev/null ) ||
+            ( cd "$work" && dnf download -q --refresh "$dev-$v.x86_64" ) ||
             { echo "hyprview: no $dev for ${pkgs[$dev]} $v" >&2; exit 1; }
     else
         ( cd "$work" && dnf download -q "$dev.x86_64" )
