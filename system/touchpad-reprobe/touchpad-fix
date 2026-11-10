@@ -1,0 +1,111 @@
+#!/bin/bash
+# Bring a dead touchpad back by hand, without rebooting: what the boot
+# re-probe and the watchdog do on their own, for when they did not (or are
+# not installed). Asks for the password itself: sudo in a terminal, the
+# polkit dialog anywhere else.
+#
+#   touchpad-fix          bind the touchpad if it has no driver; if that does
+#                         not take, or it has a driver but is dead anyway,
+#                         reset its I2C controller and bind it again
+#   touchpad-fix --reset  go straight to the controller reset
+#   touchpad-fix --status say what state it is in; changes nothing
+#
+# The touchpad is the I2C device whose ACPI modalias names PNP0C50 (I2C HID):
+# i2c-ELAN1206:00 on an ASUS ZenBook UX425UG. Logs: journalctl -t touchpad-fix
+set -u
+DRIVER=/sys/bus/platform/drivers/i2c_designware
+
+devices() {
+    local dev
+    for dev in /sys/bus/i2c/devices/i2c-*; do
+        [[ $(cat "$dev/modalias" 2>/dev/null) == acpi:*PNP0C50* ]] && echo "$dev"
+    done
+}
+controller() {      # .../platform/<controller>/i2c-<n>/i2c-<HID>:xx
+    local path
+    path=$(readlink -f "$1")
+    path=${path%/i2c-[0-9]*/*}
+    echo "${path##*/}"
+}
+say() { echo "touchpad-fix: $*"; logger -t touchpad-fix -- "$*" 2>/dev/null || true; }
+status() {
+    local dev ok=0
+    for dev in $(devices); do
+        if [[ -e $dev/driver ]]; then
+            echo "${dev##*/}: bound to $(basename "$(readlink "$dev/driver")") (controller $(controller "$dev"))"
+        else
+            echo "${dev##*/}: NO DRIVER (controller $(controller "$dev"))"; ok=1
+        fi
+    done
+    [[ -n $(devices) ]] || { echo "no I2C HID device found (is the controller bound? ls $DRIVER)"; ok=1; }
+    return $ok
+}
+probe() {           # bind every touchpad that has no driver; 0 when all are bound
+    local dev try left
+    for try in 1 2 3 4 5; do
+        left=0
+        for dev in $(devices); do
+            [[ -e $dev/driver ]] && continue
+            left=1
+            echo "${dev##*/}" > /sys/bus/i2c/drivers_probe 2>/dev/null
+            [[ -e $dev/driver ]] && say "bound ${dev##*/} (try $try)"
+        done
+        (( left )) || return 0
+        sleep 1
+    done
+    return 1
+}
+reset() {
+    local ctl ctls
+    ctls=$(for dev in $(devices); do controller "$dev"; done | sort -u)
+    # A controller that is unbound has no touchpad under it to find it by:
+    # the ones the driver knows but has not bound.
+    if [[ -z $ctls ]]; then
+        ctls=$(cd /sys/bus/platform/devices && for c in AMDI0010:* INT33C*:* 808622C1:*; do
+            [[ -e $c && ! -e $c/driver ]] && echo "$c"; done)
+    fi
+    [[ -n $ctls ]] || { say "no I2C controller to reset"; return 1; }
+    for ctl in $ctls; do
+        say "resetting I2C controller $ctl"
+        [[ -e /sys/bus/platform/devices/$ctl/driver ]] && echo "$ctl" > "$DRIVER/unbind"
+        sleep 1
+        echo "$ctl" > "$DRIVER/bind" || say "$ctl did not bind again"
+    done
+    sleep 2
+    probe
+}
+
+mode=${1:-fix}
+case $mode in
+    --status) status; exit ;;
+    fix|--reset) ;;
+    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+    *) sed -n '2,13p' "$0"; exit 2 ;;
+esac
+# sudo in a terminal; without one (a keybind, the launcher) polkit's
+# password dialog.
+if (( EUID != 0 )); then
+    [[ -t 0 ]] && exec sudo "$0" "$@"
+    exec pkexec "$(readlink -f "$0")" "$@"
+fi
+
+if [[ $mode == fix ]]; then
+    was_unbound=$(for dev in $(devices); do [[ -e $dev/driver ]] || echo x; done)
+    if [[ -n $(devices) ]] && probe; then
+        if [[ -n $was_unbound ]]; then
+            say "touchpad bound again"
+        # Bound but dead (controller locked up): only a reset fixes that.
+        elif journalctl -k -b --since -2min -o cat 2>/dev/null | grep -q 'i2c_designware .*controller timed out'; then
+            say "bound, but its controller timed out lately: resetting it"
+            reset
+        else
+            say "already bound; if it still does not move, run: touchpad-fix --reset"
+        fi
+    else
+        say "binding did not take: resetting the controller"
+        reset
+    fi
+else
+    reset
+fi
+echo; status

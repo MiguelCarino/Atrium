@@ -5,11 +5,16 @@
 # Only on a machine with an I2C HID device (ACPI PNP0C50, present: a laptop's
 # touchpad or touchscreen); --force installs it anyway. Undo:
 #     sudo systemctl disable --now touchpad-reprobe touchpad-watchdog
-#     sudo rm /usr/local/libexec/touchpad-{reprobe,watchdog} /etc/systemd/system/touchpad-{reprobe,watchdog}.service
+#     sudo rm /usr/local/libexec/touchpad-{reprobe,watchdog} /usr/local/bin/touchpad-fix \
+#             /etc/systemd/system/touchpad-{reprobe,watchdog}.service
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 found=
-for dev in /sys/bus/acpi/devices/PNP0C50:*; do
+# By modalias, not name: the device is named by its own _HID (ELAN1206:00 on
+# the ZenBook), PNP0C50 being its compatible id; the PNP0C50:* entries there
+# are the firmware's unused placeholders (status 0).
+for dev in /sys/bus/acpi/devices/*; do
+    [[ $(cat "$dev/modalias" 2>/dev/null) == acpi:*PNP0C50* ]] || continue
     [[ $(cat "$dev/status" 2>/dev/null) == 15 ]] && found=${dev##*/}
 done
 if [[ -z $found && ${1:-} != --force ]]; then
@@ -22,9 +27,13 @@ for name in touchpad-reprobe touchpad-watchdog; do
     # SELinux (Fedora): label the script like other local binaries so systemd may run it.
     command -v restorecon >/dev/null && restorecon "/usr/local/libexec/$name" || true
 done
+# The same by hand, when the touchpad is dead anyway: touchpad-fix (asks for sudo).
+install -D -m 0755 "$here/touchpad-fix" /usr/local/bin/touchpad-fix
+command -v restorecon >/dev/null && restorecon /usr/local/bin/touchpad-fix || true
 systemctl daemon-reload
 systemctl enable --now touchpad-reprobe.service
 systemctl enable touchpad-watchdog.service
 systemctl restart touchpad-watchdog.service     # an update runs the new script
 echo "touchpad-reprobe: on at every boot (journalctl -u touchpad-reprobe)"
 echo "touchpad-watchdog: watching (journalctl -u touchpad-watchdog)"
+echo "touchpad-fix: run it when the touchpad is dead anyway (touchpad-fix --status)"

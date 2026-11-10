@@ -22,11 +22,12 @@ DRIVER=/sys/bus/platform/drivers/i2c_designware
 REPROBE=/usr/local/libexec/touchpad-reprobe
 
 # The platform devices (controllers) that carry a PNP0C50 device: its sysfs
-# path is .../platform/<controller>/i2c-<n>/i2c-PNP0C50:xx.
+# path is .../platform/<controller>/i2c-<n>/i2c-<HID>:xx. Found by modalias
+# (acpi:ELAN1206:PNP0C50:): the name carries the device's own _HID.
 touchpad_controllers() {
     local dev path
-    for dev in /sys/bus/i2c/devices/i2c-PNP0C50:*; do
-        [[ -e $dev ]] || continue
+    for dev in /sys/bus/i2c/devices/i2c-*; do
+        [[ $(cat "$dev/modalias" 2>/dev/null) == acpi:*PNP0C50* ]] || continue
         path=$(readlink -f "$dev")
         path=${path%/i2c-[0-9]*/*}
         echo "${path##*/}"
