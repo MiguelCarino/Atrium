@@ -41,6 +41,9 @@ primary() is the first):
     discrete      has memory of its own (an iGPU shares the RAM)
     util          load %, temp °C, power W, fan % -- None when not known
     vram_used, vram_total   MiB, None when not known (an iGPU: None)
+    vram_reserved MiB the driver keeps for itself, never usable (NVML's
+                  v2 "reserved"; NVIDIA only, 0 with an old driver, whose
+                  "used" counts it): used can reach total - reserved at most
     source        nvml | sysfs | none: where the numbers came from
 
 WHERE THE NUMBERS COME FROM
@@ -319,6 +322,7 @@ class Nvml:
                 "util": util.gpu if have_util else None,
                 "vram_used": mem.used // MIB if have_mem else None,
                 "vram_total": mem.total // MIB if have_mem else None,
+                "vram_reserved": getattr(mem, "reserved", 0) // MIB if have_mem else None,
                 "temp": temp, "power": round(power / 1000.0, 1) if power is not None else None,
                 "fan": fan, "source": "nvml"}
 

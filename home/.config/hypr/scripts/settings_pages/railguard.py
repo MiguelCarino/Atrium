@@ -8,9 +8,12 @@ Top to bottom:
                   commands
     WATCH         RAM and VRAM on / off, how low RAM may get, how full VRAM
                   may get, spare games, a notification each time it acts
-                  (the mascot on it: Settings > Notifications)
+                  (the mascot on it: Settings > Notifications); how long an
+                  asked engine (Cerberus, LM Studio) has to free GPU memory,
+                  and how full it may get before nothing is asked
     LIMITS        one agent command, all of them, heavy builds (heavy.slice)
-    EXCEPTIONS    never end / end first: process names, added and removed
+    EXCEPTIONS    never end / end first: process names, added and removed;
+                  ask first: the units whose engines are asked for VRAM
     WHAT IT DID   the last actions (railguard.py history)
 
 The page keeps nothing itself: every control runs railguard.py and redraws
@@ -30,6 +33,10 @@ PAGE = {"id": "railguard", "title": "Railguard", "icon": "", "group": "System
 RAILGUARD = os.path.join(HYPR, "railguard.py")  # noqa: F405  (HYPR: common)
 RAM_FREE = [2, 3, 4, 6, 8]
 VRAM_FULL = [90, 95, 97, 99]
+GRACE_S = [10, 20, 30, 60]
+# of the memory "used" can reach (total less the driver's reserve): 100 would
+# mean not one MiB left, which the card never reports
+VRAM_HARD = [98, 99, 99.5]
 COMMAND_GB = [8, 12, 16, 24, 32]
 AGENTS_GB = [12, 16, 20, 24, 28]
 HEAVY_GB = [16, 20, 24, 28]
@@ -42,9 +49,14 @@ SWITCHES = [("ram", "", "Watch the memory",
             ("notify", "", "Tell me when it acts",
              "A notification each time. Off: only the history below.")]
 KIND_ICONS = {"memory": "", "vram": "", "panic": "", "game-vram": "",
-              "stuck": "", "agents": ""}
+              "stuck": "", "agents": "", "vram-asked": "", "vram-shed": ""}
 LISTS = [("never_kill", "", "Never end", "Names railguard must leave alone (\"obs\", \"blender\")."),
-         ("kill_first", "", "End first", "Names that go before anything else (\"ollama\").")]
+         ("kill_first", "", "End first", "Names that go before anything else (\"ollama\")."),
+         ("managed_units", "", "Ask first",
+          "Services whose models are asked to free GPU memory before one is ended (cerberus.service).")]
+PLACEHOLDERS = {"managed_units": "name.service"}
+ENGINE_NAMES = {"cerberus.service": "Cerberus", "lmstudio.service": "LM Studio",   # as railguard.py
+                "cerberus-lmstudio.scope": "LM Studio"}
 
 
 # -- words (pure) ---------------------------------------------------------------------------------
@@ -61,11 +73,48 @@ def now_text(st):
     return out
 
 
+def engine(unit):
+    """What railguard.py calls a managed unit's engine (engine_label)."""
+    if not unit:
+        return "the engine"
+    return ENGINE_NAMES.get(unit, unit.rsplit(".", 1)[0])
+
+
 def entry_title(e):
+    kind = e.get("kind")
+    if kind == "vram" and str(e.get("why", "")).endswith("; asked first"):
+        return "Ended after asking for GPU memory"
     return {"memory": "Ended a memory runaway", "vram": "Ended a GPU memory runaway",
             "panic": "Ended by the panic key", "game-vram": "Game filled the GPU (kept)",
             "stuck": "Memory ran short, nothing to end",
-            "agents": "Stopped all agent commands"}.get(e.get("kind"), e.get("kind", "?"))
+            "agents": "Stopped all agent commands",
+            "vram-asked": f"Asked {engine(e.get('unit'))} to free GPU memory",
+            "vram-shed": f"{engine(e.get('unit'))} freed GPU memory (nothing ended)",
+            }.get(kind, kind or "?")
+
+
+def in_range(values, key, ranges):
+    """VALUES that railguard.py's RANGES allow for KEY (status --json
+    carries them); all of them when it does not say."""
+    lo, hi = (ranges or {}).get(key, (float("-inf"), float("inf")))
+    return [v for v in values if lo <= v <= hi]
+
+
+def line_values(st):
+    """The vram_pct chips the card can reach: none above vram_usable_pct
+    (the most "used" can show, % of the total: NVIDIA's driver keeps a
+    reserve, so a 24 GB card tops out near 98 %); all of them when status
+    does not say."""
+    usable = st.get("vram_usable_pct") or 100
+    return [n for n in VRAM_FULL if n <= usable]
+
+
+def chips_for(values, key, conf, ranges, unit):
+    """[(value, label)] for a chip row: the offered VALUES in range, plus the
+    value in effect; and the current one's key."""
+    cur = conf[key]
+    keys = sorted(set(in_range(values, key, ranges)) | {cur})
+    return [(f"{v:g}", f"{v:g}{unit}") for v in keys], f"{cur:g}"
 
 
 def entry_sub(e, now=None):
@@ -147,6 +196,18 @@ class Page:
         self.vram_chips = Chips(lambda k: self.change(RAILGUARD, "set", "vram_pct", k))  # noqa: F405
         self.vram_chips.widget.set_max_children_per_line(4)
         w.pack_start(self.vram_chips.widget, False, False, 0)
+        w.pack_start(wrapped("A model server on the Ask first list (Cerberus, LM Studio) is asked "
+                             "to free GPU memory before it is ended, unless it is the one growing."),
+                     False, False, 0)
+        w.pack_start(dp.label("Time an asked engine has", "ctl-sub"), False, False, 0)  # noqa: F405
+        self.grace_chips = Chips(lambda k: self.change(RAILGUARD, "set", "managed_grace_s", k))  # noqa: F405
+        self.grace_chips.widget.set_max_children_per_line(4)
+        w.pack_start(self.grace_chips.widget, False, False, 0)
+        w.pack_start(dp.label("Act at once, without asking, when this full (of what programs can use)",  # noqa: F405
+                              "ctl-sub"), False, False, 0)
+        self.hard_chips = Chips(lambda k: self.change(RAILGUARD, "set", "vram_hard_pct", k))  # noqa: F405
+        self.hard_chips.widget.set_max_children_per_line(4)
+        w.pack_start(self.hard_chips.widget, False, False, 0)
 
         # -- limits -------------------------------------------------------------------------------
         w.pack_start(sep(), False, False, 0)  # noqa: F405
@@ -169,7 +230,7 @@ class Page:
         w.pack_start(heading("EXCEPTIONS"), False, False, 0)  # noqa: F405
         for key, icon, title, sub in LISTS:
             entry = Gtk.Entry()
-            entry.set_placeholder_text("process name")
+            entry.set_placeholder_text(PLACEHOLDERS.get(key, "process name"))
             entry.set_width_chars(16)
             entry.connect("activate", lambda e, k=key: self.add(k, e))
             self.entries[key] = entry
@@ -245,8 +306,13 @@ class Page:
                 put(self.switches[key], conf[key])
             self.ram_chips.set([(str(n), f"{n} %") for n in sorted(set(RAM_FREE) | {int(conf["ram_free_pct"])})],
                                str(int(conf["ram_free_pct"])))
-            self.vram_chips.set([(str(n), f"{n} %") for n in sorted(set(VRAM_FULL) | {int(conf["vram_pct"])})],
+            self.vram_chips.set([(str(n), f"{n} %") for n in sorted(set(line_values(st)) | {int(conf["vram_pct"])})],
                                 str(int(conf["vram_pct"])))
+            ranges = st.get("ranges")
+            if "managed_grace_s" in conf:      # an older railguard.py has neither
+                self.grace_chips.set(*chips_for(GRACE_S, "managed_grace_s", conf, ranges, " s"))
+            if "vram_hard_pct" in conf:
+                self.hard_chips.set(*chips_for(VRAM_HARD, "vram_hard_pct", conf, ranges, " %"))
             for key, chips in self.limit_chips.items():
                 chips.set([(str(n), f"{n} GB") for n in sorted(set(chips.values) | {int(conf[key])})],
                           str(int(conf[key])))
@@ -255,7 +321,7 @@ class Page:
         self.now.set_text(now_text(st))
         for key, box in self.list_boxes.items():
             clear(box)  # noqa: F405
-            for name in conf[key]:
+            for name in conf.get(key, []):
                 b = link(f"{name}  ✕", lambda n=name, k=key: self.change(RAILGUARD, "remove", k, n))  # noqa: F405
                 b.set_tooltip_text(f"Take {name} off the list")
                 box.add(b)
@@ -275,6 +341,8 @@ class Page:
             "CLAUDE_CODE_SHELL_PREFIX = ~/.config/hypr/scripts/railguard-run); builds typed in a "
             "shell run in heavy.slice (railguard-shell.sh, sourced by ~/.bashrc; `heavy CMD` for "
             "anything else, `command make` to skip it).\n\n"
+            "An engine is asked through ~/.local/state/hypr/railguard-pressure.json (there only while "
+            "railguard is asking); Cerberus reads it and unloads idle models.\n\n"
             f"Settings: ~/.local/state/hypr/railguard.json  ·  journal: journalctl --user -u railguard"
             f"\n{RAILGUARD} status shows everything in a terminal.")
         self.widget.show_all()

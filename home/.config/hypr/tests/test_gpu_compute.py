@@ -33,10 +33,12 @@ class NvmlMemory(unittest.TestCase):
     def test_v2_used_leaves_the_reserve_out(self):
         d = gpu.Nvml(FakeNvmlV2()).device(0)
         self.assertEqual((d["vram_used"], d["vram_total"]), (5632, 24576))
+        self.assertEqual(d["vram_reserved"], 512)       # railguard's hard line: used tops out at total - this
 
     def test_old_driver_falls_back_to_v1(self):
         d = gpu.Nvml(base.FakeNvml()).device(0)
         self.assertEqual((d["vram_used"], d["vram_total"]), (6144, 24576))
+        self.assertEqual(d["vram_reserved"], 0)         # v1's "used" counts the reserve
 
 
 XE_CYCLES = """drm-driver:\txe

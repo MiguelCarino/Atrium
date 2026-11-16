@@ -200,6 +200,7 @@ class Railguard(unittest.TestCase):
                 mock.patch.object(rg, "gpu_card", return_value={"name": "card", "source": "test"}), \
                 mock.patch.object(rg, "check_vram", lambda state, every: checks.append((clock[0], every))), \
                 mock.patch.object(rg, "check_ram") as ram, \
+                mock.patch.object(rg, "check_lms_scopes"), \
                 mock.patch.object(rg, "load_settings"), mock.patch.object(rg, "log"), \
                 mock.patch.dict(rg.CFG, {"ram": True, "vram": True}):
             with self.assertRaises(KeyboardInterrupt):
@@ -225,26 +226,29 @@ class Railguard(unittest.TestCase):
         self.assertTrue(gaps and all(g == rg.GPU_EVERY for g in gaps), gaps)
 
     def test_vram_s_is_counted_in_seconds(self):
-        """Full for vram_s means the same at 3 s or 9 s a sample."""
+        """Full for vram_s means the same at 3 s or 9 s a sample. Acting,
+        with no compute process listed, is the "GPU memory is full" notice
+        (the process list itself is also read when the card crosses the
+        line: who grew since)."""
         card = {"name": "x"}
         with mock.patch.dict(rg.CFG, {"vram_pct": 97.0, "vram_s": 12}), \
                 mock.patch.object(rg, "gpu_card", return_value=card), \
                 mock.patch.object(rg, "gpu_memory", return_value=(990, 1000)), \
-                mock.patch.object(rg, "gpu_processes", return_value={}) as procs, \
-                mock.patch.object(rg, "notify"):
+                mock.patch.object(rg, "gpu_processes", return_value={}), \
+                mock.patch.object(rg, "notify") as acted:
             state = {"psi": 0, "vram": 0, "quiet": 0.0}
             rg.check_vram(state, 9)
-            procs.assert_not_called()               # 9 s full: not yet
+            acted.assert_not_called()               # 9 s full: not yet
             self.assertEqual(state["vram"], 9)
             rg.check_vram(state, 9)
-            procs.assert_called_once()              # 18 s: acts
+            acted.assert_called_once()              # 18 s: acts
             state = {"psi": 0, "vram": 0, "quiet": 0.0}
-            procs.reset_mock()
+            acted.reset_mock()
             for _ in range(3):
                 rg.check_vram(state, 3)
-            procs.assert_not_called()               # 9 s at 3 s a sample
+            acted.assert_not_called()               # 9 s at 3 s a sample
             rg.check_vram(state, 3)
-            procs.assert_called_once()              # 12 s
+            acted.assert_called_once()              # 12 s
 
     def test_a_single_reading_never_acts_at_the_slow_pace(self):
         """vram_s 4-9 at 9 s a sample: the first full reading alone would
@@ -254,17 +258,17 @@ class Railguard(unittest.TestCase):
                 mock.patch.object(rg, "gpu_card", return_value={"name": "x"}), \
                 mock.patch.object(rg, "gpu_memory", side_effect=[(990, 1000), (100, 1000), (990, 1000),
                                                                  (990, 1000)]), \
-                mock.patch.object(rg, "gpu_processes", return_value={}) as procs, \
-                mock.patch.object(rg, "notify"):
+                mock.patch.object(rg, "gpu_processes", return_value={}), \
+                mock.patch.object(rg, "notify") as acted:
             state = {"psi": 0, "vram": 0, "vram_n": 0, "quiet": 0.0}
             rg.check_vram(state, 9)
-            procs.assert_not_called()               # one full reading: a spike, maybe
+            acted.assert_not_called()               # one full reading: a spike, maybe
             rg.check_vram(state, 9)
             self.assertEqual((state["vram"], state["vram_n"]), (0, 0))    # it passed
             rg.check_vram(state, 9)
-            procs.assert_not_called()
+            acted.assert_not_called()
             rg.check_vram(state, 9)
-            procs.assert_called_once()              # two in a row: acts
+            acted.assert_called_once()              # two in a row: acts
 
     def test_the_readings_rule_changes_nothing_on_mains(self):
         # vram_s 3 acted on one 3 s reading before, and still does
