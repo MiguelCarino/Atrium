@@ -87,8 +87,32 @@ end
 -- only, the fallback if 1 misbehaves on this machine.
 M.SCANOUT = 1
 
+-- Direct scanout hands a fullscreen window's own buffer to the screen and
+-- skips the compositor's colour conversion. On a screen in HDR (PQ) that
+-- conversion is what turns an SDR game or video into HDR; without it the
+-- SDR values are read as PQ and the picture looks like brightness and
+-- contrast at 100 % (seen in games, 2026-11-17). So no scanout while any
+-- screen is in HDR: hdr.<output> in the display state, "on" unless "off",
+-- for the screens the host file says can do HDR (as scripts/display.py reads it).
+function M.hdr_on()
+    local ok, mon = pcall(require, "lua.monitors")
+    if not ok or type(mon) ~= "table" then return false end
+    local st = require("lua.shared").state()
+    for output, capable in pairs(mon.hdr_capable or {}) do
+        if capable and st["hdr." .. output] ~= "off" then return true end
+    end
+    return false
+end
+
 function M.scanout()
+    if M.hdr_on() then return 0 end
     return M.active() and M.SCANOUT or 0
+end
+
+-- What gamemode sets: 2 ("auto", game content only), or 0 while HDR is on.
+function M.game_scanout()
+    if M.hdr_on() then return 0 end
+    return 2
 end
 
 -- The whole saver, on or off, from the file as it is now. display.apply()

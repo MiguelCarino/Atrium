@@ -28,6 +28,13 @@ hl.config({
     -- toe lifts near-black and left the desktop looking washed out in HDR.
     render = {
         cm_sdr_eotf = "gamma22",
+        -- A fullscreen app that draws in HDR (mpv, HDR games) switches its screen
+        -- to HDR mode. 1 ("hdr") sends the monitor generic BT.2020 primaries and
+        -- D65 instead of the panel's own, so the monitor re-maps colour and
+        -- contrast on every fullscreen -- and the desktop kept them afterwards.
+        -- 2 ("hdredid") uses the panel's EDID, the same as the desktop: nothing
+        -- changes. Measured 2026-11-17.
+        cm_auto_hdr = 2,
     },
     general = {
         gaps_in     = 3,

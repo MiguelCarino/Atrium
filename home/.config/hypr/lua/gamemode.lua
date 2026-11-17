@@ -158,7 +158,10 @@ local function gamemode_on(why)
         animations = { enabled = false },
         decoration = decoration,
         general    = general,
-        render     = { direct_scanout = 2 },
+        -- 2 ("auto", game content only), but 0 while a screen is in HDR:
+        -- scanout skips the conversion an SDR game needs on an HDR screen
+        -- (lua/batterysaver.lua, M.hdr_on)
+        render     = { direct_scanout = require("lua.batterysaver").game_scanout() },
     })
     tearing_rule:set_enabled(true)
     refresh_rules()
