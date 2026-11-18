@@ -23,11 +23,19 @@ them; their progress comes back through their status files
 over both pages with a Cancel button (llm_models.cancel: lms stops and
 removes the partial file). The usual notification still says when one ends.
 
+    Cerberus       (only where Cerberus is set up: cerberus_client.py) every
+                   model Cerberus serves -- llama.cpp, LM Studio, Ollama,
+                   cloud -- loaded or not; Use points the chat's server at
+                   Cerberus (llm.json server_url) and picks it there;
+                   Load / Unload, and Delete for llama.cpp and Ollama ones,
+                   through Cerberus' control API
+
 Everything that blocks (the search, the disk walk, lms ls, lms ps, unload,
-delete) runs in a thread; the window only draws what came back.
+delete, Cerberus) runs in a thread; the window only draws what came back.
 
     llm_manager.py            the window on its own (Settings, a keybind)
     llm_manager.py --download  ... on the Download page
+    llm_manager.py --cerberus  ... on the Cerberus page
     llm_manager.py --render OUT.png [--query WORDS] [--width PX]
                               drawn off screen and saved (a look at the
                               theme; the query is searched first)
@@ -53,6 +61,7 @@ from gi.repository import Gdk, GLib, Gtk, Pango  # noqa: E402
 
 import llm_hub  # noqa: E402  (no GTK)
 import llm_models  # noqa: E402  (no GTK)
+import cerberus_client  # noqa: E402  (no GTK; optional: no Cerberus, no page)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CSS_FILE = os.path.join(HERE, "llm-chat.css")
@@ -201,6 +210,27 @@ class ModelManager(Gtk.Window):
         scroll.add(self.result_list)
         page_dl.pack_start(scroll, True, True, 0)
         self.stack.add_titled(page_dl, "download", "Download")
+
+        # Cerberus: only where it is set up (its config, or $CERBERUS_URL).
+        self.cerb_list = None
+        self.cerb_models, self.cerb_control, self.cerb_busy = None, False, False
+        if cerberus_client.installed():
+            page_cb = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            self.cerb_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            self.cerb_list.set_name("model-rows")
+            scroll = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER)
+            scroll.add(self.cerb_list)
+            page_cb.pack_start(scroll, True, True, 0)
+            foot = Gtk.Box(spacing=8)
+            foot.set_name("manager-foot")
+            self.cerb_note = label("", ("dim",), ellipsize=True)
+            foot.pack_start(self.cerb_note, True, True, 0)
+            foot.pack_end(button("Look again", self.refresh_cerberus), False, False, 0)
+            foot.pack_end(button("Web UI ↗", lambda: self.open_url(cerberus_client.base() + "/"),
+                                 tip="Cerberus' own page: models, usage, sessions"), False, False, 0)
+            page_cb.pack_end(foot, False, False, 0)
+            self.stack.add_titled(page_cb, "cerberus", "Cerberus")
+            self.stack.connect("notify::visible-child-name", self.on_page)
         self.show_hint("Type a model's name, or paste what you see on Hugging Face: the page's address, "
                        "user/repo, a file's link, or a “Use this model” line (lms, llama.cpp, Ollama). "
                        "GGUF models, most downloaded first; "
@@ -211,6 +241,12 @@ class ModelManager(Gtk.Window):
         self.stack.set_visible_child_name(page)
         if page == "download":
             self.search.grab_focus()
+        if page == "cerberus":
+            self.refresh_cerberus()
+
+    def on_page(self, stack, _pspec):
+        if stack.get_visible_child_name() == "cerberus" and self.cerb_models is None:
+            self.refresh_cerberus()
 
     def card(self, parent):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
@@ -223,6 +259,8 @@ class ModelManager(Gtk.Window):
             child.destroy()
 
     def show_page(self, name):
+        if name == "cerberus" and self.cerb_list is None:
+            name = "installed"
         self.stack.set_visible_child_name(name)
         if name == "download":
             self.search.grab_focus()
@@ -248,7 +286,133 @@ class ModelManager(Gtk.Window):
         if ctrl and key == Gdk.KEY_2:
             self.show_page("download")
             return True
+        if ctrl and key == Gdk.KEY_3:
+            self.show_page("cerberus")
+            return True
         return False
+
+    # -- Cerberus --------------------------------------------------------------------
+    def refresh_cerberus(self):
+        """Cerberus' models (GET /v1/models, keyless), in a thread."""
+        if self.cerb_list is None or self.cerb_busy:
+            return
+        self.cerb_busy = True
+        self.cerb_note.set_text("asking Cerberus…")
+
+        def work():
+            return cerberus_client.models(), cerberus_client.can_control()
+        in_thread(work, self.cerberus_read)
+
+    def cerberus_read(self, out):
+        self.cerb_busy = False
+        if self.closed:
+            return
+        self.clear(self.cerb_list)
+        if isinstance(out, Exception):
+            self.cerb_models, self.cerb_control = [], False
+            self.cerb_note.set_text("")
+            self.show_text(self.cerb_list, f"{out}\n\nIs it running? systemctl --user status cerberus",
+                           ("warn",))
+            return
+        self.cerb_models, self.cerb_control = out
+        self.draw_cerberus()
+
+    def chat_on_cerberus(self):
+        """Does the chat's OpenAI server (llm.json server_url) point at Cerberus?"""
+        url = (llm_models.settings().get("server_url") or "").strip().rstrip("/")
+        return url == cerberus_client.chat_url()
+
+    def draw_cerberus(self):
+        self.clear(self.cerb_list)
+        models = self.cerb_models or []
+        on = self.chat_on_cerberus()
+        current = getattr(self.host, "choice", None)
+        current = current.ident if current is not None and current.kind == "server" and on else None
+        if not models:
+            self.show_text(self.cerb_list, "Cerberus serves no models yet.")
+        heading = None
+        for m in models:
+            group = m["engine_label"] if m["local"] else "Cloud"
+            if group != heading:
+                heading = group
+                self.cerb_list.pack_start(label(group, ("model-mark",)), False, False, 0)
+            self.cerberus_card(m, current)
+        loaded = sum(m["loaded"] for m in models)
+        bits = [f"{len(models)} model{'s' if len(models) != 1 else ''}", f"{loaded} loaded",
+                "the chat uses it" if on else "the chat does not use it yet (Use connects it)"]
+        if not self.cerb_control:
+            bits.append("load / unload need its token (its config.json)")
+        self.cerb_note.set_text(" · ".join(bits))
+        if any(m["engine"] == "lmstudio" for m in models):
+            self.show_text(self.cerb_list, "What the Download page gets with LM Studio shows here too: "
+                           "Cerberus serves LM Studio's models.")
+        self.cerb_list.show_all()
+
+    def cerberus_card(self, m, current):
+        box = self.card(self.cerb_list)
+        head = Gtk.Box(spacing=8)
+        head.pack_start(label(m["id"], ("model-name",), ellipsize=True), False, True, 0)
+        marks = (["● loaded"] if m["loaded"] else []) + (["in use here"] if m["id"] == current else [])
+        if marks:
+            head.pack_start(label("   ".join(marks), ("model-mark",)), False, False, 0)
+        box.pack_start(head, False, False, 0)
+        bits = [m["engine_label"], "local" if m["local"] else "cloud"]
+        if m["ctx"]:
+            bits.append(f"{m['ctx']:,} tokens of context")
+        if m["vision"]:
+            bits.append("sees images")
+        box.pack_start(label("  ·  ".join(bits), ("dim",), ellipsize=True), False, False, 0)
+        actions = Gtk.Box(spacing=6)
+        actions.set_halign(Gtk.Align.END)
+        box.pack_start(actions, False, False, 0)
+        if self.host is not None and hasattr(self.host, "use_cerberus") and "embed" not in m["id"].lower():
+            use = button("Use", lambda: self.use_cerberus(m),
+                         tip="the chat's next message goes to it, through Cerberus")
+            use.set_sensitive(m["id"] != current)
+            actions.pack_start(use, False, False, 0)
+        if self.cerb_control and m["local"]:
+            if m["loaded"]:
+                actions.pack_start(button("Unload", lambda: self.cerberus_do(m, "unload", actions),
+                                          tip="Cerberus gives its memory back"), False, False, 0)
+            else:
+                actions.pack_start(button("Load", lambda: self.cerberus_do(m, "load", actions),
+                                          tip="Cerberus loads it now (it also loads on the first message)"),
+                                   False, False, 0)
+            if m["engine"] in cerberus_client.DELETABLE:
+                actions.pack_start(button("Delete…", lambda: self.ask_cerberus_delete(m, actions),
+                                          ("destructive",)), False, False, 0)
+
+    def use_cerberus(self, m):
+        self.host.use_cerberus(m["id"])
+        self.draw_cerberus()
+
+    def ask_cerberus_delete(self, m, actions):
+        self.clear(actions)
+        actions.pack_start(label(f"Delete {m['id']} from the disk for good?", ("warn",)), False, False, 0)
+        keep = button("Keep it", self.draw_cerberus)
+        actions.pack_start(keep, False, False, 0)
+        actions.pack_start(button("Delete", lambda: self.cerberus_do(m, "delete", actions), ("destructive",)),
+                           False, False, 0)
+        actions.show_all()
+        keep.grab_focus()
+
+    def cerberus_do(self, m, what, actions):
+        self.clear(actions)
+        actions.pack_start(label({"load": "loading… (it can take a minute)", "unload": "unloading…",
+                                  "delete": "deleting…"}[what], ("dim",)), False, False, 0)
+        actions.show_all()
+
+        def done(out):
+            if self.closed:
+                return
+            if isinstance(out, Exception):
+                self.cerb_note.set_text(f"{what} {m['id']}: {out}")
+            else:
+                self.say(f"Cerberus: {m['id']} {what}ed".replace("deleteed", "deleted"))
+            self.refresh_cerberus()
+            if what == "delete":
+                self.refresh_disk()
+        in_thread(lambda: cerberus_client.action(m["id"], what), done)
 
     def on_destroy(self, *_):
         self.closed = True
@@ -603,6 +767,8 @@ class ModelManager(Gtk.Window):
             going = going or state in ("running", "starting")
             if self.seen_states.get(repo) in ("running", "starting") and state == "done":
                 self.refresh_disk()
+                if self.cerb_models is not None:
+                    self.refresh_cerberus()
                 if self.query:
                     self.draw_results(self.query)
             self.seen_states[repo] = state
@@ -718,7 +884,7 @@ def render_main(out, page, query, width):
 
 def main():
     args = sys.argv[1:]
-    page = "download" if "--download" in args else "installed"
+    page = "download" if "--download" in args else "cerberus" if "--cerberus" in args else "installed"
     GLib.set_prgname("llm-models")
     load_css()
     if "--render" in args:

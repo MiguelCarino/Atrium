@@ -121,8 +121,23 @@ shot() {   # shot output|region|window
     trap 'rm -f "$tmp"' EXIT
     # Escape in the picker: hyprshot exits without an image, which is a
     # cancel, not a failure -- so no notification for it.
-    hyprshot -m "$1" --raw > "$tmp" 2>/dev/null
+    # Through a pipe, not `> "$tmp"`: hyprshot ends with `begin_grab & checkRunning`,
+    # so its main process exits once slurp is gone while grim, in the
+    # background, is still writing the PNG. A redirect returns at that exit
+    # and the file is cut short (big shots most often); cat only sees EOF
+    # when every writer, grim included, has closed the pipe.
+    hyprshot -m "$1" --raw 2>/dev/null | cat > "$tmp"
     [ -s "$tmp" ] || exit 0
+    # A click without a drag gives a 1-2 px "region": a cancel, not a shot.
+    local w h
+    read -r w h < <(od -An -j16 -N8 -tu1 "$tmp" | awk '{print $1*16777216+$2*65536+$3*256+$4, $5*16777216+$6*65536+$7*256+$8}')
+    (( ${w:-0} >= 4 && ${h:-0} >= 4 )) || exit 0
+    # A PNG ends with its IEND chunk; without it the image was cut short, and
+    # saving it would leave a broken file (and ImageMagick would refuse it).
+    if [[ $(tail -c 8 "$tmp" | od -An -tx1 | tr -d ' \n') != 49454e44ae426082 ]]; then
+        notify critical "Screenshot failed" "The capture came back incomplete; nothing was saved"
+        exit 1
+    fi
     local out
     out="$(save_as "$tmp" "$SCR_DIR/$(date +%Y-%m-%d-%H%M%S)_$1")" || {
         notify critical "Screenshot not saved" "Could not write into $SCR_DIR"

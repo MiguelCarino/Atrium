@@ -4485,6 +4485,24 @@ class Front(Gtk.Window):
         self.manager = llm_manager.ModelManager(host=self, page=page)
         self.manager.present()
 
+    def use_cerberus(self, model_id):
+        """A Cerberus model from the manager: the chat's server (llm.json
+        server_url) pointed at Cerberus first when it is not, then the model
+        picked as server:<id>."""
+        import cerberus_client
+        url = cerberus_client.chat_url()
+        was = (llm_models.settings().get("server_url") or "").strip().rstrip("/")
+        if was != url:
+            try:
+                llm_models.set_option("server_url", url)
+            except (OSError, ValueError) as exc:
+                self.error(f"could not point the chat at Cerberus: {exc}")
+                return
+            self.note(f"the chat's server is now Cerberus ({url})" + (f", was {was}" if was else ""))
+            self.server_list = None
+            self.refresh_server()
+        self.pick_model(llm_models.server_model(model_id))
+
     def manager_closed(self):
         self.manager = None
         self.input.grab_focus()
